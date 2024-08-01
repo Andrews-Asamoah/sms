@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { FaTrash, FaRegEdit } from "react-icons/fa";
 import { UsersColumn } from "./columns";
-// import { AlertModal } from "@/components/modals/alert-modal";
-// import useRegisterModal from "@/hooks/useRegisterModal";
-// import { deleteUser } from "@/actions/user";
+import RegistrationModal from "@/hooks/RegistrationModal";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { AlertModal } from "@/components/modals/alert-modal";
+import { deleteUser } from "@/actions/user";
 
 interface cellActionProps {
   data: UsersColumn;
@@ -15,35 +15,43 @@ interface cellActionProps {
 
 const CellAction = ({ data }: cellActionProps) => {
   const [open, setOpen] = useState(false);
-  // const registerModal = useRegisterModal();
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const onConfirm = async () => {
-    // await deleteUser(data.id)
-    //   .then(() => {
-    //     toast.success("User deleted successfully");
-    //     router.refresh();
-    //   })
-    //   .catch(() => {})
-    //   .finally(() => {
-    //     setLoading(false);
-    //     setOpen(false);
-    //   });
+    setLoading(true);
+    await deleteUser(data.id)
+      .then((res) => {
+        if (res.error) {
+          toast.error(res.error);
+        } else {
+          toast.success("User deleted successfully");
+          router.refresh();
+          setOpen(false);
+        }
+      })
+      .catch(() => {
+        toast.error("An unexpected error occurred");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   return (
     <>
-      {/* <AlertModal
+      <AlertModal
         isOpen={open}
         onClose={() => setOpen(false)}
         onConfirm={onConfirm}
         loading={loading}
-      /> */}
+      />
       <div className="flex w-full items-center gap-3 justify-center">
         <div
           className="cursor-pointer p-2 w-fit rounded-md bg-blue-500/10"
-          onClick={() => router.push(`/registration/user/${data.id}`)}>
+          onClick={() =>
+            router.push(`/dashboard/registration/user/${data.id}`)
+          }>
           <FaRegEdit className="text-xl text-blue-500" />
         </div>
         {/* <div

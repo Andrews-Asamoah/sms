@@ -11,14 +11,29 @@ const User = async ({ params: { id } }: { params: { id: string } }) => {
       otherNames: true,
       email: true,
       phone: true,
+      dob: true,
       location: true,
       role: true,
+      gender: true,
+      Student: {
+        select: {
+          classId: true,
+          fathersName: true,
+          mothersName: true,
+          fathersPhone: true,
+          mothersPhone: true,
+          guardiansName: true,
+          guardiansPhone: true,
+        },
+      },
     },
   });
 
+  const classes = await prismadb.class.findMany();
+
   return (
     <div>
-      <UserForm initialData={user} />
+      <UserForm initialData={user} classes={classes} />
     </div>
   );
 };

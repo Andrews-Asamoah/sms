@@ -18,6 +18,7 @@ model User {
   password   String
   phone      String?
   gender     Gender
+  dob        DateTime
   image      String?
   location   String?
   role       UserRole     @default(STUDENT)
@@ -47,26 +48,25 @@ model Admin {
 model Student {
   id                String              @id @default(cuid())
   userId            String              @unique
-  user              User                @relation(fields: [userId], references: [id])
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   sectionId         String?
   section           Section?            @relation(fields: [sectionId], references: [id])
   classId           String?
   class             Class?              @relation(fields: [classId], references: [id])
+  Subject           Subject[]
   termId            String?
+  term              Term?               @relation(fields: [termId], references: [id])
   fathersName       String?
-  mothersName       String?
   fathersPhone      String?
+  mothersName       String?
   mothersPhone      String?
   guardiansName     String?
   guardiansPhone    String?
-  term              Term?               @relation(fields: [termId], references: [id])
   marks             Mark[]
   exams             Exam[]
   attendances       Attendance[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
-  Subject           Subject?            @relation(fields: [subjectId], references: [id])
-  subjectId         String?
   TranscriptRequest TranscriptRequest[]
   Remark            Remark[]
 }
@@ -134,19 +134,22 @@ model Matron {
 
 // Class Model
 model Class {
-  id        String    @id @default(cuid())
-  name      String
-  students  Student[]
-  teachers  Teacher[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now())
-  Subject   Subject[]
+  id             String        @id @default(cuid())
+  name           String        @unique
+  students       Student[]
+  teachers       Teacher[]
+  classTeacher   String?
+  academicYearId String?
+  AcademicYear   AcademicYear? @relation(fields: [academicYearId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now())
+  Subject        Subject[]
 }
 
 // Section Model
 model Section {
   id        String    @id @default(cuid())
-  name      String
+  name      String    @unique
   students  Student[]
   teachers  Teacher[]
   createdAt DateTime  @default(now())
@@ -156,9 +159,8 @@ model Section {
 // Subject Model
 model Subject {
   id        String    @id @default(cuid())
-  name      String
-  classId   String
-  class     Class     @relation(fields: [classId], references: [id])
+  name      String    @unique
+  class     Class[]
   teachers  Teacher[]
   students  Student[]
   createdAt DateTime  @default(now())
@@ -183,9 +185,10 @@ model Attendance {
 // Academic Year Model
 model AcademicYear {
   id        String   @id @default(cuid())
-  name      String
+  name      String   @unique
   startDate DateTime
   endDate   DateTime
+  classes   Class[]
   terms     Term[]
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
@@ -193,24 +196,24 @@ model AcademicYear {
 
 // Term Model
 model Term {
-  id             String       @id @default(cuid())
-  name           String
-  startDate      DateTime
-  endDate        DateTime
-  academicYearId String
-  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
-  students       Student[]
-  exams          Exam[]
-  teachers       Teacher[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @default(now())
-  Remark         Remark[]
+  id               String       @id @default(cuid())
+  name             String
+  startDate        DateTime?
+  endDate          DateTime?
+  academicYearName String
+  academicYear     AcademicYear @relation(fields: [academicYearName], references: [name], onDelete: Cascade)
+  students         Student[]
+  exams            Exam[]
+  teachers         Teacher[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @default(now())
+  Remark           Remark[]
 }
 
 // Exam Model
 model Exam {
   id           String   @id @default(cuid())
-  name         String
+  name         String   @unique
   examType     ExamType
   studentId    String
   student      Student  @relation(fields: [studentId], references: [id])

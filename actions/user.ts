@@ -3,10 +3,10 @@ import bcrypt from "bcryptjs";
 
 import * as z from "zod";
 
-import { RegisterUserSchema } from "@/schemas";
+import { RegisterUserSchema, UpdateUserSchema } from "@/schemas";
 import { prismadb } from "@/lib/db";
 import { getUserByEmail, getUserByUsername } from "@/actions";
-import { UserRole } from "@prisma/client";
+import { Gender, UserRole } from "@prisma/client";
 
 export const register = async (values: z.infer<typeof RegisterUserSchema>) => {
   const validatedFields = RegisterUserSchema.safeParse(values);
@@ -32,9 +32,10 @@ export const register = async (values: z.infer<typeof RegisterUserSchema>) => {
     mothersPhone,
     gurdiansName,
     gurdiansPhone,
+    dob,
+    classId,
     sectionId,
     subjectId,
-    classId,
     termId,
   } = validatedFields.data;
 
@@ -59,7 +60,8 @@ export const register = async (values: z.infer<typeof RegisterUserSchema>) => {
       lastName,
       otherNames,
       location,
-      gender,
+      dob: dob,
+      gender: gender as Gender,
       phone,
       role: role as UserRole,
       username: generatedUsername,
@@ -69,17 +71,107 @@ export const register = async (values: z.infer<typeof RegisterUserSchema>) => {
 
   // If role is STUDENT, create a student entry
   if (role === UserRole.STUDENT) {
-    await prismadb.student.create({
-      data: {
-        userId: user.id,
-        fathersName: fathersName || "",
-        fathersPhone: fathersPhone || "",
-        mothersName: mothersName || "",
-        mothersPhone: mothersPhone || "",
-        guardiansName: gurdiansName || "",
-        guardiansPhone: gurdiansPhone || "",
-      },
-    });
+    try {
+      await prismadb.student.create({
+        data: {
+          userId: user.id,
+          classId: classId || null,
+          fathersName: fathersName || "",
+          fathersPhone: fathersPhone || "",
+          mothersName: mothersName || "",
+          mothersPhone: mothersPhone || "",
+          guardiansName: gurdiansName || "",
+          guardiansPhone: gurdiansPhone || "",
+        },
+      });
+    } catch (error) {
+      return { error: "Failed to create Student record!" };
+    }
   }
   return { success: "user account created successfully! " };
+};
+
+export async function deleteUser(id: string) {
+  try {
+    const user = await prismadb.user.deleteMany({ where: { id } });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+    return { success: true };
+  } catch (error) {
+    if (error instanceof Error) {
+      return { error: error.message };
+    } else {
+      return {
+        error: "An unknown error occurred while deleting User",
+      };
+    }
+  }
+}
+
+export const updateUser = async (
+  id: string | undefined,
+  values: z.infer<typeof UpdateUserSchema>
+) => {
+  const validatedFields = UpdateUserSchema.safeParse(values);
+
+  if (!validatedFields.success) {
+    return { error: "Invalid Fields!" };
+  }
+  const {
+    email,
+    firstName,
+    lastName,
+    otherNames,
+    phone,
+    location,
+    role,
+    classId,
+    dob,
+    fathersName,
+    fathersPhone,
+    mothersName,
+    mothersPhone,
+    gurdiansName,
+    gurdiansPhone,
+  } = validatedFields.data;
+
+  // Automatically generate username (first letter of firstname + full lastname)
+  const generatedUsername = `${firstName?.charAt(0)}${lastName}`.toLowerCase();
+
+  const user = await prismadb.user.update({
+    where: { id },
+    data: {
+      email,
+      firstName,
+      lastName,
+      otherNames,
+      phone,
+      location,
+      dob,
+      role: role as UserRole,
+    },
+  });
+
+  // If role is STUDENT, create a student entry
+  if (role === UserRole.STUDENT) {
+    try {
+      await prismadb.student.update({
+        where: { userId: id },
+        data: {
+          classId: classId,
+          fathersName: fathersName || "",
+          fathersPhone: fathersPhone || "",
+          mothersName: mothersName || "",
+          mothersPhone: mothersPhone || "",
+          guardiansName: gurdiansName || "",
+          guardiansPhone: gurdiansPhone || "",
+        },
+      });
+    } catch (error) {
+      return { error: "Failed to update Student record!" };
+    }
+  }
+  return { success: "user account updated successfully! " };
 };

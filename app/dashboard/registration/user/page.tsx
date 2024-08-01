@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { UsersColumn } from "./_components/columns";
 import { prismadb } from "@/lib/db";
 import UsersClient from "./_components/users";
+import DashPageWrapper from "../../_component/pageWrapper";
 
 const WorkersPage = async () => {
   const users = await prismadb.user.findMany({
@@ -24,9 +25,14 @@ const WorkersPage = async () => {
   }));
 
   return (
-    <div className="">
+    <DashPageWrapper
+      breadcrumbLinks={[
+        { linkPage: "Dashboard", link: "/dashboard" },
+        { linkPage: "Registration", link: "/registration" },
+      ]}
+      currentPage="user">
       <UsersClient data={formattedUsers} />
-    </div>
+    </DashPageWrapper>
   );
 };
 

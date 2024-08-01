@@ -13,6 +13,7 @@ import Overview from "./_component/overview";
 import RecentFees from "./_component/recent_fees";
 import BreadCrumb from "./_component/breadCrumb";
 import DashPageWrapper from "./_component/pageWrapper";
+import StudentGenderChart from "./_component/studentGender";
 
 const Dashboard = () => {
   return (
@@ -20,9 +21,7 @@ const Dashboard = () => {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="analytics" disabled>
-            Analytics
-          </TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="reports" disabled>
             Reports
           </TabsTrigger>
@@ -59,21 +58,18 @@ const Dashboard = () => {
             </Card>
           </div>
         </TabsContent>
-        {/* <TabsContent value="analytics" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <SummaryCard />
-          </div>
+        <TabsContent value="analytics" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
             <Card className="col-span-4">
               <CardHeader>
                 <CardTitle>Overview</CardTitle>
               </CardHeader>
               <CardContent className="pl-2">
-                <Overview />
+                <StudentGenderChart />
               </CardContent>
             </Card>
           </div>
-        </TabsContent> */}
+        </TabsContent>
       </Tabs>
     </DashPageWrapper>
   );

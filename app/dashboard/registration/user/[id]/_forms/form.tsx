@@ -9,13 +9,14 @@ import { RegisterUserSchema, UpdateUserSchema } from "@/schemas";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 
-import { register } from "@/actions/user";
+import { register, updateUser } from "@/actions/user";
 import { useState, useTransition } from "react";
 
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { FormHeader } from "@/components/ui/formHeader";
 import { FaUserEdit, FaUserPlus } from "react-icons/fa";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Gender, User, UserRole } from "@prisma/client";
+import { Class, Gender, User, UserRole } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import {
   Select,
@@ -37,11 +38,19 @@ import {
   SelectContent,
 } from "@/components/ui/select";
 import StudentForm from "./studentForm";
+import { DatePicker } from "@/components/date-picker";
+import { ExtendedUser } from "@/types";
 
-const UserForm = ({ initialData }: { initialData?: Partial<User> | null }) => {
+interface UserFormProps {
+  initialData?: Partial<ExtendedUser> | null;
+  classes: Class[];
+}
+
+const UserForm = ({ initialData, classes }: UserFormProps) => {
   const [success, setSuccess] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [isLoading, startTransition] = useTransition();
+  const [date, setDate] = useState<Date>();
 
   const formResolver = initialData
     ? zodResolver(UpdateUserSchema)
@@ -59,7 +68,16 @@ const UserForm = ({ initialData }: { initialData?: Partial<User> | null }) => {
           password: initialData.password || "",
           phone: initialData.phone || "",
           image: initialData.image || "",
-          role: initialData.role || UserRole.STUDENT,
+          dob: initialData.dob || undefined,
+          role: initialData.role,
+          gender: initialData.gender,
+          classId: initialData.Student?.classId || "",
+          fathersName: initialData.Student?.fathersName || "",
+          fathersPhone: initialData.Student?.fathersPhone || "",
+          mothersName: initialData.Student?.mothersName || "",
+          mothersPhone: initialData.Student?.mothersPhone || "",
+          gurdiansName: initialData.Student?.guardiansName || "",
+          gurdiansPhone: initialData.Student?.guardiansPhone || "",
         }
       : {
           email: "",
@@ -78,7 +96,9 @@ const UserForm = ({ initialData }: { initialData?: Partial<User> | null }) => {
           mothersPhone: "",
           gurdiansName: "",
           gurdiansPhone: "",
+          dob: undefined,
           role: UserRole.STUDENT,
+          classId: "",
         },
   });
 
@@ -115,16 +135,18 @@ const UserForm = ({ initialData }: { initialData?: Partial<User> | null }) => {
     setSuccess("");
     startTransition(() => {
       console.log(values);
-      // updateUser(initialData?.id, values).then((data) => {
-      //   setError(data.error);
-      //   setSuccess(data.success);
-      //   if (data.success) {
-      //     router.push(`/workers`);
-      //     router.refresh();
-      //   }
-      // });
+      updateUser(initialData?.id, values).then((data) => {
+        setError(data.error);
+        setSuccess(data.success);
+        if (data.success) {
+          router.push(`/dashboard/registration/user`);
+          router.refresh();
+        }
+      });
     });
   };
+
+  console.log(initialData);
 
   return (
     <Card>
@@ -308,9 +330,32 @@ const UserForm = ({ initialData }: { initialData?: Partial<User> | null }) => {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="dob"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date of birth</FormLabel>
+                    <FormControl>
+                      <DatePicker
+                        date={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Your date of birth is used to calculate your age.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               {form.watch("role") === UserRole.STUDENT && (
                 <div className="cols-span-1 md:col-span-2 lg:col-span-3">
-                  <StudentForm form={form} isLoading={isLoading} />
+                  <StudentForm
+                    form={form}
+                    isLoading={isLoading}
+                    classes={classes}
+                  />
                 </div>
               )}
             </div>

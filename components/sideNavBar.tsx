@@ -85,6 +85,10 @@ export default function SideNavBar({}: Props) {
             variant: "ghost",
             submenu: true,
             submenuItems: [
+              {
+                title: "Academic Year",
+                href: "/dashboard/registration/academicYear",
+              },
               { title: "Users", href: "/dashboard/registration/user" },
               { title: "Class", href: "/dashboard/registration/class" },
               { title: "Subject", href: "/dashboard/registration/subject" },

@@ -1,6 +1,6 @@
 "use client";
 
-import DashPageWrapper from "../_component/pageWrapper";
+import DashPageWrapper from "../../_component/pageWrapper";
 
 const ExaminationPage = () => {
   return (

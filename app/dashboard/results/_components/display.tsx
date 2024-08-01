@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -11,10 +13,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Image from "next/image";
+import { FaAngleLeft, FaPrint } from "react-icons/fa6";
 
 const DisplayResults = () => {
   return (
-    <Card className="grid">
+    <Card className="grid px-10 py-5">
       <CardHeader className="flex flex-row gap-14 justify-center items-center">
         <div className="relative w-20 h-24">
           <Image alt="logo" src="/wis-logo.png" fill />
@@ -50,12 +53,26 @@ const DisplayResults = () => {
         <div className="grid grid-cols-3">
           <div className="">
             <h1>Name: Asamoah Andrews</h1>
+            <h1>Index No: Asamoah Andrews</h1>
+            <h1>Email: Asamoah Andrews</h1>
+            <h1>
+              Attendace: <span>60</span> out of <span>61</span>
+            </h1>
           </div>
           <div className="">
-            <h1>Name: Asamoah Andrews</h1>
+            <h1>Class: 6A</h1>
+            <h1>Student ID: 156181</h1>
+            <h1>
+              Position: 1st <span>Out of 38</span>
+            </h1>
           </div>
           <div className="">
-            <h1>Name: Asamoah Andrews</h1>
+            <h1>Class Teacher&apos;s Name: Asamoah Andrews</h1>
+            <h1>Class Teacher&apos;s Contact: 059462789</h1>
+            <h1>
+              Class Teacher&apos;s Remarks: Should be more attentive in class
+              and extra tutorials at home is recommended
+            </h1>
           </div>
         </div>
         <Table className="border">
@@ -83,9 +100,13 @@ const DisplayResults = () => {
         </Table>
         <div className="flex justify-center gap-5">
           <Button variant="outline" size="lg">
+            <FaAngleLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
-          <Button size="lg">Print Result Slip</Button>
+          <Button size="lg">
+            Print Result Slip
+            <FaPrint className="ml-2 h-4 w-4" />
+          </Button>
         </div>
       </CardContent>
     </Card>

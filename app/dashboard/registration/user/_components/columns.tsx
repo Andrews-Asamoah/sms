@@ -3,7 +3,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/components/ui/data-table/column-header";
-
 import CellAction from "./cellAction";
 
 export type UsersColumn = {
@@ -25,7 +24,7 @@ export const columns: ColumnDef<UsersColumn>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllRowsSelected() ||
+          table.getIsAllPageRowsSelected() ||
           (table.getIsSomePageRowsSelected() && "indeterminate")
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
