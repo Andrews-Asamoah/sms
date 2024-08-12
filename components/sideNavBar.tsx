@@ -3,11 +3,7 @@ import { useEffect, useState } from "react";
 import { Nav } from "./nav";
 import { Button } from "./ui/button";
 import Logo from "./logo";
-import {
-  useWindowSize,
-  useWindowWidth,
-  useWindowHeight,
-} from "@react-hook/window-size";
+import { useWindowSize } from "@react-hook/window-size";
 
 import { AiOutlineDashboard } from "react-icons/ai";
 import {
@@ -15,7 +11,6 @@ import {
   FaChalkboardTeacher,
   FaRegCalendarAlt,
   FaRegCalendarCheck,
-  FaRegistered,
   FaUserGraduate,
 } from "react-icons/fa";
 import {
@@ -28,7 +23,8 @@ import { LuFileCheck2 } from "react-icons/lu";
 import { IoFingerPrint } from "react-icons/io5";
 import { PiPresentation } from "react-icons/pi";
 import { GrUserSettings } from "react-icons/gr";
-import { BsDatabaseAdd, BsDatabaseFillAdd } from "react-icons/bs";
+import { BsDatabaseFillAdd } from "react-icons/bs";
+import { Card } from "./ui/card";
 
 type Props = {};
 
@@ -46,9 +42,9 @@ export default function SideNavBar({}: Props) {
   }
 
   return (
-    <div className="relative min-h-full max-w-[260px] w-auto border-r px-3 pt-5 pb-10">
+    <Card className="relative min-h-full max-w-[260px] w-auto  px-3 py-3 pb-10">
       {!mobileWidth && (
-        <div className="absolute right-[-20px] top-7">
+        <div className="absolute right-[-14px] top-7">
           <Button
             onClick={toggleSidebar}
             className="rounded-full p-2"
@@ -165,7 +161,7 @@ export default function SideNavBar({}: Props) {
             variant: "ghost",
           },
           {
-            title: "Settings",
+            title: "System Settings",
             href: "/dashboard/settings",
             label: "",
             icon: GrUserSettings,
@@ -173,6 +169,6 @@ export default function SideNavBar({}: Props) {
           },
         ]}
       />
-    </div>
+    </Card>
   );
 }

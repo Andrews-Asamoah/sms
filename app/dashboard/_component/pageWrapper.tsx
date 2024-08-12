@@ -14,9 +14,9 @@ const DashPageWrapper = ({
   breadcrumbLinks = [],
 }: PageWrapperProps) => {
   return (
-    <div className="grid gap-5">
+    <div className="flex flex-col h-full w-full gap-3">
       <BreadCrumb links={breadcrumbLinks} currentPage={currentPage} />
-      <div className="">{children}</div>
+      <div className=" h-full w-full overflow-hidden overflow-y-auto">{children}</div>
     </div>
   );
 };

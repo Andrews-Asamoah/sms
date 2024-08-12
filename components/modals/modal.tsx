@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,20 +13,20 @@ interface ModalProps {
   title: string;
   description: string;
   isOpen: boolean;
-  closeModal: () => void;
+  onClose: () => void;
   children?: React.ReactNode;
 }
 
 const Modal = ({
-  children,
-  closeModal,
-  isOpen,
   title,
   description,
+  isOpen,
+  onClose,
+  children,
 }: ModalProps) => {
   const onChange = (open: boolean) => {
     if (!open) {
-      closeModal();
+      onClose();
     }
   };
 

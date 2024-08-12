@@ -9,7 +9,52 @@ export const DEFAULT_LOGIN_REDIRECT = "/dashboard";
  * These routes do not require authentication
  * @type {string[]}
  */
-export const publicRoutes = ["/", "/new-verification"];
+export const publicRoutes = [
+  "/",
+  "/new-verification",
+  "/about",
+  "/contact",
+  "/admission",
+];
+
+/**
+ * An array of routes that are accessible to students only
+ * These routes require authentication
+ * @type {string[]}
+ */
+export const studentRoutes = [
+  "/",
+  "/new-verification",
+  "/about",
+  "/contact",
+  "/admission",
+];
+
+/**
+ * An array of routes that are accessible to Admin only
+ * These routes require authentication
+ * @type {string[]}
+ */
+export const adminRoutes = [
+  "/",
+  "/new-verification",
+  "/about",
+  "/contact",
+  "/admission",
+];
+
+/**
+ * An array of routes that are accessible to Teachers only
+ * These routes require authentication
+ * @type {string[]}
+ */
+export const teacherRoutes = [
+  "/",
+  "/new-verification",
+  "/about",
+  "/contact",
+  "/admission",
+];
 
 /**
  * An array of routes that are used for authentication

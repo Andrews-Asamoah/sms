@@ -3,11 +3,7 @@ import { useEffect, useState } from "react";
 import { Nav } from "./nav";
 import { Button } from "./ui/button";
 import Logo from "./logo";
-import {
-  useWindowSize,
-  useWindowWidth,
-  useWindowHeight,
-} from "@react-hook/window-size";
+import { useWindowSize } from "@react-hook/window-size";
 
 import { AiOutlineDashboard } from "react-icons/ai";
 import {
@@ -27,6 +23,7 @@ import { LuFileCheck2 } from "react-icons/lu";
 import { IoFingerPrint } from "react-icons/io5";
 import { PiPresentation } from "react-icons/pi";
 import { GrUserSettings } from "react-icons/gr";
+import { BsDatabaseAdd, BsDatabaseFillAdd } from "react-icons/bs";
 
 type Props = {};
 
@@ -44,7 +41,7 @@ export default function SideNavBar({}: Props) {
   }
 
   return (
-    <div className="relative min-h-full max-w-[260px] w-auto border-r px-3 pt-5 pb-10">
+    <div className="relative min-h-full max-w-[260px] w-auto border-r px-3 pt-5 pb-10 bg-black">
       {!mobileWidth && (
         <div className="absolute right-[-20px] top-7">
           <Button
@@ -74,6 +71,23 @@ export default function SideNavBar({}: Props) {
             href: "/dashboard",
             icon: AiOutlineDashboard,
             variant: "default",
+          },
+          {
+            title: "Registration",
+            href: "/dashboard/registration",
+            label: "",
+            icon: BsDatabaseFillAdd,
+            variant: "ghost",
+            submenu: true,
+            submenuItems: [
+              {
+                title: "Academic Year",
+                href: "/dashboard/registration/academicYear",
+              },
+              { title: "Users", href: "/dashboard/registration/user" },
+              { title: "Class", href: "/dashboard/registration/class" },
+              { title: "Subject", href: "/dashboard/registration/subject" },
+            ],
           },
           {
             title: "Students",
@@ -146,7 +160,7 @@ export default function SideNavBar({}: Props) {
             variant: "ghost",
           },
           {
-            title: "Settings",
+            title: "System Settings",
             href: "/dashboard/settings",
             label: "",
             icon: GrUserSettings,

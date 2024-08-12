@@ -1,5 +1,6 @@
 import { prismadb } from "@/lib/db";
 import UserForm from "./_forms/form";
+import DashPageWrapper from "@/app/dashboard/_component/pageWrapper";
 
 const User = async ({ params: { id } }: { params: { id: string } }) => {
   const user = await prismadb.user.findUnique({
@@ -32,9 +33,9 @@ const User = async ({ params: { id } }: { params: { id: string } }) => {
   const classes = await prismadb.class.findMany();
 
   return (
-    <div>
+    <DashPageWrapper currentPage="User Management">
       <UserForm initialData={user} classes={classes} />
-    </div>
+    </DashPageWrapper>
   );
 };
 

@@ -2,7 +2,6 @@ import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prismadb } from "./lib/db";
 import authConfig from "./auth.config";
-import { getUserByEmail } from "./actions";
 
 export const {
   handlers: { GET, POST },

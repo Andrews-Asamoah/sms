@@ -10,17 +10,17 @@
     position: relative;
   }
 
-  .active-link::before {
+  /* .active-link::before {
     content: "";
     position: absolute;
     left: 0;
     top: 50%;
     transform: translateY(-50%);
     /* border-radius: 0 0 0px 0px; */
-    width: 4px;
-    height: 100%;
-    background-color: var(--your-active-color, #0308a0); /* Adjust the color as needed */
-  }
+    /* width: 4px; */
+    /* height: 100%; */
+    /* background-color: var(--your-active-color, #0308a0); Adjust the color as needed */
+  /* } */ 
 
   @layer base {
     :root {
