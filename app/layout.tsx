@@ -1,13 +1,22 @@
-import { Inter } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import type { Metadata } from "next";
-import { cn } from "@/lib/utils";
 import ModalProvider from "@/providers/modal-provider";
 import "./globals.css";
-const inter = Inter({ subsets: ["latin"] });
+import { ThemeProvider } from "@/components/theme-provider";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
-  title: "Wesley SMS",
-  description: "Wesley SMS",
+  title: { template: "%s | WIS", default: "Wesley SMS" },
+  description: "The best SMS management system",
 };
 
 export default function RootLayout({
@@ -18,14 +27,17 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={cn(
-          "min-h-full w-full flex font-sans antialiased",
-          inter.className
-        )}>
-        <div className="w-full h-full justify-center flex items-center">
+        className={`${geistSans.variable} ${geistMono.variable} min-h-screen w-full flex flex-col antialiased`}
+      >
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
           <ModalProvider />
           {children}
-        </div>
+        </ThemeProvider>
       </body>
     </html>
   );
