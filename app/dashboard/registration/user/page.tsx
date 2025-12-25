@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { UsersColumn } from "./_components/columns";
-import { prismadb } from "@/lib/db";
+import { prismadb } from "@/lib/prisma";
 import UsersClient from "./_components/users";
 import DashPageWrapper from "../../_component/pageWrapper";
 

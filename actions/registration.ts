@@ -8,7 +8,7 @@ import {
   UpdateClassSchema,
   UpdateSubjectSchema,
 } from "@/schemas";
-import { prismadb } from "@/lib/db";
+import { prismadb } from "@/lib/prisma";
 import {
   getExistingAcademicYear,
   getExistingClass,

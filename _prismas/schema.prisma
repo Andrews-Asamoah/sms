@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Model
+model User {
+  id         String       @id @default(cuid())
+  firstName  String
+  lastName   String
+  otherNames String?
+  username   String       @unique
+  email      String       @unique
+  password   String
+  phone      String?
+  gender     Gender
+  dob        DateTime
+  image      String?
+  location   String?
+  role       UserRole     @default(STUDENT)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  Student    Student?
+  Teacher    Teacher?
+  Driver     Driver?
+  Accountant Accountant?
+  Headmaster Headmaster?
+  SMC        SMC?
+  Matron     Matron?
+  Attendance Attendance[]
+  Admin      Admin? // Removed relation attribute here
+}
+
+// Admin Model
+model Admin {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Student Model
+model Student {
+  id                String              @id @default(cuid())
+  userId            String              @unique
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sectionId         String?
+  section           Section?            @relation(fields: [sectionId], references: [id])
+  classId           String?
+  class             Class?              @relation(fields: [classId], references: [id])
+  Subject           Subject[]
+  termId            String?
+  term              Term?               @relation(fields: [termId], references: [id])
+  fathersName       String?
+  fathersPhone      String?
+  mothersName       String?
+  mothersPhone      String?
+  guardiansName     String?
+  guardiansPhone    String?
+  marks             Mark[]
+  exams             Exam[]
+  attendances       Attendance[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  TranscriptRequest TranscriptRequest[]
+  Remark            Remark[]
+}
+
+// Teacher Model
+model Teacher {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
+  sectionId     String
+  section       Section   @relation(fields: [sectionId], references: [id])
+  subjects      Subject[]
+  classTeachers Class[] // Assuming a teacher can be a class teacher for multiple classes
+  remarks       Remark[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  Term          Term?     @relation(fields: [termId], references: [id])
+  termId        String?
+}
+
+// Driver Model
+model Driver {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+// Accountant Model
+model Accountant {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+// Headmaster Model
+model Headmaster {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+// School Management Committee Model
+model SMC {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+// Matron Model
+model Matron {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+// Class Model
+model Class {
+  id             String        @id @default(cuid())
+  name           String        @unique
+  students       Student[]
+  teachers       Teacher[]
+  classTeacher   String?
+  academicYearId String?
+  AcademicYear   AcademicYear? @relation(fields: [academicYearId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now())
+  Subject        Subject[]
+}
+
+// Section Model
+model Section {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  students  Student[]
+  teachers  Teacher[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now())
+}
+
+// Subject Model
+model Subject {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  class     Class[]
+  teachers  Teacher[]
+  students  Student[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now())
+  Exam      Exam[]
+  Mark      Mark[]
+}
+
+// Attendance Model
+model Attendance {
+  id        String           @id @default(cuid())
+  date      DateTime
+  status    AttendanceStatus
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @default(now())
+  Student   Student?         @relation(fields: [studentId], references: [id])
+  studentId String?
+}
+
+// Academic Year Model
+model AcademicYear {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  startDate DateTime
+  endDate   DateTime
+  classes   Class[]
+  terms     Term[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+// Term Model
+model Term {
+  id               String       @id @default(cuid())
+  name             String
+  startDate        DateTime?
+  endDate          DateTime?
+  academicYearName String
+  academicYear     AcademicYear @relation(fields: [academicYearName], references: [name], onDelete: Cascade)
+  students         Student[]
+  exams            Exam[]
+  teachers         Teacher[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @default(now())
+  Remark           Remark[]
+}
+
+// Exam Model
+model Exam {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  examType     ExamType
+  studentId    String
+  student      Student  @relation(fields: [studentId], references: [id])
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  academicYear String
+  termId       String
+  term         Term     @relation(fields: [termId], references: [id])
+  marks        Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+}
+
+// Mark Model
+model Mark {
+  id        String        @id @default(cuid())
+  studentId String
+  student   Student       @relation(fields: [studentId], references: [id])
+  subjectId String
+  subject   Subject       @relation(fields: [subjectId], references: [id])
+  examType  ExamComponent
+  marks     Float
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @default(now())
+}
+
+// Academic Calendar Model
+model AcademicCalendar {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+// Transcript Request Model
+model TranscriptRequest {
+  id        String        @id @default(cuid())
+  studentId String
+  student   Student       @relation(fields: [studentId], references: [id])
+  status    RequestStatus
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @default(now())
+}
+
+// Remark Model
+model Remark {
+  id        String   @id @default(cuid())
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  termId    String
+  term      Term     @relation(fields: [termId], references: [id])
+  remark    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  STUDENT
+  TEACHER
+  DRIVER
+  MATRON
+  ACCOUNTANT
+  HEADMASTER
+  SMC
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+enum ExamType {
+  TERMINAL
+  MOCK
+}
+
+enum ExamComponent {
+  CLASS_TEST
+  PROJECT_WORK
+  GROUP_WORK
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}

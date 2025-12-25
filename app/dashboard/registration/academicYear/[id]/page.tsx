@@ -1,4 +1,4 @@
-import { prismadb } from "@/lib/db";
+import { prismadb } from "@/lib/prisma";
 import ClassForm from "./_forms/form";
 import DashPageWrapper from "@/app/dashboard/_component/pageWrapper";
 

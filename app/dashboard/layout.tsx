@@ -2,7 +2,7 @@ import DashboardHeader from "@/components/dashboard_Header";
 import SideNavBar from "@/components/sideNavBar";
 import { Card } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { prismadb } from "@/lib/db";
+import { prismadb } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { Toaster } from "sonner";
 

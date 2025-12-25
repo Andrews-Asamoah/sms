@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import * as z from "zod";
 
 import { RegisterUserSchema, UpdateUserSchema } from "@/schemas";
-import { prismadb } from "@/lib/db";
+import { prismadb } from "@/lib/prisma";
 import { getUserByEmail, getUserByUsername } from "@/actions";
 import { Gender, UserRole } from "@prisma/client";
 

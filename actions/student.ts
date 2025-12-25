@@ -1,6 +1,6 @@
 "use server";
 
-import { prismadb } from "@/lib/db";
+import { prismadb } from "@/lib/prisma";
 
 // Fetch students data
 const getStudentData = async () => {

@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { AcademicYearColumn } from "./_components/columns";
-import { prismadb } from "@/lib/db";
+import { prismadb } from "@/lib/prisma";
 import DashPageWrapper from "../../_component/pageWrapper";
 import AcademicYearClient from "./_components/academicYears";
 

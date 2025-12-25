@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { FaChevronDown } from "react-icons/fa6";
 import AcademicYearSwitcher from "./academicYearSwitcher";
-import { prismadb } from "@/lib/db";
+import { prismadb } from "@/lib/prisma";
 import UserButton from "./auth/user-button";
 
 const DashboardHeader = async () => {
