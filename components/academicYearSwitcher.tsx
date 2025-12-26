@@ -15,9 +15,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
-import { FaCalendarWeek, FaCheck } from "react-icons/fa6";
-import { LuChevronsUpDown, LuPlusCircle } from "react-icons/lu";
 import { useAcademicYearModal } from "@/hooks/use-academicYear-modal";
+import {
+  Calendar,
+  CalendarDays,
+  Check,
+  ChevronsUpDown,
+  PlusCircle,
+} from "lucide-react";
 
 type PopoverTriggerProps = React.ComponentPropsWithoutRef<
   typeof PopoverTrigger
@@ -59,10 +64,11 @@ const AcademicYearSwitcher = ({
           role="combobox"
           aria-expanded={open}
           aria-label="Select Academic Year"
-          className={cn("w-[200px] justify-between", className)}>
-          <FaCalendarWeek className="mr-2 h-4 w-4" />
+          className={cn("w-[200px] justify-between", className)}
+        >
+          <Calendar className="mr-2 h-4 w-4" />
           {currentYear?.label}
-          <LuChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0">
@@ -75,10 +81,11 @@ const AcademicYearSwitcher = ({
                 <CommandItem
                   key={year.value}
                   onSelect={() => onAcademicYearSelect(year)}
-                  className="text-sm">
-                  <FaCalendarWeek className="mr-2 h-4 w-4" />
+                  className="text-sm"
+                >
+                  <CalendarDays className="mr-2 h-4 w-4" />
                   {year.label}
-                  <FaCheck
+                  <Check
                     className={cn(
                       "ml-auto h-4 w-4",
                       currentYear?.value === year.value
@@ -97,8 +104,9 @@ const AcademicYearSwitcher = ({
                 onSelect={() => {
                   setOpen(false);
                   academicYearModal.onOpen();
-                }}>
-                <LuPlusCircle className="mr-2 h-5 w-5" />
+                }}
+              >
+                <PlusCircle className="mr-2 h-5 w-5" />
                 Create Academic Year
               </CommandItem>
             </CommandGroup>

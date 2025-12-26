@@ -48,7 +48,8 @@ export default function SideNavBar({}: Props) {
           <Button
             onClick={toggleSidebar}
             className="rounded-full p-2"
-            variant="secondary">
+            variant="secondary"
+          >
             {isCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
           </Button>
         </div>

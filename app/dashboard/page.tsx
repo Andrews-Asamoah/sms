@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/card";
 import Overview from "./_component/overview";
 import RecentFees from "./_component/recent_fees";
-import BreadCrumb from "./_component/breadCrumb";
 import DashPageWrapper from "./_component/pageWrapper";
 import StudentGenderChart from "./_component/studentGender";
 

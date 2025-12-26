@@ -2,25 +2,9 @@ import DashboardHeader from "@/components/dashboard_Header";
 import SideNavBar from "@/components/sideNavBar";
 import { Card } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { prismadb } from "@/lib/prisma";
-import { redirect } from "next/navigation";
 import { Toaster } from "sonner";
 
-const DashboardLayout = async ({
-  children,
-  params,
-}: {
-  children: React.ReactNode;
-  params: { academicYearId: string };
-}) => {
-  const academicYear = await prismadb.academicYear.findFirst({
-    where: { id: params.academicYearId },
-  });
-
-  // if (!academicYear) {
-  //   redirect("/");
-  // }
-
+const DashboardLayout = async ({ children }: { children: React.ReactNode }) => {
   return (
     <TooltipProvider>
       <div className="w-full h-full flex p-3 gap-3 bg-slate-200">

@@ -7,23 +7,32 @@ datasource db {
   provider = "postgresql"
 }
 
+// ============================================
+// BETTER AUTH CORE MODELS
+// ============================================
 model User {
-  id            String    @id
+  id            String   @id @default(cuid())
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  emailVerified Boolean  @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Better Auth relations
+  sessions Session[]
+  accounts Account[]
+
+  // School Management relations
+  profile     UserProfile?
+  attendances Attendance[]
 
   @@unique([email])
   @@map("user")
 }
 
 model Session {
-  id        String   @id
+  id        String   @id @default(cuid())
   expiresAt DateTime
   token     String
   createdAt DateTime @default(now())
@@ -39,7 +48,7 @@ model Session {
 }
 
 model Account {
-  id                    String    @id
+  id                    String    @id @default(cuid())
   accountId             String
   providerId            String
   userId                String
@@ -59,7 +68,7 @@ model Account {
 }
 
 model Verification {
-  id         String   @id
+  id         String   @id @default(cuid())
   identifier String
   value      String
   expiresAt  DateTime
@@ -68,4 +77,527 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+// ============================================
+// SCHOOL MANAGEMENT MODELS
+// ============================================
+
+// Extended User Profile
+model UserProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Personal Information
+  firstName  String
+  lastName   String
+  otherNames String?
+  phone      String?
+  gender     Gender
+  dob        DateTime
+  location   String?
+
+  // Role Information - Users can have multiple roles
+  roles      UserRole[]
+  activeRole UserRole? // Current active role for session
+
+  // Polymorphic role relations
+  student Student?
+  teacher Teacher?
+  staff   Staff?
+
+  // System flags
+  isSuperAdmin Boolean @default(false)
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isSuperAdmin])
+  @@index([isActive])
+  @@map("user_profile")
+}
+
+// Student Model
+model Student {
+  id        String      @id @default(cuid())
+  profileId String      @unique
+  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  // Academic Information
+  studentId     String   @unique // School-generated ID
+  classId       String?
+  class         Class?   @relation(fields: [classId], references: [id], onDelete: SetNull)
+  sectionId     String?
+  section       Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  currentTermId String?
+  currentTerm   Term?    @relation(fields: [currentTermId], references: [id], onDelete: SetNull)
+
+  // Guardian Information
+  guardians          Guardian[]
+  // Academic Records
+  enrollments        Enrollment[]
+  marks              Mark[]
+  exams              Exam[]
+  attendances        Attendance[]
+  remarks            Remark[]
+  transcriptRequests TranscriptRequest[]
+
+  // Status
+  isActive       Boolean  @default(true)
+  enrollmentDate DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([classId])
+  @@index([isActive])
+  @@map("student")
+}
+
+// Guardian Model (handles parent/guardian relationships)
+model Guardian {
+  id        String  @id @default(cuid())
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Can link to a Teacher if they're also a parent
+  teacherId String?
+  teacher   Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  // Guardian Details
+  relationship GuardianType
+  fullName     String
+  phone        String
+  email        String?
+  isPrimary    Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([teacherId])
+  @@map("guardian")
+}
+
+// Teacher Model
+model Teacher {
+  id        String      @id @default(cuid())
+  profileId String      @unique
+  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  // Teaching Information
+  teacherId String  @unique // School-generated ID
+  sectionId String
+  section   Section @relation(fields: [sectionId], references: [id])
+
+  // Relationships
+  subjects     SubjectTeacher[]
+  classTeacher Class[]          @relation("ClassTeacher")
+  remarks      Remark[]
+  guardianOf   Guardian[] // If teacher is also a parent
+
+  // Status
+  isActive Boolean  @default(true)
+  hireDate DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([teacherId])
+  @@index([sectionId])
+  @@index([isActive])
+  @@map("teacher")
+}
+
+// Staff Model (for non-teaching staff)
+model Staff {
+  id        String      @id @default(cuid())
+  profileId String      @unique
+  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  staffId    String    @unique // School-generated ID
+  staffType  StaffType
+  department String?
+
+  isActive Boolean  @default(true)
+  hireDate DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([staffId])
+  @@index([staffType])
+  @@index([isActive])
+  @@map("staff")
+}
+
+// Class Model
+model Class {
+  id       String @id @default(cuid())
+  name     String @unique
+  grade    Int // e.g., 1, 2, 3, etc.
+  capacity Int?
+
+  // Relationships
+  students       Student[]
+  subjects       ClassSubject[]
+  classTeacherId String?
+  classTeacher   Teacher?       @relation("ClassTeacher", fields: [classTeacherId], references: [id], onDelete: SetNull)
+  enrollments    Enrollment[]
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, academicYearId])
+  @@index([academicYearId])
+  @@index([grade])
+  @@map("class")
+}
+
+// Section Model (e.g., Primary, JHS, SHS)
+model Section {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  code     String    @unique
+  students Student[]
+  teachers Teacher[]
+  subjects Subject[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("section")
+}
+
+// Subject Model
+model Subject {
+  id          String  @id @default(cuid())
+  name        String
+  code        String  @unique
+  description String?
+  creditHours Int     @default(1)
+
+  sectionId String
+  section   Section @relation(fields: [sectionId], references: [id])
+
+  // Relationships
+  classSubjects ClassSubject[]
+  teachers      SubjectTeacher[]
+  exams         Exam[]
+  marks         Mark[]
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([code, sectionId])
+  @@index([sectionId])
+  @@index([isActive])
+  @@map("subject")
+}
+
+// Many-to-many: Class and Subject
+model ClassSubject {
+  id        String  @id @default(cuid())
+  classId   String
+  class     Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([classId, subjectId])
+  @@index([classId])
+  @@index([subjectId])
+  @@map("class_subject")
+}
+
+// Many-to-many: Subject and Teacher
+model SubjectTeacher {
+  id        String  @id @default(cuid())
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([subjectId, teacherId])
+  @@index([subjectId])
+  @@index([teacherId])
+  @@map("subject_teacher")
+}
+
+// Enrollment Model (tracks student class history)
+model Enrollment {
+  id             String       @id @default(cuid())
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId        String
+  class          Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  termId         String?
+  term           Term?        @relation(fields: [termId], references: [id], onDelete: SetNull)
+
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, classId, academicYearId])
+  @@index([studentId])
+  @@index([classId])
+  @@index([academicYearId])
+  @@index([status])
+  @@map("enrollment")
+}
+
+// Attendance Model
+model Attendance {
+  id      String           @id @default(cuid())
+  date    DateTime         @db.Date
+  status  AttendanceStatus
+  remarks String?
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, date])
+  @@index([studentId])
+  @@index([date])
+  @@index([status])
+  @@map("attendance")
+}
+
+// Academic Year Model
+model AcademicYear {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  isCurrent Boolean  @default(false)
+
+  classes     Class[]
+  terms       Term[]
+  enrollments Enrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isCurrent])
+  @@index([startDate, endDate])
+  @@map("academic_year")
+}
+
+// Term Model
+model Term {
+  id         String   @id @default(cuid())
+  name       String
+  termNumber Int // 1, 2, 3
+  startDate  DateTime @db.Date
+  endDate    DateTime @db.Date
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  students    Student[]
+  enrollments Enrollment[]
+  exams       Exam[]
+  remarks     Remark[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([academicYearId, termNumber])
+  @@index([academicYearId])
+  @@index([startDate, endDate])
+  @@map("term")
+}
+
+// Exam Model
+model Exam {
+  id         String   @id @default(cuid())
+  name       String
+  examType   ExamType
+  totalMarks Float
+  passMark   Float
+  weight     Float    @default(1.0) // Weighting for final grade calculation
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  termId    String
+  term      Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  marksObtained Float
+  grade         String?
+  remarks       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, subjectId, termId, examType])
+  @@index([studentId])
+  @@index([subjectId])
+  @@index([termId])
+  @@map("exam")
+}
+
+// Mark Model (for continuous assessment)
+model Mark {
+  id        String  @id @default(cuid())
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  component     ExamComponent
+  totalMarks    Float
+  marksObtained Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([subjectId])
+  @@map("mark")
+}
+
+// Transcript Request Model
+model TranscriptRequest {
+  id        String  @id @default(cuid())
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  requestType String // e.g., "Official", "Unofficial"
+  purpose     String?
+  status      RequestStatus @default(PENDING)
+
+  requestedAt DateTime  @default(now())
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+  @@map("transcript_request")
+}
+
+// Remark Model
+model Remark {
+  id        String  @id @default(cuid())
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId    String
+  term      Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  remarkType RemarkType
+  content    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([termId])
+  @@map("remark")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  ADMIN
+  STUDENT
+  TEACHER
+  DRIVER
+  MATRON
+  ACCOUNTANT
+  HEADMASTER
+  SMC
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum GuardianType {
+  FATHER
+  MOTHER
+  GUARDIAN
+  OTHER
+}
+
+enum StaffType {
+  ADMIN
+  DRIVER
+  MATRON
+  ACCOUNTANT
+  HEADMASTER
+  SMC
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  WITHDRAWN
+  TRANSFERRED
+}
+
+enum ExamType {
+  TERMINAL
+  MOCK
+  MID_TERM
+  END_TERM
+}
+
+enum ExamComponent {
+  CLASS_TEST
+  PROJECT_WORK
+  GROUP_WORK
+  HOMEWORK
+  QUIZ
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSING
+}
+
+enum RemarkType {
+  ACADEMIC
+  BEHAVIORAL
+  ATTENDANCE
+  GENERAL
 }
