@@ -99,3 +99,39 @@ export const CreateAcademicYearSchema = z
     message: "End date cannot be earlier than Start date",
     path: ["endDate"],
   });
+
+//
+// Setup schema
+//
+export const setupBaseSchema = z.object({
+  // School Information
+  schoolName: z.string().min(3, "School name must be at least 3 characters"),
+  schoolCode: z.string().optional(), // Make optional since it's auto-generated
+  schoolEmail: z.string().email("Invalid email").optional().or(z.literal("")),
+  schoolPhone: z.string().optional(),
+  // Admin Information
+  firstName: z.string().min(2, "First name must be at least 2 characters"),
+  lastName: z.string().min(2, "Last name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone number must be at least 10 characters"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Must contain uppercase letter")
+    .regex(/[a-z]/, "Must contain lowercase letter")
+    .regex(/[0-9]/, "Must contain number")
+    .regex(/[^A-Za-z0-9]/, "Must contain special character"),
+  confirmPassword: z.string().min(1, "Please confirm your password"),
+  gender: z.enum(["MALE", "FEMALE"], {
+    required_error: "Please select a gender",
+  }),
+  dob: z
+    .string()
+    .min(1, "Please select your date of birth")
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
+});
+
+export const setupFormSchema = setupBaseSchema.omit({ schoolCode: true });
+
+export type SetupFormData = z.infer<typeof setupFormSchema>;
+export type SetupApiData = z.infer<typeof setupBaseSchema>;

@@ -1,62 +1,92 @@
 // app/api/setup/super-admin/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { createAuthUser } from "@/lib/auth-utils";
+import { setupBaseSchema } from "@/schemas/index";
 
-/**
- * GET: Check if super admin setup is required
- */
-export async function GET() {
-  try {
-    const existingSuperAdmin = await prisma.userProfile.findFirst({
-      where: { isSuperAdmin: true },
-      select: { id: true },
-    });
+function generateSchoolCode(schoolName: string): string {
+  const cleaned = schoolName
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
 
-    return NextResponse.json({
-      setupRequired: !existingSuperAdmin,
-    });
-  } catch (error) {
-    console.error("[SETUP_CHECK_ERROR]", error);
-    return NextResponse.json(
-      { error: "Failed to check setup status" },
-      { status: 500 }
-    );
-  }
+  const prefix = cleaned.substring(0, 15);
+  const timestamp = Date.now().toString().slice(-6);
+
+  return `${prefix}-${timestamp}`;
 }
 
-/**
- * POST: Create super admin account using Better Auth's signUp
- */
-export async function POST(request: NextRequest) {
-  try {
-    // 1. Check if super admin already exists
-    const existingSuperAdmin = await prisma.userProfile.findFirst({
-      where: { isSuperAdmin: true },
+async function ensureUniqueSchoolCode(schoolName: string): Promise<string> {
+  let attempts = 0;
+  const maxAttempts = 5;
+
+  while (attempts < maxAttempts) {
+    const code = generateSchoolCode(schoolName);
+
+    const existing = await prisma.school.findUnique({
+      where: { code },
       select: { id: true },
     });
 
-    if (existingSuperAdmin) {
+    if (!existing) {
+      return code;
+    }
+
+    attempts++;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  const code = generateSchoolCode(schoolName);
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${code}-${random}`;
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const [superAdminCount, completedSchoolCount] = await Promise.all([
+      prisma.userProfile.count({ where: { isSuperAdmin: true } }),
+      prisma.school.count({ where: { setupCompleted: true } }),
+    ]);
+
+    if (superAdminCount > 0 || completedSchoolCount > 0) {
       return NextResponse.json(
-        { error: "Super admin already exists. Setup is complete." },
-        { status: 400 }
+        { error: "Setup has already been completed. Access denied." },
+        { status: 403 }
       );
     }
 
-    // 2. Parse and validate request body
     const body = await request.json();
-    const { firstName, lastName, email, phone, password, gender, dob } = body;
+    const validationResult = setupBaseSchema
+      .omit({ schoolCode: true })
+      .safeParse(body);
 
-    if (!firstName || !lastName || !email || !password || !gender || !dob) {
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0];
       return NextResponse.json(
-        { error: "All fields are required" },
+        { error: firstError.message, field: firstError.path[0] },
         { status: 400 }
       );
     }
 
-    // 3. Check if email already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+    const {
+      schoolName,
+      schoolEmail,
+      schoolPhone,
+      firstName,
+      lastName,
+      email,
+      phone,
+      password,
+      gender,
+      dob,
+    } = validationResult.data;
+
+    const schoolCode = await ensureUniqueSchoolCode(schoolName);
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const existingUser = await prisma.user.findFirst({
+      where: { email: normalizedEmail },
       select: { id: true },
     });
 
@@ -67,96 +97,78 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Use Better Auth's signUpEmail to create user
-    // This handles password hashing automatically
-    const signUpResult = await auth.api.signUpEmail({
-      body: {
-        email: email.toLowerCase().trim(),
-        password: password,
-        name: `${firstName} ${lastName}`,
+    // Step 1: Create school FIRST (outside of any transaction with user creation)
+    const school = await prisma.school.create({
+      data: {
+        name: schoolName.trim(),
+        code: schoolCode,
+        email: schoolEmail?.trim() || null,
+        phone: schoolPhone?.trim() || null,
+        currency: "GHS",
+        timezone: "Africa/Accra",
+        isActive: true,
+        setupCompleted: true,
       },
     });
 
-    if (!signUpResult || !signUpResult.user) {
-      throw new Error("Failed to create user account");
+    // Step 2: Create user with Better Auth (now school exists in DB)
+    let authResult;
+    try {
+      authResult = await createAuthUser({
+        email: normalizedEmail,
+        password: password,
+        name: `${firstName.trim()} ${lastName.trim()}`,
+        schoolId: school.id,
+      });
+    } catch (error) {
+      // If user creation fails, rollback the school
+      await prisma.school.delete({ where: { id: school.id } });
+      throw error;
     }
 
-    // 5. Create user profile and staff record in transaction
-    const superAdminUser = await prisma.$transaction(async (tx) => {
-      // Create user profile
-      const profile = await tx.userProfile.create({
-        data: {
-          userId: signUpResult.user.id,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          phone: phone?.trim(),
-          gender,
-          dob: new Date(dob),
-          roles: ["ADMIN"],
-          activeRole: "ADMIN",
-          isSuperAdmin: true,
-          isActive: true,
-          staff: {
-            create: {
-              staffId: `ADMIN-${Date.now()}`,
-              staffType: "ADMIN",
-              department: "Administration",
-              isActive: true,
-              hireDate: new Date(),
-            },
+    // Step 3: Create user profile in a transaction
+    const profile = await prisma.userProfile.create({
+      data: {
+        userId: authResult.user.id,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phone?.trim(),
+        gender,
+        dob: new Date(dob),
+        roles: ["ADMIN"],
+        activeRole: "ADMIN",
+        isSuperAdmin: true,
+        isActive: true,
+        staff: {
+          create: {
+            staffId: `ADMIN-${Date.now()}`,
+            staffType: "ADMIN",
+            department: "Administration",
+            isActive: true,
+            hireDate: new Date(),
           },
         },
-        include: {
-          staff: {
-            select: {
-              staffId: true,
-            },
-          },
-        },
-      });
-
-      // Create initial academic year if it doesn't exist
-      const existingYear = await tx.academicYear.findFirst();
-      if (!existingYear) {
-        const currentYear = new Date().getFullYear();
-        await tx.academicYear.create({
-          data: {
-            name: `${currentYear}/${currentYear + 1}`,
-            startDate: new Date(`${currentYear}-09-01`),
-            endDate: new Date(`${currentYear + 1}-06-30`),
-            isCurrent: true,
-          },
-        });
-      }
-
-      // Create initial sections if they don't exist
-      const existingSections = await tx.section.count();
-      if (existingSections === 0) {
-        await tx.section.createMany({
-          data: [
-            { name: "Primary", code: "PRI" },
-            { name: "Junior High School", code: "JHS" },
-            { name: "Senior High School", code: "SHS" },
-          ],
-        });
-      }
-
-      return {
-        user: signUpResult.user,
-        profile,
-      };
+      },
+      select: {
+        id: true,
+        staff: { select: { staffId: true } },
+      },
     });
 
-    // 6. Return success response
     return NextResponse.json(
       {
         success: true,
-        message: "Super admin account created successfully",
+        message: "School and super admin account created successfully",
+        school: {
+          id: school.id,
+          name: school.name,
+          code: school.code,
+        },
         user: {
-          id: superAdminUser.user.id,
-          name: superAdminUser.user.name,
-          email: superAdminUser.user.email,
-          staffId: superAdminUser.profile.staff?.staffId,
+          id: authResult.user.id,
+          name: authResult.user.name,
+          email: authResult.user.email,
+          staffId: profile.staff?.staffId,
         },
       },
       { status: 201 }
@@ -164,26 +176,33 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[SETUP_CREATE_ERROR]", error);
 
-    // Handle specific errors
     if (error instanceof Error) {
-      if (error.message.includes("Unique constraint")) {
-        return NextResponse.json(
-          { error: "An account with this email already exists" },
-          { status: 409 }
-        );
+      if (error.message.includes("already exists")) {
+        return NextResponse.json({ error: error.message }, { status: 409 });
       }
 
-      if (error.message.includes("password")) {
+      if (error.message.includes("Unique constraint")) {
         return NextResponse.json(
-          { error: "Password does not meet requirements" },
-          { status: 400 }
+          { error: "An account with this information already exists" },
+          { status: 409 }
         );
       }
     }
 
     return NextResponse.json(
-      { error: "Failed to create super admin account. Please try again." },
+      { error: "Failed to complete setup. Please try again." },
       { status: 500 }
     );
   }
+}
+export async function GET() {
+  return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
+}
+
+export async function PUT() {
+  return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
+}
+
+export async function DELETE() {
+  return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
 }
