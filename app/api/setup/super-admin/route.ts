@@ -1,74 +1,45 @@
 // app/api/setup/super-admin/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { createAuthUser } from "@/lib/auth-utils";
-import { setupBaseSchema } from "@/schemas/index";
+import { auth } from "@/lib/auth";
+import { SYSTEM_ROLES } from "@/lib/auth-utils";
 
-function generateSchoolCode(schoolName: string): string {
-  const cleaned = schoolName
+// Generate unique school code
+function generateSchoolCode(name: string): string {
+  const prefix = name
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
     .toUpperCase()
-    .replace(/[^A-Z0-9\s]/g, "")
-    .trim()
-    .replace(/\s+/g, "-");
+    .slice(0, 3);
 
-  const prefix = cleaned.substring(0, 15);
-  const timestamp = Date.now().toString().slice(-6);
-
-  return `${prefix}-${timestamp}`;
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}${random}`;
 }
 
-async function ensureUniqueSchoolCode(schoolName: string): Promise<string> {
-  let attempts = 0;
-  const maxAttempts = 5;
+// Generate organization slug
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
 
-  while (attempts < maxAttempts) {
-    const code = generateSchoolCode(schoolName);
-
-    const existing = await prisma.school.findUnique({
-      where: { code },
-      select: { id: true },
+export async function POST(req: Request) {
+  try {
+    // Check if setup already completed
+    const existingSuperAdmin = await prisma.userProfile.count({
+      where: { isSuperAdmin: true },
     });
 
-    if (!existing) {
-      return code;
-    }
-
-    attempts++;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-
-  const code = generateSchoolCode(schoolName);
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${code}-${random}`;
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const [superAdminCount, completedSchoolCount] = await Promise.all([
-      prisma.userProfile.count({ where: { isSuperAdmin: true } }),
-      prisma.school.count({ where: { setupCompleted: true } }),
-    ]);
-
-    if (superAdminCount > 0 || completedSchoolCount > 0) {
+    if (existingSuperAdmin > 0) {
       return NextResponse.json(
-        { error: "Setup has already been completed. Access denied." },
-        { status: 403 }
-      );
-    }
-
-    const body = await request.json();
-    const validationResult = setupBaseSchema
-      .omit({ schoolCode: true })
-      .safeParse(body);
-
-    if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0];
-      return NextResponse.json(
-        { error: firstError.message, field: firstError.path[0] },
+        { error: "Setup already completed" },
         { status: 400 }
       );
     }
 
+    const body = await req.json();
     const {
       schoolName,
       schoolEmail,
@@ -80,129 +51,217 @@ export async function POST(request: NextRequest) {
       password,
       gender,
       dob,
-    } = validationResult.data;
+    } = body;
 
-    const schoolCode = await ensureUniqueSchoolCode(schoolName);
-    const normalizedEmail = email.toLowerCase().trim();
-
-    const existingUser = await prisma.user.findFirst({
-      where: { email: normalizedEmail },
-      select: { id: true },
-    });
-
-    if (existingUser) {
+    // Validate required fields
+    if (!schoolName || !firstName || !lastName || !email || !password || !dob) {
       return NextResponse.json(
-        { error: "An account with this email already exists" },
-        { status: 409 }
+        { error: "Missing required fields" },
+        { status: 400 }
       );
     }
 
-    // Step 1: Create school FIRST (outside of any transaction with user creation)
-    const school = await prisma.school.create({
-      data: {
-        name: schoolName.trim(),
-        code: schoolCode,
-        email: schoolEmail?.trim() || null,
-        phone: schoolPhone?.trim() || null,
-        currency: "GHS",
-        timezone: "Africa/Accra",
-        isActive: true,
-        setupCompleted: true,
-      },
-    });
-
-    // Step 2: Create user with Better Auth (now school exists in DB)
-    let authResult;
-    try {
-      authResult = await createAuthUser({
-        email: normalizedEmail,
-        password: password,
-        name: `${firstName.trim()} ${lastName.trim()}`,
-        schoolId: school.id,
-      });
-    } catch (error) {
-      // If user creation fails, rollback the school
-      await prisma.school.delete({ where: { id: school.id } });
-      throw error;
-    }
-
-    // Step 3: Create user profile in a transaction
-    const profile = await prisma.userProfile.create({
-      data: {
-        userId: authResult.user.id,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phone: phone?.trim(),
-        gender,
-        dob: new Date(dob),
-        roles: ["ADMIN"],
-        activeRole: "ADMIN",
-        isSuperAdmin: true,
-        isActive: true,
-        staff: {
-          create: {
-            staffId: `ADMIN-${Date.now()}`,
-            staffType: "ADMIN",
-            department: "Administration",
-            isActive: true,
-            hireDate: new Date(),
-          },
+    // Start transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create Better Auth user
+      const authUser = await auth.api.signUpEmail({
+        body: {
+          email,
+          password,
+          name: `${firstName} ${lastName}`,
         },
-      },
-      select: {
-        id: true,
-        staff: { select: { staffId: true } },
+      });
+
+      // 2. Create Organization (represents the school in Better Auth)
+      const orgSlug = generateSlug(schoolName);
+      const organization = await tx.organization.create({
+        data: {
+          name: schoolName,
+          slug: orgSlug,
+          metadata: JSON.stringify({
+            setupAt: new Date().toISOString(),
+            setupBy: authUser.user.id,
+          }),
+        },
+      });
+
+      // 3. Create School linked to Organization
+      const schoolCode = generateSchoolCode(schoolName);
+      const school = await tx.school.create({
+        data: {
+          organizationId: organization.id,
+          name: schoolName,
+          code: schoolCode,
+          email: schoolEmail || null,
+          phone: schoolPhone || null,
+          setupCompleted: true,
+          isActive: true,
+        },
+      });
+
+      // 4. Create User Profile (super admin)
+      const profile = await tx.userProfile.create({
+        data: {
+          userId: authUser.user.id,
+          firstName,
+          lastName,
+          phone: phone || "",
+          gender,
+          dob: new Date(dob),
+          isSuperAdmin: true,
+          isActive: true,
+        },
+      });
+
+      // 5. Add user to organization as admin
+      await tx.organizationMember.create({
+        data: {
+          userId: authUser.user.id,
+          organizationId: organization.id,
+          role: SYSTEM_ROLES.SUPER_ADMIN,
+        },
+      });
+
+      // 6. Create default system roles for the school
+      const systemRoles = [
+        {
+          code: SYSTEM_ROLES.SCHOOL_ADMIN,
+          name: "School Administrator",
+          description:
+            "Full access to school management (except super admin functions)",
+          isSystem: true,
+        },
+        {
+          code: SYSTEM_ROLES.HEADMASTER,
+          name: "Headmaster/Principal",
+          description: "Academic and administrative oversight",
+          isSystem: true,
+        },
+        {
+          code: SYSTEM_ROLES.TEACHER,
+          name: "Teacher",
+          description: "Teaching and student management",
+          isSystem: true,
+        },
+        {
+          code: SYSTEM_ROLES.ACCOUNTANT,
+          name: "Accountant",
+          description: "Financial management and reporting",
+          isSystem: true,
+        },
+        {
+          code: SYSTEM_ROLES.STUDENT,
+          name: "Student",
+          description: "Student access",
+          isSystem: true,
+        },
+        {
+          code: SYSTEM_ROLES.PARENT,
+          name: "Parent/Guardian",
+          description: "View student information",
+          isSystem: true,
+        },
+      ];
+
+      for (const roleData of systemRoles) {
+        await tx.role.create({
+          data: {
+            schoolId: school.id,
+            ...roleData,
+          },
+        });
+      }
+
+      // 7. Create default chart of accounts
+      const defaultAccounts = [
+        {
+          code: "1000",
+          name: "Assets",
+          accountType: "ASSET",
+          category: "CASH",
+        },
+        {
+          code: "2000",
+          name: "Liabilities",
+          accountType: "LIABILITY",
+          category: "ACCOUNTS_PAYABLE",
+        },
+        {
+          code: "3000",
+          name: "Equity",
+          accountType: "EQUITY",
+          category: "OTHER_INCOME",
+        },
+        {
+          code: "4000",
+          name: "Revenue",
+          accountType: "REVENUE",
+          category: "SCHOOL_FEES",
+        },
+        {
+          code: "5000",
+          name: "Expenses",
+          accountType: "EXPENSE",
+          category: "OTHER_EXPENSE",
+        },
+      ];
+
+      for (const accountData of defaultAccounts) {
+        await tx.chartAccount.create({
+          data: {
+            schoolId: school.id,
+            ...accountData,
+            isActive: true,
+          },
+        });
+      }
+
+      return {
+        user: authUser.user,
+        profile,
+        school,
+        organization,
+      };
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        userId: result.user.id,
+        email: result.user.email,
+        schoolId: result.school.id,
+        schoolCode: result.school.code,
+        organizationId: result.organization.id,
       },
     });
+  } catch (error: any) {
+    console.error("[SETUP_ERROR]", error);
 
     return NextResponse.json(
       {
-        success: true,
-        message: "School and super admin account created successfully",
-        school: {
-          id: school.id,
-          name: school.name,
-          code: school.code,
-        },
-        user: {
-          id: authResult.user.id,
-          name: authResult.user.name,
-          email: authResult.user.email,
-          staffId: profile.staff?.staffId,
-        },
+        error: error.message || "Setup failed. Please try again.",
+        details:
+          process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("[SETUP_CREATE_ERROR]", error);
-
-    if (error instanceof Error) {
-      if (error.message.includes("already exists")) {
-        return NextResponse.json({ error: error.message }, { status: 409 });
-      }
-
-      if (error.message.includes("Unique constraint")) {
-        return NextResponse.json(
-          { error: "An account with this information already exists" },
-          { status: 409 }
-        );
-      }
-    }
-
-    return NextResponse.json(
-      { error: "Failed to complete setup. Please try again." },
       { status: 500 }
     );
   }
 }
+
 export async function GET() {
-  return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
-}
+  // Check setup status
+  try {
+    const superAdminCount = await prisma.userProfile.count({
+      where: { isSuperAdmin: true },
+    });
 
-export async function PUT() {
-  return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
-}
-
-export async function DELETE() {
-  return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
+    return NextResponse.json({
+      setupCompleted: superAdminCount > 0,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to check setup status" },
+      { status: 500 }
+    );
+  }
 }

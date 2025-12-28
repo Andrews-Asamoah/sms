@@ -1,5 +1,3 @@
-"use client";
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SummaryCard from "./_component/summary_card";
 import {
@@ -12,9 +10,19 @@ import {
 import Overview from "./_component/overview";
 import RecentFees from "./_component/recent_fees";
 import DashPageWrapper from "./_component/pageWrapper";
-import StudentGenderChart from "./_component/studentGender";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
-const Dashboard = () => {
+export default async function Dashboard() {
+     const session = await auth.api.getSession({
+        headers: await headers()
+    })
+
+    if(!session) {
+        redirect("/login")
+    }
+
   return (
     <DashPageWrapper currentPage="Dashboard">
       <Tabs defaultValue="overview" className="space-y-4">
@@ -57,21 +65,8 @@ const Dashboard = () => {
             </Card>
           </div>
         </TabsContent>
-        <TabsContent value="analytics" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="col-span-4">
-              <CardHeader>
-                <CardTitle>Overview</CardTitle>
-              </CardHeader>
-              <CardContent className="pl-2">
-                <StudentGenderChart />
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+     
       </Tabs>
     </DashPageWrapper>
   );
 };
-
-export default Dashboard;

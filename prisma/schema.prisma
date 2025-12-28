@@ -8,74 +8,28 @@ datasource db {
 }
 
 // ============================================
-// MULTI-TENANCY MODEL
-// ============================================
-model School {
-  id      String  @id @default(cuid())
-  name    String
-  code    String  @unique // Auto-generated unique identifier
-  email   String?
-  phone   String?
-  address String?
-  logo    String?
-  motto   String?
-  website String?
-
-  // School Configuration
-  currency           String @default("GHS")
-  timezone           String @default("Africa/Accra")
-  academicYearFormat String @default("YYYY/YYYY")
-
-  // Status
-  isActive       Boolean @default(true)
-  setupCompleted Boolean @default(false)
-
-  // Relations
-  users         User[]
-  academicYears AcademicYear[]
-  departments   Department[]
-  classes       Class[]
-  subjects      Subject[]
-  feeStructures FeeStructure[]
-  chartAccounts ChartAccount[]
-  transactions  Transaction[]
-  bills         Bill[]
-  houses        House[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([code])
-  @@index([isActive])
-  @@map("schools")
-}
-
-// ============================================
-// BETTER AUTH CORE MODELS (Following Better Auth Schema)
+// BETTER AUTH CORE MODELS
 // ============================================
 model User {
   id            String   @id @default(cuid())
   name          String
-  email         String
+  email         String   @unique
   emailVerified Boolean  @default(false)
   image         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // Multi-tenancy
-  schoolId String
-  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-
   // Better Auth relations
   sessions Session[]
   accounts Account[]
+  
+  // Organization memberships
+  members OrganizationMember[]
 
   // School Management relations
   profile     UserProfile?
   attendances Attendance[]
 
-  @@unique([email])
-  @@index([schoolId])
   @@index([email])
   @@map("user")
 }
@@ -132,7 +86,152 @@ model Verification {
 }
 
 // ============================================
-// USER PROFILE & ROLES
+// BETTER AUTH ORGANIZATION (MAPS TO SCHOOL)
+// ============================================
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  metadata  String?  // JSON string for additional data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members OrganizationMember[]
+  school  School?
+
+  @@index([slug])
+  @@map("organization")
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  role           String   // ADMIN, TEACHER, ACCOUNTANT, etc.
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([role])
+  @@map("organization_member")
+}
+
+// ============================================
+// SCHOOL (LINKED TO ORGANIZATION)
+// ============================================
+model School {
+  id      String  @id @default(cuid())
+  
+  // Link to Better Auth Organization
+  organizationId String @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // School Details
+  name    String
+  code    String  @unique // Auto-generated
+  email   String?
+  phone   String?
+  address String?
+  logo    String?
+  motto   String?
+  website String?
+  
+  // Custom Domain Support
+  domain  String? @unique // e.g., schoolname.edu.gh
+
+  // Configuration
+  currency           String @default("GHS")
+  timezone           String @default("Africa/Accra")
+  academicYearFormat String @default("YYYY/YYYY")
+
+  // Status
+  isActive       Boolean @default(true)
+  setupCompleted Boolean @default(false)
+
+  // Relations
+  academicYears AcademicYear[]
+  departments   Department[]
+  classes       Class[]
+  subjects      Subject[]
+  feeStructures FeeStructure[]
+  chartAccounts ChartAccount[]
+  transactions  Transaction[]
+  bills         Bill[]
+  houses        House[]
+  roles         Role[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+  @@index([domain])
+  @@index([isActive])
+  @@map("schools")
+}
+
+// ============================================
+// ROLE-BASED ACCESS CONTROL (RBAC)
+// ============================================
+model Role {
+  id          String @id @default(cuid())
+  schoolId    String
+  school      School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  name        String // Display name: "Teacher", "Accountant"
+  code        String // System code: TEACHER, ACCOUNTANT
+  description String?
+  isSystem    Boolean @default(false) // System roles can't be deleted
+  
+  permissions RolePermission[]
+  profiles    UserProfile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@index([code])
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  code        String @unique // VIEW_STUDENTS, MANAGE_BILLS, etc.
+  name        String
+  description String?
+  category    PermissionCategory
+  
+  roles RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+  @@index([category])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================
+// USER PROFILE (EXTENDED USER DATA)
 // ============================================
 model UserProfile {
   id     String @id @default(cuid())
@@ -148,16 +247,16 @@ model UserProfile {
   dob        DateTime
   location   String?
 
-  // Role Information
-  roles      UserRole[]
-  activeRole UserRole?
+  // Active Role per School (user can switch)
+  activeRoleId String?
+  activeRole   Role?   @relation(fields: [activeRoleId], references: [id], onDelete: SetNull)
 
-  // Polymorphic role relations
+  // Polymorphic role data
   student Student?
   teacher Teacher?
   staff   Staff?
 
-  // System flags
+  // Super Admin flag (can access ALL schools)
   isSuperAdmin Boolean @default(false)
   isActive     Boolean @default(true)
 
@@ -167,6 +266,7 @@ model UserProfile {
   @@index([userId])
   @@index([isSuperAdmin])
   @@index([isActive])
+  @@index([activeRoleId])
   @@map("user_profiles")
 }
 
@@ -313,7 +413,7 @@ model Staff {
 }
 
 // ============================================
-// ACADEMIC STRUCTURE
+// ACADEMIC STRUCTURE (keeping your existing models)
 // ============================================
 model Class {
   id       String @id @default(cuid())
@@ -613,9 +713,8 @@ model Remark {
 }
 
 // ============================================
-// COMPREHENSIVE ACCOUNTING SYSTEM
+// ACCOUNTING SYSTEM (keeping your models)
 // ============================================
-// Renamed from "Account" to avoid conflict with Better Auth's Account model
 model ChartAccount {
   id       String @id @default(cuid())
   schoolId String
@@ -632,7 +731,6 @@ model ChartAccount {
   children ChartAccount[] @relation("AccountHierarchy")
 
   balance Decimal @default(0) @db.Decimal(15, 2)
-
   isActive Boolean @default(true)
 
   debitTransactions  Transaction[] @relation("DebitTransactions")
@@ -838,17 +936,6 @@ model Transaction {
 // ENUMS
 // ============================================
 
-enum UserRole {
-  ADMIN
-  STUDENT
-  TEACHER
-  DRIVER
-  MATRON
-  ACCOUNTANT
-  HEADMASTER
-  SMC
-}
-
 enum Gender {
   MALE
   FEMALE
@@ -988,3 +1075,11 @@ enum TransactionCategory {
   TRANSPORT
   OTHER
 }
+
+enum PermissionCategory {
+  STUDENT_MANAGEMENT
+  ACADEMIC
+  FINANCIAL
+  USER_MANAGEMENT
+  SYSTEM
+  }
