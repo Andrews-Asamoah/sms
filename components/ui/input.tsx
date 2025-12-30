@@ -3,6 +3,7 @@ import * as React from "react";
 import { IoEye, IoEyeOff } from "react-icons/io5";
 
 import { cn } from "@/lib/utils";
+import { Eye, EyeOff } from "lucide-react";
 
 export interface InputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -33,7 +34,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
       >
         {hasStartIcon && (
-          <span className="flex items-center justify-center mr-2 text-muted-foreground">
+          <span className="flex items-center absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 justify-center mr-2 text-slate-400">
             {startIcon}
           </span>
         )}
@@ -50,23 +51,22 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         />
 
         {hasEndIcon && (
-          <span className="flex items-center justify-center ml-2">
+          <span className="flex items-center justify-center">
             {showPasswordToggle ? (
               <button
-                className="focus:outline-none text-muted-foreground hover:text-foreground transition-colors"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 type="button"
                 onClick={toggleVisibility}
                 aria-label={isVisible ? "Hide password" : "Show password"}
-                tabIndex={-1}
               >
                 {isVisible ? (
-                  <IoEyeOff className="text-xl" />
+                  <EyeOff className="h-5 w-5" />
                 ) : (
-                  <IoEye className="text-xl" />
+                  <Eye className="h-5 w-5" />
                 )}
               </button>
             ) : (
-              <span className="text-muted-foreground">{endIcon}</span>
+              <span className="text-slate-400">{endIcon}</span>
             )}
           </span>
         )}

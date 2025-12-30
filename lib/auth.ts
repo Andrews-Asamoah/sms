@@ -19,8 +19,17 @@ export const auth = betterAuth({
   // Enable organization plugin
   plugins: [
     organization({
-      // Organization creators can add members by default
-      allowUserToCreateOrganization: true,
+      // Allow users to create organizations (schools)
+      allowUserToCreateOrganization: async (user) => {
+        // Check if user is super admin
+        const profile = await prisma.userProfile.findUnique({
+          where: { userId: user.id },
+          select: { isSuperAdmin: true },
+        });
+
+        // Only super admins can create schools
+        return profile?.isSuperAdmin ?? false;
+      },
 
       // Organization structure
       organizationLimit: 100, // Super admin can access up to 100 schools
@@ -29,6 +38,13 @@ export const auth = betterAuth({
       sendInvitationEmail: async (data) => {
         // Implement email sending logic
         console.log("Sending invitation to:", data.email);
+
+        // Example with nodemailer or resend:
+        // await sendEmail({
+        //   to: data.email,
+        //   subject: `Invitation to join ${data.organizationName}`,
+        //   html: `Click here to accept: ${data.invitationLink}`,
+        // });
       },
     }),
   ],
@@ -37,5 +53,9 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 24 hours
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, //5 minutes
+    },
   },
 });

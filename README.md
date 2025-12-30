@@ -378,9 +378,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-**Project Maintainer**: Your Name  
-**Email**: your.email@example.com  
-**GitHub**: [@yourusername](https://github.com/yourusername)
+**Project Maintainer**: Andrews Asamoah  
+**Email**: kasamoah715@gmail.com
 
 ---
 
