@@ -1,51 +1,26 @@
 // ============================================
-// SYSTEM LAYOUT
+// ALTERNATIVE: SERVER-ONLY VERSION FOR SYSTEM
 // app/(system)/layout.tsx
 // ============================================
 import { AppSidebarSystem } from '@/components/layout/systemSidebar';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from '@/components/ui/sidebar';
+import { DashboardLayout } from '@/components/layout/dashboard-layout';
 
 export default function SystemLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const breadcrumbs = [
+    { label: 'System', href: '/dashboard' },
+    { label: 'Dashboard', isCurrentPage: true },
+  ];
+
   return (
-    <SidebarProvider>
-      <AppSidebarSystem />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="/dashboard">System</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Dashboard</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-        </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>
-      </SidebarInset>
-    </SidebarProvider>
+    <DashboardLayout
+      sidebar={<AppSidebarSystem />}
+      breadcrumbs={breadcrumbs}
+    >
+      {children}
+    </DashboardLayout>
   );
 }

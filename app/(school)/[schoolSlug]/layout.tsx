@@ -1,59 +1,41 @@
 // ============================================
-// SCHOOL LAYOUT
+// ALTERNATIVE: SERVER-ONLY VERSION WITH PARAMS
 // app/(school)/[schoolSlug]/layout.tsx
 // ============================================
 import { AppSidebarSchool } from '@/components/layout/schoolSidebar';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from '@/components/ui/sidebar';
+import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from 'lucide-react';
 
 export default function SchoolLayout({
   children,
+  params,
 }: {
   children: React.ReactNode;
+  params: { schoolSlug: string };
 }) {
+  const schoolSlug = params.schoolSlug;
+
+  // Manually define breadcrumbs in server component
+  const breadcrumbs = [
+    { label: 'School', href: `/${schoolSlug}` },
+    { label: 'Dashboard', isCurrentPage: true },
+  ];
+
+  const headerActions = (
+    <Badge variant="outline" className="gap-1.5">
+      <Calendar className="h-3.5 w-3.5" />
+      <span className="text-xs">2024/2025</span>
+    </Badge>
+  );
+
   return (
-    <SidebarProvider>
-      <AppSidebarSchool />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">School</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Dashboard</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-          <div className="ml-auto flex items-center gap-2 px-4">
-            <Badge variant="outline" className="gap-1.5">
-              <Calendar className="h-3.5 w-3.5" />
-              <span className="text-xs">2024/2025</span>
-            </Badge>
-          </div>
-        </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>
-      </SidebarInset>
-    </SidebarProvider>
+    <DashboardLayout
+      sidebar={<AppSidebarSchool />}
+      breadcrumbs={breadcrumbs}
+      headerActions={headerActions}
+    >
+      {children}
+    </DashboardLayout>
   );
 }
