@@ -139,9 +139,9 @@ export default function NavUser({ user }: NavUserProps) {
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
-                  <Link href="/account" className="cursor-pointer">
+                  <Link href="/profile" className="cursor-pointer">
                     <UserCircle className="h-4 w-4" />
-                    Account
+                    Profile
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
