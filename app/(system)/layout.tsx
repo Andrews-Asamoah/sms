@@ -1,26 +1,39 @@
-// ============================================
-// ALTERNATIVE: SERVER-ONLY VERSION FOR SYSTEM
 // app/(system)/layout.tsx
-// ============================================
-import { AppSidebarSystem } from '@/components/layout/systemSidebar';
-import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { redirect } from "next/navigation";
+import { getAuthSession } from "@/lib/auth";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { ReactNode } from "react";
+import { AppSidebarSystem } from "@/components/layout/app-sidebar-system";
+import { SiteHeaderSystem } from "@/components/layout/site-header-system";
 
-export default function SystemLayout({
+export default async function SystemLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  const breadcrumbs = [
-    { label: 'System', href: '/dashboard' },
-    { label: 'Dashboard', isCurrentPage: true },
-  ];
+  const session = await getAuthSession();
+
+  if (!session || session.user.role !== "superAdmin") {
+    redirect("/login");
+  }
+
+  const userData = {
+    name: session.user.name || "Super Admin",
+    email: session.user.email,
+    avatar: session.user.image || "/wis-logo.png",
+  };
 
   return (
-    <DashboardLayout
-      sidebar={<AppSidebarSystem />}
-      breadcrumbs={breadcrumbs}
-    >
-      {children}
-    </DashboardLayout>
+    <SidebarProvider>
+      <AppSidebarSystem user={userData} />
+      <SidebarInset className="flex flex-col h-screen">
+        <SiteHeaderSystem />
+        <main className="flex-1 overflow-y-auto min-h-0">
+          <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+            {children}
+          </div>
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

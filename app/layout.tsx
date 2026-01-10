@@ -1,3 +1,7 @@
+// ============================================
+// 1. ROOT LAYOUT FIX
+// app/layout.tsx
+// ============================================
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -28,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen w-full flex flex-col antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} h-screen overflow-hidden antialiased`}
       >
         <ThemeProvider
           attribute="class"
@@ -36,9 +40,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-           <TooltipProvider>
-           <Toaster />
-          {children}
+          <TooltipProvider>
+            <main className="w-full">{children}</main>
+            <Toaster />
           </TooltipProvider>
         </ThemeProvider>
       </body>

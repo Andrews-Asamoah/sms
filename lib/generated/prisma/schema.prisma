@@ -10,21 +10,27 @@ datasource db {
 // ============================================
 // BETTER AUTH CORE MODELS (Official)
 // ============================================
-model user {
-  id            String   @id @default(cuid())
+
+model User {
+  id            String    @id @default(cuid())
   name          String
-  email         String   @unique
-  emailVerified Boolean  @default(false)
+  email         String    @unique
+  emailVerified Boolean   @default(false)
   image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  role          String    @default("user")
+  banned        Boolean   @default(false)
+  banReason     String?
+  banExpires    DateTime?
 
   // Better Auth relations
-  sessions session[]
-  accounts account[]
+  sessions    Session[]
+  accounts    Account[]
+  invitations Invitation[]
 
   // Multi-tenant organization memberships
-  memberships member[]
+  memberships Member[]
 
   // SMS Extended Profile (1-to-1)
   profile UserProfile?
@@ -39,19 +45,22 @@ model user {
   gradingSystems     GradingSystem[]
 
   @@index([email])
+  @@index([role])
+  @@index([banned])
 }
 
-model session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
+model Session {
+  id             String   @id @default(cuid())
+  expiresAt      DateTime
+  token          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  impersonatedBy String?
 
   userId String
-  user   user   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Active context for session
   activeOrganizationId String?
@@ -59,14 +68,15 @@ model session {
   @@index([userId])
   @@index([token])
   @@index([activeOrganizationId])
+  @@index([impersonatedBy])
 }
 
-model account {
+model Account {
   id         String @id @default(cuid())
   accountId  String
   providerId String
   userId     String
-  user       user   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   accessToken           String?   @db.Text
   refreshToken          String?   @db.Text
@@ -83,7 +93,7 @@ model account {
   @@index([userId])
 }
 
-model verification {
+model Verification {
   id         String   @id @default(cuid())
   identifier String
   value      String
@@ -99,31 +109,33 @@ model verification {
 // ============================================
 // BETTER AUTH ORGANIZATION = SCHOOL TENANT
 // ============================================
-model organization {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  logo      String?
-  metadata  Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  members member[]
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  logo        String?
+  metadata    String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  invitations Invitation[]
+
+  members Member[]
   school  School?
 
   @@index([slug])
 }
 
-model member {
+model Member {
   id             String       @id @default(cuid())
   organizationId String
-  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId         String
-  user           user         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  role      UserRole
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role      MemberRole
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
   @@unique([organizationId, userId, role])
   @@index([organizationId])
@@ -131,13 +143,32 @@ model member {
   @@index([role])
 }
 
+model Invitation {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  inviterId      String
+  inviter        User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([status])
+  @@map("invitation")
+}
+
 // ============================================
 // SCHOOL (TENANT) - EXTENDS ORGANIZATION
 // ============================================
+
 model School {
   id             String       @id @default(cuid())
   organizationId String       @unique
-  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   // Basic Information
   name    String
@@ -214,10 +245,11 @@ model School {
 // ============================================
 // USER PROFILE (EXTENDED USER DATA)
 // ============================================
+
 model UserProfile {
   id     String @id @default(cuid())
   userId String @unique
-  user   user   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Personal Information
   firstName      String
@@ -264,6 +296,7 @@ model UserProfile {
 // ============================================
 // ROLE-SPECIFIC PROFILES
 // ============================================
+
 model Student {
   id        String      @id @default(cuid())
   profileId String      @unique
@@ -494,6 +527,7 @@ model GuardianStudent {
 // ============================================
 // HOUSE SYSTEM
 // ============================================
+
 model House {
   id       String @id @default(cuid())
   schoolId String
@@ -525,6 +559,7 @@ model House {
 // ============================================
 // ACADEMIC STRUCTURE
 // ============================================
+
 model AcademicYear {
   id       String @id @default(cuid())
   schoolId String
@@ -725,6 +760,7 @@ model Enrollment {
 // ============================================
 // ATTENDANCE SYSTEM
 // ============================================
+
 model Attendance {
   id        String  @id @default(cuid())
   studentId String
@@ -735,7 +771,7 @@ model Attendance {
   remarks String?          @db.Text
 
   markedById String
-  markedBy   user     @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: Restrict)
+  markedBy   User     @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: Restrict)
   markedAt   DateTime @default(now())
 
   createdAt DateTime @default(now())
@@ -753,6 +789,7 @@ model Attendance {
 // ============================================
 
 // Grading System Configuration (e.g., BECE, WASSCE, Custom)
+
 model GradingSystem {
   id       String  @id @default(cuid())
   schoolId String? // NULL = Super Admin Default System
@@ -771,7 +808,7 @@ model GradingSystem {
   assessmentTemplates AssessmentTemplate[]
 
   createdById String?
-  createdBy   user?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -785,6 +822,7 @@ model GradingSystem {
 }
 
 // Grade Scale (A1, B2, C3, etc.)
+
 model GradeScale {
   id              String        @id @default(cuid())
   gradingSystemId String
@@ -808,6 +846,7 @@ model GradeScale {
 }
 
 // Assessment Template (configurable by admin per subject/class)
+
 model AssessmentTemplate {
   id              String        @id @default(cuid())
   schoolId        String
@@ -839,6 +878,7 @@ model AssessmentTemplate {
 }
 
 // Assessment Components (Exams 70%, Class Tests 20%, Homework 10%, etc.)
+
 model AssessmentComponent {
   id         String             @id @default(cuid())
   templateId String
@@ -864,6 +904,7 @@ model AssessmentComponent {
 }
 
 // Student's Assessment Score (per subject, per term)
+
 model AssessmentScore {
   id         String             @id @default(cuid())
   studentId  String
@@ -898,6 +939,7 @@ model AssessmentScore {
 }
 
 // Individual component scores (e.g., Exam: 85/100, Test 1: 18/20)
+
 model ComponentScore {
   id                String              @id @default(cuid())
   assessmentScoreId String
@@ -911,7 +953,7 @@ model ComponentScore {
   weightedScore Decimal @db.Decimal(6, 2) // Score after applying weight
 
   recordedById String?
-  recordedBy   user?   @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  recordedBy   User?   @relation(fields: [recordedById], references: [id], onDelete: SetNull)
 
   recordedAt DateTime @default(now())
 
@@ -958,7 +1000,7 @@ model TranscriptRequest {
   requestedAt   DateTime  @default(now())
   processedAt   DateTime?
   processedById String?
-  processedBy   user?     @relation(fields: [processedById], references: [id], onDelete: SetNull)
+  processedBy   User?     @relation(fields: [processedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -973,6 +1015,7 @@ model TranscriptRequest {
 // ============================================
 // FINANCE - CHART OF ACCOUNTS
 // ============================================
+
 model ChartAccount {
   id       String @id @default(cuid())
   schoolId String
@@ -1008,6 +1051,7 @@ model ChartAccount {
 // ============================================
 // FINANCE - FEE MANAGEMENT
 // ============================================
+
 model FeeStructure {
   id       String @id @default(cuid())
   schoolId String
@@ -1139,7 +1183,7 @@ model Payment {
   notes  String?       @db.Text
 
   recordedById String
-  recordedBy   user   @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  recordedBy   User   @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1202,6 +1246,7 @@ model Transaction {
 // ============================================
 // CUSTOM CATEGORIES
 // ============================================
+
 model CustomFeeCategory {
   id       String @id @default(cuid())
   schoolId String
@@ -1267,6 +1312,7 @@ model CustomTransactionCategory {
 // ============================================
 // DOCUMENT MANAGEMENT
 // ============================================
+
 model Document {
   id       String @id @default(cuid())
   schoolId String
@@ -1289,7 +1335,7 @@ model Document {
   staff     Staff?   @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   uploadedById String
-  uploadedBy   user   @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1306,10 +1352,11 @@ model Document {
 // ============================================
 // AUDIT LOG
 // ============================================
+
 model AuditLog {
   id     String @id @default(cuid())
   userId String
-  user   user   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   action     AuditAction
   entityType String
@@ -1334,14 +1381,10 @@ model AuditLog {
 // ENUMS
 // ============================================
 
-enum UserRole {
-  SUPER_ADMIN
+enum MemberRole {
+  OWNER
   ADMIN
-  TEACHER
-  ACCOUNTANT
-  LIBRARIAN
-  STUDENT
-  GUARDIAN
+  MEMBER
 }
 
 enum Gender {

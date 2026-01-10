@@ -1,41 +1,60 @@
-// ============================================
-// ALTERNATIVE: SERVER-ONLY VERSION WITH PARAMS
 // app/(school)/[schoolSlug]/layout.tsx
-// ============================================
-import { AppSidebarSchool } from '@/components/layout/schoolSidebar';
-import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { Badge } from '@/components/ui/badge';
-import { Calendar } from 'lucide-react';
+import { redirect } from "next/navigation";
+import { getAuthSession } from "@/lib/auth";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { ReactNode } from "react";
+import { AppSidebarSchool } from "@/components/layout/app-sidebar-school";
+import { SiteHeaderSchool } from "@/components/layout/site-header-school";
 
-export default function SchoolLayout({
+export default async function SchoolLayout({
   children,
   params,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   params: { schoolSlug: string };
 }) {
-  const schoolSlug = params.schoolSlug;
+  const session = await getAuthSession();
+  const { schoolSlug } = params;
 
-  // Manually define breadcrumbs in server component
-  const breadcrumbs = [
-    { label: 'School', href: `/${schoolSlug}` },
-    { label: 'Dashboard', isCurrentPage: true },
-  ];
+  if (!session) {
+    redirect("/login");
+  }
 
-  const headerActions = (
-    <Badge variant="outline" className="gap-1.5">
-      <Calendar className="h-3.5 w-3.5" />
-      <span className="text-xs">2024/2025</span>
-    </Badge>
-  );
+  // TODO: Fetch school data from database based on schoolSlug
+  // This should be replaced with actual database query
+  const schoolData = {
+    name: "St. Mary's High School",
+    plan: "Premium Plan",
+    logo: "/schools/st-marys.png",
+    academicYear: "2024/2025",
+  };
+
+  const userData = {
+    name: session.user.name || "User",
+    email: session.user.email,
+    avatar: session.user.image ?? undefined,
+  };
 
   return (
-    <DashboardLayout
-      sidebar={<AppSidebarSchool />}
-      breadcrumbs={breadcrumbs}
-      headerActions={headerActions}
-    >
-      {children}
-    </DashboardLayout>
+    <SidebarProvider>
+      <AppSidebarSchool
+        schoolSlug={schoolSlug}
+        schoolName={schoolData.name}
+        schoolPlan={schoolData.plan}
+        schoolLogo={schoolData.logo}
+        user={userData}
+      />
+      <SidebarInset className="flex flex-col h-screen">
+        <SiteHeaderSchool
+          schoolSlug={schoolSlug}
+          academicYear={schoolData.academicYear}
+        />
+        <main className="flex-1 overflow-y-auto min-h-0">
+          <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+            {children}
+          </div>
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

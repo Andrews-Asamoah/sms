@@ -2,11 +2,11 @@
 // AUTH LAYOUT ERROR PAGE
 // app/(auth)/error.tsx
 // ============================================
-'use client';
-import { useEffect } from 'react';
-import { Lock, RefreshCw, Home } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
+"use client";
+import { useEffect } from "react";
+import { Lock, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default function AuthError({
   error,
@@ -27,10 +27,14 @@ export default function AuthError({
             <Lock className="size-8 text-red-600" />
           </div>
         </div>
-        
+
         <div className="mb-6">
-          <h1 className="mb-2 text-4xl font-bold text-gray-900">Authentication Error</h1>
-          <h2 className="mb-4 text-xl font-semibold text-gray-800">Something went wrong</h2>
+          <h1 className="mb-2 text-4xl font-bold text-gray-900">
+            Authentication Error
+          </h1>
+          <h2 className="mb-4 text-xl font-semibold text-gray-800">
+            Something went wrong
+          </h2>
           <p className="mb-2 text-gray-600">
             We encountered an error during authentication. Please try again.
           </p>
