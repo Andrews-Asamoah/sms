@@ -1,7 +1,7 @@
 // app/(auth)/reset-password/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -46,7 +46,7 @@ const resetPasswordSchema = z
 
 type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
@@ -275,5 +275,24 @@ export default function ResetPasswordPage() {
         </form>
       )}
     </AuthCardWrapper>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <AuthCardWrapper
+          title="Loading..."
+          description="Please wait while we load your reset password form"
+        >
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          </div>
+        </AuthCardWrapper>
+      }
+    >
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

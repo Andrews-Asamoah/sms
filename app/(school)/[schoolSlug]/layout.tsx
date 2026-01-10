@@ -11,10 +11,10 @@ export default async function SchoolLayout({
   params,
 }: {
   children: ReactNode;
-  params: { schoolSlug: string };
+  params: Promise<{ schoolSlug: string }>; // Changed to Promise
 }) {
   const session = await getAuthSession();
-  const { schoolSlug } = params;
+  const { schoolSlug } = await params; // Added await
 
   if (!session) {
     redirect("/login");
