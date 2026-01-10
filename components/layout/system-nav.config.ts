@@ -11,7 +11,6 @@ import {
   FileText,
   HelpCircle,
   GraduationCap,
-  Globe,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 
@@ -21,7 +20,6 @@ export const systemNavSections: NavSection[] = [
     items: [
       { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
       { title: "Analytics", url: "/analytics", icon: BarChart3 },
-      { title: "All Schools", url: "/schools", icon: Globe, badge: "12" },
     ],
   },
   {
@@ -29,15 +27,12 @@ export const systemNavSections: NavSection[] = [
     items: [
       {
         title: "Schools Directory",
-        url: "/schools/directory",
+        url: "/schools",
         icon: Building2,
         items: [
+          { title: "All Schools", url: "/schools" },
+          { title: "Add School", url: "/schools/new" },
           { title: "Active Schools", url: "/schools/directory/active" },
-          {
-            title: "Pending Approval",
-            url: "/schools/directory/pending",
-            badge: "3",
-          },
           { title: "Suspended", url: "/schools/directory/suspended" },
           { title: "Archived", url: "/schools/directory/archived" },
         ],

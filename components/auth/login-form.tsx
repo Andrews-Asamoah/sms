@@ -15,15 +15,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
-import {
-  Mail,
-  Lock,
-  AlertCircle,
-  Loader2,
-  ArrowRight,
-  Eye,
-  EyeOff,
-} from "lucide-react";
+import { AlertCircle, Loader2, ArrowRight, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { signIn } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -93,12 +85,11 @@ export function LoginForm() {
           <FieldLabel htmlFor="email">Email Address</FieldLabel>
           <div className="relative">
             <Input
-              startIcon={<Mail />}
               {...register("email")}
               id="email"
               type="email"
               placeholder="you@school.edu"
-              className="pl-10 bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700"
+              className="bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700"
               disabled={isSubmitting}
               aria-invalid={!!errors.email}
             />
@@ -110,12 +101,11 @@ export function LoginForm() {
           <FieldLabel htmlFor="password">Password</FieldLabel>
           <div className="relative">
             <Input
-              startIcon={<Lock />}
               {...register("password")}
               id="password"
               type={showPassword ? "text" : "password"}
               placeholder="Enter your password"
-              className="pl-10 pr-10 bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700"
+              className="pr-10 bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700"
               disabled={isSubmitting}
               aria-invalid={!!errors.password}
             />

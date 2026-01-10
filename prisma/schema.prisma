@@ -195,11 +195,6 @@ model School {
   settings Json?
   features Json?
 
-  // Status
-  isActive    Boolean   @default(true)
-  isPremium   Boolean   @default(false)
-  trialEndsAt DateTime?
-
   // Relations
   academicYears AcademicYear[]
   departments   Department[]
@@ -232,12 +227,12 @@ model School {
   // Documents
   documents Document[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  subscription Subscription?
 
   @@index([code])
   @@index([subdomain])
-  @@index([isActive, isPremium])
   @@index([organizationId])
   @@map("schools")
 }
@@ -1378,6 +1373,101 @@ model AuditLog {
 }
 
 // ============================================
+// SUBSCRIPTION & BILLING
+// ============================================
+
+model Subscription {
+  id       String @id @default(cuid())
+  schoolId String @unique
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // Plan Details
+  planType     PlanType      @default(FREE)
+  planName     String        @default("Free Plan")
+  billingCycle BillingCycle? // null for free plan
+
+  // Status
+  status SubscriptionStatus @default(ACTIVE)
+
+  // Pricing
+  amount   Decimal? @db.Decimal(10, 2)
+  currency String   @default("USD")
+
+  // Trial
+  trialStartsAt DateTime?
+  trialEndsAt   DateTime?
+  isOnTrial     Boolean   @default(false)
+
+  // Billing Period
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+
+  // Payment Integration
+  stripeCustomerId      String? @unique
+  stripeSubscriptionId  String? @unique
+  stripePaymentMethodId String?
+
+  // Cancellation
+  cancelAtPeriodEnd Boolean   @default(false)
+  canceledAt        DateTime?
+
+  // Usage Limits (for free tier)
+  maxStudents Int?
+  maxTeachers Int?
+  maxStaff    Int?
+
+  // Relations
+  invoices InvoiceRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([status])
+  @@index([planType])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@map("subscriptions")
+}
+
+model InvoiceRecord {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  // Invoice Details
+  invoiceNumber String  @unique
+  amount        Decimal @db.Decimal(10, 2)
+  currency      String  @default("USD")
+
+  // Status
+  status InvoiceStatus @default(PENDING)
+
+  // Period
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // Payment
+  paidAt        DateTime?
+  paymentMethod String?
+
+  // External Reference
+  stripeInvoiceId String? @unique
+
+  // Invoice URL
+  invoiceUrl String?
+  pdfUrl     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@map("invoice_records")
+}
+
+// ============================================
 // ENUMS
 // ============================================
 
@@ -1615,4 +1705,35 @@ enum AuditAction {
   BILL_GENERATED
   GRADE_ENTERED
   ATTENDANCE_MARKED
+}
+
+enum PlanType {
+  FREE
+  PREMIUM
+  ENTERPRISE
+  CUSTOM
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  UNPAID
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  VOID
 }
