@@ -14,7 +14,7 @@ export default async function SchoolDetailPage({
 }: SchoolDetailPageProps) {
   const session = await getAuthSession();
   if (!session) {
-    redirect("/sign-in");
+    redirect("/login");
   }
 
   const { schoolId } = await params;

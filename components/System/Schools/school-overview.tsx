@@ -24,8 +24,9 @@ import {
   Phone,
   Globe,
   MapPin,
+  Clock,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -58,6 +59,20 @@ type SchoolWithDetails = Prisma.SchoolGetPayload<{
                 name: true;
                 email: true;
                 image: true;
+                role: true;
+              };
+            };
+          };
+        };
+        invitations: {
+          where: {
+            status: "pending";
+          };
+          include: {
+            inviter: {
+              select: {
+                name: true;
+                email: true;
               };
             };
           };
@@ -71,7 +86,20 @@ interface SchoolOverviewProps {
   school: SchoolWithDetails;
 }
 
+// Helper function to calculate days remaining (pure function)
+function calculateDaysRemaining(expiresAt: Date, currentTime: number): number {
+  return Math.max(
+    0,
+    Math.ceil(
+      (new Date(expiresAt).getTime() - currentTime) / (1000 * 60 * 60 * 24)
+    )
+  );
+}
+
 export function SchoolOverview({ school }: SchoolOverviewProps) {
+  // Get current time once at component mount using useState
+  const [currentTime] = useState(() => Date.now());
+
   // Calculate subscription status using useMemo to avoid re-calculation on every render
   const subscriptionStatus = useMemo(() => {
     const isActive =
@@ -84,26 +112,33 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
 
     // Calculate days remaining in trial
     const trialDaysRemaining = school.subscription?.trialEndsAt
-      ? Math.ceil(
-          (new Date(school.subscription.trialEndsAt).getTime() -
-            new Date().getTime()) /
-            (1000 * 60 * 60 * 24)
-        )
+      ? calculateDaysRemaining(school.subscription.trialEndsAt, currentTime)
       : 0;
 
     return {
       isActive,
       isPremium,
       isOnTrial,
-      trialDaysRemaining: Math.max(0, trialDaysRemaining),
+      trialDaysRemaining,
     };
-  }, [school.subscription]);
+  }, [school.subscription, currentTime]);
+
+  // Process invitations with expiry data
+  const invitationsWithExpiry = useMemo(() => {
+    if (!school.organization.invitations) return [];
+
+    return school.organization.invitations.map((invitation) => ({
+      ...invitation,
+      expiresIn: calculateDaysRemaining(invitation.expiresAt, currentTime),
+      isExpired: calculateDaysRemaining(invitation.expiresAt, currentTime) <= 0,
+    }));
+  }, [school.organization.invitations, currentTime]);
 
   return (
     <div className="space-y-6">
       {/* Subscription Status Banner */}
       {subscriptionStatus.isOnTrial && (
-        <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
+        <Card className="backdrop-blur-xl bg-blue-50/80 border-blue-200 dark:bg-blue-950/80 dark:border-blue-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
               <AlertCircle className="h-5 w-5" />
@@ -128,7 +163,7 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
       )}
 
       {/* School Header Card with Actions */}
-      <Card>
+      <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex items-start gap-4 flex-1">
@@ -267,7 +302,7 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
 
       {/* Statistics Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="hover:shadow-md transition-shadow">
+        <Card className="backdrop-blur-xl bg-background/60 border-primary/10 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Total Students
@@ -284,7 +319,7 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow">
+        <Card className="backdrop-blur-xl bg-background/60 border-primary/10 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Total Teachers
@@ -301,7 +336,7 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow">
+        <Card className="backdrop-blur-xl bg-background/60 border-primary/10 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Classes</CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -311,7 +346,7 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow">
+        <Card className="backdrop-blur-xl bg-background/60 border-primary/10 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Departments</CardTitle>
             <BookOpen className="h-4 w-4 text-muted-foreground" />
@@ -328,7 +363,7 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Subscription Details Card */}
         {school.subscription && (
-          <Card>
+          <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Crown className="h-5 w-5" />
@@ -401,7 +436,7 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
 
         {/* Current Academic Year */}
         {school.academicYears.length > 0 && (
-          <Card>
+          <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
             <CardHeader>
               <CardTitle>Current Academic Year</CardTitle>
             </CardHeader>
@@ -439,9 +474,76 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
         )}
       </div>
 
+      {/* Pending Invitations */}
+      {invitationsWithExpiry.length > 0 && (
+        <Card className="backdrop-blur-xl bg-background/60 border-yellow-500/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-yellow-600" />
+                  Pending Invitations
+                </CardTitle>
+                <CardDescription>
+                  Users who have been invited but haven&apos;t joined yet
+                </CardDescription>
+              </div>
+              <Badge
+                variant="outline"
+                className="border-yellow-500/50 bg-yellow-500/10"
+              >
+                {invitationsWithExpiry.length} pending
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {invitationsWithExpiry.map((invitation) => (
+                <div
+                  key={invitation.id}
+                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {invitation.email}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>
+                        {invitation.isExpired
+                          ? "Expired"
+                          : `Expires in ${invitation.expiresIn} day${
+                              invitation.expiresIn !== 1 ? "s" : ""
+                            }`}
+                      </span>
+                      {invitation.role && (
+                        <>
+                          <span>•</span>
+                          <span className="font-medium">{invitation.role}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={
+                      invitation.isExpired
+                        ? "text-destructive border-destructive/50"
+                        : "text-yellow-600 border-yellow-500/50"
+                    }
+                  >
+                    {invitation.isExpired ? "Expired" : "Pending"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Organization Members */}
       {school.organization.members.length > 0 && (
-        <Card>
+        <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -463,40 +565,50 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
                   key={member.id}
                   className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     {member.user.image ? (
                       <Image
                         src={member.user.image}
                         alt={member.user.name}
                         width={40}
                         height={40}
-                        className="rounded-full"
+                        className="rounded-full flex-shrink-0"
                       />
                     ) : (
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-sm font-medium">
                           {member.user.name.substring(0, 2).toUpperCase()}
                         </span>
                       </div>
                     )}
-                    <div>
-                      <p className="text-sm font-medium">{member.user.name}</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">
+                        {member.user.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
                         {member.user.email}
                       </p>
                     </div>
                   </div>
-                  <Badge
-                    variant={
-                      member.role === "OWNER"
-                        ? "default"
-                        : member.role === "ADMIN"
-                        ? "secondary"
-                        : "outline"
-                    }
-                  >
-                    {member.role}
-                  </Badge>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {member.user.role === "superAdmin" && (
+                      <Badge variant="default" className="text-xs">
+                        Super Admin
+                      </Badge>
+                    )}
+                    <Badge
+                      variant={
+                        member.role === "OWNER"
+                          ? "default"
+                          : member.role === "ADMIN"
+                          ? "secondary"
+                          : "outline"
+                      }
+                      className="text-xs"
+                    >
+                      {member.role}
+                    </Badge>
+                  </div>
                 </div>
               ))}
             </div>

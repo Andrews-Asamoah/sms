@@ -38,7 +38,7 @@ export default async function SchoolsPage() {
   const session = await getAuthSession();
 
   if (!session) {
-    redirect("/sign-in");
+    redirect("/login");
   }
 
   const isSuperAdmin = session.user.role === "superAdmin";

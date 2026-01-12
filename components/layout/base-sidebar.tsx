@@ -1,4 +1,7 @@
+// ============================================================
 // components/layout/base-sidebar.tsx
+// ============================================================
+
 "use client";
 import * as React from "react";
 import { LucideIcon } from "lucide-react";
@@ -25,6 +28,7 @@ export interface NavItem {
   url: string;
   icon?: LucideIcon;
   badge?: string;
+  permission?: string; // Add this optional field for school navigation
   items?: NavSubItem[];
 }
 
@@ -43,6 +47,7 @@ interface BaseSidebarProps extends React.ComponentProps<typeof Sidebar> {
     name: string;
     email: string;
     avatar?: string;
+    role?: string; // Optional role field
   };
 }
 

@@ -1,17 +1,20 @@
 // components/layout/site-header-school.tsx
 "use client";
+
 import { BaseHeader } from "./base-header";
 import { Badge } from "@/components/ui/badge";
-import { Calendar } from "lucide-react";
+import { Calendar, Clock } from "lucide-react";
 
 interface SiteHeaderSchoolProps {
   schoolSlug: string;
-  academicYear?: string;
+  academicYear: string;
+  currentTerm?: string | null;
 }
 
 export function SiteHeaderSchool({
   schoolSlug,
-  academicYear = "2024/2025",
+  academicYear,
+  currentTerm,
 }: SiteHeaderSchoolProps) {
   return (
     <BaseHeader
@@ -19,10 +22,21 @@ export function SiteHeaderSchool({
       rootHref={`/${schoolSlug}/dashboard`}
       prefixToRemove={`/${schoolSlug}`}
       rightContent={
-        <Badge variant="outline" className="gap-1.5">
-          <Calendar className="h-3.5 w-3.5" />
-          <span className="text-xs">{academicYear}</span>
-        </Badge>
+        <div className="flex items-center gap-2">
+          {/* Academic Year Badge */}
+          <Badge variant="outline" className="gap-1.5 hidden sm:flex">
+            <Calendar className="h-3.5 w-3.5" />
+            <span className="text-xs">{academicYear}</span>
+          </Badge>
+
+          {/* Current Term Badge (if exists) */}
+          {currentTerm && (
+            <Badge variant="secondary" className="gap-1.5 hidden md:flex">
+              <Clock className="h-3.5 w-3.5" />
+              <span className="text-xs">{currentTerm}</span>
+            </Badge>
+          )}
+        </div>
       }
     />
   );

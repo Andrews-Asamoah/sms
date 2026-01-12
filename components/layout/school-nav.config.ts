@@ -1,8 +1,11 @@
-// config/navigation/school-nav.config.ts
+// ============================================================
+// components/layout/school-nav.config.ts
+// Fixed to properly include school slug in all routes
+// ============================================================
+
 import {
   LayoutDashboard,
   Users,
-  GraduationCap,
   Calendar,
   BookOpen,
   ClipboardCheck,
@@ -17,15 +20,36 @@ import {
   BarChart3,
   MessageSquare,
   HelpCircle,
+  Hotel,
+  Library,
+  Package,
+  Bus,
+  UserCircle,
+  CalendarDays,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
+import type { NavPermissions } from "@/lib/permissions/utils";
 
+/**
+ * Base navigation sections (without school slug prefix)
+ * The school slug will be added dynamically via getPrefixedNavSections
+ */
 export const schoolNavSections: NavSection[] = [
   {
     title: "Main",
     items: [
-      { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-      { title: "Analytics", url: "/analytics", icon: BarChart3 },
+      {
+        title: "Dashboard",
+        url: "/admin/dashboard",
+        icon: LayoutDashboard,
+        permission: "canViewDashboard",
+      },
+      {
+        title: "Analytics",
+        url: "/admin/analytics",
+        icon: BarChart3,
+        permission: "canViewAnalytics",
+      },
     ],
   },
   {
@@ -33,28 +57,62 @@ export const schoolNavSections: NavSection[] = [
     items: [
       {
         title: "Students",
-        url: "/students",
+        url: "/admin/students",
         icon: Users,
+        permission: "canManageStudents",
         items: [
-          { title: "All Students", url: "/students" },
-          { title: "Enrollments", url: "/students/enrollments" },
-          { title: "Promotions", url: "/students/promotions" },
+          { title: "All Students", url: "/admin/students" },
+          { title: "Enrollments", url: "/admin/students/enrollments" },
+          { title: "Promotions", url: "/admin/students/promotions" },
         ],
       },
       {
         title: "Teachers",
-        url: "/teachers",
+        url: "/admin/teachers",
         icon: UserCog,
+        permission: "canManageTeachers",
         items: [
-          { title: "All Teachers", url: "/teachers" },
-          { title: "Assignments", url: "/teachers/assignments" },
-          { title: "Schedule", url: "/teachers/schedule" },
+          { title: "All Teachers", url: "/admin/teachers" },
+          { title: "Assignments", url: "/admin/teachers/assignments" },
+          { title: "Schedule", url: "/admin/teachers/schedule" },
         ],
       },
-      { title: "Classes", url: "/classes", icon: BookOpen },
-      { title: "Subjects", url: "/subjects", icon: BookMarked },
-      { title: "Departments", url: "/departments", icon: Building },
-      { title: "Houses", url: "/houses", icon: Home },
+      {
+        title: "Staff",
+        url: "/admin/staff",
+        icon: UserCircle,
+        permission: "canManageStaff",
+      },
+      {
+        title: "Parents",
+        url: "/admin/parents",
+        icon: Users,
+        permission: "canManageParents",
+      },
+      {
+        title: "Classes",
+        url: "/admin/classes",
+        icon: BookOpen,
+        permission: "canManageClasses",
+      },
+      {
+        title: "Subjects",
+        url: "/admin/academic/subjects",
+        icon: BookMarked,
+        permission: "canManageSubjects",
+      },
+      {
+        title: "Departments",
+        url: "/admin/academic/departments",
+        icon: Building,
+        permission: "canManageDepartments",
+      },
+      {
+        title: "Houses",
+        url: "/admin/academic/houses",
+        icon: Home,
+        permission: "canManageHouses",
+      },
     ],
   },
   {
@@ -62,20 +120,20 @@ export const schoolNavSections: NavSection[] = [
     items: [
       {
         title: "Grading",
-        url: "/grading",
+        url: "/admin/grading",
         icon: Award,
+        permission: "canManageGrading",
         items: [
-          { title: "Grade Book", url: "/grading" },
-          { title: "Grade Entry", url: "/grading/entry" },
-          { title: "Grade Scale", url: "/grading/scale" },
+          { title: "Grade Book", url: "/admin/grading" },
+          { title: "Grade Entry", url: "/admin/grading/entry" },
+          { title: "Grade Scale", url: "/admin/grading/scale" },
         ],
       },
-      { title: "Report Cards", url: "/reports", icon: FileText },
       {
-        title: "Transcripts",
-        url: "/transcripts",
-        icon: GraduationCap,
-        badge: "3",
+        title: "Report Cards",
+        url: "/admin/reports",
+        icon: FileText,
+        permission: "canViewReports",
       },
     ],
   },
@@ -84,34 +142,97 @@ export const schoolNavSections: NavSection[] = [
     items: [
       {
         title: "Attendance",
-        url: "/attendance",
+        url: "/admin/attendance",
         icon: ClipboardCheck,
+        permission: "canManageAttendance",
         items: [
-          { title: "Daily Attendance", url: "/attendance" },
-          { title: "Attendance Reports", url: "/attendance/reports" },
-          { title: "Leave Requests", url: "/attendance/leave" },
+          { title: "Daily Attendance", url: "/admin/attendance" },
+          { title: "Attendance Reports", url: "/admin/attendance/reports" },
+          { title: "Leave Requests", url: "/admin/attendance/leave" },
         ],
       },
-      { title: "Academic Year", url: "/academic-year", icon: Calendar },
+      {
+        title: "Academic Year",
+        url: "/admin/academic-year",
+        icon: Calendar,
+        permission: "canManageAcademicYear",
+      },
       {
         title: "Finance",
-        url: "/finance",
+        url: "/accountant/finance",
         icon: DollarSign,
+        permission: "canManageFinance",
         items: [
-          { title: "Fee Management", url: "/finance" },
-          { title: "Payments", url: "/finance/payments" },
-          { title: "Invoices", url: "/finance/invoices" },
-          { title: "Reports", url: "/finance/reports" },
+          { title: "Fee Management", url: "/accountant/finance" },
+          { title: "Payments", url: "/accountant/finance/payments" },
+          { title: "Invoices", url: "/accountant/finance/invoices" },
+          { title: "Reports", url: "/accountant/finance/reports" },
         ],
       },
-      { title: "Documents", url: "/documents", icon: FileText },
+      {
+        title: "Documents",
+        url: "/admin/documents",
+        icon: FileText,
+        permission: "canManageDocuments",
+      },
+      {
+        title: "Timetable",
+        url: "/admin/timetable",
+        icon: CalendarDays,
+        permission: "canViewTimetable",
+      },
+      {
+        title: "Hostel",
+        url: "/admin/hostel",
+        icon: Hotel,
+        permission: "canViewHostel",
+      },
+      {
+        title: "Library",
+        url: "/admin/library",
+        icon: Library,
+        permission: "canViewLibrary",
+      },
+      {
+        title: "Inventory",
+        url: "/admin/inventory",
+        icon: Package,
+        permission: "canViewInventory",
+      },
+      {
+        title: "Transport",
+        url: "/admin/transport",
+        icon: Bus,
+        permission: "canViewTransport",
+      },
     ],
   },
   {
     title: "Communication",
     items: [
-      { title: "Announcements", url: "/announcements", icon: MessageSquare },
-      { title: "Reports", url: "/school-reports", icon: BarChart3 },
+      {
+        title: "Announcements",
+        url: "/admin/announcements",
+        icon: MessageSquare,
+        permission: "canManageAnnouncements",
+      },
+      {
+        title: "Communications",
+        url: "/admin/communications",
+        icon: MessageSquare,
+        permission: "canViewCommunications",
+      },
+    ],
+  },
+  {
+    title: "Personal",
+    items: [
+      {
+        title: "My Profile",
+        url: "/profile",
+        icon: UserCircle,
+        permission: "canViewProfile",
+      },
     ],
   },
   {
@@ -119,37 +240,69 @@ export const schoolNavSections: NavSection[] = [
     items: [
       {
         title: "Settings",
-        url: "/settings",
+        url: "/admin/settings",
         icon: Settings,
+        permission: "canManageSettings",
         items: [
-          { title: "General", url: "/settings" },
-          { title: "Users & Roles", url: "/settings/users" },
-          { title: "Preferences", url: "/settings/preferences" },
+          { title: "General", url: "/admin/settings" },
+          { title: "Users & Roles", url: "/admin/users" },
+          { title: "Preferences", url: "/admin/settings/preferences" },
         ],
       },
-      { title: "Help & Support", url: "/support", icon: HelpCircle },
+      {
+        title: "Help & Support",
+        url: "/admin/support",
+        icon: HelpCircle,
+        permission: "canViewSupport",
+      },
     ],
   },
 ];
 
 /**
- * Utility function to prefix all navigation URLs with a school slug
- * @param prefix - The prefix to add (e.g., "/school-slug")
- * @param sections - The navigation sections to prefix
- * @returns Prefixed navigation sections
+ * Filter navigation sections based on user permissions
+ */
+export function filterNavByPermissions(
+  sections: NavSection[],
+  permissions: NavPermissions
+): NavSection[] {
+  return sections
+    .map((section) => ({
+      ...section,
+      items: section.items
+        .filter((item) => {
+          const permission = item.permission as keyof NavPermissions;
+          return !permission || permissions[permission];
+        })
+        .map((item) => ({
+          ...item,
+          items: item.items?.filter(() => {
+            const permission = item.permission as keyof NavPermissions;
+            return !permission || permissions[permission];
+          }),
+        })),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+/**
+ * Prefix all navigation URLs with a school slug
+ * This ensures routes are: /{schoolSlug}/admin/dashboard, etc.
  */
 export function getPrefixedNavSections(
-  prefix: string,
+  schoolSlug: string,
   sections: NavSection[]
 ): NavSection[] {
+  const safeSlug = schoolSlug.replace(/^\/+/, "");
+
   return sections.map((section) => ({
     ...section,
     items: section.items.map((item) => ({
       ...item,
-      url: `${prefix}${item.url}`,
+      url: `/${safeSlug}${item.url}`,
       items: item.items?.map((subItem) => ({
         ...subItem,
-        url: `${prefix}${subItem.url}`,
+        url: `/${safeSlug}${subItem.url}`,
       })),
     })),
   }));

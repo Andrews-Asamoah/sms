@@ -1,8 +1,14 @@
 // app/(system)/schools/[schoolId]/overview/page.tsx
+
 import { redirect, notFound } from "next/navigation";
 import { getAuthSession } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { SchoolOverview } from "@/components/System/Schools/school-overview";
+import { SchoolInvitationsList } from "@/components/System/Schools/school-invitations-list";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { Shield } from "lucide-react";
+import { InviteAdminButton } from "@/components/System/Schools/invite-admin-button";
 
 interface SchoolOverviewPageProps {
   params: Promise<{
@@ -14,8 +20,9 @@ export default async function SchoolOverviewPage({
   params,
 }: SchoolOverviewPageProps) {
   const session = await getAuthSession();
+
   if (!session) {
-    redirect("/sign-in");
+    redirect("/login");
   }
 
   const { schoolId } = await params;
@@ -51,11 +58,28 @@ export default async function SchoolOverviewPage({
                   name: true,
                   email: true,
                   image: true,
+                  role: true,
                 },
               },
             },
             orderBy: {
               createdAt: "asc",
+            },
+          },
+          invitations: {
+            where: {
+              status: "pending",
+            },
+            include: {
+              inviter: {
+                select: {
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
             },
           },
         },
@@ -77,15 +101,81 @@ export default async function SchoolOverviewPage({
     redirect("/schools");
   }
 
+  // Check if school needs administrators
+  const nonSuperAdminMembers = school.organization.members.filter(
+    (m) => m.user.role !== "superAdmin"
+  );
+  const hasNoAdmins = nonSuperAdminMembers.length === 0;
+  const hasPendingInvitations = school.organization.invitations.length > 0;
+
+  // Serialize the school data to fix Decimal issue
+  const serializedSchool = JSON.parse(
+    JSON.stringify(school, (key, value) => {
+      // Convert Decimal to number
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        value.constructor?.name === "Decimal"
+      ) {
+        return parseFloat(value.toString());
+      }
+      // Convert Date to ISO string
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      return value;
+    })
+  );
+
   return (
-    <div className="container mx-auto py-10">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">School Overview</h1>
-        <p className="text-muted-foreground mt-2">
-          View key information and statistics for {school.name}
-        </p>
+    <div className="container mx-auto py-10 space-y-8">
+      {/* Header with Invite Button */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">School Overview</h1>
+          <p className="text-muted-foreground mt-2">
+            View key information and statistics for {school.name}
+          </p>
+        </div>
+        {isSuperAdmin && (
+          <InviteAdminButton schoolId={school.id} schoolName={school.name} />
+        )}
       </div>
-      <SchoolOverview school={school} />
+
+      {/* Alert if no school administrators */}
+      {isSuperAdmin && hasNoAdmins && !hasPendingInvitations && (
+        <Card className="backdrop-blur-xl bg-yellow-500/10 border-yellow-500/30">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-yellow-500/20 p-2">
+                <Shield className="h-5 w-5 text-yellow-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-yellow-900 dark:text-yellow-100">
+                  No School Administrators
+                </h3>
+                <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
+                  This school doesn&apos;t have any administrators yet. Invite a
+                  school admin to manage day-to-day operations. You&apos;ll
+                  remain the owner with full access.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Invitations */}
+      {school.organization.invitations.length > 0 && (
+        <SchoolInvitationsList
+          invitations={school.organization.invitations}
+          schoolId={school.id}
+          isSuperAdmin={isSuperAdmin}
+        />
+      )}
+
+      {/* Main School Overview */}
+      <SchoolOverview school={serializedSchool} />
     </div>
   );
 }

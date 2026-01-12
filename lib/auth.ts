@@ -14,36 +14,92 @@ import {
   guardian,
   user as userRole,
 } from "@/lib/permissions";
+import { sendAdminInvitationEmail } from "@/lib/email/resend";
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
-
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
     minPasswordLength: 8,
     autoSignIn: true,
   },
-
-  // Enable organization and admin plugin
   plugins: [
     organization({
       allowUserToCreateOrganization: async (user) => {
-        // Check if user has superAdmin role
         return user.role === "superAdmin";
       },
       organizationLimit: 100,
-      sendInvitationEmail: async (data) => {
-        console.log("Sending invitation to:", data.email);
-        // TODO: Implement actual email sending
+
+      // Better Auth calls this when invitation is created
+      async sendInvitationEmail(data) {
+        const { email, id, organization, inviter } = data;
+
+        try {
+          // Get school details
+          const org = await prisma.organization.findUnique({
+            where: { id: organization.id },
+            include: {
+              school: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          });
+
+          if (!org) {
+            console.error("Organization not found for invitation");
+            return;
+          }
+
+          // Get invitation details
+          const invitation = await prisma.invitation.findUnique({
+            where: { id },
+            select: {
+              role: true,
+              expiresAt: true,
+            },
+          });
+
+          if (!invitation) {
+            console.error("Invitation not found");
+            return;
+          }
+
+          // Get inviter details
+          const inviterUser = await prisma.user.findUnique({
+            where: { id: inviter.id },
+            select: {
+              name: true,
+              email: true,
+            },
+          });
+
+          // Send the email
+          await sendAdminInvitationEmail({
+            to: email,
+            inviterName:
+              inviterUser?.name || inviterUser?.email || "Administrator",
+            schoolName: org.school?.name || org.name,
+            role: invitation.role || "member",
+            invitationId: id,
+            expiresAt: invitation.expiresAt,
+          });
+
+          console.log(
+            `Invitation email sent to ${email} for organization ${organization.id}`
+          );
+        } catch (error) {
+          console.error("Error in sendInvitationEmail callback:", error);
+          // Don't throw - let Better Auth continue
+        }
       },
     }),
     admin({
-      // Pass the access controller
       ac,
-
-      // Pass all custom roles - must be individually named
       roles: {
         superAdmin,
         admin: adminRole,
@@ -53,23 +109,15 @@ export const auth = betterAuth({
         guardian,
         user: userRole,
       },
-
-      // Impersonation settings
       impersonationSessionDuration: 60 * 60 * 2, // 2 hours
-
-      // Custom impersonation logic
       async canImpersonate(opts: {
         user: { id: string; role?: string };
         targetUser: { id: string };
       }) {
         const { user, targetUser } = opts;
-
-        // Super admins can impersonate anyone
         if (user.role === "superAdmin") {
           return true;
         }
-
-        // School admins can only impersonate users in their schools
         if (user.role === "admin") {
           const adminMemberships = await prisma.member.findMany({
             where: {
@@ -78,37 +126,30 @@ export const auth = betterAuth({
             },
             select: { organizationId: true },
           });
-
           const targetMemberships = await prisma.member.findMany({
             where: { userId: targetUser.id },
             select: { organizationId: true },
           });
-
-          // Check if they share any organizations
           return adminMemberships.some((admin) =>
             targetMemberships.some(
               (target) => target.organizationId === admin.organizationId
             )
           );
         }
-
         return false;
       },
     }),
   ],
-
-  // Session configuration
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 24 hours
     cookieCache: {
       enabled: true,
-      maxAge: 60 * 5, //5 minutes
+      maxAge: 60 * 5, // 5 minutes
     },
   },
 });
 
-//** Enhanced session helper with full context */
 export async function getAuthSession() {
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -202,9 +243,6 @@ export async function getAuthSession() {
   };
 }
 
-/**
- * Check if user has specific permission
- */
 export async function checkPermission(
   userId: string,
   permissions: Record<string, string[]>
@@ -215,18 +253,13 @@ export async function checkPermission(
       permissions,
     },
   });
-
   return result;
 }
 
-/**
- * Check if current session user has specific permission
- */
 export async function checkCurrentUserPermission(
   permissions: Record<string, string[]>
 ) {
   const session = await getAuthSession();
   if (!session) return false;
-
   return checkPermission(session.user.id, permissions);
 }

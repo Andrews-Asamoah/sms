@@ -1,5 +1,8 @@
+// ============================================================
 // components/layout/app-sidebar-school.tsx
+// ============================================================
 "use client";
+
 import { BaseSidebar } from "./base-sidebar";
 import {
   schoolNavSections,
@@ -16,6 +19,7 @@ interface AppSidebarSchoolProps {
     name: string;
     email: string;
     avatar?: string;
+    role?: string; // Add role
   };
 }
 

@@ -2,9 +2,9 @@
 // SCHOOL LAYOUT NOT FOUND PAGE
 // app/(school)/[schoolSlug]/not-found.tsx
 // ============================================
-import Link from 'next/link';
-import { Building2, Home, ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import Link from "next/link";
+import { Building2, Home, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function SchoolNotFound() {
   return (
@@ -15,12 +15,15 @@ export default function SchoolNotFound() {
             <Building2 className="size-8 text-blue-600" />
           </div>
         </div>
-        
+
         <div className="mb-6">
           <h1 className="mb-2 text-6xl font-bold text-gray-900">404</h1>
-          <h2 className="mb-4 text-xl font-semibold text-gray-800">Page Not Found</h2>
+          <h2 className="mb-4 text-xl font-semibold text-gray-800">
+            Page Not Found
+          </h2>
           <p className="text-gray-600">
-            The page you&apos;re looking for in this school doesn&apos;t exist or you don&apos;t have access to it.
+            The page you&apos;re looking for in this school doesn&apos;t exist
+            or you don&apos;t have access to it.
           </p>
         </div>
 

@@ -44,6 +44,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getAuthSession();
+
+    // Only superAdmins can create schools
     if (!session || session.user.role !== "superAdmin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
@@ -65,8 +67,27 @@ export async function POST(request: NextRequest) {
       secondaryColor,
     } = body;
 
+    // Validate required fields
+    if (!name || !code || !subdomain) {
+      return NextResponse.json(
+        { error: "Name, code, and subdomain are required" },
+        { status: 400 }
+      );
+    }
+
     // Use a transaction to ensure all operations succeed or fail together
     const result = await prisma.$transaction(async (tx) => {
+      // Check if code or subdomain already exists
+      const existingSchool = await tx.school.findFirst({
+        where: {
+          OR: [{ code }, { subdomain }],
+        },
+      });
+
+      if (existingSchool) {
+        throw new Error("School code or subdomain already exists");
+      }
+
       // Step 1: Create organization
       const organization = await tx.organization.create({
         data: {
@@ -75,7 +96,18 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Step 2: Create the school
+      // Step 2: Add SuperAdmin as OWNER of the organization
+      // SuperAdmin maintains their system-wide "superAdmin" role
+      // But is also the OWNER within this organization's context
+      await tx.member.create({
+        data: {
+          organizationId: organization.id,
+          userId: session.user.id,
+          role: "OWNER", // BetterAuth organization role
+        },
+      });
+
+      // Step 3: Create the school
       const school = await tx.school.create({
         data: {
           organizationId: organization.id,
@@ -95,7 +127,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Step 3: Create default FREE subscription for the school
+      // Step 4: Create FREE subscription (NO TRIAL, NO PREMIUM)
       await tx.subscription.create({
         data: {
           schoolId: school.id,
@@ -103,21 +135,12 @@ export async function POST(request: NextRequest) {
           planName: "Free Plan",
           status: "ACTIVE",
           currency: "USD",
-          isOnTrial: true,
-          trialStartsAt: new Date(),
-          trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          isOnTrial: false, // Start on FREE plan, not trial
+          trialStartsAt: null,
+          trialEndsAt: null,
           maxStudents: 50,
           maxTeachers: 10,
           maxStaff: 5,
-        },
-      });
-
-      // Step 4: Add the creator as owner
-      await tx.member.create({
-        data: {
-          organizationId: organization.id,
-          userId: session.user.id,
-          role: "OWNER",
         },
       });
 
@@ -131,7 +154,8 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error) {
       if (
         error.message.includes("Unique constraint") ||
-        error.message.includes("unique")
+        error.message.includes("unique") ||
+        error.message.includes("already exists")
       ) {
         return NextResponse.json(
           { error: "School code or subdomain already exists" },
