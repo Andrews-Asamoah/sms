@@ -1,14 +1,17 @@
 // ============================================================
-// components/layout/app-sidebar-school.tsx
+// components/layout/app-sidebar-school.tsx - Updated with Permissions
 // ============================================================
+
 "use client";
 
 import { BaseSidebar } from "./base-sidebar";
 import {
   schoolNavSections,
   getPrefixedNavSections,
+  filterNavByPermissions,
 } from "@/components/layout/school-nav.config";
 import { useMemo } from "react";
+import type { NavPermissions } from "@/lib/permissions/utils";
 
 interface AppSidebarSchoolProps {
   schoolSlug: string;
@@ -19,8 +22,9 @@ interface AppSidebarSchoolProps {
     name: string;
     email: string;
     avatar?: string;
-    role?: string; // Add role
+    role?: string;
   };
+  permissions: NavPermissions;
 }
 
 export function AppSidebarSchool({
@@ -29,11 +33,19 @@ export function AppSidebarSchool({
   schoolPlan,
   schoolLogo,
   user,
+  permissions,
   ...props
 }: AppSidebarSchoolProps) {
+  // Filter navigation by permissions
+  const filteredNavSections = useMemo(
+    () => filterNavByPermissions(schoolNavSections, permissions),
+    [permissions]
+  );
+
+  // Add school prefix to URLs
   const prefixedNavSections = useMemo(
-    () => getPrefixedNavSections(`/${schoolSlug}`, schoolNavSections),
-    [schoolSlug]
+    () => getPrefixedNavSections(schoolSlug, filteredNavSections),
+    [schoolSlug, filteredNavSections]
   );
 
   return (

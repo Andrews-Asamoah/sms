@@ -12,13 +12,13 @@ export default async function SuperAdminAccountPage() {
   const session = await getAuthSession();
 
   if (!session || session.user.role !== "superAdmin") {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const userData = await getCurrentUserProfile();
 
   if (!userData) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   return (

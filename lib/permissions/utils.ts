@@ -1,376 +1,10 @@
-// ============================================================
-// lib/permissions/utils.ts
-// Fixed version that works with Better Auth
-// ============================================================
-
-import type { statement } from "../permissions";
-
-export type BetterAuthRole =
-  | "superAdmin"
-  | "owner"
-  | "admin"
-  | "member"
-  | "teacher"
-  | "student"
-  | "guardian"
-  | "staff"
-  | "accountant"
-  | "user";
+// lib/permissions/utils.ts - UPDATED for Better Auth Access Control
+import { auth } from "@/lib/auth";
+import type { ExtendedSession } from "@/lib/auth/types";
+import { getSchoolRole } from "@/lib/auth/school-access";
 
 /**
- * Convert Better Auth organization role to our role system
- */
-export function mapOrganizationRole(orgRole: string): BetterAuthRole {
-  const roleMap: Record<string, BetterAuthRole> = {
-    OWNER: "owner",
-    ADMIN: "admin",
-    MEMBER: "member",
-  };
-  return roleMap[orgRole] || "member";
-}
-
-/**
- * Normalize display role string to BetterAuthRole
- */
-export function normalizeRole(role: string): BetterAuthRole {
-  const normalizedRole = role.toLowerCase().replace(/[^a-z]/g, "");
-
-  switch (normalizedRole) {
-    case "superadmin":
-      return "superAdmin";
-    case "owner":
-      return "owner";
-    case "administrator":
-    case "admin":
-      return "admin";
-    case "member":
-      return "member";
-    case "teacher":
-      return "teacher";
-    case "student":
-      return "student";
-    case "parentguardian":
-    case "guardian":
-    case "parent":
-      return "guardian";
-    case "staff":
-      return "staff";
-    case "accountant":
-      return "accountant";
-    default:
-      return "user";
-  }
-}
-
-/**
- * Define permissions for each role manually
- * This avoids TypeScript issues with Better Auth's complex types
- */
-type Resource = keyof typeof statement;
-type Action = string;
-
-const rolePermissionsMap: Record<BetterAuthRole, Record<Resource, Action[]>> = {
-  superAdmin: {
-    user: [
-      "list",
-      "create",
-      "update",
-      "delete",
-      "ban",
-      "unban",
-      "impersonate",
-      "set-role",
-    ],
-    session: ["list", "create", "update", "delete", "revoke"],
-    school: ["create", "update", "delete", "view", "manage"],
-    student: ["create", "update", "delete", "view", "enroll"],
-    teacher: ["create", "update", "delete", "view", "assign"],
-    staff: ["create", "update", "delete", "view"],
-    parent: ["create", "update", "delete", "view"],
-    class: ["create", "update", "delete", "view", "manage"],
-    subject: ["create", "update", "delete", "view"],
-    department: ["create", "update", "delete", "view"],
-    house: ["create", "update", "delete", "view"],
-    finance: ["create", "update", "delete", "view", "approve"],
-    assessment: ["create", "update", "delete", "view", "grade"],
-    attendance: ["create", "update", "delete", "view", "approve"],
-    report: ["create", "view", "download", "approve"],
-    document: ["create", "update", "delete", "view", "upload"],
-    announcement: ["create", "update", "delete", "view"],
-    setting: ["view", "update"],
-    analytics: ["view"],
-    timetable: ["create", "update", "delete", "view"],
-    hostel: ["create", "update", "delete", "view"],
-    library: ["create", "update", "delete", "view"],
-    inventory: ["create", "update", "delete", "view"],
-    transport: ["create", "update", "delete", "view"],
-    communication: ["view", "send"],
-  },
-  owner: {
-    user: ["list", "ban", "set-role"],
-    session: ["list", "revoke"],
-    school: ["update", "view", "manage"],
-    student: ["create", "update", "delete", "view", "enroll"],
-    teacher: ["create", "update", "delete", "view", "assign"],
-    staff: ["create", "update", "delete", "view"],
-    parent: ["create", "update", "delete", "view"],
-    class: ["create", "update", "delete", "view", "manage"],
-    subject: ["create", "update", "delete", "view"],
-    department: ["create", "update", "delete", "view"],
-    house: ["create", "update", "delete", "view"],
-    finance: ["create", "update", "delete", "view", "approve"],
-    assessment: ["create", "update", "delete", "view", "grade"],
-    attendance: ["create", "update", "delete", "view", "approve"],
-    report: ["create", "view", "download", "approve"],
-    document: ["create", "update", "delete", "view", "upload"],
-    announcement: ["create", "update", "delete", "view"],
-    setting: ["view", "update"],
-    analytics: ["view"],
-    timetable: ["create", "update", "delete", "view"],
-    hostel: ["create", "update", "delete", "view"],
-    library: ["create", "update", "delete", "view"],
-    inventory: ["create", "update", "delete", "view"],
-    transport: ["create", "update", "delete", "view"],
-    communication: ["view", "send"],
-  },
-  admin: {
-    user: ["list", "ban", "set-role"],
-    session: ["list", "revoke"],
-    school: ["update", "view", "manage"],
-    student: ["create", "update", "delete", "view", "enroll"],
-    teacher: ["create", "update", "delete", "view", "assign"],
-    staff: ["create", "update", "delete", "view"],
-    parent: ["create", "update", "delete", "view"],
-    class: ["create", "update", "delete", "view", "manage"],
-    subject: ["create", "update", "delete", "view"],
-    department: ["create", "update", "delete", "view"],
-    house: ["create", "update", "delete", "view"],
-    finance: ["view"],
-    assessment: ["create", "update", "delete", "view", "grade"],
-    attendance: ["create", "update", "delete", "view", "approve"],
-    report: ["create", "view", "download", "approve"],
-    document: ["create", "update", "delete", "view", "upload"],
-    announcement: ["create", "update", "delete", "view"],
-    setting: ["view"],
-    analytics: ["view"],
-    timetable: ["create", "update", "delete", "view"],
-    hostel: ["create", "update", "delete", "view"],
-    library: ["create", "update", "delete", "view"],
-    inventory: ["create", "update", "delete", "view"],
-    transport: ["create", "update", "delete", "view"],
-    communication: ["view", "send"],
-  },
-  member: {
-    user: [],
-    session: [],
-    school: ["view"],
-    student: ["view"],
-    teacher: ["view"],
-    staff: [],
-    parent: [],
-    class: ["view"],
-    subject: [],
-    department: [],
-    house: [],
-    finance: [],
-    assessment: [],
-    attendance: [],
-    report: ["view"],
-    document: ["view", "upload"],
-    announcement: [],
-    setting: [],
-    analytics: [],
-    timetable: ["view"],
-    hostel: [],
-    library: ["view"],
-    inventory: [],
-    transport: [],
-    communication: ["view"],
-  },
-  teacher: {
-    user: [],
-    session: [],
-    school: [],
-    student: ["view", "enroll"],
-    teacher: ["view"],
-    staff: [],
-    parent: [],
-    class: ["view"],
-    subject: [],
-    department: [],
-    house: [],
-    finance: ["view"],
-    assessment: ["create", "update", "view", "grade"],
-    attendance: ["create", "update", "view"],
-    report: ["create", "view"],
-    document: ["view", "upload"],
-    announcement: [],
-    setting: [],
-    analytics: [],
-    timetable: ["view"],
-    hostel: [],
-    library: ["view"],
-    inventory: [],
-    transport: [],
-    communication: ["view", "send"],
-  },
-  student: {
-    user: [],
-    session: [],
-    school: [],
-    student: ["view"],
-    teacher: [],
-    staff: [],
-    parent: [],
-    class: [],
-    subject: [],
-    department: [],
-    house: [],
-    finance: ["view"],
-    assessment: ["view"],
-    attendance: ["view"],
-    report: ["view"],
-    document: [],
-    announcement: [],
-    setting: [],
-    analytics: [],
-    timetable: ["view"],
-    hostel: ["view"],
-    library: ["view"],
-    inventory: [],
-    transport: ["view"],
-    communication: ["view"],
-  },
-  guardian: {
-    user: [],
-    session: [],
-    school: [],
-    student: ["view"],
-    teacher: [],
-    staff: [],
-    parent: [],
-    class: [],
-    subject: [],
-    department: [],
-    house: [],
-    finance: ["view", "create"],
-    assessment: ["view"],
-    attendance: ["view"],
-    report: ["view"],
-    document: [],
-    announcement: [],
-    setting: [],
-    analytics: [],
-    timetable: ["view"],
-    hostel: [],
-    library: [],
-    inventory: [],
-    transport: ["view"],
-    communication: ["view"],
-  },
-  staff: {
-    user: [],
-    session: [],
-    school: [],
-    student: [],
-    teacher: [],
-    staff: [],
-    parent: [],
-    class: [],
-    subject: [],
-    department: [],
-    house: [],
-    finance: [],
-    assessment: [],
-    attendance: [],
-    report: [],
-    document: ["view", "upload"],
-    announcement: [],
-    setting: [],
-    analytics: [],
-    timetable: [],
-    hostel: ["view"],
-    library: ["view"],
-    inventory: ["view"],
-    transport: ["view"],
-    communication: ["view"],
-  },
-  accountant: {
-    user: [],
-    session: [],
-    school: [],
-    student: ["view"],
-    teacher: [],
-    staff: [],
-    parent: [],
-    class: [],
-    subject: [],
-    department: [],
-    house: [],
-    finance: ["create", "update", "view", "approve"],
-    assessment: [],
-    attendance: [],
-    report: ["create", "view", "download"],
-    document: ["view", "upload"],
-    announcement: [],
-    setting: [],
-    analytics: ["view"],
-    timetable: [],
-    hostel: [],
-    library: [],
-    inventory: [],
-    transport: [],
-    communication: [],
-  },
-  user: {
-    user: ["list"],
-    session: [],
-    school: [],
-    student: [],
-    teacher: [],
-    staff: [],
-    parent: [],
-    class: [],
-    subject: [],
-    department: [],
-    house: [],
-    finance: [],
-    assessment: [],
-    attendance: [],
-    report: [],
-    document: [],
-    announcement: [],
-    setting: [],
-    analytics: [],
-    timetable: [],
-    hostel: [],
-    library: [],
-    inventory: [],
-    transport: [],
-    communication: [],
-  },
-};
-
-/**
- * Check if user has permission for a specific action
- */
-export function hasPermission(
-  role: string,
-  resource: Resource,
-  action: string
-): boolean {
-  const normalizedRole = normalizeRole(role);
-  const permissions = rolePermissionsMap[normalizedRole];
-
-  if (!permissions || !permissions[resource]) {
-    return false;
-  }
-
-  return permissions[resource].includes(action);
-}
-
-/**
- * Navigation permissions mapped to Better Auth permissions
+ * Navigation permissions interface
  */
 export interface NavPermissions {
   canViewDashboard: boolean;
@@ -389,73 +23,434 @@ export interface NavPermissions {
   canManageAcademicYear: boolean;
   canManageFinance: boolean;
   canManageDocuments: boolean;
-  canManageAnnouncements: boolean;
-  canManageSettings: boolean;
-  canViewSupport: boolean;
-  canManageUsers: boolean;
-  canViewProfile: boolean;
   canViewTimetable: boolean;
   canViewHostel: boolean;
   canViewLibrary: boolean;
   canViewInventory: boolean;
   canViewTransport: boolean;
+  canManageAnnouncements: boolean;
   canViewCommunications: boolean;
+  canViewProfile: boolean;
+  canManageSettings: boolean;
+  canViewSupport: boolean;
 }
 
 /**
- * Convert Better Auth permissions to navigation permissions
+ * Get navigation permissions for a user in a specific school
+ * Uses Better Auth permission system + role-based fallback
  */
-export function getNavigationPermissions(role: string): NavPermissions {
+export async function getNavPermissions(
+  session: ExtendedSession,
+  subdomain: string
+): Promise<NavPermissions> {
+  // SuperAdmin - all permissions
+  if (session.isSuperAdmin) {
+    return getAllPermissions();
+  }
+
+  // Get user's access to this school
+  const schoolAccess = getSchoolRole(session, subdomain);
+  if (!schoolAccess) {
+    console.log(`No school access found for ${subdomain}`);
+    return getNoPermissions();
+  }
+
+  console.log(`Getting permissions for ${session.user.email} in ${subdomain}`);
+  console.log(`Effective role: ${schoolAccess.effectiveRole}`);
+  console.log(`Organization role: ${schoolAccess.organizationRole}`);
+  console.log(`Profile roles: ${schoolAccess.profileRoles.join(", ")}`);
+
+  // Start with permissions based on effective role
+  let permissions = getPermissionsByRole(schoolAccess.effectiveRole);
+
+  // Union permissions from all profile roles
+  // This allows a teacher+guardian to have BOTH sets of permissions
+  for (const profileRole of schoolAccess.profileRoles) {
+    const rolePermissions = getPermissionsByRole(profileRole);
+    permissions = mergePermissions(permissions, rolePermissions);
+  }
+
+  // If user has Better Auth permissions, check those too
+  try {
+    const hasSchoolManage = await checkBetterAuthPermission(session.user.id, {
+      school: ["manage"],
+    });
+
+    if (hasSchoolManage) {
+      // User has explicit school management permission
+      const adminPerms = getPermissionsByRole("admin");
+      permissions = mergePermissions(permissions, adminPerms);
+    }
+  } catch (error) {
+    console.log("Could not check Better Auth permissions:", error);
+    // Continue with role-based permissions
+  }
+
+  return permissions;
+}
+
+/**
+ * Get permissions for a single role
+ * Maps to your Better Auth permission statements
+ */
+function getPermissionsByRole(role: string): NavPermissions {
+  switch (role) {
+    case "owner":
+    case "admin":
+      return {
+        canViewDashboard: true,
+        canViewAnalytics: true,
+        canManageStudents: true,
+        canManageTeachers: true,
+        canManageStaff: true,
+        canManageParents: true,
+        canManageClasses: true,
+        canManageSubjects: true,
+        canManageDepartments: true,
+        canManageHouses: true,
+        canManageGrading: true,
+        canViewReports: true,
+        canManageAttendance: true,
+        canManageAcademicYear: true,
+        canManageFinance: role === "owner", // Only owner can manage finance fully
+        canManageDocuments: true,
+        canViewTimetable: true,
+        canViewHostel: true,
+        canViewLibrary: true,
+        canViewInventory: true,
+        canViewTransport: true,
+        canManageAnnouncements: true,
+        canViewCommunications: true,
+        canViewProfile: true,
+        canManageSettings: role === "owner", // Only owner can manage settings
+        canViewSupport: true,
+      };
+
+    case "teacher":
+      return {
+        canViewDashboard: true,
+        canViewAnalytics: false,
+        canManageStudents: false,
+        canManageTeachers: false,
+        canManageStaff: false,
+        canManageParents: false,
+        canManageClasses: false,
+        canManageSubjects: false,
+        canManageDepartments: false,
+        canManageHouses: false,
+        canManageGrading: true, // Can grade students
+        canViewReports: true,
+        canManageAttendance: true, // Can mark attendance
+        canManageAcademicYear: false,
+        canManageFinance: false,
+        canManageDocuments: true,
+        canViewTimetable: true,
+        canViewHostel: false,
+        canViewLibrary: true,
+        canViewInventory: false,
+        canViewTransport: false,
+        canManageAnnouncements: false,
+        canViewCommunications: true,
+        canViewProfile: true,
+        canManageSettings: false,
+        canViewSupport: true,
+      };
+
+    case "accountant":
+      return {
+        canViewDashboard: true,
+        canViewAnalytics: true,
+        canManageStudents: false,
+        canManageTeachers: false,
+        canManageStaff: false,
+        canManageParents: false,
+        canManageClasses: false,
+        canManageSubjects: false,
+        canManageDepartments: false,
+        canManageHouses: false,
+        canManageGrading: false,
+        canViewReports: true,
+        canManageAttendance: false,
+        canManageAcademicYear: false,
+        canManageFinance: true, // Full finance access
+        canManageDocuments: true,
+        canViewTimetable: false,
+        canViewHostel: false,
+        canViewLibrary: false,
+        canViewInventory: false,
+        canViewTransport: false,
+        canManageAnnouncements: false,
+        canViewCommunications: false,
+        canViewProfile: true,
+        canManageSettings: false,
+        canViewSupport: true,
+      };
+
+    case "staff":
+      return {
+        canViewDashboard: true,
+        canViewAnalytics: false,
+        canManageStudents: false,
+        canManageTeachers: false,
+        canManageStaff: false,
+        canManageParents: false,
+        canManageClasses: false,
+        canManageSubjects: false,
+        canManageDepartments: false,
+        canManageHouses: false,
+        canManageGrading: false,
+        canViewReports: false,
+        canManageAttendance: false,
+        canManageAcademicYear: false,
+        canManageFinance: false,
+        canManageDocuments: true,
+        canViewTimetable: false,
+        canViewHostel: true,
+        canViewLibrary: true,
+        canViewInventory: true,
+        canViewTransport: true,
+        canManageAnnouncements: false,
+        canViewCommunications: true,
+        canViewProfile: true,
+        canManageSettings: false,
+        canViewSupport: true,
+      };
+
+    case "student":
+      return {
+        canViewDashboard: true,
+        canViewAnalytics: false,
+        canManageStudents: false,
+        canManageTeachers: false,
+        canManageStaff: false,
+        canManageParents: false,
+        canManageClasses: false,
+        canManageSubjects: false,
+        canManageDepartments: false,
+        canManageHouses: false,
+        canManageGrading: false,
+        canViewReports: true,
+        canManageAttendance: false,
+        canManageAcademicYear: false,
+        canManageFinance: false,
+        canManageDocuments: false,
+        canViewTimetable: true,
+        canViewHostel: true,
+        canViewLibrary: true,
+        canViewInventory: false,
+        canViewTransport: true,
+        canManageAnnouncements: false,
+        canViewCommunications: true,
+        canViewProfile: true,
+        canManageSettings: false,
+        canViewSupport: true,
+      };
+
+    case "guardian":
+      return {
+        canViewDashboard: true,
+        canViewAnalytics: false,
+        canManageStudents: false,
+        canManageTeachers: false,
+        canManageStaff: false,
+        canManageParents: false,
+        canManageClasses: false,
+        canManageSubjects: false,
+        canManageDepartments: false,
+        canManageHouses: false,
+        canManageGrading: false,
+        canViewReports: true,
+        canManageAttendance: false,
+        canManageAcademicYear: false,
+        canManageFinance: true, // Can pay fees
+        canManageDocuments: false,
+        canViewTimetable: true,
+        canViewHostel: false,
+        canViewLibrary: false,
+        canViewInventory: false,
+        canViewTransport: true,
+        canManageAnnouncements: false,
+        canViewCommunications: true,
+        canViewProfile: true,
+        canManageSettings: false,
+        canViewSupport: true,
+      };
+
+    case "member":
+      // Basic member with no specific profile
+      return {
+        canViewDashboard: true,
+        canViewAnalytics: false,
+        canManageStudents: false,
+        canManageTeachers: false,
+        canManageStaff: false,
+        canManageParents: false,
+        canManageClasses: false,
+        canManageSubjects: false,
+        canManageDepartments: false,
+        canManageHouses: false,
+        canManageGrading: false,
+        canViewReports: false,
+        canManageAttendance: false,
+        canManageAcademicYear: false,
+        canManageFinance: false,
+        canManageDocuments: true,
+        canViewTimetable: true,
+        canViewHostel: false,
+        canViewLibrary: true,
+        canViewInventory: false,
+        canViewTransport: false,
+        canManageAnnouncements: false,
+        canViewCommunications: true,
+        canViewProfile: true,
+        canManageSettings: false,
+        canViewSupport: true,
+      };
+
+    default:
+      console.warn(`Unknown role: ${role}`);
+      return getNoPermissions();
+  }
+}
+
+/**
+ * Merge two permission sets (union - most permissive wins)
+ */
+function mergePermissions(
+  p1: NavPermissions,
+  p2: NavPermissions
+): NavPermissions {
   return {
-    canViewDashboard: true, // Everyone can view their dashboard
-    canViewAnalytics: hasPermission(role, "analytics", "view"),
-    canManageStudents: hasPermission(role, "student", "create"),
-    canManageTeachers: hasPermission(role, "teacher", "create"),
-    canManageStaff: hasPermission(role, "staff", "create"),
-    canManageParents: hasPermission(role, "parent", "create"),
-    canManageClasses: hasPermission(role, "class", "create"),
-    canManageSubjects: hasPermission(role, "subject", "create"),
-    canManageDepartments: hasPermission(role, "department", "create"),
-    canManageHouses: hasPermission(role, "house", "create"),
-    canManageGrading: hasPermission(role, "assessment", "grade"),
-    canViewReports: hasPermission(role, "report", "view"),
-    canManageAttendance: hasPermission(role, "attendance", "create"),
-    canManageAcademicYear: hasPermission(role, "school", "manage"),
-    canManageFinance: hasPermission(role, "finance", "create"),
-    canManageDocuments: hasPermission(role, "document", "upload"),
-    canManageAnnouncements: hasPermission(role, "announcement", "create"),
-    canManageSettings: hasPermission(role, "setting", "update"),
-    canViewSupport: true, // Everyone can access support
-    canManageUsers: hasPermission(role, "user", "set-role"),
-    canViewProfile: true, // Everyone can view their profile
-    canViewTimetable: hasPermission(role, "timetable", "view"),
-    canViewHostel: hasPermission(role, "hostel", "view"),
-    canViewLibrary: hasPermission(role, "library", "view"),
-    canViewInventory: hasPermission(role, "inventory", "view"),
-    canViewTransport: hasPermission(role, "transport", "view"),
-    canViewCommunications: hasPermission(role, "communication", "view"),
+    canViewDashboard: p1.canViewDashboard || p2.canViewDashboard,
+    canViewAnalytics: p1.canViewAnalytics || p2.canViewAnalytics,
+    canManageStudents: p1.canManageStudents || p2.canManageStudents,
+    canManageTeachers: p1.canManageTeachers || p2.canManageTeachers,
+    canManageStaff: p1.canManageStaff || p2.canManageStaff,
+    canManageParents: p1.canManageParents || p2.canManageParents,
+    canManageClasses: p1.canManageClasses || p2.canManageClasses,
+    canManageSubjects: p1.canManageSubjects || p2.canManageSubjects,
+    canManageDepartments: p1.canManageDepartments || p2.canManageDepartments,
+    canManageHouses: p1.canManageHouses || p2.canManageHouses,
+    canManageGrading: p1.canManageGrading || p2.canManageGrading,
+    canViewReports: p1.canViewReports || p2.canViewReports,
+    canManageAttendance: p1.canManageAttendance || p2.canManageAttendance,
+    canManageAcademicYear: p1.canManageAcademicYear || p2.canManageAcademicYear,
+    canManageFinance: p1.canManageFinance || p2.canManageFinance,
+    canManageDocuments: p1.canManageDocuments || p2.canManageDocuments,
+    canViewTimetable: p1.canViewTimetable || p2.canViewTimetable,
+    canViewHostel: p1.canViewHostel || p2.canViewHostel,
+    canViewLibrary: p1.canViewLibrary || p2.canViewLibrary,
+    canViewInventory: p1.canViewInventory || p2.canViewInventory,
+    canViewTransport: p1.canViewTransport || p2.canViewTransport,
+    canManageAnnouncements:
+      p1.canManageAnnouncements || p2.canManageAnnouncements,
+    canViewCommunications: p1.canViewCommunications || p2.canViewCommunications,
+    canViewProfile: p1.canViewProfile || p2.canViewProfile,
+    canManageSettings: p1.canManageSettings || p2.canManageSettings,
+    canViewSupport: p1.canViewSupport || p2.canViewSupport,
   };
 }
 
 /**
- * Get role-based dashboard path
+ * All permissions granted
  */
-export function getRoleDashboardPath(role: string, schoolSlug: string): string {
-  const normalizedRole = normalizeRole(role);
-  const safeSlug = schoolSlug.replace(/^\/+/, "");
-
-  const dashboardMap: Record<BetterAuthRole, string> = {
-    superAdmin: `/admin/dashboard`,
-    owner: `/admin/dashboard`,
-    admin: `/admin/dashboard`,
-    member: `/admin/dashboard`,
-    teacher: `/teacher/dashboard`,
-    student: `/student/dashboard`,
-    guardian: `/parent/dashboard`,
-    staff: `/admin/dashboard`,
-    accountant: `/accountant/dashboard`,
-    user: `/admin/dashboard`,
+function getAllPermissions(): NavPermissions {
+  return {
+    canViewDashboard: true,
+    canViewAnalytics: true,
+    canManageStudents: true,
+    canManageTeachers: true,
+    canManageStaff: true,
+    canManageParents: true,
+    canManageClasses: true,
+    canManageSubjects: true,
+    canManageDepartments: true,
+    canManageHouses: true,
+    canManageGrading: true,
+    canViewReports: true,
+    canManageAttendance: true,
+    canManageAcademicYear: true,
+    canManageFinance: true,
+    canManageDocuments: true,
+    canViewTimetable: true,
+    canViewHostel: true,
+    canViewLibrary: true,
+    canViewInventory: true,
+    canViewTransport: true,
+    canManageAnnouncements: true,
+    canViewCommunications: true,
+    canViewProfile: true,
+    canManageSettings: true,
+    canViewSupport: true,
   };
+}
 
-  return `/${safeSlug}${dashboardMap[normalizedRole]}`;
+/**
+ * No permissions granted
+ */
+function getNoPermissions(): NavPermissions {
+  return {
+    canViewDashboard: false,
+    canViewAnalytics: false,
+    canManageStudents: false,
+    canManageTeachers: false,
+    canManageStaff: false,
+    canManageParents: false,
+    canManageClasses: false,
+    canManageSubjects: false,
+    canManageDepartments: false,
+    canManageHouses: false,
+    canManageGrading: false,
+    canViewReports: false,
+    canManageAttendance: false,
+    canManageAcademicYear: false,
+    canManageFinance: false,
+    canManageDocuments: false,
+    canViewTimetable: false,
+    canViewHostel: false,
+    canViewLibrary: false,
+    canViewInventory: false,
+    canViewTransport: false,
+    canManageAnnouncements: false,
+    canViewCommunications: false,
+    canViewProfile: true, // Always allow profile view
+    canManageSettings: false,
+    canViewSupport: true, // Always allow support
+  };
+}
+
+/**
+ * Check Better Auth permission (your permission system)
+ */
+export async function checkBetterAuthPermission(
+  userId: string,
+  permissions: Record<string, string[]>
+): Promise<boolean> {
+  try {
+    const result = await auth.api.userHasPermission({
+      body: {
+        userId,
+        permissions,
+      },
+    });
+    return !!result;
+  } catch (error) {
+    console.error("Permission check error:", error);
+    return false;
+  }
+}
+
+/**
+ * Batch permission check
+ */
+export async function checkMultiplePermissions(
+  userId: string,
+  permissionsList: Array<Record<string, string[]>>
+): Promise<boolean[]> {
+  const results = await Promise.all(
+    permissionsList.map((permissions) =>
+      checkBetterAuthPermission(userId, permissions)
+    )
+  );
+  return results;
 }

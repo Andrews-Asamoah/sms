@@ -22,7 +22,7 @@ export default async function SchoolOverviewPage({
   const session = await getAuthSession();
 
   if (!session) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const { schoolId } = await params;
@@ -175,7 +175,11 @@ export default async function SchoolOverviewPage({
       )}
 
       {/* Main School Overview */}
-      <SchoolOverview school={serializedSchool} />
+      <SchoolOverview
+        school={serializedSchool}
+        currentUserId={session.user.id}
+        isSuperAdmin={isSuperAdmin}
+      />
     </div>
   );
 }

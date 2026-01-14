@@ -1,8 +1,9 @@
-// app/api/invitations/[invitationId]/accept/route.ts
+// app/api/invitations/[invitationId]/accept/route.ts - FIXED VERSION
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthSession } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
-import { MemberRole } from "@/lib/generated/prisma/client";
+import { Gender } from "@/lib/generated/prisma/client";
 
 type RouteContext = {
   params: Promise<{
@@ -11,70 +12,97 @@ type RouteContext = {
 };
 
 export async function POST(request: NextRequest, context: RouteContext) {
+  console.log("📨 [Accept Invitation] Starting...");
+
   try {
-    const session = await getAuthSession();
+    const params = await context.params;
+    const { invitationId } = params;
+
+    console.log(`📋 [Accept Invitation] ID: ${invitationId}`);
+
+    // Get current session
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
     if (!session) {
+      console.log("❌ [Accept Invitation] No session found");
       return NextResponse.json(
-        { error: "You must be logged in to accept an invitation" },
+        { error: "Not authenticated. Please sign in first." },
         { status: 401 }
       );
     }
 
-    const params = await context.params;
-    const { invitationId } = params;
+    console.log(`👤 [Accept Invitation] User: ${session.user.email}`);
 
-    // Find the invitation by ID
+    // Get invitation details BEFORE accepting
     const invitation = await prisma.invitation.findUnique({
-      where: {
-        id: invitationId,
-      },
+      where: { id: invitationId },
       include: {
         organization: {
           include: {
-            school: true,
+            school: {
+              select: {
+                id: true,
+                name: true,
+                subdomain: true,
+              },
+            },
           },
         },
       },
     });
 
     if (!invitation) {
+      console.log("❌ [Accept Invitation] Invitation not found");
       return NextResponse.json(
-        { error: "Invalid or expired invitation" },
+        { error: "Invitation not found" },
         { status: 404 }
       );
     }
 
-    // Check if invitation is pending
-    if (invitation.status !== "pending") {
-      return NextResponse.json(
-        { error: `This invitation has been ${invitation.status}` },
-        { status: 400 }
-      );
-    }
+    console.log(`📧 [Accept Invitation] For email: ${invitation.email}`);
+    console.log(
+      `🏫 [Accept Invitation] School: ${invitation.organization.school?.name}`
+    );
 
-    // Check if invitation has expired
-    if (new Date(invitation.expiresAt) < new Date()) {
-      await prisma.invitation.update({
-        where: { id: invitation.id },
-        data: { status: "expired" },
-      });
-      return NextResponse.json(
-        { error: "This invitation has expired" },
-        { status: 400 }
-      );
-    }
-
-    // Check if email matches
-    if (session.user.email !== invitation.email) {
+    // Verify email matches
+    if (invitation.email !== session.user.email) {
+      console.log("❌ [Accept Invitation] Email mismatch");
       return NextResponse.json(
         {
-          error: `This invitation was sent to ${invitation.email}. Please log in with that email address.`,
+          error: "Email mismatch",
+          details: `This invitation is for ${invitation.email}, but you're signed in as ${session.user.email}`,
         },
         { status: 400 }
       );
     }
 
-    // Check if user is already a member
+    // Check invitation status
+    if (invitation.status !== "pending") {
+      console.log(
+        `❌ [Accept Invitation] Invalid status: ${invitation.status}`
+      );
+      return NextResponse.json(
+        { error: `Invitation is ${invitation.status}` },
+        { status: 400 }
+      );
+    }
+
+    // Check expiration
+    if (new Date(invitation.expiresAt) < new Date()) {
+      console.log("❌ [Accept Invitation] Invitation expired");
+      await prisma.invitation.update({
+        where: { id: invitationId },
+        data: { status: "expired" },
+      });
+      return NextResponse.json(
+        { error: "Invitation has expired" },
+        { status: 400 }
+      );
+    }
+
+    // Check if already a member
     const existingMember = await prisma.member.findFirst({
       where: {
         userId: session.user.id,
@@ -83,8 +111,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     if (existingMember) {
+      console.log("⚠️ [Accept Invitation] Already a member");
+      // Mark invitation as accepted
       await prisma.invitation.update({
-        where: { id: invitation.id },
+        where: { id: invitationId },
         data: { status: "accepted" },
       });
 
@@ -94,41 +124,110 @@ export async function POST(request: NextRequest, context: RouteContext) {
       });
     }
 
-    // Parse role from invitation
-    let memberRole: MemberRole;
-    const invitationRole = (invitation.role || "member").toUpperCase();
+    console.log("✅ [Accept Invitation] Accepting via Better Auth...");
 
-    if (invitationRole === "OWNER") {
-      memberRole = MemberRole.OWNER;
-    } else if (invitationRole === "ADMIN") {
-      memberRole = MemberRole.ADMIN;
-    } else {
-      memberRole = MemberRole.MEMBER;
+    // Accept invitation using Better Auth
+    const result = await auth.api.acceptInvitation({
+      body: {
+        invitationId,
+      },
+      headers: await headers(),
+    });
+
+    if (!result) {
+      throw new Error("Failed to accept invitation via Better Auth");
     }
 
-    // Create member and update invitation in a transaction
-    await prisma.$transaction([
-      prisma.member.create({
+    console.log("✅ [Accept Invitation] Better Auth acceptance successful");
+
+    // CRITICAL: Create UserProfile if it doesn't exist
+    // This is essential for role-based access
+    const existingProfile = await prisma.userProfile.findUnique({
+      where: { userId: session.user.id },
+    });
+
+    if (!existingProfile) {
+      console.log("📝 [Accept Invitation] Creating user profile...");
+
+      const nameParts = session.user.name.trim().split(/\s+/);
+      const firstName = nameParts[0] || "User";
+      const lastName =
+        nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Profile";
+
+      await prisma.userProfile.create({
         data: {
           userId: session.user.id,
-          organizationId: invitation.organizationId,
-          role: memberRole,
+          firstName,
+          lastName,
+          phone: null,
+          gender: Gender.OTHER,
+          dateOfBirth: new Date("2000-01-01"),
+          isActive: true,
         },
-      }),
-      prisma.invitation.update({
-        where: { id: invitation.id },
-        data: { status: "accepted" },
-      }),
-    ]);
+      });
+
+      console.log("✅ [Accept Invitation] User profile created");
+    }
+
+    // Mark email as verified
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { emailVerified: true },
+    });
+
+    console.log("✅ [Accept Invitation] Email verified");
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: "CREATE",
+        entityType: "MEMBER",
+        entityId: invitation.organizationId,
+        newValues: {
+          organizationId: invitation.organizationId,
+          role: invitation.role,
+          invitationId: invitationId,
+        },
+      },
+    });
+
+    console.log("✅ [Accept Invitation] Audit log created");
+
+    if (!invitation.organization.school) {
+      return NextResponse.json(
+        { error: "School not found for this organization" },
+        { status: 404 }
+      );
+    }
+
+    const redirectUrl = `/${invitation.organization.school.subdomain}/admin/dashboard`;
+
+    console.log(
+      `✅ [Accept Invitation] Complete! Redirecting to: ${redirectUrl}`
+    );
 
     return NextResponse.json({
+      success: true,
       message: "Invitation accepted successfully",
-      redirectUrl: `/${invitation.organization.school?.subdomain}/admin/dashboard`,
+      redirectUrl,
+      organization: {
+        id: invitation.organizationId,
+        name: invitation.organization.name,
+      },
+      school: {
+        id: invitation.organization.school.id,
+        name: invitation.organization.school.name,
+        subdomain: invitation.organization.school.subdomain,
+      },
     });
   } catch (error) {
-    console.error("Error accepting invitation:", error);
+    console.error("❌ [Accept Invitation] Error:", error);
     return NextResponse.json(
-      { error: "Failed to accept invitation" },
+      {
+        error: "Failed to accept invitation",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }

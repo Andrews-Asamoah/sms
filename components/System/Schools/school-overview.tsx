@@ -29,6 +29,7 @@ import {
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { MemberActionsMenu } from "./member-actions-menu";
 
 type SchoolWithDetails = Prisma.SchoolGetPayload<{
   include: {
@@ -60,6 +61,7 @@ type SchoolWithDetails = Prisma.SchoolGetPayload<{
                 email: true;
                 image: true;
                 role: true;
+                banned: true;
               };
             };
           };
@@ -84,6 +86,8 @@ type SchoolWithDetails = Prisma.SchoolGetPayload<{
 
 interface SchoolOverviewProps {
   school: SchoolWithDetails;
+  currentUserId: string;
+  isSuperAdmin: boolean;
 }
 
 // Helper function to calculate days remaining (pure function)
@@ -96,7 +100,11 @@ function calculateDaysRemaining(expiresAt: Date, currentTime: number): number {
   );
 }
 
-export function SchoolOverview({ school }: SchoolOverviewProps) {
+export function SchoolOverview({
+  school,
+  currentUserId,
+  isSuperAdmin,
+}: SchoolOverviewProps) {
   // Get current time once at component mount using useState
   const [currentTime] = useState(() => Date.now());
 
@@ -572,10 +580,10 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
                         alt={member.user.name}
                         width={40}
                         height={40}
-                        className="rounded-full flex-shrink-0"
+                        className="rounded-full shrink-0"
                       />
                     ) : (
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <span className="text-sm font-medium">
                           {member.user.name.substring(0, 2).toUpperCase()}
                         </span>
@@ -584,13 +592,18 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">
                         {member.user.name}
+                        {member.user.banned === true && (
+                          <Badge variant="destructive" className="ml-2 text-xs">
+                            Banned
+                          </Badge>
+                        )}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {member.user.email}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     {member.user.role === "superAdmin" && (
                       <Badge variant="default" className="text-xs">
                         Super Admin
@@ -598,16 +611,22 @@ export function SchoolOverview({ school }: SchoolOverviewProps) {
                     )}
                     <Badge
                       variant={
-                        member.role === "OWNER"
+                        member.role === "owner"
                           ? "default"
-                          : member.role === "ADMIN"
-                          ? "secondary"
-                          : "outline"
+                          : member.role === "admin"
+                            ? "secondary"
+                            : "outline"
                       }
                       className="text-xs"
                     >
                       {member.role}
                     </Badge>
+                    <MemberActionsMenu
+                      member={member}
+                      schoolId={school.id}
+                      currentUserId={currentUserId}
+                      isSuperAdmin={isSuperAdmin}
+                    />
                   </div>
                 </div>
               ))}

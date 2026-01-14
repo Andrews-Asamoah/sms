@@ -1,4 +1,4 @@
-// components/auth/invite-accept-form.tsx
+// components/auth/invite-accept-form.tsx - UPDATED REDIRECT PATHS
 "use client";
 
 import { useState } from "react";
@@ -86,7 +86,8 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
     setError("");
 
     try {
-      // Sign up the user
+      console.log("📝 Signing up user:", data.email);
+
       const signupResult = await authClient.signUp.email({
         email: data.email,
         password: data.password,
@@ -97,7 +98,12 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
         throw new Error(signupResult.error.message);
       }
 
-      // Accept the invitation using the ID
+      console.log("✅ Signup successful");
+
+      // Wait for Better Auth to process
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      console.log("📧 Accepting invitation...");
       const response = await fetch(
         `/api/invitations/${invitation.invitationId}/accept`,
         {
@@ -112,14 +118,21 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
       }
 
       const result = await response.json();
+      console.log("✅ Invitation accepted, target:", result.redirectUrl);
 
-      // Redirect to school
-      router.push(result.redirectUrl);
+      // Extra wait for database sync
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      console.log("🔄 Redirecting via /auth/callback...");
+
+      // Redirect through callback to ensure session is loaded
+      window.location.href = `/auth/callback?callbackUrl=${encodeURIComponent(result.redirectUrl)}`;
     } catch (err) {
       const errorMessage =
         err instanceof Error
           ? err.message
           : "Failed to create account. Please try again.";
+      console.error("❌ Signup error:", errorMessage);
       setError(errorMessage);
       setIsSubmitting(false);
     }
@@ -130,7 +143,8 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
     setError("");
 
     try {
-      // Sign in the user
+      console.log("🔐 Signing in user:", data.email);
+
       const loginResult = await authClient.signIn.email({
         email: data.email,
         password: data.password,
@@ -140,7 +154,12 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
         throw new Error(loginResult.error.message);
       }
 
-      // Accept the invitation using the ID
+      console.log("✅ Login successful");
+
+      // Wait for Better Auth to process
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      console.log("📧 Accepting invitation...");
       const response = await fetch(
         `/api/invitations/${invitation.invitationId}/accept`,
         {
@@ -155,14 +174,21 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
       }
 
       const result = await response.json();
+      console.log("✅ Invitation accepted, target:", result.redirectUrl);
 
-      // Redirect to school
-      router.push(result.redirectUrl);
+      // Extra wait for database sync
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      console.log("🔄 Redirecting via /auth/callback...");
+
+      // Redirect through callback to ensure session is loaded
+      window.location.href = `/auth/callback?callbackUrl=${encodeURIComponent(result.redirectUrl)}`;
     } catch (err) {
       const errorMessage =
         err instanceof Error
           ? err.message
           : "Failed to sign in. Please try again.";
+      console.error("❌ Login error:", errorMessage);
       setError(errorMessage);
       setIsSubmitting(false);
     }
@@ -170,7 +196,7 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
 
   return (
     <div className="container flex items-center justify-center min-h-screen py-8">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 shadow-2xl">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">
             {hasAccount ? "Sign In to Accept" : "Create Your Account"}
@@ -373,7 +399,7 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
           {hasAccount && (
             <div className="mt-4 text-center">
               <Link
-                href="/forgot-password"
+                href="/auth/forgot-password"
                 className="text-sm text-muted-foreground hover:text-primary hover:underline"
               >
                 Forgot your password?

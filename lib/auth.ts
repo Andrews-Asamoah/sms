@@ -1,4 +1,4 @@
-// lib/auth.ts
+// lib/auth.ts - IMPROVED with better hooks and session handling
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { organization, admin } from "better-auth/plugins";
@@ -15,6 +15,7 @@ import {
   user as userRole,
 } from "@/lib/permissions";
 import { sendAdminInvitationEmail } from "@/lib/email/resend";
+import { Gender } from "@/lib/generated/prisma/client";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -38,7 +39,8 @@ export const auth = betterAuth({
         const { email, id, organization, inviter } = data;
 
         try {
-          // Get school details
+          console.log(`📧 [Auth Hook] Sending invitation email to ${email}`);
+
           const org = await prisma.organization.findUnique({
             where: { id: organization.id },
             include: {
@@ -51,11 +53,10 @@ export const auth = betterAuth({
           });
 
           if (!org) {
-            console.error("Organization not found for invitation");
+            console.error("[Auth Hook] Organization not found for invitation");
             return;
           }
 
-          // Get invitation details
           const invitation = await prisma.invitation.findUnique({
             where: { id },
             select: {
@@ -65,11 +66,10 @@ export const auth = betterAuth({
           });
 
           if (!invitation) {
-            console.error("Invitation not found");
+            console.error("[Auth Hook] Invitation not found");
             return;
           }
 
-          // Get inviter details
           const inviterUser = await prisma.user.findUnique({
             where: { id: inviter.id },
             select: {
@@ -78,7 +78,6 @@ export const auth = betterAuth({
             },
           });
 
-          // Send the email
           await sendAdminInvitationEmail({
             to: email,
             inviterName:
@@ -89,13 +88,207 @@ export const auth = betterAuth({
             expiresAt: invitation.expiresAt,
           });
 
-          console.log(
-            `Invitation email sent to ${email} for organization ${organization.id}`
-          );
+          console.log(`✅ [Auth Hook] Invitation email sent to ${email}`);
         } catch (error) {
-          console.error("Error in sendInvitationEmail callback:", error);
-          // Don't throw - let Better Auth continue
+          console.error("[Auth Hook] Error in sendInvitationEmail:", error);
         }
+      },
+
+      // Organization hooks for automation
+      organizationHooks: {
+        // After a member is added to organization
+        afterAddMember: async ({ user, organization, member }) => {
+          console.log(
+            `✅ [Auth Hook] Member added: ${user.email} to ${organization.name}`
+          );
+          console.log(`   Role: ${member.role}`);
+
+          try {
+            // Create UserProfile if it doesn't exist
+            const existingProfile = await prisma.userProfile.findUnique({
+              where: { userId: user.id },
+            });
+
+            if (!existingProfile) {
+              console.log(
+                `📝 [Auth Hook] Creating user profile for ${user.email}`
+              );
+
+              const nameParts = user.name.trim().split(/\s+/);
+              const firstName = nameParts[0] || "User";
+              const lastName =
+                nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Profile";
+
+              await prisma.userProfile.create({
+                data: {
+                  userId: user.id,
+                  firstName,
+                  lastName,
+                  phone: null,
+                  gender: Gender.OTHER,
+                  dateOfBirth: new Date("2000-01-01"),
+                  isActive: true,
+                },
+              });
+
+              console.log(`✅ [Auth Hook] Profile created for ${user.email}`);
+            } else {
+              console.log(
+                `ℹ️ [Auth Hook] Profile already exists for ${user.email}`
+              );
+            }
+
+            // Mark email as verified
+            const currentUser = await prisma.user.findUnique({
+              where: { id: user.id },
+              select: { emailVerified: true },
+            });
+
+            if (!currentUser?.emailVerified) {
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { emailVerified: true },
+              });
+              console.log(`✅ [Auth Hook] Email verified for ${user.email}`);
+            }
+
+            // Create audit log
+            await prisma.auditLog.create({
+              data: {
+                userId: user.id,
+                action: "CREATE",
+                entityType: "MEMBER",
+                entityId: member.id,
+                newValues: {
+                  organizationId: organization.id,
+                  organizationName: organization.name,
+                  role: member.role,
+                },
+              },
+            });
+
+            console.log(`✅ [Auth Hook] Audit log created for member addition`);
+          } catch (error) {
+            console.error("[Auth Hook] Error in afterAddMember:", error);
+            // Don't throw - we don't want to fail the member addition
+          }
+        },
+
+        // Before removing a member
+        beforeRemoveMember: async ({ user, organization }) => {
+          console.log(
+            `🗑️ [Auth Hook] Preparing to remove ${user.email} from ${organization.name}`
+          );
+
+          try {
+            // Check if this is their last organization
+            const memberCount = await prisma.member.count({
+              where: { userId: user.id },
+            });
+
+            if (memberCount === 1) {
+              console.log(
+                `⚠️ [Auth Hook] Warning: ${user.email} will have no organizations after removal`
+              );
+            }
+          } catch (error) {
+            console.error("[Auth Hook] Error in beforeRemoveMember:", error);
+          }
+        },
+
+        // After removing a member
+        afterRemoveMember: async ({ member, user, organization }) => {
+          console.log(
+            `✅ [Auth Hook] Member removed: ${user.email} from ${organization.name}`
+          );
+
+          try {
+            // Log the removal for audit purposes
+            await prisma.auditLog.create({
+              data: {
+                userId: user.id,
+                action: "DELETE",
+                entityType: "MEMBER",
+                entityId: member.id,
+                oldValues: {
+                  organizationId: organization.id,
+                  organizationName: organization.name,
+                  role: member.role,
+                },
+              },
+            });
+
+            console.log(`✅ [Auth Hook] Audit log created for member removal`);
+          } catch (error) {
+            console.error("[Auth Hook] Error in afterRemoveMember:", error);
+          }
+        },
+
+        // After accepting an invitation
+        afterAcceptInvitation: async ({ invitation, user, organization }) => {
+          console.log(`✅ [Auth Hook] Invitation accepted by ${user.email}`);
+          console.log(`   Organization: ${organization.name}`);
+          console.log(`   Invitation ID: ${invitation.id}`);
+
+          try {
+            // Log acceptance
+            await prisma.auditLog.create({
+              data: {
+                userId: user.id,
+                action: "CREATE",
+                entityType: "INVITATION_ACCEPTANCE",
+                entityId: invitation.id,
+                newValues: {
+                  email: invitation.email,
+                  organizationId: organization.id,
+                  organizationName: organization.name,
+                  role: invitation.role,
+                },
+              },
+            });
+
+            console.log(
+              `✅ [Auth Hook] Audit log created for invitation acceptance`
+            );
+          } catch (error) {
+            console.error("[Auth Hook] Error in afterAcceptInvitation:", error);
+          }
+        },
+
+        // After cancelling an invitation
+        afterCancelInvitation: async ({
+          invitation,
+          cancelledBy,
+          organization,
+        }) => {
+          console.log(
+            `🚫 [Auth Hook] Invitation cancelled for ${invitation.email}`
+          );
+
+          try {
+            // Log cancellation
+            await prisma.auditLog.create({
+              data: {
+                userId: cancelledBy.id,
+                action: "DELETE",
+                entityType: "INVITATION",
+                entityId: invitation.id,
+                oldValues: {
+                  email: invitation.email,
+                  organizationId: organization.id,
+                  organizationName: organization.name,
+                  role: invitation.role,
+                },
+              },
+            });
+
+            console.log(
+              `✅ [Auth Hook] Audit log created for invitation cancellation`
+            );
+          } catch (error) {
+            console.error("[Auth Hook] Error in afterCancelInvitation:", error);
+          }
+        },
       },
     }),
     admin({
@@ -122,7 +315,7 @@ export const auth = betterAuth({
           const adminMemberships = await prisma.member.findMany({
             where: {
               userId: user.id,
-              role: "ADMIN",
+              role: "admin",
             },
             select: { organizationId: true },
           });
@@ -150,6 +343,7 @@ export const auth = betterAuth({
   },
 });
 
+// Export session helpers (keep existing functions)
 export async function getAuthSession() {
   const session = await auth.api.getSession({
     headers: await headers(),

@@ -51,8 +51,8 @@ export const AdminInvitationEmail = ({
 
             <Text style={paragraph}>
               <strong>{inviterName}</strong> has invited you to join{" "}
-              <strong>{schoolName}</strong>&apos;s School Management System as a{" "}
-              <strong>{role}</strong>.
+              <strong>{schoolName}</strong>&apos;s School Management System as
+              an <strong>{role}</strong>.
             </Text>
 
             <Text style={paragraph}>

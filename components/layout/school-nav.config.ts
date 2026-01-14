@@ -153,7 +153,7 @@ export const schoolNavSections: NavSection[] = [
       },
       {
         title: "Academic Year",
-        url: "/admin/academic-year",
+        url: "/admin/academicYear",
         icon: Calendar,
         permission: "canManageAcademicYear",
       },

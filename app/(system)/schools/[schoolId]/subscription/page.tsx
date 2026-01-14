@@ -16,7 +16,7 @@ export default async function SchoolSubscriptionPage({
   const session = await getAuthSession();
 
   if (!session) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const { schoolId } = await params;

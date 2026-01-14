@@ -1,26 +1,30 @@
-// app/(system)/layout.tsx
+// ============================================================
+// app/(system)/layout.tsx - System Layout
+// ============================================================
+
 import { redirect } from "next/navigation";
-import { getAuthSession } from "@/lib/auth";
+import { getEnhancedSession } from "@/lib/auth/session";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { ReactNode } from "react";
 import { AppSidebarSystem } from "@/components/layout/app-sidebar-system";
 import { SiteHeaderSystem } from "@/components/layout/site-header-system";
+import { ReactNode } from "react";
 
 export default async function SystemLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const session = await getAuthSession();
+  const session = await getEnhancedSession();
 
-  if (!session || session.user.role !== "superAdmin") {
-    redirect("/login");
+  if (!session?.isSuperAdmin) {
+    redirect("/auth/login");
   }
 
   const userData = {
     name: session.user.name || "Super Admin",
     email: session.user.email,
     avatar: session.user.image || "/wis-logo.png",
+    role: session.user.role,
   };
 
   return (

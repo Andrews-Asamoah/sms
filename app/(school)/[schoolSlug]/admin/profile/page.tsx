@@ -16,13 +16,13 @@ export default async function SchoolAdminAccountPage({
   const session = await getAuthSession();
 
   if (!session) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const userData = await getCurrentUserProfile();
 
   if (!userData) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const { schoolSlug } = params;

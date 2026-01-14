@@ -1,11 +1,11 @@
-// app/(system)/schools/[schoolId]/page.tsx
+// app/(system)/schools/[schoolSlug]/page.tsx
 import { redirect, notFound } from "next/navigation";
 import { getAuthSession } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 interface SchoolDetailPageProps {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
   }>;
 }
 
@@ -14,13 +14,13 @@ export default async function SchoolDetailPage({
 }: SchoolDetailPageProps) {
   const session = await getAuthSession();
   if (!session) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
-  const { schoolId } = await params;
+  const { schoolSlug } = await params;
 
   const school = await prisma.school.findUnique({
-    where: { id: schoolId },
+    where: { id: schoolSlug },
     include: {
       subscription: true,
     },
@@ -35,8 +35,8 @@ export default async function SchoolDetailPage({
     school.subscription?.status !== "ACTIVE" &&
     school.subscription?.status !== "TRIALING"
   ) {
-    redirect(`/schools/${schoolId}/subscription-required`);
+    redirect(`/schools/${schoolSlug}/subscription-required`);
   }
 
-  redirect(`/schools/${schoolId}/overview`);
+  redirect(`/schools/${schoolSlug}/overview`);
 }
