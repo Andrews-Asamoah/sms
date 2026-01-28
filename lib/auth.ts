@@ -1,4 +1,4 @@
-// lib/auth.ts - IMPROVED with better hooks and session handling
+// lib/auth.ts - REFACTORED with Better Auth password reset
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { organization, admin } from "better-auth/plugins";
@@ -14,7 +14,10 @@ import {
   guardian,
   user as userRole,
 } from "@/lib/permissions";
-import { sendAdminInvitationEmail } from "@/lib/email/resend";
+import {
+  sendAdminInvitationEmail,
+  sendPasswordResetEmail,
+} from "@/lib/email/resend";
 import { Gender } from "@/lib/generated/prisma/client";
 
 export const auth = betterAuth({
@@ -26,6 +29,53 @@ export const auth = betterAuth({
     requireEmailVerification: false,
     minPasswordLength: 8,
     autoSignIn: true,
+
+    // Password reset configuration
+    sendResetPassword: async ({ user, url, token }, request) => {
+      console.log(`📧 [Auth] Sending password reset email to ${user.email}`);
+
+      try {
+        // Send password reset email using your email service
+        await sendPasswordResetEmail({
+          to: user.email,
+          userName: user.name,
+          resetUrl: url, // This URL includes the token automatically
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
+        });
+
+        console.log(`✅ [Auth] Password reset email sent to ${user.email}`);
+      } catch (error) {
+        console.error("[Auth] Error sending password reset email:", error);
+        // Don't throw - we don't want to reveal if the email exists
+      }
+    },
+
+    // Optional: Hook that runs after password is successfully reset
+    onPasswordReset: async ({ user }, request) => {
+      console.log(`✅ [Auth] Password reset completed for ${user.email}`);
+
+      try {
+        // Log the password reset for audit purposes
+        await prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "UPDATE",
+            entityType: "USER_PASSWORD",
+            entityId: user.id,
+            newValues: {
+              passwordResetAt: new Date(),
+            },
+          },
+        });
+
+        console.log(`✅ [Auth] Audit log created for password reset`);
+      } catch (error) {
+        console.error("[Auth] Error creating audit log:", error);
+      }
+    },
+
+    // Token expiration time (in seconds) - default is 3600 (1 hour)
+    resetPasswordTokenExpiresIn: 60 * 60, // 1 hour
   },
   plugins: [
     organization({
@@ -99,7 +149,7 @@ export const auth = betterAuth({
         // After a member is added to organization
         afterAddMember: async ({ user, organization, member }) => {
           console.log(
-            `✅ [Auth Hook] Member added: ${user.email} to ${organization.name}`
+            `✅ [Auth Hook] Member added: ${user.email} to ${organization.name}`,
           );
           console.log(`   Role: ${member.role}`);
 
@@ -111,7 +161,7 @@ export const auth = betterAuth({
 
             if (!existingProfile) {
               console.log(
-                `📝 [Auth Hook] Creating user profile for ${user.email}`
+                `📝 [Auth Hook] Creating user profile for ${user.email}`,
               );
 
               const nameParts = user.name.trim().split(/\s+/);
@@ -134,7 +184,7 @@ export const auth = betterAuth({
               console.log(`✅ [Auth Hook] Profile created for ${user.email}`);
             } else {
               console.log(
-                `ℹ️ [Auth Hook] Profile already exists for ${user.email}`
+                `ℹ️ [Auth Hook] Profile already exists for ${user.email}`,
               );
             }
 
@@ -177,7 +227,7 @@ export const auth = betterAuth({
         // Before removing a member
         beforeRemoveMember: async ({ user, organization }) => {
           console.log(
-            `🗑️ [Auth Hook] Preparing to remove ${user.email} from ${organization.name}`
+            `🗑️ [Auth Hook] Preparing to remove ${user.email} from ${organization.name}`,
           );
 
           try {
@@ -188,7 +238,7 @@ export const auth = betterAuth({
 
             if (memberCount === 1) {
               console.log(
-                `⚠️ [Auth Hook] Warning: ${user.email} will have no organizations after removal`
+                `⚠️ [Auth Hook] Warning: ${user.email} will have no organizations after removal`,
               );
             }
           } catch (error) {
@@ -199,7 +249,7 @@ export const auth = betterAuth({
         // After removing a member
         afterRemoveMember: async ({ member, user, organization }) => {
           console.log(
-            `✅ [Auth Hook] Member removed: ${user.email} from ${organization.name}`
+            `✅ [Auth Hook] Member removed: ${user.email} from ${organization.name}`,
           );
 
           try {
@@ -248,7 +298,7 @@ export const auth = betterAuth({
             });
 
             console.log(
-              `✅ [Auth Hook] Audit log created for invitation acceptance`
+              `✅ [Auth Hook] Audit log created for invitation acceptance`,
             );
           } catch (error) {
             console.error("[Auth Hook] Error in afterAcceptInvitation:", error);
@@ -262,7 +312,7 @@ export const auth = betterAuth({
           organization,
         }) => {
           console.log(
-            `🚫 [Auth Hook] Invitation cancelled for ${invitation.email}`
+            `🚫 [Auth Hook] Invitation cancelled for ${invitation.email}`,
           );
 
           try {
@@ -283,7 +333,7 @@ export const auth = betterAuth({
             });
 
             console.log(
-              `✅ [Auth Hook] Audit log created for invitation cancellation`
+              `✅ [Auth Hook] Audit log created for invitation cancellation`,
             );
           } catch (error) {
             console.error("[Auth Hook] Error in afterCancelInvitation:", error);
@@ -325,8 +375,8 @@ export const auth = betterAuth({
           });
           return adminMemberships.some((admin) =>
             targetMemberships.some(
-              (target) => target.organizationId === admin.organizationId
-            )
+              (target) => target.organizationId === admin.organizationId,
+            ),
           );
         }
         return false;
@@ -439,7 +489,7 @@ export async function getAuthSession() {
 
 export async function checkPermission(
   userId: string,
-  permissions: Record<string, string[]>
+  permissions: Record<string, string[]>,
 ) {
   const result = await auth.api.userHasPermission({
     body: {
@@ -451,7 +501,7 @@ export async function checkPermission(
 }
 
 export async function checkCurrentUserPermission(
-  permissions: Record<string, string[]>
+  permissions: Record<string, string[]>,
 ) {
   const session = await getAuthSession();
   if (!session) return false;

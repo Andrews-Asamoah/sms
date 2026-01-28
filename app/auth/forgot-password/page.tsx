@@ -29,17 +29,28 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
-import { forgetPassword } from "@/lib/auth-client";
+import { requestPasswordReset } from "@/lib/auth-client";
+
+// ============================================================================
+// FORM VALIDATION SCHEMA
+// ============================================================================
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
+  email: z
+    .string()
+    .min(1, "Email is required")
+    .email("Please enter a valid email address"),
 });
 
 type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
 export default function ForgotPasswordPage() {
-  const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   const {
     register,
@@ -52,25 +63,42 @@ export default function ForgotPasswordPage() {
     },
   });
 
+  // ============================================================================
+  // FORM SUBMISSION HANDLER
+  // ============================================================================
+
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     setError("");
     setSuccess(false);
 
     try {
-      const result = await forgetPassword({
+      // Use Better Auth's native requestPasswordReset method
+      const { error: authError } = await requestPasswordReset({
         email: data.email,
         redirectTo: "/auth/reset-password",
       });
 
-      if (result.error) {
-        throw new Error(result.error.message);
+      // Handle any errors
+      if (authError) {
+        throw new Error(authError.message);
       }
 
+      // Show success message
+      // Note: Better Auth doesn't reveal if email exists (security best practice)
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message || "Failed to send reset email. Please try again.");
+    } catch (err) {
+      console.error("[ForgotPassword] Error:", err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to send reset email. Please try again.";
+      setError(errorMessage);
     }
   };
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
     <Card className="w-full max-w-md backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 shadow-2xl">
@@ -89,88 +117,139 @@ export default function ForgotPasswordPage() {
 
       <CardContent>
         {success ? (
-          <div className="space-y-4">
-            <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800 dark:text-green-200">
-                Password reset link sent! Check your email inbox (and spam
-                folder).
-              </AlertDescription>
-            </Alert>
-
-            <div className="text-center space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Didn&apos;t receive the email?{" "}
-                <button
-                  onClick={() => setSuccess(false)}
-                  className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                >
-                  Try again
-                </button>
-              </p>
-
-              <Button asChild variant="outline" className="w-full">
-                <Link href="/auth/login">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back to Login
-                </Link>
-              </Button>
-            </div>
-          </div>
+          <SuccessView onTryAgain={() => setSuccess(false)} />
         ) : (
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <FieldGroup>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <Field data-invalid={!!errors.email}>
-                <FieldLabel htmlFor="email">Email Address</FieldLabel>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input
-                    {...register("email")}
-                    id="email"
-                    type="email"
-                    placeholder="you@school.edu"
-                    className="pl-10"
-                    disabled={isSubmitting}
-                    aria-invalid={!!errors.email}
-                    autoComplete="email"
-                  />
-                </div>
-                <FieldError errors={[errors.email]} />
-              </Field>
-
-              <Button
-                type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                size="lg"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>Send Reset Link</>
-                )}
-              </Button>
-
-              <Button asChild variant="ghost" className="w-full">
-                <Link href="/auth/login">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back to Login
-                </Link>
-              </Button>
-            </FieldGroup>
-          </form>
+          <ForgotPasswordForm
+            register={register}
+            handleSubmit={handleSubmit}
+            onSubmit={onSubmit}
+            errors={errors}
+            error={error}
+            isSubmitting={isSubmitting}
+          />
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ============================================================================
+// SUCCESS VIEW COMPONENT
+// ============================================================================
+
+function SuccessView({ onTryAgain }: { onTryAgain: () => void }) {
+  return (
+    <div className="space-y-4">
+      <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+        <CheckCircle2 className="h-4 w-4 text-green-600" />
+        <AlertDescription className="text-green-800 dark:text-green-200">
+          If an account exists with this email, you&apos;ll receive a password
+          reset link shortly. Check your inbox (and spam folder).
+        </AlertDescription>
+      </Alert>
+
+      <div className="text-center space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Didn&apos;t receive the email?{" "}
+          <button
+            onClick={onTryAgain}
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+          >
+            Try again
+          </button>
+        </p>
+
+        <Button asChild variant="outline" className="w-full">
+          <Link href="/auth/login">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Login
+          </Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// FORM COMPONENT
+// ============================================================================
+
+interface ForgotPasswordFormProps {
+  register: ReturnType<typeof useForm<ForgotPasswordFormValues>>["register"];
+  handleSubmit: ReturnType<
+    typeof useForm<ForgotPasswordFormValues>
+  >["handleSubmit"];
+  onSubmit: (data: ForgotPasswordFormValues) => Promise<void>;
+  errors: ReturnType<
+    typeof useForm<ForgotPasswordFormValues>
+  >["formState"]["errors"];
+  error: string;
+  isSubmitting: boolean;
+}
+
+function ForgotPasswordForm({
+  register,
+  handleSubmit,
+  onSubmit,
+  errors,
+  error,
+  isSubmitting,
+}: ForgotPasswordFormProps) {
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <FieldGroup>
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Email Field */}
+        <Field data-invalid={!!errors.email}>
+          <FieldLabel htmlFor="email">Email Address</FieldLabel>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              {...register("email")}
+              id="email"
+              type="email"
+              placeholder="you@school.edu"
+              className="pl-10"
+              disabled={isSubmitting}
+              aria-invalid={!!errors.email}
+              autoComplete="email"
+            />
+          </div>
+          <FieldError errors={[errors.email]} />
+        </Field>
+
+        {/* Submit Button */}
+        <Button
+          type="submit"
+          className="w-full bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+          size="lg"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>Send Reset Link</>
+          )}
+        </Button>
+
+        {/* Back to Login */}
+        <Button asChild variant="ghost" className="w-full">
+          <Link href="/auth/login">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Login
+          </Link>
+        </Button>
+      </FieldGroup>
+    </form>
   );
 }

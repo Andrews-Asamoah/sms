@@ -13,6 +13,7 @@ export default async function SchoolDetailPage({
   params,
 }: SchoolDetailPageProps) {
   const session = await getAuthSession();
+
   if (!session) {
     redirect("/auth/login");
   }
@@ -35,8 +36,8 @@ export default async function SchoolDetailPage({
     school.subscription?.status !== "ACTIVE" &&
     school.subscription?.status !== "TRIALING"
   ) {
-    redirect(`/schools/${schoolSlug}/subscription-required`);
+    redirect(`/schools/${school.subdomain}/subscription`);
   }
 
-  redirect(`/schools/${schoolSlug}/overview`);
+  redirect(`/schools/${school.subdomain}/overview`);
 }

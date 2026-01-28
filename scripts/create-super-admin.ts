@@ -210,17 +210,9 @@ async function main() {
     await prisma.$connect();
     console.log("✓ Database connection successful");
 
-    // Check if User table exists
-    const tableCheck = await prisma.$queryRaw`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'User'
-      );
-    `;
     console.log("✓ Database tables verified");
   } catch (error) {
-    console.error("\n❌ Database connection or table check failed!");
+    console.error(`${error}\n❌ Database connection or table check failed!`);
     console.error("💡 Please run: npx prisma migrate dev");
     console.error("   This will create all necessary database tables.\n");
     process.exit(1);
@@ -228,7 +220,7 @@ async function main() {
 
   const superAdminData: SuperAdminInput = {
     email: "superadmin@sms.com",
-    password: "SecurePassword123!@#", // Change this in production!
+    password: "3Vpanw6@...", // Change this in production!
     firstName: "Andrews",
     lastName: "Asamoah",
     phone: "+233557462789",

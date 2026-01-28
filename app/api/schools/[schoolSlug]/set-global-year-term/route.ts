@@ -4,6 +4,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { Prisma } from "@/lib/generated/prisma";
 
 const setGlobalSchema = z.object({
   academicYearId: z.string().min(1),
@@ -88,7 +89,9 @@ export async function POST(
       lastUpdatedAt?: string;
       [key: string]: unknown;
     }
+
     const currentSettings = (school.settings as SchoolSettings) || {};
+
     const updatedSettings: SchoolSettings = {
       ...currentSettings,
       currentAcademicYearId: validatedData.academicYearId,
@@ -97,10 +100,11 @@ export async function POST(
       lastUpdatedAt: new Date().toISOString(),
     };
 
+    // Update school with proper Prisma JSON type casting
     await prisma.school.update({
       where: { id: school.id },
       data: {
-        settings: updatedSettings,
+        settings: updatedSettings as Prisma.InputJsonValue,
       },
     });
 
@@ -111,8 +115,8 @@ export async function POST(
         action: "UPDATE",
         entityType: "School",
         entityId: school.id,
-        oldValues: { settings: school.settings },
-        newValues: { settings: updatedSettings },
+        oldValues: school.settings as Prisma.InputJsonValue,
+        newValues: updatedSettings as Prisma.InputJsonValue,
       },
     });
 

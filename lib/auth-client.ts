@@ -1,4 +1,4 @@
-// lib/auth-client.ts - IMPROVED with Better Type Safety
+// lib/auth-client.ts - CORRECTED with actual Better Auth method names
 import { createAuthClient } from "better-auth/react";
 import { adminClient, organizationClient } from "better-auth/client/plugins";
 import {
@@ -11,6 +11,10 @@ import {
   guardian,
   user as userRole,
 } from "@/lib/permissions";
+
+// ============================================================================
+// CLIENT CONFIGURATION
+// ============================================================================
 
 const AUTH_BASE_URL = process.env.NEXT_PUBLIC_APP_URL;
 
@@ -33,6 +37,10 @@ export const authClient = createAuthClient({
   ],
 });
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
 export type RoleName =
   | "superAdmin"
   | "admin"
@@ -42,14 +50,35 @@ export type RoleName =
   | "guardian"
   | "user";
 
+export interface AuthError {
+  message: string;
+  code?: string;
+  status?: number;
+}
+
+export interface AuthResult<T = unknown> {
+  data?: T;
+  error?: AuthError;
+}
+
+// ============================================================================
+// PERMISSION HELPERS
+// ============================================================================
+
+/**
+ * Check user permissions (async, requires server call)
+ * @param permissions - Object mapping resources to allowed actions
+ * @returns Promise<boolean> - Whether user has the required permissions
+ * @example
+ * const canDelete = await hasPermission({ user: ["delete"] });
+ */
 export async function hasPermission(
-  permissions: Record<string, string[]>
+  permissions: Record<string, string[]>,
 ): Promise<boolean> {
   try {
     const result = await authClient.admin.hasPermission({
       permissions,
     });
-
     return Boolean(result.data?.success);
   } catch (error) {
     console.error("Permission check error:", error);
@@ -59,11 +88,15 @@ export async function hasPermission(
 
 /**
  * Check role permissions (synchronous, no server call)
- * Usage: const canDelete = checkRolePermission("admin", { user: ["delete"] })
+ * @param role - Role name to check
+ * @param permissions - Object mapping resources to allowed actions
+ * @returns boolean - Whether role has the required permissions
+ * @example
+ * const canDelete = checkRolePermission("admin", { user: ["delete"] });
  */
 export function checkRolePermission(
   role: RoleName,
-  permissions: Record<string, string[]>
+  permissions: Record<string, string[]>,
 ): boolean {
   return authClient.admin.checkRolePermission({
     role,
@@ -71,180 +104,78 @@ export function checkRolePermission(
   });
 }
 
-// Core auth exports (recommended by better-auth)
-export const { signIn, signUp, signOut, useSession, organization, admin } =
-  authClient;
+// ============================================================================
+// AUTHENTICATION METHODS (Direct exports from authClient)
+// ============================================================================
 
 /**
- * Additional auth methods for convenience
+ * Core authentication methods
+ * These are direct exports from Better Auth's client
  */
+export const {
+  // Authentication
+  signIn,
+  signUp,
+  signOut,
 
-/**
- * Request password reset
- * Usage: await forgetPassword({ email: "user@example.com", redirectTo: "/reset-password" })
- */
-export async function forgetPassword(params: {
-  email: string;
-  redirectTo: string;
-}): Promise<{ error?: { message: string } }> {
-  try {
-    const response = await fetch(`${AUTH_BASE_URL}/forget-password`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: params.email,
-        redirectTo: params.redirectTo,
-      }),
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      return {
-        error: { message: error.message || "Failed to send reset email" },
-      };
-    }
-
-    return {};
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Network error";
-    return { error: { message: errorMessage } };
-  }
-}
-
-/**
- * Reset password with token
- * Usage: await resetPassword({ token: "...", newPassword: "..." })
- */
-export async function resetPassword(params: {
-  token: string;
-  newPassword: string;
-}): Promise<{ error?: { message: string } }> {
-  try {
-    const response = await fetch(`${AUTH_BASE_URL}/reset-password`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        token: params.token,
-        newPassword: params.newPassword,
-      }),
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      return {
-        error: { message: error.message || "Failed to reset password" },
-      };
-    }
-
-    return {};
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Network error";
-    return { error: { message: errorMessage } };
-  }
-}
-
-/**
- * Change password (for authenticated users)
- * Usage: await changePassword({ currentPassword: "...", newPassword: "..." })
- */
-export async function changePassword(params: {
-  currentPassword: string;
-  newPassword: string;
-}): Promise<{ error?: { message: string } }> {
-  try {
-    const response = await fetch(`${AUTH_BASE_URL}/change-password`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        currentPassword: params.currentPassword,
-        newPassword: params.newPassword,
-      }),
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      return {
-        error: { message: error.message || "Failed to change password" },
-      };
-    }
-
-    return {};
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Network error";
-    return { error: { message: errorMessage } };
-  }
-}
-
-/**
- * Verify email with token
- * Usage: await verifyEmail({ token: "..." })
- */
-export async function verifyEmail(params: {
-  token: string;
-}): Promise<{ error?: { message: string } }> {
-  try {
-    const response = await fetch(`${AUTH_BASE_URL}/verify-email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        token: params.token,
-      }),
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      return { error: { message: error.message || "Failed to verify email" } };
-    }
-
-    return {};
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Network error";
-    return { error: { message: errorMessage } };
-  }
-}
-
-/**
- * Export wrapped authClient methods with proper typing
- */
-export const auth = {
-  ...authClient,
-  // Add custom methods
-  forgetPassword,
+  // Password Management - CORRECTED METHOD NAMES
+  requestPasswordReset, // ✅ This is the correct method name
   resetPassword,
   changePassword,
-  verifyEmail,
-  // Re-export core methods for convenience
+
+  // Email Verification
+  sendVerificationEmail,
+
+  // Session Management
+  useSession,
+  getSession,
+
+  // Organization Management
+  organization,
+
+  // Admin Functions
+  admin,
+} = authClient;
+
+// ============================================================================
+// CONVENIENCE WRAPPER (Optional - for consistent API)
+// ============================================================================
+
+/**
+ * Unified auth object that combines all authentication methods
+ * Provides a consistent interface for all auth operations
+ */
+export const auth = {
+  // Core authentication
   signIn: authClient.signIn,
   signUp: authClient.signUp,
   signOut: authClient.signOut,
+
+  // Password management - CORRECTED METHOD NAMES
+  requestPasswordReset: authClient.requestPasswordReset, // ✅ Correct
+  resetPassword: authClient.resetPassword,
+  changePassword: authClient.changePassword,
+
+  // Email verification
+  sendVerificationEmail: authClient.sendVerificationEmail,
+
+  // Session management
   useSession: authClient.useSession,
+  getSession: authClient.getSession,
+
+  // Organization management
   organization: authClient.organization,
+
+  // Admin functions
   admin: authClient.admin,
-};
 
-// Export types for Better Auth responses
-export type AuthError = {
-  message: string;
-  code?: string;
-};
+  // Permission helpers
+  hasPermission,
+  checkRolePermission,
+} as const;
 
-export type AuthResult<T = unknown> = {
-  data?: T;
-  error?: AuthError;
-};
+// ============================================================================
+// DEFAULT EXPORT
+// ============================================================================
+
+export default authClient;

@@ -1,19 +1,18 @@
 // app/api/schools/[schoolSlug]/classes/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
-import prisma from "@/lib/prisma";
-import { z } from "zod";
 
+// FIXED: Make section optional or nullable
 const createClassSchema = z.object({
-  name: z.string().min(1),
-  level: z.string().min(1),
-  section: z.string().optional(),
-  capacity: z.number().nullable().optional(),
-  academicYearId: z.string().min(1),
-  classTeacherId: z.string().nullable().optional(),
-  isActive: z.boolean().default(true),
-  schoolId: z.string().min(1),
+  name: z.string().min(1, "Class name is required"),
+  level: z.string().min(1, "Level is required"),
+  section: z.string().optional().nullable(), // Changed from just string
+  capacity: z.number().int().positive().optional().nullable(),
+  classTeacherId: z.string().optional().nullable(),
+  academicYearId: z.string().min(1, "Academic year is required"),
 });
 
 export async function POST(
@@ -22,19 +21,17 @@ export async function POST(
 ) {
   try {
     const { schoolSlug } = await params;
+
+    // Check authentication and authorization
     const session = await requireSchoolAccess(schoolSlug);
     const role = getSchoolRole(session, schoolSlug);
 
-    // Check authorization
     if (
       role?.effectiveRole !== "admin" &&
       role?.effectiveRole !== "owner" &&
       !session.isSuperAdmin
     ) {
-      return NextResponse.json(
-        { error: "Insufficient permissions" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -42,15 +39,15 @@ export async function POST(
 
     // Verify school exists
     const school = await prisma.school.findUnique({
-      where: { subdomain: schoolSlug, id: validatedData.schoolId },
+      where: { subdomain: schoolSlug },
     });
 
     if (!school) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    // Verify academic year belongs to school
-    const academicYear = await prisma.academicYear.findUnique({
+    // Verify academic year belongs to this school
+    const academicYear = await prisma.academicYear.findFirst({
       where: {
         id: validatedData.academicYearId,
         schoolId: school.id,
@@ -64,9 +61,9 @@ export async function POST(
       );
     }
 
-    // Verify teacher belongs to school if provided
+    // If classTeacherId is provided, verify it belongs to this school
     if (validatedData.classTeacherId) {
-      const teacher = await prisma.teacher.findUnique({
+      const teacher = await prisma.teacher.findFirst({
         where: {
           id: validatedData.classTeacherId,
           schoolId: school.id,
@@ -81,7 +78,7 @@ export async function POST(
       }
     }
 
-    // Check for duplicate class name in the same academic year
+    // Check if class with same name already exists in this academic year
     const existingClass = await prisma.class.findFirst({
       where: {
         name: validatedData.name,
@@ -95,54 +92,99 @@ export async function POST(
         {
           error: "A class with this name already exists in this academic year",
         },
-        { status: 409 }
+        { status: 400 }
       );
     }
 
-    // Create class
+    // Create the class
     const newClass = await prisma.class.create({
       data: {
         name: validatedData.name,
         level: validatedData.level,
-        section: validatedData.section || null,
+        section: validatedData.section || null, // Ensure null instead of undefined
         capacity: validatedData.capacity || null,
-        academicYearId: validatedData.academicYearId,
         classTeacherId: validatedData.classTeacherId || null,
-        isActive: validatedData.isActive,
+        academicYearId: validatedData.academicYearId,
         schoolId: school.id,
+        isActive: true,
       },
       include: {
-        academicYear: true,
         classTeacher: {
           include: {
             profile: true,
           },
         },
-      },
-    });
-
-    // Log audit trail
-    await prisma.auditLog.create({
-      data: {
-        userId: session.user.id,
-        action: "CREATE",
-        entityType: "Class",
-        entityId: newClass.id,
-        newValues: newClass,
+        academicYear: true,
       },
     });
 
     return NextResponse.json(newClass, { status: 201 });
   } catch (error) {
-    console.error("[CLASSES_POST]", error);
+    console.error("[CLASSES_POST] Error", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request data", details: error.issues },
+        { error: "Invalid request data", details: error.message },
         { status: 400 }
       );
     }
 
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// GET endpoint to list all classes
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ schoolSlug: string }> }
+) {
+  try {
+    const { schoolSlug } = await params;
+
+    const session = await requireSchoolAccess(schoolSlug);
+    const role = getSchoolRole(session, schoolSlug);
+
+    if (!role) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+    });
+
+    if (!school) {
+      return NextResponse.json({ error: "School not found" }, { status: 404 });
+    }
+
+    const classes = await prisma.class.findMany({
+      where: { schoolId: school.id },
+      include: {
+        classTeacher: {
+          include: {
+            profile: true,
+          },
+        },
+        academicYear: true,
+        _count: {
+          select: {
+            students: true,
+            subjects: true,
+          },
+        },
+      },
+      orderBy: [
+        { academicYear: { startDate: "desc" } },
+        { level: "asc" },
+        { name: "asc" },
+      ],
+    });
+
+    return NextResponse.json(classes);
+  } catch (error) {
+    console.error("[CLASSES_GET] Error", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

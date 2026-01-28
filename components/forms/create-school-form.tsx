@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, MapPin, CheckCircle2, XCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z

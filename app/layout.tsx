@@ -1,7 +1,6 @@
-// ============================================
-// 1. ROOT LAYOUT FIX
+// ================
 // app/layout.tsx
-// ============================================
+// ================
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -20,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { template: "%s | WIS", default: "Wesley SMS" },
+  title: { template: "%s | Edu-MS", default: "Edu-MS" },
   description: "The best SMS management system",
 };
 

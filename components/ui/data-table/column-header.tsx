@@ -1,3 +1,4 @@
+// @/components/ui/data-table/column-header
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -16,8 +17,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface DataTableColumnHeaderProps<TData, TValue>
-  extends React.HTMLAttributes<HTMLDivElement> {
+interface DataTableColumnHeaderProps<
+  TData,
+  TValue,
+> extends React.HTMLAttributes<HTMLDivElement> {
   column: Column<TData, TValue>;
   title: string;
 }
@@ -38,7 +41,8 @@ export function DataTableColumnHeader<TData, TValue>({
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-3 h-8 data-[state=open]:bg-accent">
+            className="-ml-3 h-8 data-[state=open]:bg-accent"
+          >
             <span>{title}</span>
             {column.getIsSorted() === "desc" ? (
               <ArrowDownIcon className="ml-2 h-4 w-4" />

@@ -5,10 +5,11 @@ import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 
+// FIXED: Make section nullable
 const updateClassSchema = z.object({
   name: z.string().min(1).optional(),
   level: z.string().min(1).optional(),
-  section: z.string().optional(),
+  section: z.string().nullable().optional(), // Changed to accept null
   capacity: z.number().nullable().optional(),
   academicYearId: z.string().min(1).optional(),
   classTeacherId: z.string().nullable().optional(),
@@ -125,7 +126,7 @@ export async function PATCH(
         ...(validatedData.name && { name: validatedData.name }),
         ...(validatedData.level && { level: validatedData.level }),
         ...(validatedData.section !== undefined && {
-          section: validatedData.section || null,
+          section: validatedData.section,
         }),
         ...(validatedData.capacity !== undefined && {
           capacity: validatedData.capacity,

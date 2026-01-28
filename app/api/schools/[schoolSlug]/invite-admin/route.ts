@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthSession, auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
-import { MemberRole } from "@/lib/generated/prisma/client";
 
 type RouteContext = {
   params: Promise<{
@@ -226,7 +225,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 }
 
 // DELETE - Cancel invitation
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest) {
   console.log("🗑️ [Invite API] Cancelling invitation...");
 
   try {

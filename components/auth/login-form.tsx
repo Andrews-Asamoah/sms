@@ -1,8 +1,8 @@
-// components/auth/login-form.tsx - UPDATED FOR NEW STRUCTURE
+// components/auth/login-form.tsx - FIXED WITH THEME COLORS
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -34,8 +34,12 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+interface AuthError {
+  message?: string;
+  status?: number;
+}
+
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl");
 
@@ -80,17 +84,19 @@ export function LoginForm() {
       console.log("🔄 [Login] Redirecting to /auth/callback");
 
       window.location.href = "/auth/callback";
-    } catch (err: any) {
+    } catch (err) {
       console.error("❌ [Login] Failed:", err);
 
-      if (err.message?.includes("Invalid email or password")) {
+      const authError = err as AuthError;
+
+      if (authError.message?.includes("Invalid email or password")) {
         setError("Invalid email or password. Please try again.");
-      } else if (err.message?.includes("User not found")) {
+      } else if (authError.message?.includes("User not found")) {
         setError("No account found with this email address.");
-      } else if (err.message?.includes("Account is banned")) {
+      } else if (authError.message?.includes("Account is banned")) {
         setError("Your account has been suspended. Please contact support.");
       } else {
-        setError(err.message || "Failed to sign in. Please try again.");
+        setError(authError.message || "Failed to sign in. Please try again.");
       }
     }
   };
@@ -99,10 +105,7 @@ export function LoginForm() {
     <form onSubmit={handleSubmit(onSubmit)}>
       <FieldGroup>
         {error && (
-          <Alert
-            variant="destructive"
-            className="bg-red-50/80 dark:bg-red-950/20 backdrop-blur-sm"
-          >
+          <Alert variant="destructive" className="backdrop-blur-sm">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -111,13 +114,13 @@ export function LoginForm() {
         <Field data-invalid={!!errors.email}>
           <FieldLabel htmlFor="email">Email Address</FieldLabel>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               {...register("email")}
               id="email"
               type="email"
               placeholder="you@school.edu"
-              className="pl-10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-slate-200 dark:border-slate-700"
+              className="pl-10 bg-background/50 backdrop-blur-sm"
               disabled={isSubmitting}
               aria-invalid={!!errors.email}
               autoComplete="email"
@@ -131,20 +134,20 @@ export function LoginForm() {
             <FieldLabel htmlFor="password">Password</FieldLabel>
             <Link
               href="/auth/forgot-password"
-              className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+              className="text-sm text-primary hover:text-primary/80 font-medium transition-colors"
               tabIndex={-1}
             >
               Forgot password?
             </Link>
           </div>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
+            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               {...register("password")}
               id="password"
               type={showPassword ? "text" : "password"}
               placeholder="Enter your password"
-              className="pl-10 pr-10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-slate-200 dark:border-slate-700"
+              className="pl-10 pr-10 bg-background/50 backdrop-blur-sm"
               disabled={isSubmitting}
               aria-invalid={!!errors.password}
               autoComplete="current-password"
@@ -152,7 +155,7 @@ export function LoginForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               disabled={isSubmitting}
               tabIndex={-1}
               aria-label={showPassword ? "Hide password" : "Show password"}
@@ -169,7 +172,7 @@ export function LoginForm() {
 
         <Button
           type="submit"
-          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+          className="w-full shadow-lg hover:shadow-xl transition-all duration-200"
           size="lg"
           disabled={isSubmitting}
         >
@@ -186,29 +189,8 @@ export function LoginForm() {
           )}
         </Button>
 
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-slate-200 dark:border-slate-700" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white dark:bg-slate-950 px-2 text-slate-500 dark:text-slate-400">
-              New to the platform?
-            </span>
-          </div>
-        </div>
-
-        <p className="text-center text-sm text-slate-600 dark:text-slate-400">
-          Don&apos;t have an account?{" "}
-          <Link
-            href="/auth/signup"
-            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
-          >
-            Create one
-          </Link>
-        </p>
-
         {callbackUrl && (
-          <p className="text-xs text-center text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 p-2 rounded">
+          <p className="text-xs text-center text-muted-foreground bg-muted/50 p-2 rounded">
             You&apos;ll be redirected after signing in
           </p>
         )}
