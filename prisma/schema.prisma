@@ -124,7 +124,7 @@ model Invitation {
   id             String       @id
   organizationId String
   email          String
-  role           String?
+  role           String
   status         String       @default("pending")
   expiresAt      DateTime
   createdAt      DateTime     @default(now())

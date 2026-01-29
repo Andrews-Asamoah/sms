@@ -13868,7 +13868,7 @@ export namespace Prisma {
     id: string
     organizationId: string
     email: string
-    role: string | null
+    role: string
     status: string
     expiresAt: Date
     createdAt: Date
@@ -13966,7 +13966,7 @@ export namespace Prisma {
       id: string
       organizationId: string
       email: string
-      role: string | null
+      role: string
       status: string
       expiresAt: Date
       createdAt: Date
@@ -65309,7 +65309,7 @@ export namespace Prisma {
     id?: StringFilter<"Invitation"> | string
     organizationId?: StringFilter<"Invitation"> | string
     email?: StringFilter<"Invitation"> | string
-    role?: StringNullableFilter<"Invitation"> | string | null
+    role?: StringFilter<"Invitation"> | string
     status?: StringFilter<"Invitation"> | string
     expiresAt?: DateTimeFilter<"Invitation"> | Date | string
     createdAt?: DateTimeFilter<"Invitation"> | Date | string
@@ -65322,7 +65322,7 @@ export namespace Prisma {
     id?: SortOrder
     organizationId?: SortOrder
     email?: SortOrder
-    role?: SortOrderInput | SortOrder
+    role?: SortOrder
     status?: SortOrder
     expiresAt?: SortOrder
     createdAt?: SortOrder
@@ -65338,7 +65338,7 @@ export namespace Prisma {
     NOT?: InvitationWhereInput | InvitationWhereInput[]
     organizationId?: StringFilter<"Invitation"> | string
     email?: StringFilter<"Invitation"> | string
-    role?: StringNullableFilter<"Invitation"> | string | null
+    role?: StringFilter<"Invitation"> | string
     status?: StringFilter<"Invitation"> | string
     expiresAt?: DateTimeFilter<"Invitation"> | Date | string
     createdAt?: DateTimeFilter<"Invitation"> | Date | string
@@ -65351,7 +65351,7 @@ export namespace Prisma {
     id?: SortOrder
     organizationId?: SortOrder
     email?: SortOrder
-    role?: SortOrderInput | SortOrder
+    role?: SortOrder
     status?: SortOrder
     expiresAt?: SortOrder
     createdAt?: SortOrder
@@ -65368,7 +65368,7 @@ export namespace Prisma {
     id?: StringWithAggregatesFilter<"Invitation"> | string
     organizationId?: StringWithAggregatesFilter<"Invitation"> | string
     email?: StringWithAggregatesFilter<"Invitation"> | string
-    role?: StringNullableWithAggregatesFilter<"Invitation"> | string | null
+    role?: StringWithAggregatesFilter<"Invitation"> | string
     status?: StringWithAggregatesFilter<"Invitation"> | string
     expiresAt?: DateTimeWithAggregatesFilter<"Invitation"> | Date | string
     createdAt?: DateTimeWithAggregatesFilter<"Invitation"> | Date | string
@@ -69909,7 +69909,7 @@ export namespace Prisma {
   export type InvitationCreateInput = {
     id: string
     email: string
-    role?: string | null
+    role: string
     status?: string
     expiresAt: Date | string
     createdAt?: Date | string
@@ -69921,7 +69921,7 @@ export namespace Prisma {
     id: string
     organizationId: string
     email: string
-    role?: string | null
+    role: string
     status?: string
     expiresAt: Date | string
     createdAt?: Date | string
@@ -69931,7 +69931,7 @@ export namespace Prisma {
   export type InvitationUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -69943,7 +69943,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     organizationId?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -69954,7 +69954,7 @@ export namespace Prisma {
     id: string
     organizationId: string
     email: string
-    role?: string | null
+    role: string
     status?: string
     expiresAt: Date | string
     createdAt?: Date | string
@@ -69964,7 +69964,7 @@ export namespace Prisma {
   export type InvitationUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -69974,7 +69974,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     organizationId?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -84462,7 +84462,7 @@ export namespace Prisma {
   export type InvitationCreateWithoutInviterInput = {
     id: string
     email: string
-    role?: string | null
+    role: string
     status?: string
     expiresAt: Date | string
     createdAt?: Date | string
@@ -84473,7 +84473,7 @@ export namespace Prisma {
     id: string
     organizationId: string
     email: string
-    role?: string | null
+    role: string
     status?: string
     expiresAt: Date | string
     createdAt?: Date | string
@@ -84912,7 +84912,7 @@ export namespace Prisma {
     id?: StringFilter<"Invitation"> | string
     organizationId?: StringFilter<"Invitation"> | string
     email?: StringFilter<"Invitation"> | string
-    role?: StringNullableFilter<"Invitation"> | string | null
+    role?: StringFilter<"Invitation"> | string
     status?: StringFilter<"Invitation"> | string
     expiresAt?: DateTimeFilter<"Invitation"> | Date | string
     createdAt?: DateTimeFilter<"Invitation"> | Date | string
@@ -85316,7 +85316,7 @@ export namespace Prisma {
   export type InvitationCreateWithoutOrganizationInput = {
     id: string
     email: string
-    role?: string | null
+    role: string
     status?: string
     expiresAt: Date | string
     createdAt?: Date | string
@@ -85326,7 +85326,7 @@ export namespace Prisma {
   export type InvitationUncheckedCreateWithoutOrganizationInput = {
     id: string
     email: string
-    role?: string | null
+    role: string
     status?: string
     expiresAt: Date | string
     createdAt?: Date | string
@@ -101825,7 +101825,7 @@ export namespace Prisma {
     id: string
     organizationId: string
     email: string
-    role?: string | null
+    role: string
     status?: string
     expiresAt: Date | string
     createdAt?: Date | string
@@ -102170,7 +102170,7 @@ export namespace Prisma {
   export type InvitationUpdateWithoutInviterInput = {
     id?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -102181,7 +102181,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     organizationId?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -102191,7 +102191,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     organizationId?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -102295,7 +102295,7 @@ export namespace Prisma {
   export type InvitationCreateManyOrganizationInput = {
     id: string
     email: string
-    role?: string | null
+    role: string
     status?: string
     expiresAt: Date | string
     createdAt?: Date | string
@@ -102329,7 +102329,7 @@ export namespace Prisma {
   export type InvitationUpdateWithoutOrganizationInput = {
     id?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -102339,7 +102339,7 @@ export namespace Prisma {
   export type InvitationUncheckedUpdateWithoutOrganizationInput = {
     id?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -102349,7 +102349,7 @@ export namespace Prisma {
   export type InvitationUncheckedUpdateManyWithoutOrganizationInput = {
     id?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
-    role?: NullableStringFieldUpdateOperationsInput | string | null
+    role?: StringFieldUpdateOperationsInput | string
     status?: StringFieldUpdateOperationsInput | string
     expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       console.log("❌ [Accept Invitation] No session found");
       return NextResponse.json(
         { error: "Not authenticated. Please sign in first." },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -57,13 +57,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
       console.log("❌ [Accept Invitation] Invitation not found");
       return NextResponse.json(
         { error: "Invitation not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     console.log(`📧 [Accept Invitation] For email: ${invitation.email}`);
     console.log(
-      `🏫 [Accept Invitation] School: ${invitation.organization.school?.name}`
+      `🏫 [Accept Invitation] School: ${invitation.organization.school?.name}`,
     );
 
     // Verify email matches
@@ -74,18 +74,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
           error: "Email mismatch",
           details: `This invitation is for ${invitation.email}, but you're signed in as ${session.user.email}`,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Check invitation status
     if (invitation.status !== "pending") {
       console.log(
-        `❌ [Accept Invitation] Invalid status: ${invitation.status}`
+        `❌ [Accept Invitation] Invalid status: ${invitation.status}`,
       );
       return NextResponse.json(
         { error: `Invitation is ${invitation.status}` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       });
       return NextResponse.json(
         { error: "Invitation has expired" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -197,14 +197,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!invitation.organization.school) {
       return NextResponse.json(
         { error: "School not found for this organization" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     const redirectUrl = `/${invitation.organization.school.subdomain}/admin/dashboard`;
 
     console.log(
-      `✅ [Accept Invitation] Complete! Redirecting to: ${redirectUrl}`
+      `✅ [Accept Invitation] Complete! Redirecting to: ${redirectUrl}`,
     );
 
     return NextResponse.json({
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         error: "Failed to accept invitation",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

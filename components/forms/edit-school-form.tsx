@@ -35,13 +35,13 @@ const formSchema = z.object({
     .max(20)
     .regex(
       /^[a-z0-9-]+$/,
-      "Only lowercase letters, numbers, and hyphens allowed"
+      "Only lowercase letters, numbers, and hyphens allowed",
     ),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  email: z.string().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
   motto: z.string().optional(),
-  website: z.string().url("Invalid URL").optional().or(z.literal("")),
+  website: z.string().optional(),
   currency: z.string(),
   timezone: z.string(),
   locale: z.string(),
@@ -64,20 +64,6 @@ export function EditSchoolForm({ school }: EditSchoolFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const defaultValues = {
-    name: school.name,
-    code: school.code,
-    subdomain: school.subdomain,
-    email: school.email || "",
-    phone: school.phone || "",
-    address: school.address || "",
-    motto: school.motto || "",
-    website: school.website || "",
-    currency: school.currency,
-    timezone: school.timezone,
-    locale: school.locale,
-  };
-
   const {
     register,
     handleSubmit,
@@ -86,7 +72,19 @@ export function EditSchoolForm({ school }: EditSchoolFormProps) {
     watch,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues,
+    defaultValues: {
+      name: school.name,
+      code: school.code,
+      subdomain: school.subdomain,
+      email: school.email || "",
+      phone: school.phone || "",
+      address: school.address || "",
+      motto: school.motto || "",
+      website: school.website || "",
+      currency: school.currency,
+      timezone: school.timezone,
+      locale: school.locale,
+    },
   });
 
   const currency = watch("currency");
@@ -112,28 +110,25 @@ export function EditSchoolForm({ school }: EditSchoolFormProps) {
         return;
       }
 
-      console.log("Changed fields:", changedData); // Debug log
-
       const response = await fetch(`/api/schools/${school.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(changedData),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to update school");
-      }
+      const result = await response.json();
 
-      const updatedSchool = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to update school");
+      }
 
       toast.success("School updated successfully", {
         description: `${Object.keys(changedData).length} field(s) updated.`,
       });
 
-      router.push(`/schools/${updatedSchool.id}/overview`);
       router.refresh();
     } catch (error) {
+      console.error("Update error:", error);
       toast.error("Error updating school", {
         description:
           error instanceof Error ? error.message : "Failed to update school",
@@ -169,10 +164,8 @@ export function EditSchoolForm({ school }: EditSchoolFormProps) {
               disabled={isSubmitting}
               aria-invalid={!!errors.code}
               onChange={(e) => {
-                e.target.value = e.target.value.toUpperCase();
-                setValue("code", e.target.value.toUpperCase(), {
-                  shouldDirty: true,
-                });
+                const upperValue = e.target.value.toUpperCase();
+                setValue("code", upperValue, { shouldDirty: true });
               }}
             />
             <p className="text-sm text-muted-foreground mt-1">
@@ -192,10 +185,8 @@ export function EditSchoolForm({ school }: EditSchoolFormProps) {
                 disabled={isSubmitting}
                 aria-invalid={!!errors.subdomain}
                 onChange={(e) => {
-                  e.target.value = e.target.value.toLowerCase();
-                  setValue("subdomain", e.target.value.toLowerCase(), {
-                    shouldDirty: true,
-                  });
+                  const lowerValue = e.target.value.toLowerCase();
+                  setValue("subdomain", lowerValue, { shouldDirty: true });
                 }}
               />
               <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
@@ -281,9 +272,7 @@ export function EditSchoolForm({ school }: EditSchoolFormProps) {
             <Select
               value={currency}
               onValueChange={(value) =>
-                setValue("currency", value, {
-                  shouldDirty: true,
-                })
+                setValue("currency", value, { shouldDirty: true })
               }
               disabled={isSubmitting}
             >
@@ -305,9 +294,7 @@ export function EditSchoolForm({ school }: EditSchoolFormProps) {
             <Select
               value={timezone}
               onValueChange={(value) =>
-                setValue("timezone", value, {
-                  shouldDirty: true,
-                })
+                setValue("timezone", value, { shouldDirty: true })
               }
               disabled={isSubmitting}
             >
@@ -330,9 +317,7 @@ export function EditSchoolForm({ school }: EditSchoolFormProps) {
             <Select
               value={locale}
               onValueChange={(value) =>
-                setValue("locale", value, {
-                  shouldDirty: true,
-                })
+                setValue("locale", value, { shouldDirty: true })
               }
               disabled={isSubmitting}
             >

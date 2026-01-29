@@ -63,7 +63,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     console.error("Error fetching school:", error);
     return NextResponse.json(
       { error: "Failed to fetch school" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -166,14 +166,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       ) {
         return NextResponse.json(
           { error: "School code or subdomain already exists" },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
 
     return NextResponse.json(
       { error: "Failed to update school" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -255,17 +255,17 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       const details = [];
       if (hasUsers) {
         details.push(
-          `${school._count.students} students, ${school._count.teachers} teachers, ${school._count.staff} staff, ${school._count.guardians} guardians`
+          `${school._count.students} students, ${school._count.teachers} teachers, ${school._count.staff} staff, ${school._count.guardians} guardians`,
         );
       }
       if (hasAcademicData) {
         details.push(
-          `${school._count.academicYears} academic years, ${school._count.classes} classes, ${school._count.departments} departments`
+          `${school._count.academicYears} academic years, ${school._count.classes} classes, ${school._count.departments} departments`,
         );
       }
       if (hasFinancialData) {
         details.push(
-          `${school._count.bills} bills, ${school._count.payments} payments, ${school._count.transactions} transactions`
+          `${school._count.bills} bills, ${school._count.payments} payments, ${school._count.transactions} transactions`,
         );
       }
 
@@ -273,10 +273,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         {
           error: "Cannot delete school with existing data",
           details: `This school has: ${details.join(
-            "; "
+            "; ",
           )}. Please remove all data first.`,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -375,13 +375,13 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
           error: "Failed to delete school",
           details: error.message,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     return NextResponse.json(
       { error: "Failed to delete school" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

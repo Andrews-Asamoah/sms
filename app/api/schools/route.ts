@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     if (!session || !session.isSuperAdmin) {
       return NextResponse.json(
         { error: "Unauthorized. Super Admin access required." },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
         error: "Failed to fetch schools",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -83,14 +83,14 @@ export async function POST(request: NextRequest) {
     if (!session || !session.isSuperAdmin) {
       console.error(
         "[SCHOOLS_POST] Unauthorized attempt:",
-        session?.user?.email
+        session?.user?.email,
       );
       return NextResponse.json(
         {
           success: false,
           error: "Unauthorized. Super Admin access required to create schools.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
           error: "Name, code, and subdomain are required",
           fields: { name: !name, code: !code, subdomain: !subdomain },
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
           error:
             "Subdomain must contain only lowercase letters, numbers, and hyphens",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       console.error(
         "[SCHOOLS_POST] School already exists:",
         conflict,
-        existingSchool.name
+        existingSchool.name,
       );
       return NextResponse.json(
         {
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
             [conflict]: existingSchool[conflict],
           },
         },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
     if (existingOrg) {
       console.error(
         "[SCHOOLS_POST] Organization already exists:",
-        existingOrg.name
+        existingOrg.name,
       );
       return NextResponse.json(
         {
@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
             slug: existingOrg.slug,
           },
         },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -361,7 +361,7 @@ export async function POST(request: NextRequest) {
         data: schoolWithDetails,
         message: `School "${name}" created successfully`,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     console.error("[SCHOOLS_POST] ❌ Error occurred:", error);
@@ -374,7 +374,7 @@ export async function POST(request: NextRequest) {
     if (organizationResponse?.id) {
       console.log(
         "[SCHOOLS_POST] 🧹 Attempting to cleanup orphaned organization:",
-        organizationResponse.id
+        organizationResponse.id,
       );
 
       try {
@@ -391,7 +391,7 @@ export async function POST(request: NextRequest) {
           });
           console.log(
             "[SCHOOLS_POST] Deleted invitations:",
-            deletedInvitations.count
+            deletedInvitations.count,
           );
 
           // Delete organization
@@ -400,21 +400,21 @@ export async function POST(request: NextRequest) {
           });
           console.log(
             "[SCHOOLS_POST] Deleted organization:",
-            organizationResponse!.id
+            organizationResponse!.id,
           );
         });
 
         console.log(
-          "[SCHOOLS_POST] ✅ Successfully cleaned up orphaned organization"
+          "[SCHOOLS_POST] ✅ Successfully cleaned up orphaned organization",
         );
       } catch (cleanupError) {
         console.error(
           "[SCHOOLS_POST] ❌ CRITICAL: Failed to cleanup organization:",
-          cleanupError
+          cleanupError,
         );
         console.error(
           "[SCHOOLS_POST] Manual cleanup required for organization:",
-          organizationResponse.id
+          organizationResponse.id,
         );
         // Don't throw - we still want to return the original error
       }
@@ -430,7 +430,7 @@ export async function POST(request: NextRequest) {
             error: "You don't have permission to create organizations",
             details: "Only Super Admins can create schools",
           },
-          { status: 403 }
+          { status: 403 },
         );
       }
 
@@ -446,7 +446,7 @@ export async function POST(request: NextRequest) {
             error: "School code or subdomain already exists",
             details: error.message,
           },
-          { status: 409 }
+          { status: 409 },
         );
       }
     }
@@ -457,7 +457,7 @@ export async function POST(request: NextRequest) {
         error: "Failed to create school",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { email, role = "MEMBER" } = body;
 
     console.log(
-      `📧 [Invite API] Processing invitation for ${email} with role ${role}`
+      `📧 [Invite API] Processing invitation for ${email} with role ${role}`,
     );
 
     if (!email) {
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       console.log(`❌ [Invite API] Invalid email format: ${email}`);
       return NextResponse.json(
         { error: "Invalid email format" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         console.log(`⚠️ [Invite API] User is already a member`);
         return NextResponse.json(
           { error: "User is already a member of this school" },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (existingInvitation) {
       console.log(
-        `⚠️ [Invite API] Pending invitation already exists: ${existingInvitation.id}`
+        `⚠️ [Invite API] Pending invitation already exists: ${existingInvitation.id}`,
       );
       return NextResponse.json(
         {
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             expiresAt: existingInvitation.expiresAt,
           },
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         error: "Failed to invite admin",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -219,7 +219,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     console.error("❌ [Invite API] Error fetching invitations:", error);
     return NextResponse.json(
       { error: "Failed to fetch invitations" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -242,7 +242,7 @@ export async function DELETE(request: NextRequest) {
       console.log("❌ [Invite API] Invitation ID is required");
       return NextResponse.json(
         { error: "Invitation ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -264,7 +264,7 @@ export async function DELETE(request: NextRequest) {
     console.error("❌ [Invite API] Error cancelling invitation:", error);
     return NextResponse.json(
       { error: "Failed to cancel invitation" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
