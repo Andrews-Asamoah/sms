@@ -1,19 +1,29 @@
-// lib/email/resend.ts
+// lib/email/sender.ts - REFACTORED with fixed syntax and better error handling
 import { Resend } from "resend";
 import { AdminInvitationEmail } from "./templates/admin-invitation";
 import { PasswordResetEmail } from "./templates/password-reset";
+import { logger } from "@/lib/utils/logger";
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
 
 if (!process.env.RESEND_API_KEY) {
-  throw new Error("RESEND_API_KEY is not defined");
+  throw new Error("RESEND_API_KEY is not defined in environment variables");
 }
+
 if (!process.env.RESEND_FROM_EMAIL) {
-  throw new Error("RESEND_FROM_EMAIL is not defined");
+  throw new Error("RESEND_FROM_EMAIL is not defined in environment variables");
 }
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+const FROM_EMAIL = `DrewsTech School System <${process.env.RESEND_FROM_EMAIL}>`;
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const EMAIL_TIMEOUT = 30000; // 30 seconds
+
 // ============================================================================
-// TYPES & INTERFACES
+// TYPES
 // ============================================================================
 
 export interface SendInvitationEmailParams {
@@ -37,107 +47,69 @@ interface ResendEmailResponse {
   error?: Error | null;
 }
 
-interface EmailResult {
+export interface EmailResult {
   success: boolean;
   data?: { id: string } | null;
+  error?: string;
 }
 
 // ============================================================================
-// HELPER FUNCTIONS
+// UTILITY FUNCTIONS
 // ============================================================================
 
 /**
- * Helper function to create a timeout promise
+ * Create a timeout promise that rejects after specified milliseconds
  */
-function timeoutPromise(ms: number): Promise<never> {
+function createTimeoutPromise(ms: number): Promise<never> {
   return new Promise((_, reject) => {
-    setTimeout(
-      () => reject(new Error(`Email sending timeout after ${ms}ms`)),
-      ms,
-    );
+    setTimeout(() => {
+      reject(new Error(`Email sending timeout after ${ms}ms`));
+    }, ms);
   });
 }
 
 /**
- * Helper to safely log email sending attempts
+ * Safely send email with timeout and error handling
  */
-function logEmailStart(params: {
-  to: string;
-  subject: string;
-  id?: string;
-}): void {
-  console.log("📧 [Resend] ===== EMAIL SEND START =====");
-  console.log(`📧 [Resend] Timestamp: ${new Date().toISOString()}`);
-  console.log(`📧 [Resend] To: ${params.to}`);
-  console.log(`📧 [Resend] Subject: ${params.subject}`);
-  if (params.id) {
-    console.log(`📧 [Resend] ID: ${params.id}`);
-  }
-  console.log(
-    `📧 [Resend] From: DrewsTech Services <${process.env.RESEND_FROM_EMAIL}>`,
-  );
-  console.log(
-    `📧 [Resend] API Key: ${process.env.RESEND_API_KEY?.substring(0, 10)}...`,
-  );
-}
-
-/**
- * Helper to log successful email send
- */
-function logEmailSuccess(duration: number, emailId?: string): void {
-  console.log(`✅ [Resend] Email sent successfully!`);
-  console.log(`✅ [Resend] Duration: ${duration}ms`);
-  console.log(`✅ [Resend] Email ID: ${emailId || "N/A"}`);
-  console.log("📧 [Resend] ===== EMAIL SEND END =====");
-}
-
-/**
- * Helper to log email send failure
- */
-function logEmailError(error: unknown): void {
-  console.error("❌ [Resend] ===== EMAIL SEND FAILED =====");
-  console.error("❌ [Resend] Error caught:", error);
-  if (error instanceof Error) {
-    console.error("❌ [Resend] Error name:", error.name);
-    console.error("❌ [Resend] Error message:", error.message);
-    console.error("❌ [Resend] Error stack:", error.stack);
-  }
-  console.error("❌ [Resend] ===== EMAIL SEND END =====");
+async function sendEmailWithTimeout<T>(
+  emailPromise: Promise<T>,
+  timeoutMs: number = EMAIL_TIMEOUT,
+): Promise<T> {
+  return Promise.race([
+    emailPromise,
+    createTimeoutPromise(timeoutMs),
+  ]) as Promise<T>;
 }
 
 // ============================================================================
-// ADMIN INVITATION EMAIL
+// INVITATION EMAIL
 // ============================================================================
 
-export async function sendAdminInvitationEmail({
-  to,
-  inviterName,
-  schoolName,
-  role,
-  invitationId,
-  expiresAt,
-}: SendInvitationEmailParams): Promise<EmailResult> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const inviteUrl = `${baseUrl}/auth/invite/${invitationId}`;
+/**
+ * Send invitation email to a new user
+ * @param params - Invitation email parameters
+ * @returns Promise<EmailResult> - Result of email send operation
+ */
+export async function sendInvitationEmail(
+  params: SendInvitationEmailParams,
+): Promise<EmailResult> {
+  const { to, inviterName, schoolName, role, invitationId, expiresAt } = params;
+
+  const inviteUrl = `${BASE_URL}/auth/invite/${invitationId}`;
   const subject = `${inviterName} invited you to join ${schoolName}`;
 
-  logEmailStart({
+  logger.info("Sending invitation email", {
     to,
-    subject,
-    id: invitationId,
+    invitationId,
+    schoolName,
+    role,
   });
 
-  console.log(`📧 [Resend] School: ${schoolName}`);
-  console.log(`📧 [Resend] Role: ${role}`);
-  console.log(`📧 [Resend] Invite URL: ${inviteUrl}`);
+  const startTime = Date.now();
 
   try {
-    const startTime = Date.now();
-    console.log(`📧 [Resend] Calling Resend API...`);
-
-    // Send email with proper headers to avoid spam
     const emailPromise = resend.emails.send({
-      from: `DrewsTech School System <${process.env.RESEND_FROM_EMAIL}>`,
+      from: FROM_EMAIL,
       to,
       subject,
       react: AdminInvitationEmail({
@@ -156,37 +128,57 @@ export async function sendAdminInvitationEmail({
           name: "category",
           value: "invitation",
         },
+        {
+          name: "school",
+          value: schoolName,
+        },
       ],
     });
 
-    // Race between email send and timeout
-    const result = (await Promise.race([
+    const result = (await sendEmailWithTimeout(
       emailPromise,
-      timeoutPromise(30000), // 30 second timeout
-    ])) as ResendEmailResponse;
+    )) as ResendEmailResponse;
 
-    const { data, error } = result;
-    const endTime = Date.now();
-    const duration = endTime - startTime;
+    const duration = Date.now() - startTime;
 
-    console.log(`📧 [Resend] API call completed in ${duration}ms`);
+    if (result.error) {
+      logger.error("Resend API returned error", {
+        invitationId,
+        error: result.error.message,
+        duration,
+      });
 
-    if (error) {
-      console.error("❌ [Resend] Error response from Resend:", error);
-      console.error("❌ [Resend] Error type:", typeof error);
-      console.error(
-        "❌ [Resend] Error details:",
-        JSON.stringify(error, null, 2),
-      );
-      throw new Error(error.message || "Failed to send email");
+      return {
+        success: false,
+        error: result.error.message || "Failed to send invitation email",
+      };
     }
 
-    logEmailSuccess(duration, data?.id);
+    logger.info("Invitation email sent successfully", {
+      invitationId,
+      emailId: result.data?.id,
+      duration,
+    });
 
-    return { success: true, data };
+    return {
+      success: true,
+      data: result.data,
+    };
   } catch (error) {
-    logEmailError(error);
-    throw error;
+    const duration = Date.now() - startTime;
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    logger.error("Failed to send invitation email", {
+      invitationId,
+      error: errorMessage,
+      duration,
+    });
+
+    return {
+      success: false,
+      error: errorMessage,
+    };
   }
 }
 
@@ -194,27 +186,28 @@ export async function sendAdminInvitationEmail({
 // PASSWORD RESET EMAIL
 // ============================================================================
 
-export async function sendPasswordResetEmail({
-  to,
-  userName,
-  resetUrl,
-  expiresAt,
-}: SendPasswordResetEmailParams): Promise<EmailResult> {
+/**
+ * Send password reset email to user
+ * @param params - Password reset email parameters
+ * @returns Promise<EmailResult> - Result of email send operation
+ */
+export async function sendPasswordResetEmail(
+  params: SendPasswordResetEmailParams,
+): Promise<EmailResult> {
+  const { to, userName, resetUrl, expiresAt } = params;
+
   const subject = "Reset Your Password - DrewsTech School System";
 
-  logEmailStart({ to, subject });
+  logger.info("Sending password reset email", {
+    to: to.replace(/(.{3}).*(@.*)/, "$1***$2"), // Mask email for privacy
+    userName,
+  });
 
-  console.log(`📧 [Resend] User: ${userName}`);
-  console.log(`📧 [Resend] Reset URL: ${resetUrl}`);
-  console.log(`📧 [Resend] Expires: ${expiresAt.toISOString()}`);
+  const startTime = Date.now();
 
   try {
-    const startTime = Date.now();
-    console.log(`📧 [Resend] Calling Resend API...`);
-
-    // Send email with proper headers to avoid spam
     const emailPromise = resend.emails.send({
-      from: `DrewsTech School System <${process.env.RESEND_FROM_EMAIL}>`,
+      from: FROM_EMAIL,
       to,
       subject,
       react: PasswordResetEmail({
@@ -234,38 +227,289 @@ export async function sendPasswordResetEmail({
       ],
     });
 
-    // Race between email send and timeout
-    const result = (await Promise.race([
+    const result = (await sendEmailWithTimeout(
       emailPromise,
-      timeoutPromise(30000), // 30 second timeout
-    ])) as ResendEmailResponse;
+    )) as ResendEmailResponse;
 
-    const { data, error } = result;
-    const endTime = Date.now();
-    const duration = endTime - startTime;
+    const duration = Date.now() - startTime;
 
-    console.log(`📧 [Resend] API call completed in ${duration}ms`);
+    if (result.error) {
+      logger.error("Resend API returned error for password reset", {
+        error: result.error.message,
+        duration,
+      });
 
-    if (error) {
-      console.error("❌ [Resend] Error response from Resend:", error);
-      console.error("❌ [Resend] Error type:", typeof error);
-      console.error(
-        "❌ [Resend] Error details:",
-        JSON.stringify(error, null, 2),
-      );
-      throw new Error(error.message || "Failed to send password reset email");
+      // For password reset, we still return success for security
+      // (don't reveal if email exists)
+      logger.warn("Returning success despite error for security reasons");
+      return {
+        success: true,
+        data: null,
+      };
     }
 
-    logEmailSuccess(duration, data?.id);
+    logger.info("Password reset email sent successfully", {
+      emailId: result.data?.id,
+      duration,
+    });
 
-    return { success: true, data };
+    return {
+      success: true,
+      data: result.data,
+    };
   } catch (error) {
-    logEmailError(error);
-    // Don't throw the error - we don't want to reveal if the email exists
-    // Just log it and return success
-    console.warn(
-      "⚠️ [Resend] Failed to send password reset email, but returning success for security",
-    );
-    return { success: true, data: null };
+    const duration = Date.now() - startTime;
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    logger.error("Failed to send password reset email", {
+      error: errorMessage,
+      duration,
+    });
+
+    // For security, don't reveal if email exists
+    // Return success even on failure
+    logger.warn("Returning success despite error for security reasons");
+    return {
+      success: true,
+      data: null,
+    };
+  }
+}
+
+// ============================================================================
+// WELCOME EMAIL (Optional - for new users)
+// ============================================================================
+
+export interface SendWelcomeEmailParams {
+  to: string;
+  userName: string;
+  schoolName: string;
+  role: string;
+}
+
+/**
+ * Send welcome email to new user after successful registration
+ */
+export async function sendWelcomeEmail(
+  params: SendWelcomeEmailParams,
+): Promise<EmailResult> {
+  const { to, userName, schoolName, role } = params;
+
+  const subject = `Welcome to ${schoolName}!`;
+
+  logger.info("Sending welcome email", {
+    to,
+    schoolName,
+    role,
+  });
+
+  const startTime = Date.now();
+
+  try {
+    // You can create a WelcomeEmail template similar to others
+    const emailPromise = resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html: `
+        <h1>Welcome to ${schoolName}, ${userName}!</h1>
+        <p>Your account has been successfully created as a ${role}.</p>
+        <p>You can now log in and start using the system.</p>
+        <p><a href="${BASE_URL}/auth/sign-in">Sign In Now</a></p>
+      `,
+      tags: [
+        {
+          name: "category",
+          value: "welcome",
+        },
+      ],
+    });
+
+    const result = (await sendEmailWithTimeout(
+      emailPromise,
+    )) as ResendEmailResponse;
+
+    const duration = Date.now() - startTime;
+
+    if (result.error) {
+      logger.error("Failed to send welcome email", {
+        error: result.error.message,
+        duration,
+      });
+
+      return {
+        success: false,
+        error: result.error.message,
+      };
+    }
+
+    logger.info("Welcome email sent successfully", {
+      emailId: result.data?.id,
+      duration,
+    });
+
+    return {
+      success: true,
+      data: result.data,
+    };
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    logger.error("Failed to send welcome email", {
+      error: errorMessage,
+      duration,
+    });
+
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+}
+
+// ============================================================================
+// BULK EMAIL SENDING (For notifications, announcements, etc.)
+// ============================================================================
+
+export interface BulkEmailParams {
+  recipients: string[];
+  subject: string;
+  html: string;
+  tags?: Array<{ name: string; value: string }>;
+}
+
+/**
+ * Send email to multiple recipients
+ * Note: Resend has rate limits, so batch large lists
+ */
+export async function sendBulkEmail(
+  params: BulkEmailParams,
+): Promise<EmailResult[]> {
+  const { recipients, subject, html, tags = [] } = params;
+
+  logger.info("Sending bulk email", {
+    recipientCount: recipients.length,
+    subject,
+  });
+
+  const results: EmailResult[] = [];
+
+  // Send in batches to avoid rate limits
+  const BATCH_SIZE = 50;
+
+  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+    const batch = recipients.slice(i, i + BATCH_SIZE);
+
+    const batchPromises = batch.map(async (to) => {
+      try {
+        const result = await resend.emails.send({
+          from: FROM_EMAIL,
+          to,
+          subject,
+          html,
+          tags: [
+            ...tags,
+            {
+              name: "bulk",
+              value: "true",
+            },
+          ],
+        });
+
+        return {
+          success: !result.error,
+          data: result.data,
+          error: result.error?.message,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
+      }
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    results.push(...batchResults);
+
+    // Add delay between batches to respect rate limits
+    if (i + BATCH_SIZE < recipients.length) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  const successCount = results.filter((r) => r.success).length;
+
+  logger.info("Bulk email completed", {
+    total: recipients.length,
+    successful: successCount,
+    failed: recipients.length - successCount,
+  });
+
+  return results;
+}
+
+// ============================================================================
+// EMAIL VERIFICATION (Optional)
+// ============================================================================
+
+export interface SendVerificationEmailParams {
+  to: string;
+  userName: string;
+  verificationUrl: string;
+}
+
+/**
+ * Send email verification link to user
+ */
+export async function sendVerificationEmail(
+  params: SendVerificationEmailParams,
+): Promise<EmailResult> {
+  const { to, userName, verificationUrl } = params;
+
+  const subject = "Verify Your Email - DrewsTech School System";
+
+  logger.info("Sending verification email", {
+    to,
+  });
+
+  try {
+    const result = await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html: `
+        <h1>Verify Your Email, ${userName}</h1>
+        <p>Please click the link below to verify your email address:</p>
+        <p><a href="${verificationUrl}">Verify Email</a></p>
+        <p>This link will expire in 24 hours.</p>
+      `,
+      tags: [
+        {
+          name: "category",
+          value: "verification",
+        },
+      ],
+    });
+
+    if (result.error) {
+      return {
+        success: false,
+        error: result.error.message,
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
 }

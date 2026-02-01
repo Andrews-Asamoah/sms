@@ -1,22 +1,26 @@
-// lib/auth-client.ts - CORRECTED with actual Better Auth method names
+// lib/auth/client.ts - REFACTORED with correct method names and types
+"use client";
+
 import { createAuthClient } from "better-auth/react";
 import { adminClient, organizationClient } from "better-auth/client/plugins";
 import {
   ac,
   superAdmin,
+  owner,
   admin as adminRole,
   teacher,
   accountant,
   student,
   guardian,
   user as userRole,
-} from "@/lib/permissions";
+} from "@/lib/auth/permissions";
 
 // ============================================================================
 // CLIENT CONFIGURATION
 // ============================================================================
 
-const AUTH_BASE_URL = process.env.NEXT_PUBLIC_APP_URL;
+const AUTH_BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export const authClient = createAuthClient({
   baseURL: AUTH_BASE_URL,
@@ -25,6 +29,7 @@ export const authClient = createAuthClient({
       ac,
       roles: {
         superAdmin,
+        owner,
         admin: adminRole,
         teacher,
         accountant,
@@ -43,6 +48,7 @@ export const authClient = createAuthClient({
 
 export type RoleName =
   | "superAdmin"
+  | "owner"
   | "admin"
   | "teacher"
   | "accountant"
@@ -105,40 +111,137 @@ export function checkRolePermission(
 }
 
 // ============================================================================
-// AUTHENTICATION METHODS (Direct exports from authClient)
+// AUTHENTICATION METHODS
 // ============================================================================
 
 /**
- * Core authentication methods
- * These are direct exports from Better Auth's client
+ * Sign in with email and password
  */
-export const {
-  // Authentication
-  signIn,
-  signUp,
-  signOut,
+export const signIn = authClient.signIn;
 
-  // Password Management - CORRECTED METHOD NAMES
-  requestPasswordReset, // ✅ This is the correct method name
-  resetPassword,
-  changePassword,
+/**
+ * Sign up a new user
+ */
+export const signUp = authClient.signUp;
 
-  // Email Verification
-  sendVerificationEmail,
+/**
+ * Sign out current user
+ */
+export const signOut = authClient.signOut;
 
-  // Session Management
-  useSession,
-  getSession,
+/**
+ * Request a password reset email
+ * @param email - User's email address
+ * @example
+ * const result = await requestPasswordReset({ email: "user@example.com" });
+ */
+export const forgetPassword = authClient.requestPasswordReset;
 
-  // Organization Management
-  organization,
+/**
+ * Reset password with token
+ * @param token - Reset token from email
+ * @param newPassword - New password
+ * @example
+ * const result = await resetPassword({ token, newPassword: "newpass123" });
+ */
+export const resetPassword = authClient.resetPassword;
 
-  // Admin Functions
-  admin,
-} = authClient;
+/**
+ * Change password for authenticated user
+ * @param currentPassword - Current password
+ * @param newPassword - New password
+ * @example
+ * const result = await changePassword({
+ *   currentPassword: "oldpass",
+ *   newPassword: "newpass123"
+ * });
+ */
+export const changePassword = authClient.changePassword;
+
+/**
+ * Send email verification
+ */
+export const sendVerificationEmail = authClient.sendVerificationEmail;
+
+/**
+ * Verify email with token
+ */
+export const verifyEmail = authClient.verifyEmail;
 
 // ============================================================================
-// CONVENIENCE WRAPPER (Optional - for consistent API)
+// SESSION HOOKS
+// ============================================================================
+
+/**
+ * Hook to access current session
+ * @returns Session data, loading state, and error
+ * @example
+ * const { data: session, isPending, error } = useSession();
+ */
+export const useSession = authClient.useSession;
+
+/**
+ * Get current session (client-side)
+ */
+export const getSession = authClient.getSession;
+
+/**
+ * Update session
+ */
+export const updateSession = authClient.updateUser;
+
+// ============================================================================
+// ORGANIZATION METHODS
+// ============================================================================
+
+/**
+ * Organization management object
+ * @example
+ * // Create organization
+ * const result = await organization.create({ name: "My School", slug: "my-school" });
+ *
+ * // List organizations
+ * const orgs = await organization.list();
+ *
+ * // Get active organization
+ * const active = await organization.getActive();
+ *
+ * // Set active organization
+ * await organization.setActive({ organizationId: "org_123" });
+ *
+ * // Invite member
+ * await organization.inviteMember({
+ *   email: "teacher@school.com",
+ *   role: "teacher",
+ * });
+ */
+export const organization = authClient.organization;
+
+// ============================================================================
+// ADMIN METHODS
+// ============================================================================
+
+/**
+ * Admin management object
+ * @example
+ * // List users
+ * const users = await admin.listUsers();
+ *
+ * // Ban user
+ * await admin.banUser({ userId: "user_123" });
+ *
+ * // Set user role
+ * await admin.setRole({ userId: "user_123", role: "admin" });
+ *
+ * // Check permission
+ * const canDelete = await admin.hasPermission({
+ *   permissions: { user: ["delete"] }
+ * });
+ */
+export const admin = authClient.admin;
+
+// ============================================================================
+// CONVENIENCE WRAPPER
 // ============================================================================
 
 /**
@@ -151,17 +254,19 @@ export const auth = {
   signUp: authClient.signUp,
   signOut: authClient.signOut,
 
-  // Password management - CORRECTED METHOD NAMES
-  requestPasswordReset: authClient.requestPasswordReset, // ✅ Correct
+  // Password management
+  forgetPassword: authClient.requestPasswordReset,
   resetPassword: authClient.resetPassword,
   changePassword: authClient.changePassword,
 
   // Email verification
   sendVerificationEmail: authClient.sendVerificationEmail,
+  verifyEmail: authClient.verifyEmail,
 
   // Session management
   useSession: authClient.useSession,
   getSession: authClient.getSession,
+  updateUser: authClient.updateUser,
 
   // Organization management
   organization: authClient.organization,
@@ -175,7 +280,74 @@ export const auth = {
 } as const;
 
 // ============================================================================
+// UTILITY HOOKS
+// ============================================================================
+
+/**
+ * Custom hook to get user with additional helpers
+ * @example
+ * const { user, isAuthenticated, isLoading, isSuperAdmin } = useUser();
+ */
+export function useUser() {
+  const { data: session, isPending, error } = useSession();
+
+  return {
+    user: session?.user,
+    session: session?.session,
+    isAuthenticated: !!session?.user,
+    isLoading: isPending,
+    error,
+    isSuperAdmin: session?.user?.role === "superAdmin",
+    isAdmin:
+      session?.user?.role === "superAdmin" || session?.user?.role === "admin",
+  };
+}
+
+/**
+ * Custom hook to get active organization
+ * @example
+ * const { organization, isLoading, setActive } = useActiveOrganization();
+ */
+export function useActiveOrganization() {
+  const { data: session } = useSession();
+
+  const setActive = async (organizationId: string) => {
+    await organization.setActive({ organizationId });
+  };
+
+  return {
+    organizationId: session?.session?.activeOrganizationId,
+    setActive,
+  };
+}
+
+/**
+ * Custom hook to check if user has permission
+ * @example
+ * const { hasPermission, isLoading } = usePermission({ user: ["delete"] });
+ */
+export function usePermission(permissions: Record<string, string[]>) {
+  const [isChecking, setIsChecking] = React.useState(false);
+  const [allowed, setAllowed] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsChecking(true);
+    hasPermission(permissions)
+      .then(setAllowed)
+      .finally(() => setIsChecking(false));
+  }, [permissions]);
+
+  return {
+    hasPermission: allowed,
+    isLoading: isChecking,
+  };
+}
+
+// ============================================================================
 // DEFAULT EXPORT
 // ============================================================================
 
 export default authClient;
+
+// For React imports
+import * as React from "react";
