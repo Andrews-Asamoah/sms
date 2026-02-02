@@ -1,4 +1,32 @@
-// lib/auth.ts - FIXED with proper types and imports
+/**
+ * ============================================================================
+ * BETTER AUTH CONFIGURATION
+ * School Management System - Multi-tenant with Organization Plugin
+ * ============================================================================
+ *
+ * Key Concepts:
+ *
+ * 1. USER ROLES (system-wide):
+ *    - superAdmin: Can create/delete organizations, full system access
+ *    - user: Default role for all other users
+ *
+ * 2. ORGANIZATION ROLES (per-school):
+ *    - owner: Full control within their school (auto-assigned to creator)
+ *    - admin: School administrator
+ *    - member: Regular member (teacher, staff, etc.)
+ *
+ * 3. PROFILE ROLES (functional roles within a school):
+ *    - teacher, student, guardian, accountant, staff
+ *    - These are determined by UserProfile relationships
+ *
+ * Flow:
+ * 1. SuperAdmin creates Organization → becomes owner
+ * 2. Owner invites admin → admin accepts → becomes organization admin
+ * 3. Admin creates teacher/student profiles → they become organization members
+ *
+ * ============================================================================
+ */
+
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { organization, admin } from "better-auth/plugins";
@@ -7,22 +35,21 @@ import { headers } from "next/headers";
 import {
   ac,
   superAdmin,
-  owner,
   admin as adminRole,
   teacher,
   accountant,
   student,
   guardian,
   user as userRole,
-} from "@/lib/auth/permissions";
+} from "@/lib/permissions";
 import {
-  sendInvitationEmail,
+  sendAdminInvitationEmail,
   sendPasswordResetEmail,
 } from "@/lib/email/resend";
 import { Gender } from "@/lib/generated/prisma/client";
 
 // ============================================================================
-// BETTER AUTH CONFIGURATION
+// BETTER AUTH INSTANCE
 // ============================================================================
 
 export const auth = betterAuth({
@@ -30,12 +57,9 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
 
-  // Base URL - Required for email links
-  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL,
-
-  // ========================================================================
-  // Email & Password Authentication
-  // ========================================================================
+  // ==========================================================================
+  // EMAIL & PASSWORD AUTHENTICATION
+  // ==========================================================================
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
@@ -43,25 +67,26 @@ export const auth = betterAuth({
     autoSignIn: true,
 
     // Password Reset Configuration
-    sendResetPassword: async ({ user, url }, request) => {
+    sendResetPassword: async ({ user, url }) => {
       console.log(`📧 [Auth] Sending password reset email to ${user.email}`);
 
       try {
         await sendPasswordResetEmail({
           to: user.email,
           userName: user.name,
-          resetUrl: url,
+          resetUrl: url, // Better Auth provides complete URL with token
           expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
         });
 
-        console.log(`✅ [Auth] Password reset email sent successfully`);
+        console.log(`✅ [Auth] Password reset email sent to ${user.email}`);
       } catch (error) {
-        console.error("[Auth] Failed to send password reset email:", error);
+        console.error("[Auth] Error sending password reset email:", error);
+        // Don't throw - we don't want to reveal if email exists
       }
     },
 
-    // Post-Reset Hook
-    onPasswordReset: async ({ user }, request) => {
+    // Post-reset hook for audit logging
+    onPasswordReset: async ({ user }) => {
       console.log(`✅ [Auth] Password reset completed for ${user.email}`);
 
       try {
@@ -72,59 +97,57 @@ export const auth = betterAuth({
             entityType: "USER_PASSWORD",
             entityId: user.id,
             newValues: {
-              passwordResetAt: new Date(),
+              passwordResetAt: new Date().toISOString(),
             },
           },
         });
 
-        console.log(`✅ [Auth] Password reset audit log created`);
+        console.log(`✅ [Auth] Audit log created for password reset`);
       } catch (error) {
-        console.error("[Auth] Failed to create audit log:", error);
+        console.error("[Auth] Error creating audit log:", error);
       }
     },
 
-    resetPasswordTokenExpiresIn: 60 * 60, // 1 hour
+    // Token expiration: 1 hour
+    resetPasswordTokenExpiresIn: 60 * 60,
   },
 
-  // ========================================================================
-  // Session Configuration
-  // ========================================================================
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // Update session every 24 hours
-    cookieCache: {
-      enabled: true,
-      maxAge: 5 * 60, // Cache for 5 minutes
-    },
-  },
-
-  // ========================================================================
+  // ==========================================================================
   // PLUGINS
-  // ========================================================================
+  // ==========================================================================
   plugins: [
-    // ======================================================================
-    // Organization Plugin
-    // ======================================================================
+    // ------------------------------------------------------------------------
+    // ORGANIZATION PLUGIN
+    // ------------------------------------------------------------------------
     organization({
-      // Only superAdmins can create organizations
+      // Only SuperAdmins can create organizations (schools)
       allowUserToCreateOrganization: async (user) => {
-        // Check if user exists in database with superAdmin role
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { id: true },
-        });
-        return !!dbUser;
+        const isSuperAdmin = user.role === "superAdmin";
+
+        if (isSuperAdmin) {
+          console.log(
+            `✓ [Auth] SuperAdmin ${user.email} can create organization`,
+          );
+        } else {
+          console.log(
+            `✗ [Auth] User ${user.email} cannot create organization (not SuperAdmin)`,
+          );
+        }
+
+        return isSuperAdmin;
       },
 
+      // Maximum organizations in the system
       organizationLimit: 100,
 
-      // Invitation Email Handler
+      // Email invitation handler
       async sendInvitationEmail(data) {
         const { email, id, organization, inviter } = data;
 
         try {
           console.log(`📧 [Auth] Sending invitation email to ${email}`);
 
+          // Get full organization details with school
           const org = await prisma.organization.findUnique({
             where: { id: organization.id },
             include: {
@@ -137,10 +160,11 @@ export const auth = betterAuth({
           });
 
           if (!org) {
-            console.error("[Auth] Organization not found");
+            console.error("[Auth] Organization not found for invitation");
             return;
           }
 
+          // Get invitation details
           const invitation = await prisma.invitation.findUnique({
             where: { id },
             select: {
@@ -154,6 +178,7 @@ export const auth = betterAuth({
             return;
           }
 
+          // Get inviter details
           const inviterUser = await prisma.user.findUnique({
             where: { id: inviter.id },
             select: {
@@ -162,7 +187,8 @@ export const auth = betterAuth({
             },
           });
 
-          await sendInvitationEmail({
+          // Send invitation email
+          await sendAdminInvitationEmail({
             to: email,
             inviterName:
               inviterUser?.name || inviterUser?.email || "Administrator",
@@ -172,36 +198,44 @@ export const auth = betterAuth({
             expiresAt: invitation.expiresAt,
           });
 
-          console.log(`✅ [Auth] Invitation email sent`);
+          console.log(`✅ [Auth] Invitation email sent to ${email}`);
         } catch (error) {
-          console.error("[Auth] Error sending invitation email:", error);
+          console.error("[Auth] Error in sendInvitationEmail:", error);
         }
       },
 
-      // Organization Hooks
+      // ------------------------------------------------------------------------
+      // ORGANIZATION HOOKS
+      // ------------------------------------------------------------------------
       organizationHooks: {
+        /**
+         * After member is added to organization
+         * Creates UserProfile if needed and marks email as verified
+         */
         afterAddMember: async ({ user, organization, member }) => {
           console.log(
-            `✅ [Hook] Member added: ${user.email} to ${organization.name} as ${member.role}`,
+            `✅ [Auth] Member added: ${user.email} to ${organization.name} as ${member.role}`,
           );
 
           try {
-            // Create UserProfile if missing
+            // Create UserProfile if it doesn't exist
             const existingProfile = await prisma.userProfile.findUnique({
               where: { userId: user.id },
             });
 
             if (!existingProfile) {
+              console.log(`📝 [Auth] Creating user profile for ${user.email}`);
+
               const nameParts = user.name.trim().split(/\s+/);
               const firstName = nameParts[0] || "User";
               const lastName =
-                nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Profile";
+                nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
               await prisma.userProfile.create({
                 data: {
                   userId: user.id,
                   firstName,
-                  lastName,
+                  lastName: lastName || "Profile",
                   phone: null,
                   gender: Gender.OTHER,
                   dateOfBirth: new Date("2000-01-01"),
@@ -209,10 +243,10 @@ export const auth = betterAuth({
                 },
               });
 
-              console.log(`✅ [Hook] Profile created for ${user.email}`);
+              console.log(`✅ [Auth] Profile created for ${user.email}`);
             }
 
-            // Verify email
+            // Mark email as verified
             const currentUser = await prisma.user.findUnique({
               where: { id: user.id },
               select: { emailVerified: true },
@@ -223,7 +257,7 @@ export const auth = betterAuth({
                 where: { id: user.id },
                 data: { emailVerified: true },
               });
-              console.log(`✅ [Hook] Email verified`);
+              console.log(`✅ [Auth] Email verified for ${user.email}`);
             }
 
             // Create audit log
@@ -237,17 +271,25 @@ export const auth = betterAuth({
                   organizationId: organization.id,
                   organizationName: organization.name,
                   role: member.role,
+                  addedAt: new Date().toISOString(),
                 },
               },
             });
+
+            console.log(`✅ [Auth] Audit log created for member addition`);
           } catch (error) {
-            console.error("[Hook] Error in afterAddMember:", error);
+            console.error("[Auth] Error in afterAddMember:", error);
+            // Don't throw - we don't want to fail the member addition
           }
         },
 
+        /**
+         * Before member is removed from organization
+         * Warning if this is their last organization
+         */
         beforeRemoveMember: async ({ user, organization }) => {
           console.log(
-            `🗑️  [Hook] Removing ${user.email} from ${organization.name}`,
+            `🗑️ [Auth] Preparing to remove ${user.email} from ${organization.name}`,
           );
 
           try {
@@ -257,16 +299,22 @@ export const auth = betterAuth({
 
             if (memberCount === 1) {
               console.warn(
-                `⚠️  [Hook] Warning: ${user.email} will have no organizations`,
+                `⚠️ [Auth] ${user.email} will have no organizations after removal`,
               );
             }
           } catch (error) {
-            console.error("[Hook] Error in beforeRemoveMember:", error);
+            console.error("[Auth] Error in beforeRemoveMember:", error);
           }
         },
 
+        /**
+         * After member is removed from organization
+         * Creates audit log for accountability
+         */
         afterRemoveMember: async ({ member, user, organization }) => {
-          console.log(`✅ [Hook] Member removed: ${user.email}`);
+          console.log(
+            `✅ [Auth] Member removed: ${user.email} from ${organization.name}`,
+          );
 
           try {
             await prisma.auditLog.create({
@@ -277,17 +325,25 @@ export const auth = betterAuth({
                 entityId: member.id,
                 oldValues: {
                   organizationId: organization.id,
+                  organizationName: organization.name,
                   role: member.role,
+                  removedAt: new Date().toISOString(),
                 },
               },
             });
+
+            console.log(`✅ [Auth] Audit log created for member removal`);
           } catch (error) {
-            console.error("[Hook] Error in afterRemoveMember:", error);
+            console.error("[Auth] Error in afterRemoveMember:", error);
           }
         },
 
+        /**
+         * After invitation is accepted
+         * Logs the acceptance for audit trail
+         */
         afterAcceptInvitation: async ({ invitation, user, organization }) => {
-          console.log(`✅ [Hook] Invitation accepted by ${user.email}`);
+          console.log(`✅ [Auth] Invitation accepted by ${user.email}`);
 
           try {
             await prisma.auditLog.create({
@@ -299,21 +355,27 @@ export const auth = betterAuth({
                 newValues: {
                   email: invitation.email,
                   organizationId: organization.id,
+                  organizationName: organization.name,
                   role: invitation.role,
+                  acceptedAt: new Date().toISOString(),
                 },
               },
             });
           } catch (error) {
-            console.error("[Hook] Error in afterAcceptInvitation:", error);
+            console.error("[Auth] Error in afterAcceptInvitation:", error);
           }
         },
 
+        /**
+         * After invitation is cancelled
+         * Logs the cancellation
+         */
         afterCancelInvitation: async ({
           invitation,
           cancelledBy,
           organization,
         }) => {
-          console.log(`🚫 [Hook] Invitation cancelled for ${invitation.email}`);
+          console.log(`🚫 [Auth] Invitation cancelled for ${invitation.email}`);
 
           try {
             await prisma.auditLog.create({
@@ -325,24 +387,26 @@ export const auth = betterAuth({
                 oldValues: {
                   email: invitation.email,
                   organizationId: organization.id,
+                  organizationName: organization.name,
+                  role: invitation.role,
+                  cancelledAt: new Date().toISOString(),
                 },
               },
             });
           } catch (error) {
-            console.error("[Hook] Error in afterCancelInvitation:", error);
+            console.error("[Auth] Error in afterCancelInvitation:", error);
           }
         },
       },
     }),
 
-    // ======================================================================
-    // Admin Plugin
-    // ======================================================================
+    // ------------------------------------------------------------------------
+    // ADMIN PLUGIN (for permissions and impersonation)
+    // ------------------------------------------------------------------------
     admin({
       ac,
       roles: {
         superAdmin,
-        owner,
         admin: adminRole,
         teacher,
         accountant,
@@ -351,109 +415,74 @@ export const auth = betterAuth({
         user: userRole,
       },
 
-      impersonationSessionDuration: 60 * 60 * 2, // 2 hours
+      // Impersonation session duration: 2 hours
+      impersonationSessionDuration: 60 * 60 * 2,
 
+      /**
+       * Determine who can impersonate whom
+       * - SuperAdmins can impersonate anyone
+       * - Admins can impersonate users in their organizations
+       */
       async canImpersonate(opts: {
-        user: { id: string };
+        user: { id: string; role?: string };
         targetUser: { id: string };
       }) {
         const { user, targetUser } = opts;
 
-        // Get user from database to check role
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { id: true },
-        });
-
-        if (!dbUser) {
-          return false;
+        // SuperAdmin can impersonate anyone
+        if (user.role === "superAdmin") {
+          return true;
         }
 
-        // SuperAdmins can impersonate anyone
-        return true;
-      },
+        // Organization admin can impersonate users in their organizations
+        if (user.role === "admin") {
+          const adminMemberships = await prisma.member.findMany({
+            where: {
+              userId: user.id,
+              role: "admin",
+            },
+            select: { organizationId: true },
+          });
 
-      adminHooks: {
-        afterBanUser: async (opts: {
-          user: { id: string; email: string };
-          bannedUser: { id: string; email: string };
-          reason?: string;
-        }) => {
-          const { user, bannedUser, reason } = opts;
+          const targetMemberships = await prisma.member.findMany({
+            where: { userId: targetUser.id },
+            select: { organizationId: true },
+          });
 
-          try {
-            await prisma.auditLog.create({
-              data: {
-                userId: user.id,
-                action: "UPDATE",
-                entityType: "USER_BAN",
-                entityId: bannedUser.id,
-                newValues: {
-                  bannedBy: user.email,
-                  reason: reason || "No reason",
-                },
-              },
-            });
-          } catch (error) {
-            console.error("[Hook] Error in afterBanUser:", error);
-          }
-        },
+          // Check if they share any organization where user is admin
+          return adminMemberships.some((admin) =>
+            targetMemberships.some(
+              (target) => target.organizationId === admin.organizationId,
+            ),
+          );
+        }
 
-        afterUnbanUser: async (opts: {
-          user: { id: string; email: string };
-          unbannedUser: { id: string; email: string };
-        }) => {
-          const { user, unbannedUser } = opts;
-
-          try {
-            await prisma.auditLog.create({
-              data: {
-                userId: user.id,
-                action: "UPDATE",
-                entityType: "USER_UNBAN",
-                entityId: unbannedUser.id,
-                newValues: {
-                  unbannedBy: user.email,
-                },
-              },
-            });
-          } catch (error) {
-            console.error("[Hook] Error in afterUnbanUser:", error);
-          }
-        },
-
-        afterSetRole: async (opts: {
-          user: { id: string };
-          targetUser: { id: string };
-          role: string;
-          oldRole?: string;
-        }) => {
-          const { user, targetUser, role, oldRole } = opts;
-
-          try {
-            await prisma.auditLog.create({
-              data: {
-                userId: user.id,
-                action: "UPDATE",
-                entityType: "USER_ROLE",
-                entityId: targetUser.id,
-                oldValues: { role: oldRole },
-                newValues: { role },
-              },
-            });
-          } catch (error) {
-            console.error("[Hook] Error in afterSetRole:", error);
-          }
-        },
+        return false;
       },
     }),
   ],
+
+  // ==========================================================================
+  // SESSION CONFIGURATION
+  // ==========================================================================
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // 24 hours
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // 5 minutes
+    },
+  },
 });
 
 // ============================================================================
-// SESSION HELPERS
+// HELPER FUNCTIONS
 // ============================================================================
 
+/**
+ * Get extended session with profile and organization data
+ * This is the main session function used throughout the app
+ */
 export async function getAuthSession() {
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -461,6 +490,7 @@ export async function getAuthSession() {
 
   if (!session) return null;
 
+  // Get user profile with all school relationships
   const profile = await prisma.userProfile.findUnique({
     where: { userId: session.user.id },
     include: {
@@ -519,6 +549,7 @@ export async function getAuthSession() {
     },
   });
 
+  // Get organization memberships
   const memberships = await prisma.member.findMany({
     where: { userId: session.user.id },
     include: {
@@ -537,21 +568,19 @@ export async function getAuthSession() {
     },
   });
 
-  // Get user from database to check role
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { id: true },
-  });
-
   return {
     ...session,
     profile,
     memberships,
-    isSuperAdmin: !!dbUser,
-    isAdmin: !!dbUser,
+    isSuperAdmin: session.user.role === "superAdmin",
+    isAdmin:
+      session.user.role === "admin" || session.user.role === "superAdmin",
   };
 }
 
+/**
+ * Check if user has specific permission
+ */
 export async function checkPermission(
   userId: string,
   permissions: Record<string, string[]>,
@@ -565,6 +594,9 @@ export async function checkPermission(
   return result;
 }
 
+/**
+ * Check if current user has specific permission
+ */
 export async function checkCurrentUserPermission(
   permissions: Record<string, string[]>,
 ) {
@@ -572,57 +604,3 @@ export async function checkCurrentUserPermission(
   if (!session) return false;
   return checkPermission(session.user.id, permissions);
 }
-
-export async function requireAuth() {
-  const session = await getAuthSession();
-  if (!session) {
-    throw new Error("Authentication required");
-  }
-  return session;
-}
-
-export async function requireRole(role: string | string[]) {
-  const session = await requireAuth();
-
-  // Get user role from database
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { id: true },
-  });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  return session;
-}
-
-export async function requireSuperAdmin() {
-  const session = await requireAuth();
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { id: true },
-  });
-
-  if (!user) {
-    throw new Error("Super admin access required");
-  }
-
-  return session;
-}
-
-export async function requireOrganizationMembership(organizationId: string) {
-  const session = await requireAuth();
-  const isMember = session.memberships.some(
-    (m) => m.organizationId === organizationId,
-  );
-
-  if (!isMember && !session.isSuperAdmin) {
-    throw new Error("Organization membership required");
-  }
-
-  return session;
-}
-
-export default auth;

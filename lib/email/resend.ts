@@ -1,32 +1,36 @@
-// lib/email/sender.ts - REFACTORED with fixed syntax and better error handling
+/**
+ * ============================================================================
+ * EMAIL SERVICE - RESEND INTEGRATION
+ * ============================================================================
+ *
+ * Email service for sending transactional emails using Resend.
+ * Handles invitation emails, password resets, and other notifications.
+ *
+ * Setup:
+ * 1. Install Resend: npm install resend
+ * 2. Add RESEND_API_KEY to .env
+ * 3. Configure from email in RESEND_FROM_EMAIL
+ *
+ * ============================================================================
+ */
+
 import { Resend } from "resend";
-import { AdminInvitationEmail } from "./templates/admin-invitation";
-import { PasswordResetEmail } from "./templates/password-reset";
-import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
-if (!process.env.RESEND_API_KEY) {
-  throw new Error("RESEND_API_KEY is not defined in environment variables");
-}
-
-if (!process.env.RESEND_FROM_EMAIL) {
-  throw new Error("RESEND_FROM_EMAIL is not defined in environment variables");
-}
-
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = `DrewsTech School System <${process.env.RESEND_FROM_EMAIL}>`;
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-const EMAIL_TIMEOUT = 30000; // 30 seconds
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@yourdomain.com";
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "SchoolMS";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 // ============================================================================
-// TYPES
+// TYPE DEFINITIONS
 // ============================================================================
 
-export interface SendInvitationEmailParams {
+interface InvitationEmailParams {
   to: string;
   inviterName: string;
   schoolName: string;
@@ -35,481 +39,348 @@ export interface SendInvitationEmailParams {
   expiresAt: Date;
 }
 
-export interface SendPasswordResetEmailParams {
+interface PasswordResetEmailParams {
   to: string;
   userName: string;
   resetUrl: string;
   expiresAt: Date;
 }
 
-interface ResendEmailResponse {
-  data?: { id: string } | null;
-  error?: Error | null;
-}
-
-export interface EmailResult {
-  success: boolean;
-  data?: { id: string } | null;
-  error?: string;
-}
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-/**
- * Create a timeout promise that rejects after specified milliseconds
- */
-function createTimeoutPromise(ms: number): Promise<never> {
-  return new Promise((_, reject) => {
-    setTimeout(() => {
-      reject(new Error(`Email sending timeout after ${ms}ms`));
-    }, ms);
-  });
-}
-
-/**
- * Safely send email with timeout and error handling
- */
-async function sendEmailWithTimeout<T>(
-  emailPromise: Promise<T>,
-  timeoutMs: number = EMAIL_TIMEOUT,
-): Promise<T> {
-  return Promise.race([
-    emailPromise,
-    createTimeoutPromise(timeoutMs),
-  ]) as Promise<T>;
-}
-
-// ============================================================================
-// INVITATION EMAIL
-// ============================================================================
-
-/**
- * Send invitation email to a new user
- * @param params - Invitation email parameters
- * @returns Promise<EmailResult> - Result of email send operation
- */
-export async function sendInvitationEmail(
-  params: SendInvitationEmailParams,
-): Promise<EmailResult> {
-  const { to, inviterName, schoolName, role, invitationId, expiresAt } = params;
-
-  const inviteUrl = `${BASE_URL}/auth/invite/${invitationId}`;
-  const subject = `${inviterName} invited you to join ${schoolName}`;
-
-  logger.info("Sending invitation email", {
-    to,
-    invitationId,
-    schoolName,
-    role,
-  });
-
-  const startTime = Date.now();
-
-  try {
-    const emailPromise = resend.emails.send({
-      from: FROM_EMAIL,
-      to,
-      subject,
-      react: AdminInvitationEmail({
-        invitedUserEmail: to,
-        inviterName,
-        schoolName,
-        role,
-        inviteUrl,
-        expiresAt,
-      }),
-      headers: {
-        "X-Entity-Ref-ID": invitationId,
-      },
-      tags: [
-        {
-          name: "category",
-          value: "invitation",
-        },
-        {
-          name: "school",
-          value: schoolName,
-        },
-      ],
-    });
-
-    const result = (await sendEmailWithTimeout(
-      emailPromise,
-    )) as ResendEmailResponse;
-
-    const duration = Date.now() - startTime;
-
-    if (result.error) {
-      logger.error("Resend API returned error", {
-        invitationId,
-        error: result.error.message,
-        duration,
-      });
-
-      return {
-        success: false,
-        error: result.error.message || "Failed to send invitation email",
-      };
-    }
-
-    logger.info("Invitation email sent successfully", {
-      invitationId,
-      emailId: result.data?.id,
-      duration,
-    });
-
-    return {
-      success: true,
-      data: result.data,
-    };
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-
-    logger.error("Failed to send invitation email", {
-      invitationId,
-      error: errorMessage,
-      duration,
-    });
-
-    return {
-      success: false,
-      error: errorMessage,
-    };
-  }
-}
-
-// ============================================================================
-// PASSWORD RESET EMAIL
-// ============================================================================
-
-/**
- * Send password reset email to user
- * @param params - Password reset email parameters
- * @returns Promise<EmailResult> - Result of email send operation
- */
-export async function sendPasswordResetEmail(
-  params: SendPasswordResetEmailParams,
-): Promise<EmailResult> {
-  const { to, userName, resetUrl, expiresAt } = params;
-
-  const subject = "Reset Your Password - DrewsTech School System";
-
-  logger.info("Sending password reset email", {
-    to: to.replace(/(.{3}).*(@.*)/, "$1***$2"), // Mask email for privacy
-    userName,
-  });
-
-  const startTime = Date.now();
-
-  try {
-    const emailPromise = resend.emails.send({
-      from: FROM_EMAIL,
-      to,
-      subject,
-      react: PasswordResetEmail({
-        userName,
-        resetUrl,
-        expiresAt,
-      }),
-      headers: {
-        "X-Priority": "1",
-        Importance: "high",
-      },
-      tags: [
-        {
-          name: "category",
-          value: "password-reset",
-        },
-      ],
-    });
-
-    const result = (await sendEmailWithTimeout(
-      emailPromise,
-    )) as ResendEmailResponse;
-
-    const duration = Date.now() - startTime;
-
-    if (result.error) {
-      logger.error("Resend API returned error for password reset", {
-        error: result.error.message,
-        duration,
-      });
-
-      // For password reset, we still return success for security
-      // (don't reveal if email exists)
-      logger.warn("Returning success despite error for security reasons");
-      return {
-        success: true,
-        data: null,
-      };
-    }
-
-    logger.info("Password reset email sent successfully", {
-      emailId: result.data?.id,
-      duration,
-    });
-
-    return {
-      success: true,
-      data: result.data,
-    };
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-
-    logger.error("Failed to send password reset email", {
-      error: errorMessage,
-      duration,
-    });
-
-    // For security, don't reveal if email exists
-    // Return success even on failure
-    logger.warn("Returning success despite error for security reasons");
-    return {
-      success: true,
-      data: null,
-    };
-  }
-}
-
-// ============================================================================
-// WELCOME EMAIL (Optional - for new users)
-// ============================================================================
-
-export interface SendWelcomeEmailParams {
+interface WelcomeEmailParams {
   to: string;
   userName: string;
   schoolName: string;
-  role: string;
+  loginUrl: string;
+}
+
+// ============================================================================
+// EMAIL TEMPLATES
+// ============================================================================
+
+/**
+ * Generate HTML for invitation email
+ */
+function getInvitationEmailHtml(params: InvitationEmailParams): string {
+  const { inviterName, schoolName, role, invitationId, expiresAt } = params;
+  const inviteUrl = `${APP_URL}/auth/invite/${invitationId}`;
+  const expiryDate = expiresAt.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>You've been invited to ${schoolName}</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">
+                      🎓 ${APP_NAME}
+                    </h1>
+                  </td>
+                </tr>
+                
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 40px;">
+                    <h2 style="margin: 0 0 20px; color: #1a202c; font-size: 24px; font-weight: 600;">
+                      You've been invited!
+                    </h2>
+                    
+                    <p style="margin: 0 0 16px; color: #4a5568; font-size: 16px; line-height: 1.6;">
+                      <strong>${inviterName}</strong> has invited you to join <strong>${schoolName}</strong> as a <strong>${role}</strong>.
+                    </p>
+                    
+                    <p style="margin: 0 0 32px; color: #4a5568; font-size: 16px; line-height: 1.6;">
+                      Click the button below to accept your invitation and create your account:
+                    </p>
+                    
+                    <!-- CTA Button -->
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td align="center" style="padding: 0 0 32px;">
+                          <a href="${inviteUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
+                            Accept Invitation
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <!-- Alternative Link -->
+                    <p style="margin: 0 0 16px; color: #718096; font-size: 14px; line-height: 1.6;">
+                      Or copy and paste this link into your browser:
+                    </p>
+                    <p style="margin: 0 0 32px; color: #667eea; font-size: 14px; word-break: break-all;">
+                      ${inviteUrl}
+                    </p>
+                    
+                    <!-- Expiry Notice -->
+                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff5f5; border-left: 4px solid #f56565; border-radius: 4px;">
+                      <tr>
+                        <td style="padding: 16px;">
+                          <p style="margin: 0; color: #c53030; font-size: 14px;">
+                            ⏰ This invitation expires on <strong>${expiryDate}</strong>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="padding: 32px; background-color: #f7fafc; border-radius: 0 0 8px 8px; text-align: center;">
+                    <p style="margin: 0 0 8px; color: #718096; font-size: 14px;">
+                      If you didn't expect this invitation, you can safely ignore this email.
+                    </p>
+                    <p style="margin: 0; color: #a0aec0; font-size: 12px;">
+                      © ${new Date().getFullYear()} ${APP_NAME}. All rights reserved.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
 }
 
 /**
- * Send welcome email to new user after successful registration
+ * Generate HTML for password reset email
+ */
+function getPasswordResetEmailHtml(params: PasswordResetEmailParams): string {
+  const { userName, resetUrl, expiresAt } = params;
+  const expiryMinutes = Math.floor(
+    (expiresAt.getTime() - Date.now()) / (1000 * 60),
+  );
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reset Your Password</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">
+                      🔐 ${APP_NAME}
+                    </h1>
+                  </td>
+                </tr>
+                
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 40px;">
+                    <h2 style="margin: 0 0 20px; color: #1a202c; font-size: 24px; font-weight: 600;">
+                      Reset Your Password
+                    </h2>
+                    
+                    <p style="margin: 0 0 16px; color: #4a5568; font-size: 16px; line-height: 1.6;">
+                      Hi ${userName},
+                    </p>
+                    
+                    <p style="margin: 0 0 32px; color: #4a5568; font-size: 16px; line-height: 1.6;">
+                      We received a request to reset your password. Click the button below to create a new password:
+                    </p>
+                    
+                    <!-- CTA Button -->
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td align="center" style="padding: 0 0 32px;">
+                          <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
+                            Reset Password
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <!-- Alternative Link -->
+                    <p style="margin: 0 0 16px; color: #718096; font-size: 14px; line-height: 1.6;">
+                      Or copy and paste this link into your browser:
+                    </p>
+                    <p style="margin: 0 0 32px; color: #667eea; font-size: 14px; word-break: break-all;">
+                      ${resetUrl}
+                    </p>
+                    
+                    <!-- Security Notice -->
+                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fffaf0; border-left: 4px solid #ed8936; border-radius: 4px;">
+                      <tr>
+                        <td style="padding: 16px;">
+                          <p style="margin: 0 0 8px; color: #c05621; font-size: 14px; font-weight: 600;">
+                            ⏰ This link expires in ${expiryMinutes} minutes
+                          </p>
+                          <p style="margin: 0; color: #c05621; font-size: 14px;">
+                            For security, this password reset link can only be used once.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="padding: 32px; background-color: #f7fafc; border-radius: 0 0 8px 8px; text-align: center;">
+                    <p style="margin: 0 0 8px; color: #718096; font-size: 14px;">
+                      If you didn't request a password reset, you can safely ignore this email.
+                    </p>
+                    <p style="margin: 0; color: #a0aec0; font-size: 12px;">
+                      © ${new Date().getFullYear()} ${APP_NAME}. All rights reserved.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
+// ============================================================================
+// EMAIL SENDING FUNCTIONS
+// ============================================================================
+
+/**
+ * Send invitation email to new member
+ */
+export async function sendAdminInvitationEmail(
+  params: InvitationEmailParams,
+): Promise<void> {
+  const { to, schoolName } = params;
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `You've been invited to join ${schoolName}`,
+      html: getInvitationEmailHtml(params),
+    });
+
+    console.log(`✅ [Email] Invitation email sent to ${to}`);
+  } catch (error) {
+    console.error(`❌ [Email] Failed to send invitation to ${to}:`, error);
+    throw new Error("Failed to send invitation email");
+  }
+}
+
+/**
+ * Alias for backwards compatibility
+ */
+export const sendInvitationEmail = sendAdminInvitationEmail;
+
+/**
+ * Send password reset email
+ */
+export async function sendPasswordResetEmail(
+  params: PasswordResetEmailParams,
+): Promise<void> {
+  const { to, userName } = params;
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `Reset your ${APP_NAME} password`,
+      html: getPasswordResetEmailHtml(params),
+    });
+
+    console.log(`✅ [Email] Password reset email sent to ${to}`);
+  } catch (error) {
+    console.error(`❌ [Email] Failed to send password reset to ${to}:`, error);
+    throw new Error("Failed to send password reset email");
+  }
+}
+
+/**
+ * Send welcome email to new user
  */
 export async function sendWelcomeEmail(
-  params: SendWelcomeEmailParams,
-): Promise<EmailResult> {
-  const { to, userName, schoolName, role } = params;
-
-  const subject = `Welcome to ${schoolName}!`;
-
-  logger.info("Sending welcome email", {
-    to,
-    schoolName,
-    role,
-  });
-
-  const startTime = Date.now();
+  params: WelcomeEmailParams,
+): Promise<void> {
+  const { to, userName, schoolName, loginUrl } = params;
 
   try {
-    // You can create a WelcomeEmail template similar to others
-    const emailPromise = resend.emails.send({
+    await resend.emails.send({
       from: FROM_EMAIL,
       to,
-      subject,
+      subject: `Welcome to ${schoolName}!`,
       html: `
-        <h1>Welcome to ${schoolName}, ${userName}!</h1>
-        <p>Your account has been successfully created as a ${role}.</p>
-        <p>You can now log in and start using the system.</p>
-        <p><a href="${BASE_URL}/auth/sign-in">Sign In Now</a></p>
+        <!DOCTYPE html>
+        <html>
+          <body>
+            <h1>Welcome ${userName}!</h1>
+            <p>Your account has been created for ${schoolName}.</p>
+            <p><a href="${loginUrl}">Login to your account</a></p>
+          </body>
+        </html>
       `,
-      tags: [
-        {
-          name: "category",
-          value: "welcome",
-        },
-      ],
     });
 
-    const result = (await sendEmailWithTimeout(
-      emailPromise,
-    )) as ResendEmailResponse;
-
-    const duration = Date.now() - startTime;
-
-    if (result.error) {
-      logger.error("Failed to send welcome email", {
-        error: result.error.message,
-        duration,
-      });
-
-      return {
-        success: false,
-        error: result.error.message,
-      };
-    }
-
-    logger.info("Welcome email sent successfully", {
-      emailId: result.data?.id,
-      duration,
-    });
-
-    return {
-      success: true,
-      data: result.data,
-    };
+    console.log(`✅ [Email] Welcome email sent to ${to}`);
   } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-
-    logger.error("Failed to send welcome email", {
-      error: errorMessage,
-      duration,
-    });
-
-    return {
-      success: false,
-      error: errorMessage,
-    };
+    console.error(`❌ [Email] Failed to send welcome email to ${to}:`, error);
+    throw new Error("Failed to send welcome email");
   }
 }
 
 // ============================================================================
-// BULK EMAIL SENDING (For notifications, announcements, etc.)
+// HELPER FUNCTIONS
 // ============================================================================
 
-export interface BulkEmailParams {
-  recipients: string[];
-  subject: string;
-  html: string;
-  tags?: Array<{ name: string; value: string }>;
-}
-
 /**
- * Send email to multiple recipients
- * Note: Resend has rate limits, so batch large lists
+ * Validate email configuration
  */
-export async function sendBulkEmail(
-  params: BulkEmailParams,
-): Promise<EmailResult[]> {
-  const { recipients, subject, html, tags = [] } = params;
-
-  logger.info("Sending bulk email", {
-    recipientCount: recipients.length,
-    subject,
-  });
-
-  const results: EmailResult[] = [];
-
-  // Send in batches to avoid rate limits
-  const BATCH_SIZE = 50;
-
-  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-    const batch = recipients.slice(i, i + BATCH_SIZE);
-
-    const batchPromises = batch.map(async (to) => {
-      try {
-        const result = await resend.emails.send({
-          from: FROM_EMAIL,
-          to,
-          subject,
-          html,
-          tags: [
-            ...tags,
-            {
-              name: "bulk",
-              value: "true",
-            },
-          ],
-        });
-
-        return {
-          success: !result.error,
-          data: result.data,
-          error: result.error?.message,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
-      }
-    });
-
-    const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
-
-    // Add delay between batches to respect rate limits
-    if (i + BATCH_SIZE < recipients.length) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
+export function validateEmailConfig(): boolean {
+  if (!process.env.RESEND_API_KEY) {
+    console.error("❌ [Email] RESEND_API_KEY not configured");
+    return false;
   }
 
-  const successCount = results.filter((r) => r.success).length;
+  if (!process.env.RESEND_FROM_EMAIL) {
+    console.warn("⚠️ [Email] RESEND_FROM_EMAIL not configured, using default");
+  }
 
-  logger.info("Bulk email completed", {
-    total: recipients.length,
-    successful: successCount,
-    failed: recipients.length - successCount,
-  });
-
-  return results;
-}
-
-// ============================================================================
-// EMAIL VERIFICATION (Optional)
-// ============================================================================
-
-export interface SendVerificationEmailParams {
-  to: string;
-  userName: string;
-  verificationUrl: string;
+  return true;
 }
 
 /**
- * Send email verification link to user
+ * Test email sending
  */
-export async function sendVerificationEmail(
-  params: SendVerificationEmailParams,
-): Promise<EmailResult> {
-  const { to, userName, verificationUrl } = params;
-
-  const subject = "Verify Your Email - DrewsTech School System";
-
-  logger.info("Sending verification email", {
-    to,
-  });
-
+export async function sendTestEmail(to: string): Promise<void> {
   try {
-    const result = await resend.emails.send({
+    await resend.emails.send({
       from: FROM_EMAIL,
       to,
-      subject,
-      html: `
-        <h1>Verify Your Email, ${userName}</h1>
-        <p>Please click the link below to verify your email address:</p>
-        <p><a href="${verificationUrl}">Verify Email</a></p>
-        <p>This link will expire in 24 hours.</p>
-      `,
-      tags: [
-        {
-          name: "category",
-          value: "verification",
-        },
-      ],
+      subject: "Test Email from SchoolMS",
+      html: "<h1>Test Email</h1><p>Email configuration is working!</p>",
     });
 
-    if (result.error) {
-      return {
-        success: false,
-        error: result.error.message,
-      };
-    }
-
-    return {
-      success: true,
-      data: result.data,
-    };
+    console.log(`✅ [Email] Test email sent to ${to}`);
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
+    console.error(`❌ [Email] Test email failed:`, error);
+    throw error;
   }
 }
