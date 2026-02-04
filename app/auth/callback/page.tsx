@@ -1,18 +1,14 @@
-// app/auth/callback/page.tsx
+// app/auth/callback/page.tsx - REFACTORED
+
 import { redirect } from "next/navigation";
-import { getAuthSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth/session";
+import { getDefaultRoute } from "@/lib/auth/route-resolver";
 import { headers } from "next/headers";
 
 interface CallbackPageProps {
   searchParams: Promise<{ callbackUrl?: string }>;
 }
 
-/**
- * Auth Callback Handler
- *
- * Processes authentication callbacks and redirects users to appropriate routes
- * based on their role and memberships.
- */
 export default async function CallbackPage({
   searchParams,
 }: CallbackPageProps) {
@@ -28,8 +24,8 @@ export default async function CallbackPage({
   // Give Better Auth time to fully establish session
   await new Promise((resolve) => setTimeout(resolve, 500));
 
-  // Get session using Better Auth's getAuthSession
-  const session = await getAuthSession();
+  // Get session using consolidated session module
+  const session = await getSession();
 
   if (!session) {
     console.log("[Callback] ❌ No session found after auth");
@@ -60,55 +56,13 @@ export default async function CallbackPage({
   redirect(defaultRoute);
 }
 
-/**
- * Determine default route for authenticated user
- */
-function getDefaultRoute(
-  session: NonNullable<Awaited<ReturnType<typeof getAuthSession>>>,
-) {
-  // SuperAdmin → SuperAdmin dashboard
-  if (session.isSuperAdmin) {
-    return "/dashboard";
-  }
+// ============================================================================
+// METADATA
+// ============================================================================
 
-  // User with memberships → first school's dashboard
-  if (session.memberships.length > 0) {
-    const firstSchool = session.memberships[0].organization.school;
-    if (firstSchool?.subdomain) {
-      return `/${firstSchool.subdomain}/dashboard`;
-    }
-  }
-
-  // User with profile roles → appropriate dashboard
-  if (session.profile) {
-    // Student
-    if (session.profile.student?.school?.subdomain) {
-      return `/${session.profile.student.school.subdomain}/dashboard`;
-    }
-
-    // Teacher
-    if (session.profile.teacher?.school?.subdomain) {
-      return `/${session.profile.teacher.school.subdomain}/dashboard`;
-    }
-
-    // Guardian
-    if (session.profile.guardian?.school?.subdomain) {
-      return `/${session.profile.guardian.school.subdomain}/dashboard`;
-    }
-
-    // Staff
-    if (session.profile.staff?.school?.subdomain) {
-      return `/${session.profile.staff.school.subdomain}/dashboard`;
-    }
-  }
-
-  // Fallback → account setup or general dashboard
-  return "/account/setup";
-}
-
-// Show a loading state while processing
 export function generateMetadata() {
   return {
     title: "Signing in...",
+    description: "Completing authentication process",
   };
 }

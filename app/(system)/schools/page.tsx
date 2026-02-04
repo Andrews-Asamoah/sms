@@ -1,6 +1,6 @@
 // app/(system)/schools/page.tsx
 import { redirect } from "next/navigation";
-import { getAuthSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
 import {
@@ -34,28 +34,27 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+export const metadata = {
+  title: "Schools | SuperAdmin Dashboard",
+  description: "Manage all schools in the system",
+};
+
 export default async function SchoolsPage() {
-  const session = await getAuthSession();
+  const session = await getSession();
 
   if (!session) {
     redirect("/auth/login");
   }
 
-  const isSuperAdmin = session.user.role === "superAdmin";
+  const isSuperAdmin = session.isSuperAdmin;
 
-  // Get schools based on user role
+  // Only superAdmins can access this page
+  if (!isSuperAdmin) {
+    redirect("/unauthorized");
+  }
+
+  // Get all schools (superAdmin sees all)
   const schools = await prisma.school.findMany({
-    where: isSuperAdmin
-      ? {}
-      : {
-          organization: {
-            members: {
-              some: {
-                userId: session.user.id,
-              },
-            },
-          },
-        },
     include: {
       subscription: true,
       organization: {
@@ -90,13 +89,13 @@ export default async function SchoolsPage() {
       schools.filter(
         (s) =>
           s.subscription?.status === "ACTIVE" ||
-          s.subscription?.status === "TRIALING"
+          s.subscription?.status === "TRIALING",
       ).length || 0,
     premium:
       schools.filter(
         (s) =>
           s.subscription?.planType === "PREMIUM" ||
-          s.subscription?.planType === "ENTERPRISE"
+          s.subscription?.planType === "ENTERPRISE",
       ).length || 0,
     trial: schools.filter((s) => s.subscription?.isOnTrial).length || 0,
   };
@@ -108,23 +107,19 @@ export default async function SchoolsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Schools</h1>
           <p className="text-muted-foreground mt-2">
-            {isSuperAdmin
-              ? "Manage all schools in the system"
-              : "Your school organizations"}
+            Manage all schools in the system
           </p>
         </div>
-        {isSuperAdmin && (
-          <Button asChild size="lg" className="shadow-lg">
-            <Link href="/schools/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Create School
-            </Link>
-          </Button>
-        )}
+        <Button asChild size="lg" className="shadow-lg">
+          <Link href="/schools/new">
+            <Plus className="mr-2 h-4 w-4" />
+            Create School
+          </Link>
+        </Button>
       </div>
 
-      {/* Stats Overview with Glassmorphism */}
-      {isSuperAdmin && schools.length > 0 && (
+      {/* Stats Overview */}
+      {schools.length > 0 && (
         <div className="grid gap-4 md:grid-cols-4">
           <Card className="backdrop-blur-xl bg-background/60 border-primary/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -204,18 +199,15 @@ export default async function SchoolsPage() {
             </div>
             <h3 className="text-lg font-semibold mb-2">No schools found</h3>
             <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
-              {isSuperAdmin
-                ? "Get started by creating your first school to manage students, teachers, and more."
-                : "You don't have access to any schools yet. Contact your administrator."}
+              Get started by creating your first school to manage students,
+              teachers, and more.
             </p>
-            {isSuperAdmin && (
-              <Button asChild size="lg" className="shadow-lg">
-                <Link href="/schools/new">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Your First School
-                </Link>
-              </Button>
-            )}
+            <Button asChild size="lg" className="shadow-lg">
+              <Link href="/schools/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Your First School
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -232,7 +224,6 @@ export default async function SchoolsPage() {
           <TabsContent value="grid" className="space-y-4">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {schools.map((school) => {
-                const userRole = school.organization.members[0]?.role;
                 const isActive =
                   school.subscription?.status === "ACTIVE" ||
                   school.subscription?.status === "TRIALING";
@@ -247,7 +238,7 @@ export default async function SchoolsPage() {
                   >
                     <CardHeader className="pb-4">
                       <div className="flex items-start gap-3 min-w-0">
-                        <Avatar className="h-12 w-12 border-2 border-primary/20 flex-shrink-0 ring-2 ring-primary/5 group-hover:ring-primary/20 transition-all">
+                        <Avatar className="h-12 w-12 border-2 border-primary/20 shrink-0 ring-2 ring-primary/5 group-hover:ring-primary/20 transition-all">
                           <AvatarImage
                             src={school.logo || undefined}
                             alt={school.name}
@@ -291,14 +282,6 @@ export default async function SchoolsPage() {
                             Trial
                           </Badge>
                         )}
-                        {userRole && !isSuperAdmin && (
-                          <Badge
-                            variant="outline"
-                            className="text-xs px-2 py-0.5"
-                          >
-                            {userRole}
-                          </Badge>
-                        )}
                       </div>
                     </CardHeader>
 
@@ -307,7 +290,7 @@ export default async function SchoolsPage() {
                       <div className="space-y-2 flex-1">
                         <div className="flex items-center justify-between text-sm py-1.5 px-2 rounded-md hover:bg-primary/5 transition-colors">
                           <div className="flex items-center gap-2 text-muted-foreground">
-                            <GraduationCap className="h-4 w-4 flex-shrink-0" />
+                            <GraduationCap className="h-4 w-4 shrink-0" />
                             <span>Students</span>
                           </div>
                           <span className="font-semibold tabular-nums">
@@ -316,7 +299,7 @@ export default async function SchoolsPage() {
                         </div>
                         <div className="flex items-center justify-between text-sm py-1.5 px-2 rounded-md hover:bg-primary/5 transition-colors">
                           <div className="flex items-center gap-2 text-muted-foreground">
-                            <Users className="h-4 w-4 flex-shrink-0" />
+                            <Users className="h-4 w-4 shrink-0" />
                             <span>Teachers</span>
                           </div>
                           <span className="font-semibold tabular-nums">
@@ -325,7 +308,7 @@ export default async function SchoolsPage() {
                         </div>
                         <div className="flex items-center justify-between text-sm py-1.5 px-2 rounded-md hover:bg-primary/5 transition-colors">
                           <div className="flex items-center gap-2 text-muted-foreground">
-                            <Building2 className="h-4 w-4 flex-shrink-0" />
+                            <Building2 className="h-4 w-4 shrink-0" />
                             <span>Classes</span>
                           </div>
                           <span className="font-semibold tabular-nums">
@@ -343,27 +326,25 @@ export default async function SchoolsPage() {
                           className="flex-1 min-w-0 hover:bg-primary/10 hover:border-primary/30"
                         >
                           <Link href={`/schools/${school.id}/overview`}>
-                            <Eye className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
+                            <Eye className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                             <span className="truncate">View</span>
                           </Link>
                         </Button>
-                        {isSuperAdmin && (
-                          <Button
-                            asChild
-                            variant="outline"
-                            size="sm"
-                            className="flex-shrink-0 hover:bg-primary/10 hover:border-primary/30"
-                          >
-                            <Link href={`/schools/${school.id}/settings`}>
-                              <Settings className="h-3.5 w-3.5" />
-                            </Link>
-                          </Button>
-                        )}
                         <Button
                           asChild
                           variant="outline"
                           size="sm"
-                          className="flex-shrink-0 hover:bg-primary/10 hover:border-primary/30"
+                          className="shrink-0 hover:bg-primary/10 hover:border-primary/30"
+                        >
+                          <Link href={`/schools/${school.id}/settings`}>
+                            <Settings className="h-3.5 w-3.5" />
+                          </Link>
+                        </Button>
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 hover:bg-primary/10 hover:border-primary/30"
                         >
                           <Link
                             href={`/${school.subdomain}/admin/dashboard`}
@@ -412,7 +393,7 @@ export default async function SchoolsPage() {
                         >
                           <TableCell>
                             <div className="flex items-center gap-3 min-w-0">
-                              <Avatar className="h-10 w-10 flex-shrink-0 ring-2 ring-primary/5 group-hover:ring-primary/20 transition-all">
+                              <Avatar className="h-10 w-10 shrink-0 ring-2 ring-primary/5 group-hover:ring-primary/20 transition-all">
                                 <AvatarImage
                                   src={school.logo || undefined}
                                   alt={school.name}
@@ -473,18 +454,16 @@ export default async function SchoolsPage() {
                                   <Eye className="h-4 w-4" />
                                 </Link>
                               </Button>
-                              {isSuperAdmin && (
-                                <Button
-                                  asChild
-                                  variant="ghost"
-                                  size="sm"
-                                  className="hover:bg-primary/10"
-                                >
-                                  <Link href={`/schools/${school.id}/settings`}>
-                                    <Settings className="h-4 w-4" />
-                                  </Link>
-                                </Button>
-                              )}
+                              <Button
+                                asChild
+                                variant="ghost"
+                                size="sm"
+                                className="hover:bg-primary/10"
+                              >
+                                <Link href={`/schools/${school.id}/settings`}>
+                                  <Settings className="h-4 w-4" />
+                                </Link>
+                              </Button>
                               <Button
                                 asChild
                                 variant="ghost"

@@ -1,12 +1,17 @@
-// app/api/schools/[schoolId]/subscription/trial/route.ts
-import { getAuthSession } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+// app/api/schools/[schoolId]/subscription/upgrade/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { RouteContext } from "@/app/api/schools/[schoolId]/subscription/upgrade/route";
+import { getSession } from "@/lib/auth/session";
+import prisma from "@/lib/prisma";
+
+type RouteContext = {
+  params: Promise<{
+    schoolId: string;
+  }>;
+};
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const session = await getAuthSession();
+    const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -14,7 +19,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const params = await context.params;
     const { schoolId } = params;
 
-    // Check permissions
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
       include: {
@@ -37,56 +41,52 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const isSuperAdmin = session.user.role === "superAdmin";
     const isOwnerOrAdmin = school.organization.members.some(
-      (m) => m.role === "OWNER" || m.role === "ADMIN"
+      (m) => m.role === "owner" || m.role === "admin",
     );
 
     if (!isSuperAdmin && !isOwnerOrAdmin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Check if already has premium or trial
-    if (
-      school.subscription &&
-      (school.subscription.planType === "PREMIUM" ||
-        school.subscription.isOnTrial)
-    ) {
-      return NextResponse.json(
-        { error: "School already has premium access" },
-        { status: 400 }
-      );
-    }
-
-    // Start 14-day trial
-    const trialStartDate = new Date();
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + 14);
-
     const subscription = await prisma.subscription.upsert({
       where: { schoolId },
       create: {
         schoolId,
-        planType: "FREE",
-        planName: "Premium Trial",
-        status: "TRIALING",
-        isOnTrial: true,
-        trialStartsAt: trialStartDate,
-        trialEndsAt: trialEndDate,
+        planType: "PREMIUM",
+        planName: "Premium Plan",
+        billingCycle: "MONTHLY",
+        status: "ACTIVE",
+        amount: 99.0,
+        currency: "USD",
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(
+          new Date().setMonth(new Date().getMonth() + 1),
+        ),
+        isOnTrial: false,
+        trialStartsAt: null,
+        trialEndsAt: null,
       },
       update: {
-        planName: "Premium Trial",
-        status: "TRIALING",
-        isOnTrial: true,
-        trialStartsAt: trialStartDate,
-        trialEndsAt: trialEndDate,
+        planType: "PREMIUM",
+        planName: "Premium Plan",
+        status: "ACTIVE",
+        amount: 99.0,
+        isOnTrial: false,
+        trialStartsAt: null,
+        trialEndsAt: null,
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(
+          new Date().setMonth(new Date().getMonth() + 1),
+        ),
       },
     });
 
     return NextResponse.json(subscription);
   } catch (error) {
-    console.error("Error starting trial:", error);
+    console.error("Error upgrading subscription:", error);
     return NextResponse.json(
-      { error: "Failed to start trial" },
-      { status: 500 }
+      { error: "Failed to upgrade subscription" },
+      { status: 500 },
     );
   }
 }

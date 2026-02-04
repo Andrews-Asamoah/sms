@@ -1,64 +1,63 @@
-// lib/permissions/utils.ts - UPDATED for Better Auth Access Control
-import { auth } from "@/lib/auth";
-import type { ExtendedSession } from "@/lib/auth/types";
-import { getSchoolRole } from "@/lib/auth/school-access";
-
 /**
- * Navigation permissions interface
+ * ============================================================================
+ * NAVIGATION PERMISSIONS UTILITY - FIXED
+ * ============================================================================
+ *
+ * Determines what navigation items and pages a user can access based on their
+ * role in a specific school. Fixed to handle null values properly.
+ *
+ * ============================================================================
  */
-export interface NavPermissions {
-  canViewDashboard: boolean;
-  canViewAnalytics: boolean;
-  canManageStudents: boolean;
-  canManageTeachers: boolean;
-  canManageStaff: boolean;
-  canManageParents: boolean;
-  canManageClasses: boolean;
-  canManageSubjects: boolean;
-  canManageDepartments: boolean;
-  canManageHouses: boolean;
-  canManageGrading: boolean;
-  canViewReports: boolean;
-  canManageAttendance: boolean;
-  canManageAcademicYear: boolean;
-  canManageFinance: boolean;
-  canManageDocuments: boolean;
-  canViewTimetable: boolean;
-  canViewHostel: boolean;
-  canViewLibrary: boolean;
-  canViewInventory: boolean;
-  canViewTransport: boolean;
-  canManageAnnouncements: boolean;
-  canViewCommunications: boolean;
-  canViewProfile: boolean;
-  canManageSettings: boolean;
-  canViewSupport: boolean;
-}
+
+import type { ExtendedSession, NavPermissions } from "@/lib/auth/types";
+import { getSchoolRole } from "@/lib/auth/school-access";
+import { auth } from "../auth";
+
+// ============================================================================
+// MAIN PERMISSION FUNCTION
+// ============================================================================
 
 /**
  * Get navigation permissions for a user in a specific school
- * Uses Better Auth permission system + role-based fallback
+ *
+ * Priority order:
+ * 1. SuperAdmin gets all permissions
+ * 2. Organization role permissions (owner, admin, member)
+ * 3. Profile role permissions (teacher, student, etc.)
+ * 4. Better Auth explicit permissions (if configured)
+ *
+ * Permissions are merged using union (most permissive wins)
  */
 export async function getNavPermissions(
   session: ExtendedSession,
-  subdomain: string
+  subdomain: string,
 ): Promise<NavPermissions> {
   // SuperAdmin - all permissions
   if (session.isSuperAdmin) {
+    console.log(
+      `[Permissions] SuperAdmin ${session.user.email} - granting all permissions`,
+    );
     return getAllPermissions();
   }
 
   // Get user's access to this school
   const schoolAccess = getSchoolRole(session, subdomain);
+
   if (!schoolAccess) {
-    console.log(`No school access found for ${subdomain}`);
+    console.log(`[Permissions] No school access found for ${subdomain}`);
     return getNoPermissions();
   }
 
-  console.log(`Getting permissions for ${session.user.email} in ${subdomain}`);
-  console.log(`Effective role: ${schoolAccess.effectiveRole}`);
-  console.log(`Organization role: ${schoolAccess.organizationRole}`);
-  console.log(`Profile roles: ${schoolAccess.profileRoles.join(", ")}`);
+  console.log(
+    `[Permissions] Getting permissions for ${session.user.email} in ${subdomain}`,
+  );
+  console.log(`[Permissions] Effective role: ${schoolAccess.effectiveRole}`);
+  console.log(
+    `[Permissions] Organization role: ${schoolAccess.organizationRole ?? "none"}`,
+  );
+  console.log(
+    `[Permissions] Profile roles: ${schoolAccess.profileRoles.join(", ") || "none"}`,
+  );
 
   // Start with permissions based on effective role
   let permissions = getPermissionsByRole(schoolAccess.effectiveRole);
@@ -77,21 +76,28 @@ export async function getNavPermissions(
     });
 
     if (hasSchoolManage) {
-      // User has explicit school management permission
+      console.log(`[Permissions] User has explicit school:manage permission`);
       const adminPerms = getPermissionsByRole("admin");
       permissions = mergePermissions(permissions, adminPerms);
     }
   } catch (error) {
-    console.log("Could not check Better Auth permissions:", error);
+    console.log(
+      "[Permissions] Could not check Better Auth permissions:",
+      error,
+    );
     // Continue with role-based permissions
   }
 
   return permissions;
 }
 
+// ============================================================================
+// ROLE-BASED PERMISSIONS
+// ============================================================================
+
 /**
  * Get permissions for a single role
- * Maps to your Better Auth permission statements
+ * Maps to Better Auth permission statements
  */
 function getPermissionsByRole(role: string): NavPermissions {
   switch (role) {
@@ -308,17 +314,21 @@ function getPermissionsByRole(role: string): NavPermissions {
       };
 
     default:
-      console.warn(`Unknown role: ${role}`);
+      console.warn(`[Permissions] Unknown role: ${role}`);
       return getNoPermissions();
   }
 }
+
+// ============================================================================
+// PERMISSION MERGING
+// ============================================================================
 
 /**
  * Merge two permission sets (union - most permissive wins)
  */
 function mergePermissions(
   p1: NavPermissions,
-  p2: NavPermissions
+  p2: NavPermissions,
 ): NavPermissions {
   return {
     canViewDashboard: p1.canViewDashboard || p2.canViewDashboard,
@@ -350,6 +360,10 @@ function mergePermissions(
     canViewSupport: p1.canViewSupport || p2.canViewSupport,
   };
 }
+
+// ============================================================================
+// PERMISSION PRESETS
+// ============================================================================
 
 /**
  * All permissions granted
@@ -386,7 +400,7 @@ function getAllPermissions(): NavPermissions {
 }
 
 /**
- * No permissions granted
+ * No permissions granted (except profile view and support)
  */
 function getNoPermissions(): NavPermissions {
   return {
@@ -419,12 +433,16 @@ function getNoPermissions(): NavPermissions {
   };
 }
 
+// ============================================================================
+// BETTER AUTH PERMISSION HELPERS
+// ============================================================================
+
 /**
- * Check Better Auth permission (your permission system)
+ * Check Better Auth permission
  */
 export async function checkBetterAuthPermission(
   userId: string,
-  permissions: Record<string, string[]>
+  permissions: Record<string, string[]>,
 ): Promise<boolean> {
   try {
     const result = await auth.api.userHasPermission({
@@ -435,7 +453,7 @@ export async function checkBetterAuthPermission(
     });
     return !!result;
   } catch (error) {
-    console.error("Permission check error:", error);
+    console.error("[Permissions] Permission check error:", error);
     return false;
   }
 }
@@ -445,12 +463,12 @@ export async function checkBetterAuthPermission(
  */
 export async function checkMultiplePermissions(
   userId: string,
-  permissionsList: Array<Record<string, string[]>>
+  permissionsList: Array<Record<string, string[]>>,
 ): Promise<boolean[]> {
   const results = await Promise.all(
     permissionsList.map((permissions) =>
-      checkBetterAuthPermission(userId, permissions)
-    )
+      checkBetterAuthPermission(userId, permissions),
+    ),
   );
   return results;
 }

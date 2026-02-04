@@ -1,37 +1,9 @@
-/**
- * ============================================================================
- * BETTER AUTH CONFIGURATION
- * School Management System - Multi-tenant with Organization Plugin
- * ============================================================================
- *
- * Key Concepts:
- *
- * 1. USER ROLES (system-wide):
- *    - superAdmin: Can create/delete organizations, full system access
- *    - user: Default role for all other users
- *
- * 2. ORGANIZATION ROLES (per-school):
- *    - owner: Full control within their school (auto-assigned to creator)
- *    - admin: School administrator
- *    - member: Regular member (teacher, staff, etc.)
- *
- * 3. PROFILE ROLES (functional roles within a school):
- *    - teacher, student, guardian, accountant, staff
- *    - These are determined by UserProfile relationships
- *
- * Flow:
- * 1. SuperAdmin creates Organization → becomes owner
- * 2. Owner invites admin → admin accepts → becomes organization admin
- * 3. Admin creates teacher/student profiles → they become organization members
- *
- * ============================================================================
- */
+// lib/auth.ts - REFACTORED
 
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { organization, admin } from "better-auth/plugins";
 import prisma from "@/lib/prisma";
-import { headers } from "next/headers";
 import {
   ac,
   superAdmin,
@@ -41,7 +13,7 @@ import {
   student,
   guardian,
   user as userRole,
-} from "@/lib/permissions";
+} from "@/lib/auth/permissions";
 import {
   sendAdminInvitationEmail,
   sendPasswordResetEmail,
@@ -476,122 +448,30 @@ export const auth = betterAuth({
 });
 
 // ============================================================================
-// HELPER FUNCTIONS
+// HELPER FUNCTIONS - REFACTORED
+// These now delegate to the consolidated session and api modules
 // ============================================================================
+
+import { getSession } from "@/lib/auth/session";
+import { checkPermission as apiCheckPermission } from "@/lib/auth/api";
 
 /**
  * Get extended session with profile and organization data
- * This is the main session function used throughout the app
+ * @deprecated Use getSession from @/lib/auth/session instead
  */
 export async function getAuthSession() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) return null;
-
-  // Get user profile with all school relationships
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId: session.user.id },
-    include: {
-      student: {
-        include: {
-          school: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              subdomain: true,
-              organizationId: true,
-            },
-          },
-        },
-      },
-      teacher: {
-        include: {
-          school: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              subdomain: true,
-              organizationId: true,
-            },
-          },
-        },
-      },
-      staff: {
-        include: {
-          school: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              subdomain: true,
-              organizationId: true,
-            },
-          },
-        },
-      },
-      guardian: {
-        include: {
-          school: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              subdomain: true,
-              organizationId: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  // Get organization memberships
-  const memberships = await prisma.member.findMany({
-    where: { userId: session.user.id },
-    include: {
-      organization: {
-        include: {
-          school: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              subdomain: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return {
-    ...session,
-    profile,
-    memberships,
-    isSuperAdmin: session.user.role === "superAdmin",
-    isAdmin:
-      session.user.role === "admin" || session.user.role === "superAdmin",
-  };
+  return getSession();
 }
 
 /**
  * Check if user has specific permission
+ * @deprecated Use checkPermission from @/lib/auth/api instead
  */
 export async function checkPermission(
   userId: string,
   permissions: Record<string, string[]>,
 ) {
-  const result = await auth.api.userHasPermission({
-    body: {
-      userId,
-      permissions,
-    },
-  });
-  return result;
+  return apiCheckPermission(userId, permissions);
 }
 
 /**
@@ -600,7 +480,7 @@ export async function checkPermission(
 export async function checkCurrentUserPermission(
   permissions: Record<string, string[]>,
 ) {
-  const session = await getAuthSession();
+  const session = await getSession();
   if (!session) return false;
-  return checkPermission(session.user.id, permissions);
+  return apiCheckPermission(session.user.id, permissions);
 }

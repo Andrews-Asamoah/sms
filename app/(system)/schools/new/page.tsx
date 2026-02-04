@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
-import { getAuthSession } from "@/lib/auth";
+// app/(system)/schools/new/page.tsx
+
+import { requireSuperAdmin } from "@/lib/auth/session";
 import {
   Card,
   CardContent,
@@ -12,17 +13,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, School } from "lucide-react";
 
 export const metadata = {
-  title: "Create New School | School Management System",
+  title: "Create New School | SuperAdmin Dashboard",
   description: "Set up a new school organization with its configuration",
 };
 
 export default async function NewSchoolPage() {
-  const session = await getAuthSession();
-
-  // Only superAdmins can create schools
-  if (!session || session.user.role !== "superAdmin") {
-    redirect("/dashboard");
-  }
+  // Only superAdmins can create schools - auto-redirects if not
+  await requireSuperAdmin();
 
   return (
     <div className="container mx-auto py-10 px-4 sm:px-6 lg:px-8">
@@ -63,8 +60,8 @@ export default async function NewSchoolPage() {
                 10 teachers, 5 staff)
               </li>
               <li>
-                You can then add administrators and other members to manage the
-                school
+                You can then invite administrators and other members to manage
+                the school
               </li>
             </ul>
           </AlertDescription>
@@ -96,6 +93,7 @@ export default async function NewSchoolPage() {
           <CardContent>
             <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
               <li>Create the school by filling out the form above</li>
+              <li>Invite administrators to help manage the school</li>
               <li>Set up academic years and terms for the school calendar</li>
               <li>Create departments and classes for organizing students</li>
               <li>Add teachers and staff members to the school</li>

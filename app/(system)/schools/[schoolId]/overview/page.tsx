@@ -1,11 +1,10 @@
 // app/(system)/schools/[schoolId]/overview/page.tsx
 
 import { redirect, notFound } from "next/navigation";
-import { getAuthSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
 import { SchoolOverview } from "@/components/System/Schools/school-overview";
 import { SchoolInvitationsList } from "@/components/System/Schools/school-invitations-list";
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Shield } from "lucide-react";
 import { InviteAdminButton } from "@/components/System/Schools/invite-admin-button";
@@ -19,7 +18,7 @@ interface SchoolOverviewPageProps {
 export default async function SchoolOverviewPage({
   params,
 }: SchoolOverviewPageProps) {
-  const session = await getAuthSession();
+  const session = await getSession();
 
   if (!session) {
     redirect("/auth/login");
@@ -92,9 +91,9 @@ export default async function SchoolOverviewPage({
   }
 
   // Check permissions
-  const isSuperAdmin = session.user.role === "superAdmin";
+  const isSuperAdmin = session.isSuperAdmin;
   const isMember = school.organization.members.some(
-    (m) => m.userId === session.user.id
+    (m) => m.userId === session.user.id,
   );
 
   if (!isSuperAdmin && !isMember) {
@@ -103,12 +102,12 @@ export default async function SchoolOverviewPage({
 
   // Check if school needs administrators
   const nonSuperAdminMembers = school.organization.members.filter(
-    (m) => m.user.role !== "superAdmin"
+    (m) => m.user.role !== "superAdmin",
   );
   const hasNoAdmins = nonSuperAdminMembers.length === 0;
   const hasPendingInvitations = school.organization.invitations.length > 0;
 
-  // Serialize the school data to fix Decimal issue
+  // Serialize the school data to fix Decimal/Date issues
   const serializedSchool = JSON.parse(
     JSON.stringify(school, (key, value) => {
       // Convert Decimal to number
@@ -124,7 +123,7 @@ export default async function SchoolOverviewPage({
         return value.toISOString();
       }
       return value;
-    })
+    }),
   );
 
   return (

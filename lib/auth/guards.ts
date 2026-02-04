@@ -1,39 +1,22 @@
-// ============================================================
-// lib/auth/guards.ts - Route Guards
-// ============================================================
+// lib/auth/guards.ts - REFACTORED Route Guards
 
 import { redirect } from "next/navigation";
-import { getEnhancedSession } from "./session";
+import { getSession } from "./session";
 import { hasSchoolAccess } from "./school-access";
-import { auth } from "@/lib/auth";
+import { checkPermission } from "./api";
 import type { ExtendedSession } from "./types";
 
-/**
- * Require specific role access
- */
-export async function requireRole(
-  ...roles: string[]
-): Promise<ExtendedSession> {
-  const session = await getEnhancedSession();
-
-  if (!session) {
-    redirect("/auth/login");
-  }
-
-  if (!roles.includes(session.user.role)) {
-    redirect("/unauthorized");
-  }
-
-  return session;
-}
+// ============================================================================
+// SCHOOL ACCESS GUARD
+// ============================================================================
 
 /**
- * Require school access
+ * Require school access or redirect to unauthorized
  */
 export async function requireSchoolAccess(
-  subdomain: string
+  subdomain: string,
 ): Promise<ExtendedSession> {
-  const session = await getEnhancedSession();
+  const session = await getSession();
 
   if (!session) {
     redirect("/auth/login");
@@ -48,28 +31,36 @@ export async function requireSchoolAccess(
   return session;
 }
 
+// ============================================================================
+// PERMISSION GUARD
+// ============================================================================
+
 /**
- * Require specific permission (Better Auth)
+ * Require specific permission (Better Auth) or redirect to unauthorized
  */
 export async function requirePermission(
-  permissions: Record<string, string[]>
+  permissions: Record<string, string[]>,
 ): Promise<ExtendedSession> {
-  const session = await getEnhancedSession();
+  const session = await getSession();
 
   if (!session) {
     redirect("/auth/login");
   }
 
-  const result = await auth.api.userHasPermission({
-    body: {
-      userId: session.user.id,
-      permissions,
-    },
-  });
+  const hasPermission = await checkPermission(session.user.id, permissions);
 
-  if (!result) {
+  if (!hasPermission) {
     redirect("/unauthorized");
   }
 
   return session;
 }
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+export const Guards = {
+  requireSchoolAccess,
+  requirePermission,
+} as const;

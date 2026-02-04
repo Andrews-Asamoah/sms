@@ -1,12 +1,17 @@
 // app/api/schools/[schoolId]/subscription/cancel/route.ts
-import { getAuthSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import { RouteContext } from "@/app/api/schools/[schoolId]/subscription/upgrade/route";
+
+type RouteContext = {
+  params: Promise<{
+    schoolId: string;
+  }>;
+};
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const session = await getAuthSession();
+    const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -14,7 +19,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const params = await context.params;
     const { schoolId } = params;
 
-    // Check permissions
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
       include: {
@@ -37,7 +41,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const isSuperAdmin = session.user.role === "superAdmin";
     const isOwnerOrAdmin = school.organization.members.some(
-      (m) => m.role === "OWNER" || m.role === "ADMIN"
+      (m) => m.role === "owner" || m.role === "admin",
     );
 
     if (!isSuperAdmin && !isOwnerOrAdmin) {
@@ -47,11 +51,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!school.subscription) {
       return NextResponse.json(
         { error: "No active subscription" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Update subscription to cancel at period end
     const subscription = await prisma.subscription.update({
       where: { schoolId },
       data: {
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     console.error("Error canceling subscription:", error);
     return NextResponse.json(
       { error: "Failed to cancel subscription" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

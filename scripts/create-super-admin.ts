@@ -422,7 +422,7 @@ async function main() {
     // SuperAdmin credentials
     // TODO: In production, load these from environment variables or secure input
     const superAdminData: SuperAdminInput = {
-      email: process.env.SUPERADMIN_EMAIL || "superadmin@sms.com",
+      email: process.env.SUPERADMIN_EMAIL || "kasamoah715@gmail.com",
       password: process.env.SUPERADMIN_PASSWORD || "SuperAdmin@2025!",
       firstName: process.env.SUPERADMIN_FIRST_NAME || "System",
       lastName: process.env.SUPERADMIN_LAST_NAME || "Administrator",

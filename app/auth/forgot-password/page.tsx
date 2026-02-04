@@ -1,4 +1,14 @@
-// app/auth/forgot-password/page.tsx
+// app/auth/forgot-password/page.tsx - REFACTORED
+/**
+ * ============================================================================
+ * FORGOT PASSWORD PAGE - REFACTORED
+ * ============================================================================
+ *
+ * Simplified using Better Auth's native password reset functionality.
+ * No need for custom email sending - Better Auth handles it.
+ * ============================================================================
+ */
+
 "use client";
 
 import { useState } from "react";
@@ -29,10 +39,10 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
-import { requestPasswordReset } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 
 // ============================================================================
-// FORM VALIDATION SCHEMA
+// VALIDATION SCHEMA
 // ============================================================================
 
 const forgotPasswordSchema = z.object({
@@ -64,7 +74,7 @@ export default function ForgotPasswordPage() {
   });
 
   // ============================================================================
-  // FORM SUBMISSION HANDLER
+  // FORM SUBMISSION
   // ============================================================================
 
   const onSubmit = async (data: ForgotPasswordFormValues) => {
@@ -72,27 +82,23 @@ export default function ForgotPasswordPage() {
     setSuccess(false);
 
     try {
-      // Use Better Auth's native requestPasswordReset method
-      const { error: authError } = await requestPasswordReset({
+      const { error: authError } = await authClient.requestPasswordReset({
         email: data.email,
         redirectTo: "/auth/reset-password",
       });
 
-      // Handle any errors
       if (authError) {
         throw new Error(authError.message);
       }
 
-      // Show success message
-      // Note: Better Auth doesn't reveal if email exists (security best practice)
       setSuccess(true);
     } catch (err) {
       console.error("[ForgotPassword] Error:", err);
-      const errorMessage =
+      setError(
         err instanceof Error
           ? err.message
-          : "Failed to send reset email. Please try again.";
-      setError(errorMessage);
+          : "Failed to send reset email. Please try again.",
+      );
     }
   };
 
@@ -119,14 +125,56 @@ export default function ForgotPasswordPage() {
         {success ? (
           <SuccessView onTryAgain={() => setSuccess(false)} />
         ) : (
-          <ForgotPasswordForm
-            register={register}
-            handleSubmit={handleSubmit}
-            onSubmit={onSubmit}
-            errors={errors}
-            error={error}
-            isSubmitting={isSubmitting}
-          />
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <FieldGroup>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <Field data-invalid={!!errors.email}>
+                <FieldLabel htmlFor="email">Email Address</FieldLabel>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    {...register("email")}
+                    id="email"
+                    type="email"
+                    placeholder="you@school.edu"
+                    className="pl-10"
+                    disabled={isSubmitting}
+                    autoComplete="email"
+                  />
+                </div>
+                <FieldError errors={[errors.email]} />
+              </Field>
+
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>Send Reset Link</>
+                )}
+              </Button>
+
+              <Button asChild variant="ghost" className="w-full">
+                <Link href="/auth/login">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Login
+                </Link>
+              </Button>
+            </FieldGroup>
+          </form>
         )}
       </CardContent>
     </Card>
@@ -134,7 +182,7 @@ export default function ForgotPasswordPage() {
 }
 
 // ============================================================================
-// SUCCESS VIEW COMPONENT
+// SUCCESS VIEW
 // ============================================================================
 
 function SuccessView({ onTryAgain }: { onTryAgain: () => void }) {
@@ -167,89 +215,5 @@ function SuccessView({ onTryAgain }: { onTryAgain: () => void }) {
         </Button>
       </div>
     </div>
-  );
-}
-
-// ============================================================================
-// FORM COMPONENT
-// ============================================================================
-
-interface ForgotPasswordFormProps {
-  register: ReturnType<typeof useForm<ForgotPasswordFormValues>>["register"];
-  handleSubmit: ReturnType<
-    typeof useForm<ForgotPasswordFormValues>
-  >["handleSubmit"];
-  onSubmit: (data: ForgotPasswordFormValues) => Promise<void>;
-  errors: ReturnType<
-    typeof useForm<ForgotPasswordFormValues>
-  >["formState"]["errors"];
-  error: string;
-  isSubmitting: boolean;
-}
-
-function ForgotPasswordForm({
-  register,
-  handleSubmit,
-  onSubmit,
-  errors,
-  error,
-  isSubmitting,
-}: ForgotPasswordFormProps) {
-  return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <FieldGroup>
-        {/* Error Alert */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Email Field */}
-        <Field data-invalid={!!errors.email}>
-          <FieldLabel htmlFor="email">Email Address</FieldLabel>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              {...register("email")}
-              id="email"
-              type="email"
-              placeholder="you@school.edu"
-              className="pl-10"
-              disabled={isSubmitting}
-              aria-invalid={!!errors.email}
-              autoComplete="email"
-            />
-          </div>
-          <FieldError errors={[errors.email]} />
-        </Field>
-
-        {/* Submit Button */}
-        <Button
-          type="submit"
-          className="w-full bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-          size="lg"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Sending...
-            </>
-          ) : (
-            <>Send Reset Link</>
-          )}
-        </Button>
-
-        {/* Back to Login */}
-        <Button asChild variant="ghost" className="w-full">
-          <Link href="/auth/login">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Login
-          </Link>
-        </Button>
-      </FieldGroup>
-    </form>
   );
 }

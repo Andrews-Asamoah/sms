@@ -1,4 +1,13 @@
-// app/auth/reset-password/page.tsx
+// app/auth/reset-password/page.tsx - REFACTORED
+/**
+ * ============================================================================
+ * RESET PASSWORD PAGE - REFACTORED
+ * ============================================================================
+ *
+ * Simplified using Better Auth's native password reset functionality.
+ * ============================================================================
+ */
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -31,33 +40,17 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
-import { resetPassword } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 
 // ============================================================================
-// CONSTANTS
-// ============================================================================
-
-const PASSWORD_REQUIREMENTS = {
-  minLength: 8,
-  requireUppercase: true,
-  requireLowercase: true,
-  requireNumber: true,
-} as const;
-
-const REDIRECT_DELAY = 2000; // 2 seconds
-
-// ============================================================================
-// FORM VALIDATION SCHEMA
+// VALIDATION SCHEMA
 // ============================================================================
 
 const resetPasswordSchema = z
   .object({
     password: z
       .string()
-      .min(
-        PASSWORD_REQUIREMENTS.minLength,
-        `Password must be at least ${PASSWORD_REQUIREMENTS.minLength} characters`,
-      )
+      .min(8, "Password must be at least 8 characters")
       .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
@@ -78,11 +71,9 @@ export default function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Extract token and error from URL
   const token = searchParams.get("token");
   const urlError = searchParams.get("error");
 
-  // Component state
   const [localError, setLocalError] = useState("");
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -94,17 +85,9 @@ export default function ResetPasswordPage() {
     formState: { errors, isSubmitting },
   } = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
-    defaultValues: {
-      password: "",
-      confirmPassword: "",
-    },
   });
 
-  // ============================================================================
-  // EFFECTS
-  // ============================================================================
-
-  // Handle URL error parameter
+  // Handle URL error
   useEffect(() => {
     if (urlError) {
       setLocalError(
@@ -115,7 +98,7 @@ export default function ResetPasswordPage() {
   }, [urlError]);
 
   // ============================================================================
-  // FORM SUBMISSION HANDLER
+  // FORM SUBMISSION
   // ============================================================================
 
   const onSubmit = async (data: ResetPasswordFormValues) => {
@@ -128,8 +111,7 @@ export default function ResetPasswordPage() {
     setSuccess(false);
 
     try {
-      // Use Better Auth's native resetPassword method
-      const { error: authError } = await resetPassword({
+      const { error: authError } = await authClient.resetPassword({
         newPassword: data.password,
         token,
       });
@@ -140,17 +122,17 @@ export default function ResetPasswordPage() {
 
       setSuccess(true);
 
-      // Redirect to login after delay
+      // Redirect to login after 2 seconds
       setTimeout(() => {
         router.push("/auth/login?message=password-reset-success");
-      }, REDIRECT_DELAY);
+      }, 2000);
     } catch (err) {
       console.error("[ResetPassword] Error:", err);
-      const errorMessage =
+      setLocalError(
         err instanceof Error
           ? err.message
-          : "Failed to reset password. The link may have expired. Please request a new one.";
-      setLocalError(errorMessage);
+          : "Failed to reset password. The link may have expired.",
+      );
     }
   };
 
@@ -158,7 +140,6 @@ export default function ResetPasswordPage() {
   // RENDER GUARDS
   // ============================================================================
 
-  // Show error if no token
   if (!token && !urlError) {
     return <InvalidTokenCard />;
   }
@@ -183,19 +164,68 @@ export default function ResetPasswordPage() {
         {success ? (
           <SuccessView />
         ) : (
-          <ResetPasswordForm
-            register={register}
-            handleSubmit={handleSubmit}
-            onSubmit={onSubmit}
-            errors={errors}
-            localError={localError}
-            urlError={urlError}
-            isSubmitting={isSubmitting}
-            showPassword={showPassword}
-            showConfirmPassword={showConfirmPassword}
-            setShowPassword={setShowPassword}
-            setShowConfirmPassword={setShowConfirmPassword}
-          />
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <FieldGroup>
+              {(localError || urlError) && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {localError ||
+                      (urlError ? decodeURIComponent(urlError) : "")}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <PasswordField
+                id="password"
+                label="New Password"
+                placeholder="Create a strong password"
+                register={register("password")}
+                error={errors.password}
+                isSubmitting={isSubmitting}
+                showPassword={showPassword}
+                onToggleVisibility={() => setShowPassword(!showPassword)}
+              />
+
+              <PasswordField
+                id="confirmPassword"
+                label="Confirm Password"
+                placeholder="Re-enter your password"
+                register={register("confirmPassword")}
+                error={errors.confirmPassword}
+                isSubmitting={isSubmitting}
+                showPassword={showConfirmPassword}
+                onToggleVisibility={() =>
+                  setShowConfirmPassword(!showConfirmPassword)
+                }
+              />
+
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>Reset Password</>
+                )}
+              </Button>
+
+              <div className="text-center">
+                <Link
+                  href="/auth/login"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Back to Login
+                </Link>
+              </div>
+            </FieldGroup>
+          </form>
         )}
       </CardContent>
     </Card>
@@ -203,12 +233,12 @@ export default function ResetPasswordPage() {
 }
 
 // ============================================================================
-// INVALID TOKEN CARD COMPONENT
+// HELPER COMPONENTS
 // ============================================================================
 
 function InvalidTokenCard() {
   return (
-    <Card className="w-full max-w-md backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 shadow-2xl">
+    <Card className="w-full max-w-md">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">Invalid Reset Link</CardTitle>
         <CardDescription>
@@ -224,131 +254,16 @@ function InvalidTokenCard() {
   );
 }
 
-// ============================================================================
-// SUCCESS VIEW COMPONENT
-// ============================================================================
-
 function SuccessView() {
   return (
-    <div className="space-y-4">
-      <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
-        <CheckCircle2 className="h-4 w-4 text-green-600" />
-        <AlertDescription className="text-green-800 dark:text-green-200">
-          Password reset successfully! Redirecting to login...
-        </AlertDescription>
-      </Alert>
-    </div>
+    <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+      <CheckCircle2 className="h-4 w-4 text-green-600" />
+      <AlertDescription className="text-green-800 dark:text-green-200">
+        Password reset successfully! Redirecting to login...
+      </AlertDescription>
+    </Alert>
   );
 }
-
-// ============================================================================
-// FORM COMPONENT
-// ============================================================================
-
-interface ResetPasswordFormProps {
-  register: ReturnType<typeof useForm<ResetPasswordFormValues>>["register"];
-  handleSubmit: ReturnType<
-    typeof useForm<ResetPasswordFormValues>
-  >["handleSubmit"];
-  onSubmit: (data: ResetPasswordFormValues) => Promise<void>;
-  errors: ReturnType<
-    typeof useForm<ResetPasswordFormValues>
-  >["formState"]["errors"];
-  localError: string;
-  urlError: string | null;
-  isSubmitting: boolean;
-  showPassword: boolean;
-  showConfirmPassword: boolean;
-  setShowPassword: (show: boolean) => void;
-  setShowConfirmPassword: (show: boolean) => void;
-}
-
-function ResetPasswordForm({
-  register,
-  handleSubmit,
-  onSubmit,
-  errors,
-  localError,
-  urlError,
-  isSubmitting,
-  showPassword,
-  showConfirmPassword,
-  setShowPassword,
-  setShowConfirmPassword,
-}: ResetPasswordFormProps) {
-  return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <FieldGroup>
-        {/* Error Alert */}
-        {(localError || urlError) && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {localError || (urlError ? decodeURIComponent(urlError) : "")}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Password Field */}
-        <PasswordField
-          id="password"
-          label="New Password"
-          placeholder="Create a strong password"
-          register={register("password")}
-          error={errors.password}
-          isSubmitting={isSubmitting}
-          showPassword={showPassword}
-          onToggleVisibility={() => setShowPassword(!showPassword)}
-        />
-
-        {/* Confirm Password Field */}
-        <PasswordField
-          id="confirmPassword"
-          label="Confirm Password"
-          placeholder="Re-enter your password"
-          register={register("confirmPassword")}
-          error={errors.confirmPassword}
-          isSubmitting={isSubmitting}
-          showPassword={showConfirmPassword}
-          onToggleVisibility={() =>
-            setShowConfirmPassword(!showConfirmPassword)
-          }
-        />
-
-        {/* Submit Button */}
-        <Button
-          type="submit"
-          className="w-full bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-          size="lg"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Resetting...
-            </>
-          ) : (
-            <>Reset Password</>
-          )}
-        </Button>
-
-        {/* Back to Login */}
-        <div className="text-center">
-          <Link
-            href="/auth/login"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Back to Login
-          </Link>
-        </div>
-      </FieldGroup>
-    </form>
-  );
-}
-
-// ============================================================================
-// PASSWORD FIELD COMPONENT (DRY)
-// ============================================================================
 
 interface PasswordFieldProps {
   id: string;
@@ -383,15 +298,13 @@ function PasswordField({
           placeholder={placeholder}
           className="pl-10 pr-10"
           disabled={isSubmitting}
-          aria-invalid={!!error}
         />
         <button
           type="button"
           onClick={onToggleVisibility}
-          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
           disabled={isSubmitting}
           tabIndex={-1}
-          aria-label={showPassword ? "Hide password" : "Show password"}
         >
           {showPassword ? (
             <EyeOff className="h-5 w-5" />

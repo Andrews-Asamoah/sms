@@ -1,350 +1,345 @@
-/**
- * ============================================================================
- * AUTHENTICATION UTILITIES
- * ============================================================================
- *
- * Helper functions for authentication, session management, and route protection.
- * These utilities work with Better Auth's session system.
- *
- * ============================================================================
- */
+// lib/auth/utils.ts - Consolidated Auth Utilities
 
-import { getAuthSession } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import type { ExtendedSession } from "@/lib/auth/types";
+import type { ExtendedSession, EffectiveRole, ProfileRoleType } from "./types";
 
 // ============================================================================
-// SESSION HELPERS
+// CONSTANTS
+// ============================================================================
+
+export type RoleName =
+  | "superAdmin"
+  | "owner"
+  | "admin"
+  | "teacher"
+  | "accountant"
+  | "student"
+  | "guardian"
+  | "staff"
+  | "user";
+
+export const ROLES: readonly RoleName[] = [
+  "superAdmin",
+  "owner",
+  "admin",
+  "teacher",
+  "accountant",
+  "student",
+  "guardian",
+  "staff",
+  "user",
+] as const;
+
+export const ROLE_DISPLAY_NAMES: Record<RoleName, string> = {
+  superAdmin: "Super Administrator",
+  owner: "School Owner",
+  admin: "Administrator",
+  teacher: "Teacher",
+  accountant: "Accountant",
+  student: "Student",
+  guardian: "Parent/Guardian",
+  staff: "Staff",
+  user: "User",
+} as const;
+
+export const ROLE_DESCRIPTIONS: Record<RoleName, string> = {
+  superAdmin: "Full platform access and school creation",
+  owner: "Full access to their school",
+  admin: "Day-to-day school operations management",
+  teacher: "Classroom management and student assessment",
+  accountant: "Financial management and reporting",
+  student: "View own academic information",
+  guardian: "View children's information and make payments",
+  staff: "Department-specific access",
+  user: "Basic authenticated user",
+} as const;
+
+// ============================================================================
+// VALIDATION HELPERS
 // ============================================================================
 
 /**
- * Get current session or redirect to login
- * Use this in server components that require authentication
+ * Validate organization slug format
+ * Rules: lowercase alphanumeric + hyphens, 3-20 chars, no leading/trailing hyphens
  */
-export async function requireAuth(callbackUrl?: string) {
-  const session = await getAuthSession();
-
-  if (!session) {
-    const returnUrl = callbackUrl || "/";
-    redirect(`/auth/login?callbackUrl=${encodeURIComponent(returnUrl)}`);
-  }
-
-  return session;
-}
-
-/**
- * Require SuperAdmin role or redirect
- */
-export async function requireSuperAdmin(callbackUrl?: string) {
-  const session = await requireAuth(callbackUrl);
-
-  if (!session.isSuperAdmin) {
-    redirect("/unauthorized");
-  }
-
-  return session;
-}
-
-/**
- * Require organization membership
- */
-export async function requireOrganization(
-  organizationId: string,
-  callbackUrl?: string,
-) {
-  const session = await requireAuth(callbackUrl);
-
-  // SuperAdmin has access to all organizations
-  if (session.isSuperAdmin) {
-    return session;
-  }
-
-  // Check if user is a member of the organization
-  const isMember = session.memberships.some(
-    (m) => m.organizationId === organizationId,
+export function isValidSlug(slug: string): boolean {
+  const slugRegex = /^[a-z0-9-]+$/;
+  return (
+    slugRegex.test(slug) &&
+    !slug.startsWith("-") &&
+    !slug.endsWith("-") &&
+    slug.length >= 3 &&
+    slug.length <= 20
   );
-
-  if (!isMember) {
-    redirect("/unauthorized");
-  }
-
-  return session;
 }
 
 /**
- * Require specific role in organization
+ * Generate a URL-safe slug from a name
  */
-export async function requireOrganizationRole(
-  organizationId: string,
-  allowedRoles: ("owner" | "admin" | "member")[],
-  callbackUrl?: string,
-) {
-  const session = await requireOrganization(organizationId, callbackUrl);
+export function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .substring(0, 20);
+}
 
-  // SuperAdmin bypasses role checks
-  if (session.isSuperAdmin) {
-    return session;
-  }
-
-  const membership = session.memberships.find(
-    (m) => m.organizationId === organizationId,
-  );
-
-  if (!membership || !allowedRoles.includes(membership.role)) {
-    redirect("/unauthorized");
-  }
-
-  return session;
+/**
+ * Generate a school code from name (abbreviation)
+ */
+export function generateSchoolCode(name: string): string {
+  return name
+    .split(" ")
+    .map((word) => word.charAt(0))
+    .join("")
+    .toUpperCase()
+    .substring(0, 10);
 }
 
 // ============================================================================
-// ROUTE HELPERS
+// ERROR HANDLING
 // ============================================================================
 
-/**
- * Get default dashboard route for user
- */
-export function getDefaultDashboardRoute(
-  session: NonNullable<Awaited<ReturnType<typeof getAuthSession>>>,
-): string {
-  // SuperAdmin → SuperAdmin dashboard
-  if (session.isSuperAdmin) {
-    return "/superadmin";
-  }
+export interface AuthError {
+  message: string;
+  status: number;
+  code?: string;
+}
 
-  // User with memberships → first school's dashboard
-  if (session.memberships.length > 0) {
-    const firstSchool = session.memberships[0].organization.school;
-    if (firstSchool?.subdomain) {
-      return `/${firstSchool.subdomain}/dashboard`;
+/**
+ * Standardized error handler for Better Auth errors
+ */
+export function handleAuthError(error: unknown): AuthError {
+  if (error instanceof Error) {
+    // Better Auth specific errors
+    if (error.message.includes("not allowed to create organization")) {
+      return {
+        message: "You don't have permission to create organizations",
+        status: 403,
+        code: "FORBIDDEN",
+      };
     }
+
+    if (error.message.includes("not authenticated")) {
+      return {
+        message: "You must be logged in to perform this action",
+        status: 401,
+        code: "UNAUTHORIZED",
+      };
+    }
+
+    if (error.message.includes("organization not found")) {
+      return {
+        message: "Organization not found",
+        status: 404,
+        code: "NOT_FOUND",
+      };
+    }
+
+    if (error.message.includes("already exists")) {
+      return {
+        message: "Resource already exists",
+        status: 409,
+        code: "CONFLICT",
+      };
+    }
+
+    // Generic error
+    return {
+      message: error.message,
+      status: 500,
+      code: "INTERNAL_ERROR",
+    };
   }
 
-  // User with profile roles → appropriate dashboard
+  return {
+    message: "An unknown error occurred",
+    status: 500,
+    code: "UNKNOWN_ERROR",
+  };
+}
+
+// ============================================================================
+// ROLE UTILITIES
+// ============================================================================
+
+/**
+ * Get display name for a role
+ */
+export function getRoleDisplayName(role: RoleName): string {
+  return ROLE_DISPLAY_NAMES[role] || role;
+}
+
+/**
+ * Get description for a role
+ */
+export function getRoleDescription(role: RoleName): string {
+  return ROLE_DESCRIPTIONS[role] || "No description available";
+}
+
+/**
+ * Check if a role has higher or equal priority than another
+ */
+export function hasHigherOrEqualRole(
+  userRole: RoleName,
+  requiredRole: RoleName,
+): boolean {
+  const roleIndex = ROLES.indexOf(userRole);
+  const requiredIndex = ROLES.indexOf(requiredRole);
+  return roleIndex <= requiredIndex;
+}
+
+/**
+ * Check if user is a super admin
+ */
+export function isSuperAdmin(session: ExtendedSession | null): boolean {
+  return session?.isSuperAdmin ?? false;
+}
+
+/**
+ * Check if user is an admin (owner or admin role in any school)
+ */
+export function isAdmin(session: ExtendedSession | null): boolean {
+  return session?.isAdmin ?? false;
+}
+
+// ============================================================================
+// SESSION UTILITIES
+// ============================================================================
+
+/**
+ * Check if user has a valid session
+ */
+export function hasValidSession(session: ExtendedSession | null): boolean {
+  return !!session?.user;
+}
+
+/**
+ * Check if user's email is verified
+ */
+export function isEmailVerified(session: ExtendedSession | null): boolean {
+  return session?.user?.emailVerified ?? false;
+}
+
+/**
+ * Check if user is banned
+ */
+export function isBanned(session: ExtendedSession | null): boolean {
+  return session?.user?.banned ?? false;
+}
+
+/**
+ * Get ban expiry date if user is banned
+ */
+export function getBanExpiry(session: ExtendedSession | null): Date | null {
+  if (!session?.user?.banned) return null;
+  return session.user.banExpires;
+}
+
+// ============================================================================
+// TYPE GUARDS
+// ============================================================================
+
+/**
+ * Type guard to check if a string is a valid RoleName
+ */
+export function isValidRoleName(role: string): role is RoleName {
+  return ROLES.includes(role as RoleName);
+}
+
+/**
+ * Type guard to check if a string is a valid EffectiveRole
+ */
+export function isEffectiveRole(role: string): role is EffectiveRole {
+  const effectiveRoles: EffectiveRole[] = [
+    "owner",
+    "admin",
+    "teacher",
+    "accountant",
+    "staff",
+    "student",
+    "guardian",
+    "member",
+  ];
+  return effectiveRoles.includes(role as EffectiveRole);
+}
+
+/**
+ * Type guard to check if a string is a valid ProfileRoleType
+ */
+export function isProfileRole(role: string): role is ProfileRoleType {
+  const profileRoles: ProfileRoleType[] = [
+    "teacher",
+    "student",
+    "guardian",
+    "accountant",
+    "staff",
+  ];
+  return profileRoles.includes(role as ProfileRoleType);
+}
+
+// ============================================================================
+// FORMATTING UTILITIES
+// ============================================================================
+
+/**
+ * Format user's full name from session
+ */
+export function getFullName(session: ExtendedSession | null): string {
+  if (!session?.user) return "Unknown User";
+
   if (session.profile) {
-    // Student
-    if (session.profile.student?.school?.subdomain) {
-      return `/${session.profile.student.school.subdomain}/dashboard`;
-    }
-
-    // Teacher
-    if (session.profile.teacher?.school?.subdomain) {
-      return `/${session.profile.teacher.school.subdomain}/dashboard`;
-    }
-
-    // Guardian
-    if (session.profile.guardian?.school?.subdomain) {
-      return `/${session.profile.guardian.school.subdomain}/dashboard`;
-    }
-
-    // Staff
-    if (session.profile.staff?.school?.subdomain) {
-      return `/${session.profile.staff.school.subdomain}/dashboard`;
-    }
+    const { firstName, lastName, otherNames } = session.profile;
+    return [firstName, otherNames, lastName].filter(Boolean).join(" ");
   }
 
-  // Fallback
-  return "/account/setup";
+  return session.user.name || session.user.email;
 }
 
 /**
- * Get school subdomain from session
+ * Format user's initials
  */
-export function getSchoolSubdomain(
-  session: NonNullable<Awaited<ReturnType<typeof getAuthSession>>>,
-): string | null {
-  // From memberships
-  if (session.memberships.length > 0) {
-    return session.memberships[0].organization.school?.subdomain || null;
-  }
-
-  // From profile
-  if (session.profile) {
-    return (
-      session.profile.student?.school?.subdomain ||
-      session.profile.teacher?.school?.subdomain ||
-      session.profile.guardian?.school?.subdomain ||
-      session.profile.staff?.school?.subdomain ||
-      null
-    );
-  }
-
-  return null;
-}
-
-/**
- * Get all schools user has access to
- */
-export function getUserSchools(
-  session: NonNullable<Awaited<ReturnType<typeof getAuthSession>>>,
-) {
-  const schools: Array<{
-    id: string;
-    name: string;
-    subdomain: string;
-    organizationId: string;
-    role: string;
-  }> = [];
-
-  // From memberships
-  for (const membership of session.memberships) {
-    if (membership.organization.school) {
-      schools.push({
-        id: membership.organization.school.id,
-        name: membership.organization.school.name,
-        subdomain: membership.organization.school.subdomain,
-        organizationId: membership.organizationId,
-        role: membership.role,
-      });
-    }
-  }
-
-  // From profile (if not already in memberships)
-  if (session.profile) {
-    const profileSchools = [
-      session.profile.student?.school,
-      session.profile.teacher?.school,
-      session.profile.guardian?.school,
-      session.profile.staff?.school,
-    ].filter((s) => s && !schools.some((school) => school.id === s.id));
-
-    for (const school of profileSchools) {
-      if (school) {
-        schools.push({
-          id: school.id,
-          name: school.name,
-          subdomain: school.subdomain,
-          organizationId: school.organizationId,
-          role: "member", // Default role for profile-based access
-        });
-      }
-    }
-  }
-
-  return schools;
+export function getInitials(session: ExtendedSession | null): string {
+  const name = getFullName(session);
+  return name
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join("");
 }
 
 // ============================================================================
-// PERMISSION HELPERS
+// EXPORT ALL
 // ============================================================================
 
-/**
- * Check if user is SuperAdmin
- */
-export async function isSuperAdmin(): Promise<boolean> {
-  const session = await getAuthSession();
-  return session?.isSuperAdmin || false;
-}
+export const AuthUtils = {
+  // Validation
+  isValidSlug,
+  generateSlug,
+  generateSchoolCode,
 
-/**
- * Check if user is organization owner
- */
-export async function isOrganizationOwner(
-  organizationId: string,
-): Promise<boolean> {
-  const session = await getAuthSession();
+  // Error handling
+  handleAuthError,
 
-  if (!session) return false;
-  if (session.isSuperAdmin) return true;
+  // Role utilities
+  getRoleDisplayName,
+  getRoleDescription,
+  hasHigherOrEqualRole,
+  isSuperAdmin,
+  isAdmin,
 
-  return session.memberships.some(
-    (m) => m.organizationId === organizationId && m.role === "owner",
-  );
-}
+  // Session utilities
+  hasValidSession,
+  isEmailVerified,
+  isBanned,
+  getBanExpiry,
 
-/**
- * Check if user is organization admin or owner
- */
-export async function isOrganizationAdmin(
-  organizationId: string,
-): Promise<boolean> {
-  const session = await getAuthSession();
+  // Type guards
+  isValidRoleName,
+  isEffectiveRole,
+  isProfileRole,
 
-  if (!session) return false;
-  if (session.isSuperAdmin) return true;
-
-  return session.memberships.some(
-    (m) =>
-      m.organizationId === organizationId &&
-      (m.role === "owner" || m.role === "admin"),
-  );
-}
-
-/**
- * Get user's role in organization
- */
-export async function getOrganizationRole(
-  organizationId: string,
-): Promise<"owner" | "admin" | "member" | null> {
-  const session = await getAuthSession();
-
-  if (!session) return null;
-  if (session.isSuperAdmin) return "owner"; // SuperAdmin acts as owner
-
-  const membership = session.memberships.find(
-    (m) => m.organizationId === organizationId,
-  );
-
-  return membership?.role || null;
-}
-
-// ============================================================================
-// PROFILE HELPERS
-// ============================================================================
-
-/**
- * Get user's profile type
- */
-export function getProfileType(
-  session: NonNullable<Awaited<ReturnType<typeof getAuthSession>>>,
-): "student" | "teacher" | "guardian" | "staff" | null {
-  if (!session.profile) return null;
-
-  if (session.profile.student) return "student";
-  if (session.profile.teacher) return "teacher";
-  if (session.profile.guardian) return "guardian";
-  if (session.profile.staff) return "staff";
-
-  return null;
-}
-
-/**
- * Check if user has specific profile type
- */
-export async function hasProfileType(
-  type: "student" | "teacher" | "guardian" | "staff",
-): Promise<boolean> {
-  const session = await getAuthSession();
-  if (!session?.profile) return false;
-
-  return !!session.profile[type];
-}
-
-// ============================================================================
-// URL HELPERS
-// ============================================================================
-
-/**
- * Build school URL
- */
-export function buildSchoolUrl(subdomain: string, path: string = ""): string {
-  const basePath = `/${subdomain}`;
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  return `${basePath}${cleanPath}`;
-}
-
-/**
- * Get login URL with callback
- */
-export function getLoginUrl(callbackUrl?: string): string {
-  if (!callbackUrl) return "/auth/login";
-  return `/auth/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
-}
-
-/**
- * Get signup URL with callback
- */
-export function getSignupUrl(callbackUrl?: string): string {
-  if (!callbackUrl) return "/auth/signup";
-  return `/auth/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`;
-}
+  // Formatting
+  getFullName,
+  getInitials,
+} as const;

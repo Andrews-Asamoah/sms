@@ -1,6 +1,7 @@
 // app/(system)/schools/[schoolId]/settings/page.tsx
-import { redirect, notFound } from "next/navigation";
-import { getAuthSession } from "@/lib/auth";
+
+import { notFound } from "next/navigation";
+import { requireSuperAdmin } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
 import {
   Card,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { EditSchoolForm } from "@/components/forms/edit-school-form";
 import { DeleteSchoolDialog } from "@/components/System/Schools/delete-school-dialog";
+
 interface SchoolSettingsPageProps {
   params: Promise<{
     schoolId: string;
@@ -20,12 +22,8 @@ interface SchoolSettingsPageProps {
 export default async function SchoolSettingsPage({
   params,
 }: SchoolSettingsPageProps) {
-  const session = await getAuthSession();
-
   // Only superAdmins can edit schools
-  if (!session || session.user.role !== "superAdmin") {
-    redirect("/dashboard");
-  }
+  await requireSuperAdmin();
 
   const { schoolId } = await params;
 

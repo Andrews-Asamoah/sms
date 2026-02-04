@@ -40,7 +40,7 @@ const formSchema = z.object({
     .max(20, "Subdomain must not exceed 20 characters")
     .regex(
       /^[a-z0-9-]+$/,
-      "Only lowercase letters, numbers, and hyphens allowed"
+      "Only lowercase letters, numbers, and hyphens allowed",
     )
     .refine((val) => !val.startsWith("-") && !val.endsWith("-"), {
       message: "Subdomain cannot start or end with a hyphen",
@@ -150,7 +150,7 @@ export function CreateSchoolForm() {
 
       try {
         const response = await fetch(
-          `/api/schools/check-availability?code=${encodeURIComponent(code)}`
+          `/api/schools/check-availability?code=${encodeURIComponent(code)}`,
         );
         const data = await response.json();
 
@@ -191,7 +191,7 @@ export function CreateSchoolForm() {
 
       try {
         const response = await fetch(
-          `/api/schools/check-availability?subdomain=${encodeURIComponent(subdomain)}`
+          `/api/schools/check-availability?subdomain=${encodeURIComponent(subdomain)}`,
         );
         const data = await response.json();
 
@@ -252,7 +252,7 @@ export function CreateSchoolForm() {
       });
 
       // Redirect to the school dashboard
-      router.push(`/schools/${result.data.id}`);
+      router.push(`/schools/${result.data.id}/overview`);
       router.refresh();
     } catch (error) {
       console.error("Error creating school:", error);
