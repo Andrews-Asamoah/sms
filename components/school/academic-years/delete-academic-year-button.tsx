@@ -21,7 +21,7 @@ import { toast } from "sonner";
 interface DeleteAcademicYearButtonProps {
   yearId: string;
   yearName: string;
-  schoolSlug: string;
+  schoolSlug: string; // Changed from schoolId
   hasClasses: boolean;
   hasEnrollments: boolean;
   isGlobal: boolean;
@@ -30,7 +30,7 @@ interface DeleteAcademicYearButtonProps {
 export function DeleteAcademicYearButton({
   yearId,
   yearName,
-  schoolSlug,
+  schoolSlug, // Changed from schoolId
   hasClasses,
   hasEnrollments,
   isGlobal,
@@ -48,10 +48,10 @@ export function DeleteAcademicYearButton({
 
     try {
       const response = await fetch(
-        `/api/schools/${schoolSlug}/academic-years/${yearId}`,
+        `/api/schools/${schoolSlug}/academic-years/${yearId}`, // Using schoolSlug
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (!response.ok) {

@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma";
 
 type RouteContext = {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
   }>;
 };
 
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const params = await context.params;
-    const { schoolId } = params;
+    const { schoolSlug } = params;
     const body = await request.json();
     const { email, role = "MEMBER" } = body;
 
@@ -46,9 +46,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // Get school with organization
-    console.log(`🏫 [Invite API] Fetching school ${schoolId}...`);
+    console.log(`🏫 [Invite API] Fetching school ${schoolSlug}...`);
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { id: schoolSlug },
       select: {
         id: true,
         name: true,
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     if (!school) {
-      console.log(`❌ [Invite API] School not found: ${schoolId}`);
+      console.log(`❌ [Invite API] School not found: ${schoolSlug}`);
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
@@ -188,10 +188,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const params = await context.params;
-    const { schoolId } = params;
+    const { schoolSlug } = params;
 
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { id: schoolSlug },
       select: {
         id: true,
         organizationId: true,
@@ -199,7 +199,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     });
 
     if (!school) {
-      console.log(`❌ [Invite API] School not found: ${schoolId}`);
+      console.log(`❌ [Invite API] School not found: ${schoolSlug}`);
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 

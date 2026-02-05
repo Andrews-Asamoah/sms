@@ -21,14 +21,14 @@ import { toast } from "sonner";
 interface DeleteTermButtonProps {
   termId: string;
   termName: string;
-  schoolSlug: string;
+  schoolSlug: string; // Changed from schoolId
   isGlobal: boolean;
 }
 
 export function DeleteTermButton({
   termId,
   termName,
-  schoolSlug,
+  schoolSlug, // Changed from schoolId
   isGlobal,
 }: DeleteTermButtonProps) {
   const router = useRouter();
@@ -42,10 +42,10 @@ export function DeleteTermButton({
 
     try {
       const response = await fetch(
-        `/api/schools/${schoolSlug}/terms/${termId}`,
+        `/api/schools/${schoolSlug}/terms/${termId}`, // Using schoolSlug
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (!response.ok) {

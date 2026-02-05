@@ -8,7 +8,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 
 type RouteContext = {
   params: Promise<{
-    schoolId: string; // ✅ Changed from schoolSlug
+    schoolSlug: string; // ✅ Changed from schoolSlug
   }>;
 };
 
@@ -21,10 +21,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const params = await context.params;
-    const { schoolId } = params;
+    const { schoolSlug } = params;
 
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { id: schoolSlug },
       include: {
         subscription: true,
         organization: true,
@@ -63,15 +63,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     const params = await context.params;
-    const { schoolId } = params;
+    const { schoolSlug } = params;
     const body = await request.json();
 
-    console.log("Received update for school:", schoolId);
+    console.log("Received update for school:", schoolSlug);
     console.log("Update data:", JSON.stringify(body, null, 2));
 
     // Check if school exists
     const existingSchool = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { id: schoolSlug },
       select: {
         id: true,
         name: true,
@@ -167,7 +167,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     // Update school
     const updatedSchool = await prisma.school.update({
-      where: { id: schoolId },
+      where: { id: schoolSlug },
       data: updateData,
       include: {
         subscription: true,
@@ -208,11 +208,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     const params = await context.params;
-    const { schoolId } = params;
+    const { schoolSlug } = params;
 
     // Get school
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { id: schoolSlug },
       select: {
         id: true,
         organizationId: true,
@@ -268,7 +268,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
       // Delete school
       await tx.school.delete({
-        where: { id: schoolId },
+        where: { id: schoolSlug },
       });
     });
 
@@ -286,7 +286,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({
       message: "School deleted successfully",
-      schoolId,
+      schoolSlug,
     });
   } catch (error) {
     console.error("Error in DELETE handler:", error);

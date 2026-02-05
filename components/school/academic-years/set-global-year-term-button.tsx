@@ -38,6 +38,7 @@ interface AcademicYear {
 interface SetGlobalYearTermButtonProps {
   schoolId: string;
   schoolSlug: string;
+  organizationId: string; // Added organizationId
   academicYears: AcademicYear[];
   currentYearId?: string;
   currentTermId?: string;
@@ -46,6 +47,7 @@ interface SetGlobalYearTermButtonProps {
 export function SetGlobalYearTermButton({
   schoolId,
   schoolSlug,
+  organizationId, // Added organizationId
   academicYears,
   currentYearId,
   currentTermId,
@@ -90,8 +92,9 @@ export function SetGlobalYearTermButton({
             academicYearId: selectedYearId,
             termId: selectedTermId,
             schoolId,
+            organizationId, // Added organizationId
           }),
-        }
+        },
       );
 
       if (!response.ok) {

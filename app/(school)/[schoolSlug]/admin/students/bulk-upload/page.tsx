@@ -18,14 +18,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { InfoIcon } from "lucide-react";
 
 interface BulkUploadPageProps {
-  params: Promise<{ schoolSlug: string }>;
+  params: Promise<{ schoolId: string }>;
 }
 
 export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
-  const { schoolSlug } = await params;
+  const { schoolId } = await params;
 
-  const session = await requireSchoolAccess(schoolSlug);
-  const role = getSchoolRole(session, schoolSlug);
+  const session = await requireSchoolAccess(schoolId);
+  const role = getSchoolRole(session, schoolId);
 
   // Check authorization
   if (
@@ -33,12 +33,12 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
     role?.effectiveRole !== "owner" &&
     !session.isSuperAdmin
   ) {
-    redirect(`/${schoolSlug}/unauthorized`);
+    redirect(`/${schoolId}/unauthorized`);
   }
 
   // Fetch school
   const school = await prisma.school.findUnique({
-    where: { subdomain: schoolSlug },
+    where: { subdomain: schoolId },
   });
 
   if (!school) {
@@ -66,7 +66,7 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href={`/${schoolSlug}/admin/students`}>
+        <Link href={`/${schoolId}/admin/students`}>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
@@ -109,7 +109,7 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
                 Get the Excel template with the required data format
               </CardDescription>
             </div>
-            <Link href={`/api/schools/${schoolSlug}/students/template`}>
+            <Link href={`/api/schools/${schoolId}/students/template`}>
               <Button size="lg">
                 <Download className="mr-2 h-5 w-5" />
                 Download Template
@@ -133,7 +133,7 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
         <CardContent>
           <BulkUploadForm
             schoolId={school.id}
-            schoolSlug={schoolSlug}
+            schoolSlug={schoolId}
             classes={classes}
             departments={departments}
             houses={houses}
