@@ -11,21 +11,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ArrowLeft, Download, Upload, FileSpreadsheet } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  AlertCircle,
+} from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { InfoIcon } from "lucide-react";
 
 interface BulkUploadPageProps {
-  params: Promise<{ schoolId: string }>;
+  params: Promise<{ schoolSlug: string }>;
 }
 
 export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
-  const { schoolId } = await params;
+  const { schoolSlug } = await params;
 
-  const session = await requireSchoolAccess(schoolId);
-  const role = getSchoolRole(session, schoolId);
+  const session = await requireSchoolAccess(schoolSlug);
+  const role = getSchoolRole(session, schoolSlug);
 
   // Check authorization
   if (
@@ -33,12 +39,12 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
     role?.effectiveRole !== "owner" &&
     !session.isSuperAdmin
   ) {
-    redirect(`/${schoolId}/unauthorized`);
+    redirect(`/${schoolSlug}/unauthorized`);
   }
 
   // Fetch school
   const school = await prisma.school.findUnique({
-    where: { subdomain: schoolId },
+    where: { subdomain: schoolSlug },
   });
 
   if (!school) {
@@ -66,7 +72,7 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href={`/${schoolId}/admin/students`}>
+        <Link href={`/${schoolSlug}/admin/students`}>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
@@ -90,9 +96,32 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
           <ol className="list-decimal list-inside space-y-1">
             <li>Download the Excel template using the button below</li>
             <li>Fill in the student data following the provided format</li>
+            <li>Student IDs and Admission Numbers will be auto-generated</li>
             <li>Save the file and upload it using the upload form</li>
             <li>Review the preview and confirm the upload</li>
           </ol>
+        </AlertDescription>
+      </Alert>
+
+      {/* Important Notice */}
+      <Alert variant="default" className="border-blue-200 bg-blue-50">
+        <AlertCircle className="h-4 w-4 text-blue-600" />
+        <AlertTitle className="text-blue-900">Auto-Generated IDs</AlertTitle>
+        <AlertDescription className="text-blue-800">
+          <div className="space-y-1 mt-2">
+            <p>
+              <strong>Student IDs:</strong> Will be auto-generated as STU00001,
+              STU00002, etc.
+            </p>
+            <p>
+              <strong>Admission Numbers:</strong> Will be auto-generated as{" "}
+              {school.code}0001, {school.code}0002, etc.
+            </p>
+            <p className="text-sm mt-2">
+              Do NOT include these columns in your Excel file - they will be
+              created automatically.
+            </p>
+          </div>
         </AlertDescription>
       </Alert>
 
@@ -103,20 +132,33 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <FileSpreadsheet className="h-5 w-5" />
-                Download Template
+                Download Excel Template
               </CardTitle>
               <CardDescription className="mt-1">
-                Get the Excel template with the required data format
+                Get the pre-formatted Excel template with instructions and
+                sample data
               </CardDescription>
             </div>
-            <Link href={`/api/schools/${schoolId}/students/template`}>
-              <Button size="lg">
-                <Download className="mr-2 h-5 w-5" />
+            <Link href={`/api/schools/${schoolSlug}/students/template`}>
+              <Button size="lg" className="gap-2">
+                <Download className="h-5 w-5" />
                 Download Template
               </Button>
             </Link>
           </div>
         </CardHeader>
+        <CardContent>
+          <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+            <h4 className="font-semibold text-sm">Template includes:</h4>
+            <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+              <li>✓ Pre-formatted columns with proper headers</li>
+              <li>✓ Sample data row to guide you</li>
+              <li>✓ Detailed instructions sheet</li>
+              <li>✓ Reference data (classes, departments, houses)</li>
+              <li>✓ Field validation rules and examples</li>
+            </ul>
+          </div>
+        </CardContent>
       </Card>
 
       {/* Upload Form */}
@@ -127,13 +169,14 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
             Upload Students Data
           </CardTitle>
           <CardDescription>
-            Upload the completed Excel file with student information
+            Upload the completed Excel file (.xlsx or .xls only)
           </CardDescription>
         </CardHeader>
         <CardContent>
           <BulkUploadForm
             schoolId={school.id}
-            schoolSlug={schoolId}
+            schoolSlug={schoolSlug}
+            schoolCode={school.code}
             classes={classes}
             departments={departments}
             houses={houses}
@@ -158,9 +201,22 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>First Name</li>
                 <li>Last Name</li>
-                <li>Gender (MALE/FEMALE/OTHER)</li>
+                <li>Gender (MALE/FEMALE/OTHER - case sensitive)</li>
                 <li>Date of Birth (YYYY-MM-DD format)</li>
                 <li>Admission Date (YYYY-MM-DD format)</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Auto-Generated Fields</h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                <li>
+                  Student ID - Automatically generated (STU00001, STU00002,
+                  etc.)
+                </li>
+                <li>
+                  Admission Number - Automatically generated ({school.code}0001,{" "}
+                  {school.code}0002, etc.)
+                </li>
               </ul>
             </div>
             <div>
@@ -168,12 +224,24 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>Other Names, Phone, Alternate Phone</li>
                 <li>Residential Address, City, Region, Country</li>
-                <li>
-                  Admission Number, Class Name, Department Name, House Name
-                </li>
+                <li>Class Name, Department Name, House Name</li>
                 <li>Previous School, Previous Class</li>
                 <li>Blood Group, Allergies, Medical Conditions</li>
                 <li>Emergency Contact Name, Phone, Relationship</li>
+              </ul>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h4 className="font-semibold mb-2 text-amber-900">
+                Important Notes:
+              </h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-amber-800">
+                <li>Only Excel files (.xlsx, .xls) are accepted</li>
+                <li>
+                  Gender must be exactly: MALE, FEMALE, or OTHER (uppercase)
+                </li>
+                <li>Dates must be in YYYY-MM-DD format (e.g., 2010-01-15)</li>
+                <li>Class, Department, and House names must match exactly</li>
+                <li>Delete the sample data row before adding your data</li>
               </ul>
             </div>
           </div>

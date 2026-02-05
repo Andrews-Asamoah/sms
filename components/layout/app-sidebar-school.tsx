@@ -39,13 +39,13 @@ export function AppSidebarSchool({
   // Filter navigation by permissions
   const filteredNavSections = useMemo(
     () => filterNavByPermissions(schoolNavSections, permissions),
-    [permissions]
+    [permissions],
   );
 
   // Add school prefix to URLs
   const prefixedNavSections = useMemo(
     () => getPrefixedNavSections(schoolSlug, filteredNavSections),
-    [schoolSlug, filteredNavSections]
+    [schoolSlug, filteredNavSections],
   );
 
   return (

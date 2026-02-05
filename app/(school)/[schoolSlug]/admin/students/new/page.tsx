@@ -73,6 +73,27 @@ export default async function NewStudentPage({ params }: NewStudentPageProps) {
 
   const suggestedStudentId = `STU${nextStudentNumber.toString().padStart(5, "0")}`;
 
+  // Generate suggested admission number: schoolCode + number
+  const lastAdmission = await prisma.student.findFirst({
+    where: {
+      schoolId: school.id,
+      admissionNumber: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { admissionNumber: true },
+  });
+
+  let suggestedAdmissionNumber: string;
+  if (lastAdmission?.admissionNumber) {
+    const lastNumber = parseInt(
+      lastAdmission.admissionNumber.replace(/\D/g, ""),
+    );
+    const nextNumber = isNaN(lastNumber) ? 1 : lastNumber + 1;
+    suggestedAdmissionNumber = `${school.code}${nextNumber.toString().padStart(4, "0")}`;
+  } else {
+    suggestedAdmissionNumber = `${school.code}0001`;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -107,6 +128,7 @@ export default async function NewStudentPage({ params }: NewStudentPageProps) {
             departments={departments}
             houses={houses}
             suggestedStudentId={suggestedStudentId}
+            suggestedAdmissionNumber={suggestedAdmissionNumber}
           />
         </CardContent>
       </Card>

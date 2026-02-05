@@ -48,9 +48,9 @@ const studentFormSchema = z.object({
   region: z.string().optional().nullable(),
   country: z.string().optional().nullable(),
 
-  // Student Specific
+  // Student Specific - Both auto-generated
   studentId: z.string().min(1, "Student ID is required"),
-  admissionNumber: z.string().optional().nullable(),
+  admissionNumber: z.string().min(1, "Admission number is required"),
   admissionDate: z.string().min(1, "Admission date is required"),
   classId: z.string().optional().nullable(),
   departmentId: z.string().optional().nullable(),
@@ -80,6 +80,7 @@ interface StudentFormProps {
   departments: Array<{ id: string; name: string }>;
   houses: Array<{ id: string; name: string }>;
   suggestedStudentId: string;
+  suggestedAdmissionNumber?: string;
   initialData?: Partial<StudentFormValues>;
   studentProfileId?: string;
 }
@@ -91,6 +92,7 @@ export function StudentForm({
   departments,
   houses,
   suggestedStudentId,
+  suggestedAdmissionNumber,
   initialData,
   studentProfileId,
 }: StudentFormProps) {
@@ -107,6 +109,7 @@ export function StudentForm({
     resolver: zodResolver(studentFormSchema),
     defaultValues: initialData || {
       studentId: suggestedStudentId,
+      admissionNumber: suggestedAdmissionNumber || "",
       nationality: "Ghanaian",
       country: "Ghana",
       admissionDate: new Date().toISOString().split("T")[0],
@@ -143,7 +146,7 @@ export function StudentForm({
           : "Student created successfully",
         {
           description: `${data.firstName} ${data.lastName} has been ${studentProfileId ? "updated" : "added"}.`,
-        }
+        },
       );
 
       router.push(`/${schoolSlug}/admin/students/${result.id}`);
@@ -328,7 +331,8 @@ export function StudentForm({
               id="studentId"
               placeholder="STU00001"
               {...register("studentId")}
-              readOnly={!!studentProfileId}
+              readOnly
+              className="bg-muted"
             />
             <p className="text-sm text-muted-foreground">
               Auto-generated unique identifier
@@ -339,12 +343,22 @@ export function StudentForm({
           </FieldGroup>
 
           <FieldGroup>
-            <FieldLabel htmlFor="admissionNumber">Admission Number</FieldLabel>
+            <FieldLabel htmlFor="admissionNumber">
+              Admission Number *
+            </FieldLabel>
             <Input
               id="admissionNumber"
-              placeholder="ADM2024001"
+              placeholder="ABC0001"
               {...register("admissionNumber")}
+              readOnly
+              className="bg-muted"
             />
+            <p className="text-sm text-muted-foreground">
+              Auto-generated based on school code
+            </p>
+            {errors.admissionNumber && (
+              <FieldError>{errors.admissionNumber.message}</FieldError>
+            )}
           </FieldGroup>
 
           <FieldGroup>

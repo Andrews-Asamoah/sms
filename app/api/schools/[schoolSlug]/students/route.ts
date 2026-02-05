@@ -4,6 +4,10 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
+import {
+  generateStudentId,
+  generateAdmissionNumber,
+} from "@/lib/utils/student-ids";
 
 const createStudentSchema = z.object({
   // Personal Information
@@ -25,9 +29,9 @@ const createStudentSchema = z.object({
   region: z.string().optional().nullable(),
   country: z.string().default("Ghana"),
 
-  // Student Specific
-  studentId: z.string().min(1),
-  admissionNumber: z.string().optional().nullable(),
+  // Student Specific - IDs will be auto-generated if not provided
+  studentId: z.string().optional(),
+  admissionNumber: z.string().optional(),
   admissionDate: z.string().min(1),
   classId: z.string().optional().nullable(),
   departmentId: z.string().optional().nullable(),
@@ -52,7 +56,7 @@ const createStudentSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ schoolSlug: string }> }
+  { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   try {
     const { schoolSlug } = await params;
@@ -79,10 +83,19 @@ export async function POST(
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
+    // Generate student ID if not provided
+    const studentId =
+      validatedData.studentId || (await generateStudentId(school.id));
+
+    // Generate admission number if not provided
+    const admissionNumber =
+      validatedData.admissionNumber ||
+      (await generateAdmissionNumber(school.id, school.code));
+
     // Check if studentId already exists
     const existingStudent = await prisma.student.findFirst({
       where: {
-        studentId: validatedData.studentId,
+        studentId,
         schoolId: school.id,
       },
     });
@@ -90,33 +103,42 @@ export async function POST(
     if (existingStudent) {
       return NextResponse.json(
         { error: "Student ID already exists" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Check if admissionNumber already exists (if provided)
-    if (validatedData.admissionNumber) {
-      const existingAdmission = await prisma.student.findFirst({
-        where: {
-          admissionNumber: validatedData.admissionNumber,
-          schoolId: school.id,
-        },
-      });
+    // Check if admissionNumber already exists
+    const existingAdmission = await prisma.student.findFirst({
+      where: {
+        admissionNumber,
+        schoolId: school.id,
+      },
+    });
 
-      if (existingAdmission) {
-        return NextResponse.json(
-          { error: "Admission number already exists" },
-          { status: 400 }
-        );
-      }
+    if (existingAdmission) {
+      return NextResponse.json(
+        { error: "Admission number already exists" },
+        { status: 400 },
+      );
     }
 
     // Create student with profile in a transaction
     const student = await prisma.$transaction(async (tx) => {
-      // Create user profile first
+      // First, create a temporary user account for the student
+      // This user will be used to link the profile
+      const tempUser = await tx.user.create({
+        data: {
+          name: `${validatedData.firstName} ${validatedData.lastName}`,
+          email: `${studentId.toLowerCase()}@temp.${school.subdomain}.edu`, // Temporary email
+          emailVerified: false,
+          role: "user", // Default role
+        },
+      });
+
+      // Create user profile for the student
       const profile = await tx.userProfile.create({
         data: {
-          userId: session.user.id, // Temporary - will be updated when student gets login
+          userId: tempUser.id, // Use the temporary user ID
           firstName: validatedData.firstName,
           lastName: validatedData.lastName,
           otherNames: validatedData.otherNames,
@@ -136,13 +158,13 @@ export async function POST(
         },
       });
 
-      // Create student record
+      // Create student record with auto-generated IDs
       const newStudent = await tx.student.create({
         data: {
           profileId: profile.id,
           schoolId: school.id,
-          studentId: validatedData.studentId,
-          admissionNumber: validatedData.admissionNumber,
+          studentId,
+          admissionNumber,
           admissionDate: new Date(validatedData.admissionDate),
           classId: validatedData.classId,
           departmentId: validatedData.departmentId,
@@ -174,7 +196,11 @@ export async function POST(
         action: "CREATE",
         entityType: "Student",
         entityId: student.id,
-        newValues: student,
+        newValues: {
+          studentId: student.studentId,
+          admissionNumber: student.admissionNumber,
+          name: `${validatedData.firstName} ${validatedData.lastName}`,
+        },
       },
     });
 
@@ -185,20 +211,20 @@ export async function POST(
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid request data", details: error.message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ schoolSlug: string }> }
+  { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   try {
     const { schoolSlug } = await params;
@@ -241,7 +267,7 @@ export async function GET(
     console.error("[STUDENTS_GET] Error", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -107,12 +107,6 @@ export const schoolNavSections: NavSection[] = [
         icon: Building,
         permission: "canManageDepartments",
       },
-      {
-        title: "Houses",
-        url: "/admin/academic/houses",
-        icon: Home,
-        permission: "canManageHouses",
-      },
     ],
   },
   {
@@ -156,6 +150,12 @@ export const schoolNavSections: NavSection[] = [
         url: "/admin/academicYears",
         icon: Calendar,
         permission: "canManageAcademicYear",
+      },
+      {
+        title: "Houses",
+        url: "/admin//houses",
+        icon: Home,
+        permission: "canManageHouses",
       },
       {
         title: "Finance",
@@ -264,7 +264,7 @@ export const schoolNavSections: NavSection[] = [
  */
 export function filterNavByPermissions(
   sections: NavSection[],
-  permissions: NavPermissions
+  permissions: NavPermissions,
 ): NavSection[] {
   return sections
     .map((section) => ({
@@ -291,7 +291,7 @@ export function filterNavByPermissions(
  */
 export function getPrefixedNavSections(
   schoolSlug: string,
-  sections: NavSection[]
+  sections: NavSection[],
 ): NavSection[] {
   const safeSlug = schoolSlug.replace(/^\/+/, "");
 
