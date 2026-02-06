@@ -11,10 +11,6 @@ interface StudentsDataTableProps {
   schoolSlug: string;
 }
 
-export function StudentsDataTable({
-  columns,
-  data,
-  schoolSlug,
-}: StudentsDataTableProps) {
+export function StudentsDataTable({ columns, data }: StudentsDataTableProps) {
   return <DataTable columns={columns} data={data} searchKey="student" />;
 }
