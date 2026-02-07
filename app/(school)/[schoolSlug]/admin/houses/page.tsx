@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { HousesDataTable } from "@/components/school/houses/houses-table";
-import { columns } from "@/components/school/houses/columns";
 import { HouseDialog } from "@/components/school/houses/house-dialog";
 
 interface HousesPageProps {
@@ -159,9 +158,9 @@ export default async function HousesPage({ params }: HousesPageProps) {
         </CardHeader>
         <CardContent>
           <HousesDataTable
-            columns={columns}
             data={houses}
             schoolSlug={schoolSlug}
+            schoolId={school.id}
             teachers={teachers}
           />
         </CardContent>

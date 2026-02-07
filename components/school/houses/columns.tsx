@@ -28,7 +28,21 @@ export type House = {
   };
 };
 
-export const columns: ColumnDef<House>[] = [
+export type HouseColumnsContext = {
+  schoolSlug: string;
+  schoolId: string;
+  teachers: Array<{
+    id: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+    };
+  }>;
+};
+
+export const createColumns = (
+  context: HouseColumnsContext,
+): ColumnDef<House>[] => [
   {
     accessorKey: "name",
     header: ({ column }) => (
@@ -143,6 +157,13 @@ export const columns: ColumnDef<House>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => <HouseActions house={row.original} />,
+    cell: ({ row }) => (
+      <HouseActions
+        house={row.original}
+        schoolSlug={context.schoolSlug}
+        schoolId={context.schoolId}
+        teachers={context.teachers}
+      />
+    ),
   },
 ];

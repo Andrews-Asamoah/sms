@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,21 +29,25 @@ import { House } from "./columns";
 
 interface HouseActionsProps {
   house: House;
+  schoolSlug: string; // Add this prop to avoid pathname parsing issues
+  teachers: Array<{
+    // Add this prop to avoid fetching
+    id: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+    };
+  }>;
+  schoolId: string; // Add this prop
 }
 
-interface Teacher {
-  id: string;
-  profile: {
-    firstName: string;
-    lastName: string;
-  };
-}
-
-export function HouseActions({ house }: HouseActionsProps) {
+export function HouseActions({
+  house,
+  schoolSlug,
+  teachers,
+  schoolId,
+}: HouseActionsProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const schoolSlug = pathname.split("/")[1];
-
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -81,27 +85,6 @@ export function HouseActions({ house }: HouseActionsProps) {
     }
   }
 
-  // Fetch teachers for the edit dialog
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loadingTeachers, setLoadingTeachers] = useState(false);
-
-  async function fetchTeachers() {
-    if (teachers.length > 0) return; // Already loaded
-
-    setLoadingTeachers(true);
-    try {
-      const response = await fetch(`/api/schools/${schoolSlug}/teachers`);
-      if (response.ok) {
-        const data: Teacher[] = await response.json();
-        setTeachers(data);
-      }
-    } catch (error) {
-      console.error("Error fetching teachers:", error);
-    } finally {
-      setLoadingTeachers(false);
-    }
-  }
-
   return (
     <>
       <DropdownMenu>
@@ -119,12 +102,7 @@ export function HouseActions({ house }: HouseActionsProps) {
             Copy house ID
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => {
-              fetchTeachers();
-              setShowEditDialog(true);
-            }}
-          >
+          <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
             <Edit className="mr-2 h-4 w-4" />
             Edit house
           </DropdownMenuItem>
@@ -139,16 +117,14 @@ export function HouseActions({ house }: HouseActionsProps) {
       </DropdownMenu>
 
       {/* Edit Dialog */}
-      {showEditDialog && !loadingTeachers && (
-        <HouseDialog
-          schoolId={house.id}
-          schoolSlug={schoolSlug}
-          teachers={teachers}
-          house={house}
-        >
-          <div />
-        </HouseDialog>
-      )}
+      <HouseDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        schoolId={schoolId}
+        schoolSlug={schoolSlug}
+        teachers={teachers}
+        house={house}
+      />
 
       {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

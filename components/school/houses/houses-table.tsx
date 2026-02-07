@@ -1,14 +1,14 @@
 // components/school/houses/houses-table.tsx
 "use client";
 
+import { useMemo } from "react";
 import { DataTable } from "@/components/ui/data-table/data-table";
-import { House } from "./columns";
-import { ColumnDef } from "@tanstack/react-table";
+import { House, createColumns } from "./columns";
 
 interface HousesDataTableProps {
-  columns: ColumnDef<House>[];
   data: House[];
   schoolSlug: string;
+  schoolId: string;
   teachers: Array<{
     id: string;
     profile: {
@@ -18,6 +18,16 @@ interface HousesDataTableProps {
   }>;
 }
 
-export function HousesDataTable({ columns, data }: HousesDataTableProps) {
+export function HousesDataTable({
+  data,
+  schoolSlug,
+  schoolId,
+  teachers,
+}: HousesDataTableProps) {
+  const columns = useMemo(
+    () => createColumns({ schoolSlug, schoolId, teachers }),
+    [schoolSlug, schoolId, teachers],
+  );
+
   return <DataTable columns={columns} data={data} searchKey="name" />;
 }

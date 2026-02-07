@@ -1,7 +1,7 @@
 // components/school/houses/house-dialog.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -47,7 +47,7 @@ const houseSchema = z.object({
 type HouseFormValues = z.infer<typeof houseSchema>;
 
 interface HouseDialogProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   schoolId: string;
   schoolSlug: string;
   teachers: Array<{
@@ -67,6 +67,8 @@ interface HouseDialogProps {
     houseTeacherId: string | null;
     isActive: boolean;
   };
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const PREDEFINED_COLORS = [
@@ -86,10 +88,16 @@ export function HouseDialog({
   schoolSlug,
   teachers,
   house,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: HouseDialogProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Use controlled state if provided, otherwise use internal state
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = controlledOnOpenChange || setInternalOpen;
 
   const {
     register,
@@ -120,6 +128,21 @@ export function HouseDialog({
           isActive: true,
         },
   });
+
+  // Reset form when dialog opens with house data
+  useEffect(() => {
+    if (open && house) {
+      reset({
+        name: house.name,
+        code: house.code,
+        description: house.description,
+        color: house.color,
+        motto: house.motto,
+        houseTeacherId: house.houseTeacherId,
+        isActive: house.isActive,
+      });
+    }
+  }, [open, house, reset]);
 
   const isActive = watch("isActive");
   const selectedColor = watch("color");
@@ -167,144 +190,156 @@ export function HouseDialog({
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle>{house ? "Edit House" : "Create New House"}</DialogTitle>
-          <DialogDescription>
-            {house
-              ? "Update house information and settings."
-              : "Add a new house to your school. Fill in the details below."}
-          </DialogDescription>
-        </DialogHeader>
+  const dialogContent = (
+    <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+      <DialogHeader className="flex-shrink-0">
+        <DialogTitle>{house ? "Edit House" : "Create New House"}</DialogTitle>
+        <DialogDescription>
+          {house
+            ? "Update house information and settings."
+            : "Add a new house to your school. Fill in the details below."}
+        </DialogDescription>
+      </DialogHeader>
 
-        <form
-          onSubmit={handleSubmit(onSubmit)}
-          className="flex flex-col overflow-hidden flex-1"
-        >
-          <div className="space-y-4 overflow-y-auto pr-1 flex-1">
-            <div className="grid gap-4 md:grid-cols-2">
-              <FieldGroup>
-                <FieldLabel htmlFor="name">House Name *</FieldLabel>
-                <Input
-                  id="name"
-                  placeholder="e.g., Phoenix House"
-                  {...register("name")}
-                />
-                {errors.name && <FieldError>{errors.name.message}</FieldError>}
-              </FieldGroup>
-
-              <FieldGroup>
-                <FieldLabel htmlFor="code">House Code *</FieldLabel>
-                <Input
-                  id="code"
-                  placeholder="e.g., PHX"
-                  maxLength={10}
-                  {...register("code")}
-                />
-                {errors.code && <FieldError>{errors.code.message}</FieldError>}
-              </FieldGroup>
-            </div>
-
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex flex-col overflow-hidden flex-1"
+      >
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+          <div className="grid gap-4 md:grid-cols-2">
             <FieldGroup>
-              <FieldLabel htmlFor="motto">House Motto</FieldLabel>
+              <FieldLabel htmlFor="name">House Name *</FieldLabel>
               <Input
-                id="motto"
-                placeholder="e.g., Rise from the ashes"
-                {...register("motto")}
+                id="name"
+                placeholder="e.g., Phoenix House"
+                {...register("name")}
               />
+              {errors.name && <FieldError>{errors.name.message}</FieldError>}
             </FieldGroup>
 
             <FieldGroup>
-              <FieldLabel htmlFor="description">Description</FieldLabel>
-              <Textarea
-                id="description"
-                placeholder="Brief description of the house..."
-                rows={3}
-                {...register("description")}
+              <FieldLabel htmlFor="code">House Code *</FieldLabel>
+              <Input
+                id="code"
+                placeholder="e.g., PHX"
+                maxLength={10}
+                {...register("code")}
               />
+              {errors.code && <FieldError>{errors.code.message}</FieldError>}
             </FieldGroup>
-
-            <FieldGroup>
-              <FieldLabel htmlFor="color">House Color</FieldLabel>
-              <div className="space-y-3">
-                <div className="flex gap-2 flex-wrap">
-                  {PREDEFINED_COLORS.map((color) => (
-                    <button
-                      key={color.value}
-                      type="button"
-                      onClick={() => setValue("color", color.value)}
-                      className={`h-10 w-10 rounded-full border-2 transition-all ${
-                        selectedColor === color.value
-                          ? "border-primary scale-110 shadow-md"
-                          : "border-gray-300 hover:scale-105"
-                      }`}
-                      style={{ backgroundColor: color.value }}
-                      title={color.name}
-                    />
-                  ))}
-                </div>
-                <Input
-                  id="color"
-                  type="color"
-                  className="h-10 w-full"
-                  {...register("color")}
-                />
-              </div>
-            </FieldGroup>
-
-            <FieldGroup>
-              <FieldLabel htmlFor="houseTeacherId">House Teacher</FieldLabel>
-              <Select
-                value={houseTeacherId || "none"}
-                onValueChange={(value) =>
-                  setValue("houseTeacherId", value === "none" ? null : value)
-                }
-              >
-                <SelectTrigger id="houseTeacherId">
-                  <SelectValue placeholder="Select a teacher (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No teacher assigned</SelectItem>
-                  {teachers.map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>
-                      {teacher.profile.firstName} {teacher.profile.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FieldGroup>
-
-            <div className="flex items-center space-x-2 pb-4">
-              <Switch
-                id="isActive"
-                checked={isActive}
-                onCheckedChange={(checked) => setValue("isActive", checked)}
-              />
-              <Label htmlFor="isActive">Active House</Label>
-            </div>
           </div>
 
-          <DialogFooter className="flex-shrink-0 pt-4 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={isSubmitting}
+          <FieldGroup>
+            <FieldLabel htmlFor="motto">House Motto</FieldLabel>
+            <Input
+              id="motto"
+              placeholder="e.g., Rise from the ashes"
+              {...register("motto")}
+            />
+          </FieldGroup>
+
+          <FieldGroup>
+            <FieldLabel htmlFor="description">Description</FieldLabel>
+            <Textarea
+              id="description"
+              placeholder="Brief description of the house..."
+              rows={3}
+              {...register("description")}
+            />
+          </FieldGroup>
+
+          <FieldGroup>
+            <FieldLabel htmlFor="color">House Color</FieldLabel>
+            <div className="space-y-3">
+              <div className="flex gap-2 flex-wrap">
+                {PREDEFINED_COLORS.map((color) => (
+                  <button
+                    key={color.value}
+                    type="button"
+                    onClick={() => setValue("color", color.value)}
+                    className={`h-10 w-10 rounded-full border-2 transition-all ${
+                      selectedColor === color.value
+                        ? "border-primary scale-110 shadow-md"
+                        : "border-gray-300 hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: color.value }}
+                    title={color.name}
+                  />
+                ))}
+              </div>
+              <Input
+                id="color"
+                type="color"
+                className="h-10 w-full"
+                {...register("color")}
+              />
+            </div>
+          </FieldGroup>
+
+          <FieldGroup>
+            <FieldLabel htmlFor="houseTeacherId">House Teacher</FieldLabel>
+            <Select
+              value={houseTeacherId || "none"}
+              onValueChange={(value) =>
+                setValue("houseTeacherId", value === "none" ? null : value)
+              }
             >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              {house ? "Update House" : "Create House"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+              <SelectTrigger id="houseTeacherId">
+                <SelectValue placeholder="Select a teacher (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No teacher assigned</SelectItem>
+                {teachers.map((teacher) => (
+                  <SelectItem key={teacher.id} value={teacher.id}>
+                    {teacher.profile.firstName} {teacher.profile.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldGroup>
+
+          <div className="flex items-center space-x-2 pb-4">
+            <Switch
+              id="isActive"
+              checked={isActive}
+              onCheckedChange={(checked) => setValue("isActive", checked)}
+            />
+            <Label htmlFor="isActive">Active House</Label>
+          </div>
+        </div>
+
+        <DialogFooter className="flex-shrink-0 pt-4 border-t">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {house ? "Update House" : "Create House"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  );
+
+  // If children provided (for trigger button), render with trigger
+  if (children) {
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>{children}</DialogTrigger>
+        {dialogContent}
+      </Dialog>
+    );
+  }
+
+  // Otherwise render as controlled dialog without trigger
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      {dialogContent}
     </Dialog>
   );
 }
