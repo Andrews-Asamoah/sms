@@ -1,0 +1,158 @@
+// components/layout/role-switcher.tsx
+"use client";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  ChevronDown,
+  Shield,
+  User,
+  GraduationCap,
+  Users,
+  DollarSign,
+  UserCog,
+} from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+
+interface RoleSwitcherProps {
+  schoolSlug: string;
+  currentRole: string;
+  availableRoles: string[];
+  className?: string;
+}
+
+const roleConfig = {
+  owner: {
+    label: "School Owner",
+    icon: Shield,
+    color: "text-purple-600",
+    badge: "purple",
+    route: "admin",
+  },
+  admin: {
+    label: "Administrator",
+    icon: Shield,
+    color: "text-blue-600",
+    badge: "blue",
+    route: "admin",
+  },
+  teacher: {
+    label: "Teacher",
+    icon: GraduationCap,
+    color: "text-green-600",
+    badge: "green",
+    route: "teacher",
+  },
+  accountant: {
+    label: "Accountant",
+    icon: DollarSign,
+    color: "text-amber-600",
+    badge: "amber",
+    route: "accountant",
+  },
+  staff: {
+    label: "Staff",
+    icon: UserCog,
+    color: "text-cyan-600",
+    badge: "cyan",
+    route: "staff",
+  },
+  student: {
+    label: "Student",
+    icon: User,
+    color: "text-indigo-600",
+    badge: "indigo",
+    route: "student",
+  },
+  guardian: {
+    label: "Parent/Guardian",
+    icon: Users,
+    color: "text-pink-600",
+    badge: "pink",
+    route: "parent",
+  },
+  member: {
+    label: "Member",
+    icon: User,
+    color: "text-gray-600",
+    badge: "gray",
+    route: "member",
+  },
+} as const;
+
+export function RoleSwitcher({
+  schoolSlug,
+  currentRole,
+  availableRoles,
+  className,
+}: RoleSwitcherProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Only show if user has multiple roles
+  if (availableRoles.length <= 1) {
+    return null;
+  }
+
+  const currentConfig =
+    roleConfig[currentRole as keyof typeof roleConfig] || roleConfig.member;
+  const CurrentIcon = currentConfig.icon;
+
+  const handleRoleSwitch = (role: string) => {
+    const config = roleConfig[role as keyof typeof roleConfig];
+    if (!config) return;
+
+    // Navigate to the appropriate dashboard for the selected role
+    router.push(`/${schoolSlug}/${config.route}/dashboard`);
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn("flex items-center gap-2 h-9 px-3", className)}
+        >
+          <CurrentIcon className={cn("h-4 w-4", currentConfig.color)} />
+          <span className="hidden sm:inline-block">{currentConfig.label}</span>
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>Switch Role</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {availableRoles.map((role) => {
+          const config =
+            roleConfig[role as keyof typeof roleConfig] || roleConfig.member;
+          const RoleIcon = config.icon;
+          const isActive = role === currentRole;
+
+          return (
+            <DropdownMenuItem
+              key={role}
+              className={cn("cursor-pointer", isActive && "bg-accent")}
+              onClick={() => handleRoleSwitch(role)}
+            >
+              <RoleIcon className={cn("mr-2 h-4 w-4", config.color)} />
+              <span className="flex-1">{config.label}</span>
+              {isActive && (
+                <Badge variant="secondary" className="ml-auto">
+                  Active
+                </Badge>
+              )}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

@@ -1,7 +1,4 @@
-// ============================================================
-// components/layout/app-sidebar-school.tsx - Updated with Permissions
-// ============================================================
-
+// components/layout/app-sidebar-school.tsx - FIXED
 "use client";
 
 import { BaseSidebar } from "./base-sidebar";

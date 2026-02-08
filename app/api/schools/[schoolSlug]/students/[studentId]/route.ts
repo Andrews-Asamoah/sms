@@ -47,7 +47,7 @@ const updateStudentSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ schoolSlug: string; studentId: string }> }
+  { params }: { params: Promise<{ schoolSlug: string; studentId: string }> },
 ) {
   try {
     const { schoolSlug, studentId } = await params;
@@ -80,7 +80,11 @@ export async function GET(
         house: true,
         guardians: {
           include: {
-            guardian: true,
+            guardian: {
+              include: {
+                profile: true,
+              },
+            },
           },
         },
         bills: {
@@ -115,15 +119,17 @@ export async function GET(
     console.error("[STUDENT_GET] Error", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ schoolSlug: string; studentId: string }> }
+  { params }: { params: Promise<{ schoolSlug: string; studentId: string }> },
 ) {
+  console.log("✏️ [Student Update] Starting update process...");
+
   try {
     const { schoolSlug, studentId } = await params;
     const session = await requireSchoolAccess(schoolSlug);
@@ -134,6 +140,7 @@ export async function PATCH(
       role?.effectiveRole !== "owner" &&
       !session.isSuperAdmin
     ) {
+      console.log("❌ [Student Update] Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -145,6 +152,7 @@ export async function PATCH(
     });
 
     if (!school) {
+      console.log("❌ [Student Update] School not found");
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
@@ -157,8 +165,13 @@ export async function PATCH(
     });
 
     if (!existingStudent) {
+      console.log("❌ [Student Update] Student not found");
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
+
+    console.log(
+      `👤 [Student Update] Updating student: ${existingStudent.studentId}`,
+    );
 
     // Check admission number uniqueness if being changed
     if (
@@ -174,14 +187,16 @@ export async function PATCH(
       });
 
       if (duplicate) {
+        console.log("❌ [Student Update] Admission number already exists");
         return NextResponse.json(
           { error: "Admission number already exists" },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
 
     // Update in transaction
+    console.log("💾 [Student Update] Starting database transaction...");
     const updatedStudent = await prisma.$transaction(async (tx) => {
       // Update profile
       const profileData: Partial<{
@@ -234,6 +249,7 @@ export async function PATCH(
         profileData.emergencyRelationship = validatedData.emergencyRelationship;
 
       if (Object.keys(profileData).length > 0) {
+        console.log("📋 [Student Update] Updating profile...");
         await tx.userProfile.update({
           where: { id: existingStudent.profileId },
           data: profileData,
@@ -283,6 +299,7 @@ export async function PATCH(
         studentData.medicalConditions = validatedData.medicalConditions;
       if (validatedData.status) studentData.status = validatedData.status;
 
+      console.log("🎓 [Student Update] Updating student record...");
       const student = await tx.student.update({
         where: { id: studentId },
         data: studentData,
@@ -297,7 +314,10 @@ export async function PATCH(
       return student;
     });
 
+    console.log("✅ [Student Update] Transaction completed successfully");
+
     // Log audit trail
+    console.log("📝 [Audit] Creating audit log...");
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
@@ -309,28 +329,32 @@ export async function PATCH(
       },
     });
 
+    console.log("✅ [Student Update] Process completed successfully\n");
+
     return NextResponse.json(updatedStudent);
   } catch (error) {
-    console.error("[STUDENT_PATCH] Error", error);
+    console.error("❌ [Student Update] Error:", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid request data", details: error.message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ schoolSlug: string; studentId: string }> }
+  { params }: { params: Promise<{ schoolSlug: string; studentId: string }> },
 ) {
+  console.log("🗑️ [Student Delete] Starting deletion process...");
+
   try {
     const { schoolSlug, studentId } = await params;
     const session = await requireSchoolAccess(schoolSlug);
@@ -341,6 +365,7 @@ export async function DELETE(
       role?.effectiveRole !== "owner" &&
       !session.isSuperAdmin
     ) {
+      console.log("❌ [Student Delete] Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -349,6 +374,7 @@ export async function DELETE(
     });
 
     if (!school) {
+      console.log("❌ [Student Delete] School not found");
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
@@ -369,8 +395,11 @@ export async function DELETE(
     });
 
     if (!student) {
+      console.log("❌ [Student Delete] Student not found");
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
+
+    console.log(`👤 [Student Delete] Checking student: ${student.studentId}`);
 
     // Check if student has records
     if (
@@ -378,21 +407,26 @@ export async function DELETE(
       student._count.enrollments > 0 ||
       student._count.assessmentScores > 0
     ) {
+      console.log("❌ [Student Delete] Student has existing records");
       return NextResponse.json(
         {
           error:
             "Cannot delete student with existing records. Consider marking as withdrawn instead.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Delete student
+    console.log("💾 [Student Delete] Deleting student...");
+    // Delete student (cascade will handle related records)
     await prisma.student.delete({
       where: { id: studentId },
     });
 
+    console.log("✅ [Student Delete] Student deleted successfully");
+
     // Log audit trail
+    console.log("📝 [Audit] Creating audit log...");
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
@@ -403,12 +437,14 @@ export async function DELETE(
       },
     });
 
+    console.log("✅ [Student Delete] Process completed successfully\n");
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[STUDENT_DELETE] Error", error);
+    console.error("❌ [Student Delete] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

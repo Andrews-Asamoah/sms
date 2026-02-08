@@ -5,6 +5,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { batchGenerateStudentIds } from "@/lib/utils/student-ids";
 import * as XLSX from "xlsx";
+import { Prisma } from "@/lib/generated/prisma/client";
 
 interface StudentRow {
   "First Name*": string;
@@ -59,6 +60,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
+  console.log("📦 [Bulk Upload] Starting bulk upload process...");
+
   try {
     const { schoolSlug } = await params;
     const session = await requireSchoolAccess(schoolSlug);
@@ -69,6 +72,7 @@ export async function POST(
       role?.effectiveRole !== "owner" &&
       !session.isSuperAdmin
     ) {
+      console.log("❌ [Bulk Upload] Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -77,20 +81,25 @@ export async function POST(
     });
 
     if (!school) {
+      console.log("❌ [Bulk Upload] School not found");
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
+
+    console.log(`🏫 [Bulk Upload] School: ${school.name}`);
 
     // Parse form data
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
     if (!file) {
+      console.log("❌ [Bulk Upload] No file provided");
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
     // Validate file type
     const fileName = file.name.toLowerCase();
     if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls")) {
+      console.log("❌ [Bulk Upload] Invalid file type");
       return NextResponse.json(
         {
           error:
@@ -100,6 +109,8 @@ export async function POST(
       );
     }
 
+    console.log(`📄 [Bulk Upload] Processing file: ${file.name}`);
+
     // Read Excel file
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { cellDates: false });
@@ -107,6 +118,7 @@ export async function POST(
     const data = XLSX.utils.sheet_to_json<StudentRow>(worksheet);
 
     if (data.length === 0) {
+      console.log("❌ [Bulk Upload] No data found in file");
       return NextResponse.json(
         {
           error:
@@ -115,6 +127,8 @@ export async function POST(
         { status: 400 },
       );
     }
+
+    console.log(`📊 [Bulk Upload] Found ${data.length} rows to process`);
 
     // Get class, department, house mappings
     const [classes, departments, houses] = await Promise.all([
@@ -142,19 +156,25 @@ export async function POST(
       houses.map((h) => [h.name.trim().toLowerCase(), h.id]),
     );
 
+    console.log("🆔 [Bulk Upload] Generating student IDs...");
     // Generate IDs for all students
     const generatedIds = await batchGenerateStudentIds(
       school.id,
       school.code,
       data.length,
     );
+    console.log(`✅ [Bulk Upload] Generated ${generatedIds.length} IDs`);
 
     // Process each row
     const results = [];
+    console.log("\n📝 [Bulk Upload] Processing students...\n");
+
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       const rowNumber = i + 2; // Excel row number (accounting for header)
       const { studentId, admissionNumber } = generatedIds[i];
+
+      console.log(`[Row ${rowNumber}] Processing...`);
 
       try {
         // Validate required fields
@@ -171,6 +191,7 @@ export async function POST(
           !dateOfBirth ||
           !admissionDate
         ) {
+          console.log(`❌ [Row ${rowNumber}] Missing required fields`);
           results.push({
             row: rowNumber,
             studentId,
@@ -185,6 +206,7 @@ export async function POST(
 
         // Validate gender
         if (!["MALE", "FEMALE", "OTHER"].includes(gender)) {
+          console.log(`❌ [Row ${rowNumber}] Invalid gender: ${gender}`);
           results.push({
             row: rowNumber,
             studentId,
@@ -204,6 +226,7 @@ export async function POST(
           dobString = excelDateToString(dateOfBirth);
           admDateString = excelDateToString(admissionDate);
         } catch (error) {
+          console.log(`❌ [Row ${rowNumber}] Invalid date format`);
           results.push({
             row: rowNumber,
             studentId,
@@ -232,6 +255,7 @@ export async function POST(
 
         // Warn if name provided but not found
         if (className && !classId) {
+          console.log(`❌ [Row ${rowNumber}] Class '${className}' not found`);
           results.push({
             row: rowNumber,
             studentId,
@@ -244,6 +268,9 @@ export async function POST(
         }
 
         if (deptName && !departmentId) {
+          console.log(
+            `❌ [Row ${rowNumber}] Department '${deptName}' not found`,
+          );
           results.push({
             row: rowNumber,
             studentId,
@@ -256,6 +283,7 @@ export async function POST(
         }
 
         if (houseName && !houseId) {
+          console.log(`❌ [Row ${rowNumber}] House '${houseName}' not found`);
           results.push({
             row: rowNumber,
             studentId,
@@ -328,6 +356,8 @@ export async function POST(
           });
         });
 
+        console.log(`✅ [Row ${rowNumber}] Student created successfully`);
+
         results.push({
           row: rowNumber,
           studentId,
@@ -348,11 +378,11 @@ export async function POST(
               admissionNumber,
               name: `${firstName} ${lastName}`,
               bulkUpload: true,
-            },
+            } as Prisma.InputJsonValue,
           },
         });
       } catch (error) {
-        console.error(`Error processing row ${rowNumber}:`, error);
+        console.error(`❌ [Row ${rowNumber}] Error:`, error);
         results.push({
           row: rowNumber,
           studentId,
@@ -368,9 +398,16 @@ export async function POST(
       }
     }
 
+    const successCount = results.filter((r) => r.status === "success").length;
+    const errorCount = results.filter((r) => r.status === "error").length;
+
+    console.log(
+      `\n✅ [Bulk Upload] Completed: ${successCount} successful, ${errorCount} errors\n`,
+    );
+
     return NextResponse.json({ results });
   } catch (error) {
-    console.error("[BULK_UPLOAD] Error", error);
+    console.error("❌ [Bulk Upload] Error:", error);
     return NextResponse.json(
       {
         error: "Internal server error",

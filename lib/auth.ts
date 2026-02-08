@@ -1,4 +1,4 @@
-// lib/auth.ts - REFACTORED
+// lib/auth.ts - UPDATED FOR GUARDIAN INVITATIONS
 
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -16,6 +16,7 @@ import {
 } from "@/lib/auth/permissions";
 import {
   sendAdminInvitationEmail,
+  sendGuardianInvitationEmail,
   sendPasswordResetEmail,
 } from "@/lib/email/resend";
 import { Gender } from "@/lib/generated/prisma/client";
@@ -126,6 +127,7 @@ export const auth = betterAuth({
               school: {
                 select: {
                   name: true,
+                  id: true,
                 },
               },
             },
@@ -133,6 +135,11 @@ export const auth = betterAuth({
 
           if (!org) {
             console.error("[Auth] Organization not found for invitation");
+            return;
+          }
+
+          if (!org.school?.id) {
+            console.error("[Auth] Organization has no associated school");
             return;
           }
 
@@ -150,29 +157,74 @@ export const auth = betterAuth({
             return;
           }
 
-          // Get inviter details
-          const inviterUser = await prisma.user.findUnique({
-            where: { id: inviter.id },
-            select: {
-              name: true,
-              email: true,
+          // Check if this is a guardian invitation
+          console.log(`🔍 [Auth] Checking if ${email} is a guardian...`);
+          const guardian = await prisma.guardian.findFirst({
+            where: {
+              email,
+              schoolId: org.school.id,
+            },
+            include: {
+              students: {
+                include: {
+                  student: {
+                    include: {
+                      profile: true,
+                    },
+                  },
+                },
+              },
             },
           });
 
-          // Send invitation email
-          await sendAdminInvitationEmail({
-            to: email,
-            inviterName:
-              inviterUser?.name || inviterUser?.email || "Administrator",
-            schoolName: org.school?.name || org.name,
-            role: invitation.role || "member",
-            invitationId: id,
-            expiresAt: invitation.expiresAt,
-          });
+          if (guardian && guardian.students.length > 0) {
+            // ===== GUARDIAN INVITATION =====
+            console.log(`✓ [Auth] Detected GUARDIAN invitation for ${email}`);
 
-          console.log(`✅ [Auth] Invitation email sent to ${email}`);
+            const firstStudent = guardian.students[0].student;
+            const studentName = `${firstStudent.profile.firstName} ${firstStudent.profile.lastName}`;
+            const guardianName = `${guardian.firstName} ${guardian.lastName}`;
+
+            await sendGuardianInvitationEmail({
+              to: email,
+              guardianName,
+              studentName,
+              schoolName: org.school.name,
+              invitationId: id,
+              expiresAt: invitation.expiresAt,
+            });
+
+            console.log(`✅ [Auth] Guardian invitation email sent to ${email}`);
+          } else {
+            // ===== ADMIN/STAFF INVITATION =====
+            console.log(
+              `✓ [Auth] Detected ADMIN/STAFF invitation for ${email}`,
+            );
+
+            // Get inviter details
+            const inviterUser = await prisma.user.findUnique({
+              where: { id: inviter.id },
+              select: {
+                name: true,
+                email: true,
+              },
+            });
+
+            await sendAdminInvitationEmail({
+              to: email,
+              inviterName:
+                inviterUser?.name || inviterUser?.email || "Administrator",
+              schoolName: org.school.name,
+              role: invitation.role || "member",
+              invitationId: id,
+              expiresAt: invitation.expiresAt,
+            });
+
+            console.log(`✅ [Auth] Admin invitation email sent to ${email}`);
+          }
         } catch (error) {
           console.error("[Auth] Error in sendInvitationEmail:", error);
+          // Log but don't throw - we don't want to fail the invitation creation
         }
       },
 
@@ -230,6 +282,35 @@ export const auth = betterAuth({
                 data: { emailVerified: true },
               });
               console.log(`✅ [Auth] Email verified for ${user.email}`);
+            }
+
+            // Check if this user is a guardian and link their profile
+            const guardianRecord = await prisma.guardian.findFirst({
+              where: {
+                email: user.email,
+                profileId: null, // Not yet linked
+              },
+            });
+
+            if (guardianRecord) {
+              console.log(
+                `🔗 [Auth] Linking guardian profile for ${user.email}`,
+              );
+
+              // Get the user's profile
+              const userProfile = await prisma.userProfile.findUnique({
+                where: { userId: user.id },
+              });
+
+              if (userProfile) {
+                await prisma.guardian.update({
+                  where: { id: guardianRecord.id },
+                  data: { profileId: userProfile.id },
+                });
+                console.log(
+                  `✅ [Auth] Guardian profile linked for ${user.email}`,
+                );
+              }
             }
 
             // Create audit log

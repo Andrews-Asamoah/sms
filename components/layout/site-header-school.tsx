@@ -1,20 +1,25 @@
-// components/layout/site-header-school.tsx
+// components/layout/site-header-school.tsx - WITH ROLE SWITCHER
 "use client";
 
 import { BaseHeader } from "./base-header";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock } from "lucide-react";
+import { RoleSwitcher } from "./role-switcher";
 
 interface SiteHeaderSchoolProps {
   schoolSlug: string;
   academicYear: string;
   currentTerm?: string | null;
+  currentRole: string;
+  availableRoles: string[];
 }
 
 export function SiteHeaderSchool({
   schoolSlug,
   academicYear,
   currentTerm,
+  currentRole,
+  availableRoles,
 }: SiteHeaderSchoolProps) {
   return (
     <BaseHeader
@@ -23,6 +28,13 @@ export function SiteHeaderSchool({
       prefixToRemove={`/${schoolSlug}`}
       rightContent={
         <div className="flex items-center gap-2">
+          {/* Role Switcher (only shows if multiple roles) */}
+          <RoleSwitcher
+            schoolSlug={schoolSlug}
+            currentRole={currentRole}
+            availableRoles={availableRoles}
+          />
+
           {/* Academic Year Badge */}
           <Badge variant="outline" className="gap-1.5 hidden sm:flex">
             <Calendar className="h-3.5 w-3.5" />

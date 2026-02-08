@@ -1,13 +1,4 @@
-/**
- * ============================================================================
- * NAVIGATION PERMISSIONS UTILITY - FIXED
- * ============================================================================
- *
- * Determines what navigation items and pages a user can access based on their
- * role in a specific school. Fixed to handle null values properly.
- *
- * ============================================================================
- */
+// @/lib/permissions/utils.ts
 
 import type { ExtendedSession, NavPermissions } from "@/lib/auth/types";
 import { getSchoolRole } from "@/lib/auth/school-access";

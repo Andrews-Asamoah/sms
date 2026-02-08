@@ -2,8 +2,8 @@
 import prisma from "@/lib/prisma";
 
 /**
- * Generate next student ID for a school
- * Format: STU + 5-digit number (e.g., STU00001, STU00002)
+ * Generate a unique student ID for a school
+ * Format: STU00001, STU00002, etc.
  */
 export async function generateStudentId(schoolId: string): Promise<string> {
   const lastStudent = await prisma.student.findFirst({
@@ -20,14 +20,14 @@ export async function generateStudentId(schoolId: string): Promise<string> {
 }
 
 /**
- * Generate next admission number for a school
- * Format: SchoolCode + 4-digit number (e.g., ABC0001, ABC0002)
+ * Generate a unique admission number for a school
+ * Format: {schoolCode}0001, {schoolCode}0002, etc.
  */
 export async function generateAdmissionNumber(
   schoolId: string,
   schoolCode: string,
 ): Promise<string> {
-  const lastStudent = await prisma.student.findFirst({
+  const lastAdmission = await prisma.student.findFirst({
     where: {
       schoolId,
       admissionNumber: { not: null },
@@ -36,111 +36,62 @@ export async function generateAdmissionNumber(
     select: { admissionNumber: true },
   });
 
-  let nextNumber = 1;
-  if (lastStudent?.admissionNumber) {
-    const lastNumber = parseInt(lastStudent.admissionNumber.replace(/\D/g, ""));
+  let nextNumber: number;
+  if (lastAdmission?.admissionNumber) {
+    const lastNumber = parseInt(
+      lastAdmission.admissionNumber.replace(/\D/g, ""),
+    );
     nextNumber = isNaN(lastNumber) ? 1 : lastNumber + 1;
+  } else {
+    nextNumber = 1;
   }
 
   return `${schoolCode}${nextNumber.toString().padStart(4, "0")}`;
 }
 
 /**
- * Batch generate student IDs and admission numbers
- * Useful for bulk uploads - generates all IDs upfront to ensure sequential numbering
+ * Generate multiple student IDs and admission numbers in batch
+ * Used for bulk upload operations
  */
 export async function batchGenerateStudentIds(
   schoolId: string,
   schoolCode: string,
   count: number,
 ): Promise<Array<{ studentId: string; admissionNumber: string }>> {
-  // Get the last used numbers
-  const [lastStudent, lastAdmission] = await Promise.all([
-    prisma.student.findFirst({
-      where: { schoolId },
-      orderBy: { createdAt: "desc" },
-      select: { studentId: true },
-    }),
-    prisma.student.findFirst({
-      where: {
-        schoolId,
-        admissionNumber: { not: null },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { admissionNumber: true },
-    }),
-  ]);
+  // Get the last student to determine starting numbers
+  const lastStudent = await prisma.student.findFirst({
+    where: { schoolId },
+    orderBy: { createdAt: "desc" },
+    select: { studentId: true, admissionNumber: true },
+  });
 
+  // Determine starting student number
   const startStudentNumber = lastStudent
     ? parseInt(lastStudent.studentId.replace(/\D/g, "")) + 1
     : 1;
 
-  let startAdmissionNumber = 1;
-  if (lastAdmission?.admissionNumber) {
-    const lastNumber = parseInt(
-      lastAdmission.admissionNumber.replace(/\D/g, ""),
+  // Determine starting admission number
+  let startAdmissionNumber: number;
+  if (lastStudent?.admissionNumber) {
+    const lastAdmNumber = parseInt(
+      lastStudent.admissionNumber.replace(/\D/g, ""),
     );
-    startAdmissionNumber = isNaN(lastNumber) ? 1 : lastNumber + 1;
+    startAdmissionNumber = isNaN(lastAdmNumber) ? 1 : lastAdmNumber + 1;
+  } else {
+    startAdmissionNumber = 1;
   }
 
-  // Generate the batch
+  // Generate all IDs
   const ids = [];
   for (let i = 0; i < count; i++) {
+    const studentNumber = startStudentNumber + i;
+    const admissionNumber = startAdmissionNumber + i;
+
     ids.push({
-      studentId: `STU${(startStudentNumber + i).toString().padStart(5, "0")}`,
-      admissionNumber: `${schoolCode}${(startAdmissionNumber + i).toString().padStart(4, "0")}`,
+      studentId: `STU${studentNumber.toString().padStart(5, "0")}`,
+      admissionNumber: `${schoolCode}${admissionNumber.toString().padStart(4, "0")}`,
     });
   }
 
   return ids;
-}
-
-/**
- * Validate student ID format
- */
-export function isValidStudentId(studentId: string): boolean {
-  return /^STU\d{5}$/.test(studentId);
-}
-
-/**
- * Validate admission number format
- */
-export function isValidAdmissionNumber(
-  admissionNumber: string,
-  schoolCode: string,
-): boolean {
-  const pattern = new RegExp(`^${schoolCode}\\d{4}$`);
-  return pattern.test(admissionNumber);
-}
-
-/**
- * Check if student ID already exists in a school
- */
-export async function isStudentIdTaken(
-  studentId: string,
-  schoolId: string,
-): Promise<boolean> {
-  const existing = await prisma.student.findFirst({
-    where: {
-      studentId,
-      schoolId,
-    },
-  });
-  return !!existing;
-}
-
-/**
- * Check if admission number already exists in a school
- */
-export async function isAdmissionNumberTaken(
-  admissionNumber: string,
-  schoolId: string,
-): Promise<boolean> {
-  const existing = await prisma.student.findFirst({
-    where: {
-      admissionNumber,
-      schoolId,
-    },
-  });
-  return !!existing;
 }

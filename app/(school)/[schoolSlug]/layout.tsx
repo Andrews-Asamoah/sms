@@ -1,7 +1,11 @@
-// app/(school)/[schoolSlug]/layout.tsx
+// app/(school)/[schoolSlug]/layout.tsx - WITH ROLE SWITCHER SUPPORT
 import { redirect, notFound } from "next/navigation";
-import { getSession } from "@/lib/auth/session"; // ✅ Uses existing session.ts
-import { hasSchoolAccess, getSchoolRole } from "@/lib/auth/school-access";
+import { getSession } from "@/lib/auth/session";
+import {
+  hasSchoolAccess,
+  getSchoolRole,
+  getAllRolesInSchool,
+} from "@/lib/auth/school-access";
 import { getNavPermissions } from "@/lib/permissions/utils";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebarSchool } from "@/components/layout/app-sidebar-school";
@@ -20,16 +24,14 @@ export default async function SchoolLayout({
 }: SchoolLayoutProps) {
   const { schoolSlug } = await params;
 
-  // Get enhanced session (already includes profile, memberships, etc.)
+  // Get enhanced session
   const session = await getSession();
-
   if (!session) {
     redirect(`/auth/login?callbackUrl=/${schoolSlug}/admin/dashboard`);
   }
 
   // Check school access
   const hasAccess = hasSchoolAccess(session, schoolSlug);
-
   if (!hasAccess) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
@@ -47,15 +49,13 @@ export default async function SchoolLayout({
     notFound();
   }
 
-  // Get current academic year and term from school settings
+  // Get current academic year and term
   interface SchoolSettings {
     currentAcademicYearId?: string;
     currentTermId?: string;
   }
-
   const settings = (school.settings as SchoolSettings) || {};
 
-  // Fetch the actual academic year and term based on settings
   const academicYear = settings.currentAcademicYearId
     ? await prisma.academicYear.findUnique({
         where: { id: settings.currentAcademicYearId },
@@ -70,10 +70,12 @@ export default async function SchoolLayout({
 
   // Get user's role in this school
   const schoolRole = getSchoolRole(session, schoolSlug);
-
   if (!schoolRole) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
+
+  // Get all roles this user has in this school (for role switching)
+  const allRoles = getAllRolesInSchool(session, schoolSlug);
 
   // Get navigation permissions
   const permissions = await getNavPermissions(session, schoolSlug);
@@ -100,6 +102,8 @@ export default async function SchoolLayout({
           schoolSlug={schoolSlug}
           academicYear={academicYear?.name || "No Active Year"}
           currentTerm={academicYear?.terms[0]?.name || null}
+          currentRole={schoolRole.effectiveRole}
+          availableRoles={allRoles}
         />
         <main className="flex-1 overflow-y-auto min-h-0">
           <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">

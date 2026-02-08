@@ -1,6 +1,7 @@
-// app/api/schools/[schoolId]/invite-admin/route.ts - REFACTORED
+// app/api/schools/[schoolId]/invite-admin/route.ts - UPDATED
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthSession, auth } from "@/lib/auth";
+import { getSession } from "@/lib/auth/session"; // ✅ Updated import
+import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   console.log("📨 [Invite API] Starting invitation process...");
 
   try {
-    const session = await getAuthSession();
+    const session = await getSession(); // ✅ Updated from getAuthSession
     if (!session || !session.isSuperAdmin) {
       console.log("❌ [Invite API] Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -181,7 +182,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   console.log("📋 [Invite API] Fetching invitations...");
 
   try {
-    const session = await getAuthSession();
+    const session = await getSession(); // ✅ Updated from getAuthSession
     if (!session) {
       console.log("❌ [Invite API] Unauthorized - no session");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -229,7 +230,7 @@ export async function DELETE(request: NextRequest) {
   console.log("🗑️ [Invite API] Cancelling invitation...");
 
   try {
-    const session = await getAuthSession();
+    const session = await getSession(); // ✅ Updated from getAuthSession
     if (!session) {
       console.log("❌ [Invite API] Unauthorized - no session");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -1,10 +1,11 @@
 // components/school/students/student-form.tsx
+// THIS FILE REPLACES YOUR EXISTING student-form.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import {
   Loader2,
@@ -13,6 +14,11 @@ import {
   MapPin,
   Heart,
   GraduationCap,
+  Users,
+  Plus,
+  Trash2,
+  Mail,
+  Phone as PhoneIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -27,6 +33,43 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+const guardianSchema = z.object({
+  firstName: z.string().min(2, "First name required"),
+  lastName: z.string().min(2, "Last name required"),
+  otherNames: z.string().optional().nullable(),
+  email: z.string().email("Valid email required"),
+  phone: z.string().min(10, "Phone number required"),
+  alternatePhone: z.string().optional().nullable(),
+  gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional().nullable(),
+  relationshipType: z.enum([
+    "FATHER",
+    "MOTHER",
+    "GUARDIAN",
+    "SIBLING",
+    "RELATIVE",
+    "OTHER",
+  ]),
+  occupation: z.string().optional().nullable(),
+  employer: z.string().optional().nullable(),
+  workAddress: z.string().optional().nullable(),
+  workPhone: z.string().optional().nullable(),
+  residentialAddress: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+  isPrimary: z.boolean(),
+  canPickup: z.boolean(),
+  receiveReports: z.boolean(),
+  receiveAlerts: z.boolean(),
+});
 
 const studentFormSchema = z.object({
   // Personal Information
@@ -48,7 +91,7 @@ const studentFormSchema = z.object({
   region: z.string().optional().nullable(),
   country: z.string().optional().nullable(),
 
-  // Student Specific - Both auto-generated
+  // Student Specific
   studentId: z.string().min(1, "Student ID is required"),
   admissionNumber: z.string().min(1, "Admission number is required"),
   admissionDate: z.string().min(1, "Admission date is required"),
@@ -69,6 +112,9 @@ const studentFormSchema = z.object({
   emergencyContactName: z.string().optional().nullable(),
   emergencyContactPhone: z.string().optional().nullable(),
   emergencyRelationship: z.string().optional().nullable(),
+
+  // Guardians - optional, only for new students
+  guardians: z.array(guardianSchema).optional(),
 });
 
 type StudentFormValues = z.infer<typeof studentFormSchema>;
@@ -98,6 +144,7 @@ export function StudentForm({
 }: StudentFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditing = !!studentProfileId;
 
   const {
     register,
@@ -105,6 +152,7 @@ export function StudentForm({
     formState: { errors },
     setValue,
     watch,
+    control,
   } = useForm<StudentFormValues>({
     resolver: zodResolver(studentFormSchema),
     defaultValues: initialData || {
@@ -114,17 +162,33 @@ export function StudentForm({
       country: "Ghana",
       admissionDate: new Date().toISOString().split("T")[0],
       gender: "MALE",
+      guardians: [
+        {
+          firstName: "",
+          lastName: "",
+          email: "",
+          phone: "",
+          relationshipType: "FATHER",
+          isPrimary: true,
+          canPickup: true,
+          receiveReports: true,
+          receiveAlerts: true,
+        },
+      ],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "guardians",
   });
 
   async function onSubmit(data: StudentFormValues) {
     setIsSubmitting(true);
-
     try {
       const url = studentProfileId
         ? `/api/schools/${schoolSlug}/students/${studentProfileId}`
         : `/api/schools/${schoolSlug}/students`;
-
       const method = studentProfileId ? "PATCH" : "POST";
 
       const response = await fetch(url, {
@@ -145,11 +209,15 @@ export function StudentForm({
           ? "Student updated successfully"
           : "Student created successfully",
         {
-          description: `${data.firstName} ${data.lastName} has been ${studentProfileId ? "updated" : "added"}.`,
+          description: studentProfileId
+            ? `${data.firstName} ${data.lastName} has been updated.`
+            : `${data.firstName} ${data.lastName} has been added.${!studentProfileId && data.guardians?.length ? ` Invitations sent to ${data.guardians.length} guardian(s).` : ""}`,
         },
       );
 
-      router.push(`/${schoolSlug}/admin/students/${result.id}`);
+      router.push(
+        `/${schoolSlug}/admin/students/${result.id || result.student?.id}`,
+      );
       router.refresh();
     } catch (error) {
       console.error("Error saving student:", error);
@@ -170,7 +238,6 @@ export function StudentForm({
           <User className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-lg font-semibold">Personal Information</h3>
         </div>
-
         <div className="grid gap-4 md:grid-cols-3">
           <FieldGroup>
             <FieldLabel htmlFor="firstName">First Name *</FieldLabel>
@@ -183,7 +250,6 @@ export function StudentForm({
               <FieldError>{errors.firstName.message}</FieldError>
             )}
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="lastName">Last Name *</FieldLabel>
             <Input id="lastName" placeholder="Doe" {...register("lastName")} />
@@ -191,7 +257,6 @@ export function StudentForm({
               <FieldError>{errors.lastName.message}</FieldError>
             )}
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="otherNames">Other Names</FieldLabel>
             <Input
@@ -201,7 +266,6 @@ export function StudentForm({
             />
           </FieldGroup>
         </div>
-
         <div className="grid gap-4 md:grid-cols-3">
           <FieldGroup>
             <FieldLabel htmlFor="gender">Gender *</FieldLabel>
@@ -222,7 +286,6 @@ export function StudentForm({
             </Select>
             {errors.gender && <FieldError>{errors.gender.message}</FieldError>}
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="dateOfBirth">Date of Birth *</FieldLabel>
             <Input id="dateOfBirth" type="date" {...register("dateOfBirth")} />
@@ -230,7 +293,6 @@ export function StudentForm({
               <FieldError>{errors.dateOfBirth.message}</FieldError>
             )}
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="nationality">Nationality</FieldLabel>
             <Input
@@ -240,7 +302,6 @@ export function StudentForm({
             />
           </FieldGroup>
         </div>
-
         <div className="grid gap-4 md:grid-cols-2">
           <FieldGroup>
             <FieldLabel htmlFor="phone">Phone Number</FieldLabel>
@@ -250,7 +311,6 @@ export function StudentForm({
               {...register("phone")}
             />
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="alternatePhone">Alternate Phone</FieldLabel>
             <Input
@@ -270,7 +330,6 @@ export function StudentForm({
           <MapPin className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-lg font-semibold">Address Information</h3>
         </div>
-
         <div className="grid gap-4 md:grid-cols-2">
           <FieldGroup>
             <FieldLabel htmlFor="residentialAddress">
@@ -282,7 +341,6 @@ export function StudentForm({
               {...register("residentialAddress")}
             />
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="postalAddress">Postal Address</FieldLabel>
             <Textarea
@@ -292,13 +350,11 @@ export function StudentForm({
             />
           </FieldGroup>
         </div>
-
         <div className="grid gap-4 md:grid-cols-3">
           <FieldGroup>
             <FieldLabel htmlFor="city">City</FieldLabel>
             <Input id="city" placeholder="Accra" {...register("city")} />
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="region">Region</FieldLabel>
             <Input
@@ -307,7 +363,6 @@ export function StudentForm({
               {...register("region")}
             />
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="country">Country</FieldLabel>
             <Input id="country" placeholder="Ghana" {...register("country")} />
@@ -323,7 +378,6 @@ export function StudentForm({
           <GraduationCap className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-lg font-semibold">Student Information</h3>
         </div>
-
         <div className="grid gap-4 md:grid-cols-3">
           <FieldGroup>
             <FieldLabel htmlFor="studentId">Student ID *</FieldLabel>
@@ -341,7 +395,6 @@ export function StudentForm({
               <FieldError>{errors.studentId.message}</FieldError>
             )}
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="admissionNumber">
               Admission Number *
@@ -360,7 +413,6 @@ export function StudentForm({
               <FieldError>{errors.admissionNumber.message}</FieldError>
             )}
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="admissionDate">Admission Date *</FieldLabel>
             <Input
@@ -373,7 +425,6 @@ export function StudentForm({
             )}
           </FieldGroup>
         </div>
-
         <div className="grid gap-4 md:grid-cols-3">
           <FieldGroup>
             <FieldLabel htmlFor="classId">Class</FieldLabel>
@@ -393,7 +444,6 @@ export function StudentForm({
               </SelectContent>
             </Select>
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="departmentId">Department</FieldLabel>
             <Select
@@ -412,7 +462,6 @@ export function StudentForm({
               </SelectContent>
             </Select>
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="houseId">House</FieldLabel>
             <Select
@@ -432,7 +481,6 @@ export function StudentForm({
             </Select>
           </FieldGroup>
         </div>
-
         <div className="grid gap-4 md:grid-cols-2">
           <FieldGroup>
             <FieldLabel htmlFor="previousSchool">Previous School</FieldLabel>
@@ -442,7 +490,6 @@ export function StudentForm({
               {...register("previousSchool")}
             />
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="previousClass">
               Previous Class/Grade
@@ -466,7 +513,6 @@ export function StudentForm({
             Medical & Emergency Information
           </h3>
         </div>
-
         <div className="grid gap-4 md:grid-cols-3">
           <FieldGroup>
             <FieldLabel htmlFor="bloodGroup">Blood Group</FieldLabel>
@@ -489,7 +535,6 @@ export function StudentForm({
               </SelectContent>
             </Select>
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="allergies">Allergies</FieldLabel>
             <Input
@@ -498,7 +543,6 @@ export function StudentForm({
               {...register("allergies")}
             />
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="medicalConditions">
               Medical Conditions
@@ -510,7 +554,6 @@ export function StudentForm({
             />
           </FieldGroup>
         </div>
-
         <div className="grid gap-4 md:grid-cols-3">
           <FieldGroup>
             <FieldLabel htmlFor="emergencyContactName">
@@ -522,7 +565,6 @@ export function StudentForm({
               {...register("emergencyContactName")}
             />
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="emergencyContactPhone">
               Emergency Contact Phone
@@ -533,7 +575,6 @@ export function StudentForm({
               {...register("emergencyContactPhone")}
             />
           </FieldGroup>
-
           <FieldGroup>
             <FieldLabel htmlFor="emergencyRelationship">
               Relationship
@@ -546,6 +587,359 @@ export function StudentForm({
           </FieldGroup>
         </div>
       </div>
+
+      {/* Guardians/Parents Section - Only show when creating new students */}
+      {!isEditing && (
+        <>
+          <Separator />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">
+                  Guardians/Parents Information
+                </h3>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  append({
+                    firstName: "",
+                    lastName: "",
+                    otherNames: null,
+                    email: "",
+                    phone: "",
+                    alternatePhone: null,
+                    gender: null,
+                    relationshipType: "MOTHER",
+                    occupation: null,
+                    employer: null,
+                    workAddress: null,
+                    workPhone: null,
+                    residentialAddress: null,
+                    city: null,
+                    region: null,
+                    isPrimary: false,
+                    canPickup: true,
+                    receiveReports: true,
+                    receiveAlerts: true,
+                  })
+                }
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Guardian
+              </Button>
+            </div>
+
+            {fields.map((field, index) => (
+              <Card key={field.id} className="border-2">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">
+                      Guardian {index + 1}
+                    </CardTitle>
+                    {fields.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => remove(index)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    )}
+                  </div>
+                  <CardDescription>
+                    An invitation email will be sent to this guardian
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Basic Info */}
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FieldGroup>
+                      <FieldLabel>First Name *</FieldLabel>
+                      <Input
+                        placeholder="John"
+                        {...register(`guardians.${index}.firstName`)}
+                      />
+                      {errors.guardians?.[index]?.firstName && (
+                        <FieldError>
+                          {errors.guardians[index]?.firstName?.message}
+                        </FieldError>
+                      )}
+                    </FieldGroup>
+                    <FieldGroup>
+                      <FieldLabel>Last Name *</FieldLabel>
+                      <Input
+                        placeholder="Doe"
+                        {...register(`guardians.${index}.lastName`)}
+                      />
+                      {errors.guardians?.[index]?.lastName && (
+                        <FieldError>
+                          {errors.guardians[index]?.lastName?.message}
+                        </FieldError>
+                      )}
+                    </FieldGroup>
+                    <FieldGroup>
+                      <FieldLabel>Other Names</FieldLabel>
+                      <Input
+                        placeholder="Middle name"
+                        {...register(`guardians.${index}.otherNames`)}
+                      />
+                    </FieldGroup>
+                  </div>
+
+                  {/* Contact Info */}
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FieldGroup>
+                      <FieldLabel>
+                        <Mail className="inline h-4 w-4 mr-1" />
+                        Email *
+                      </FieldLabel>
+                      <Input
+                        type="email"
+                        placeholder="john.doe@email.com"
+                        {...register(`guardians.${index}.email`)}
+                      />
+                      {errors.guardians?.[index]?.email && (
+                        <FieldError>
+                          {errors.guardians[index]?.email?.message}
+                        </FieldError>
+                      )}
+                    </FieldGroup>
+                    <FieldGroup>
+                      <FieldLabel>
+                        <PhoneIcon className="inline h-4 w-4 mr-1" />
+                        Phone *
+                      </FieldLabel>
+                      <Input
+                        placeholder="+233 24 123 4567"
+                        {...register(`guardians.${index}.phone`)}
+                      />
+                      {errors.guardians?.[index]?.phone && (
+                        <FieldError>
+                          {errors.guardians[index]?.phone?.message}
+                        </FieldError>
+                      )}
+                    </FieldGroup>
+                    <FieldGroup>
+                      <FieldLabel>Alternate Phone</FieldLabel>
+                      <Input
+                        placeholder="+233 20 987 6543"
+                        {...register(`guardians.${index}.alternatePhone`)}
+                      />
+                    </FieldGroup>
+                  </div>
+
+                  {/* Relationship and Gender */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FieldGroup>
+                      <FieldLabel>Relationship *</FieldLabel>
+                      <Select
+                        value={watch(`guardians.${index}.relationshipType`)}
+                        onValueChange={(value) =>
+                          setValue(
+                            `guardians.${index}.relationshipType`,
+                            value as
+                              | "FATHER"
+                              | "MOTHER"
+                              | "GUARDIAN"
+                              | "SIBLING"
+                              | "RELATIVE"
+                              | "OTHER",
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="FATHER">Father</SelectItem>
+                          <SelectItem value="MOTHER">Mother</SelectItem>
+                          <SelectItem value="GUARDIAN">Guardian</SelectItem>
+                          <SelectItem value="SIBLING">Sibling</SelectItem>
+                          <SelectItem value="RELATIVE">Relative</SelectItem>
+                          <SelectItem value="OTHER">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {errors.guardians?.[index]?.relationshipType && (
+                        <FieldError>
+                          {errors.guardians[index]?.relationshipType?.message}
+                        </FieldError>
+                      )}
+                    </FieldGroup>
+                    <FieldGroup>
+                      <FieldLabel>Gender</FieldLabel>
+                      <Select
+                        value={watch(`guardians.${index}.gender`) || ""}
+                        onValueChange={(value) =>
+                          setValue(
+                            `guardians.${index}.gender`,
+                            value as "MALE" | "FEMALE" | "OTHER",
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MALE">Male</SelectItem>
+                          <SelectItem value="FEMALE">Female</SelectItem>
+                          <SelectItem value="OTHER">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FieldGroup>
+                  </div>
+
+                  {/* Occupation */}
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FieldGroup>
+                      <FieldLabel>Occupation</FieldLabel>
+                      <Input
+                        placeholder="Engineer"
+                        {...register(`guardians.${index}.occupation`)}
+                      />
+                    </FieldGroup>
+                    <FieldGroup>
+                      <FieldLabel>Employer</FieldLabel>
+                      <Input
+                        placeholder="Company name"
+                        {...register(`guardians.${index}.employer`)}
+                      />
+                    </FieldGroup>
+                    <FieldGroup>
+                      <FieldLabel>Work Phone</FieldLabel>
+                      <Input
+                        placeholder="+233 30 123 4567"
+                        {...register(`guardians.${index}.workPhone`)}
+                      />
+                    </FieldGroup>
+                  </div>
+
+                  {/* Work Address */}
+                  <FieldGroup>
+                    <FieldLabel>Work Address</FieldLabel>
+                    <Textarea
+                      placeholder="Office address"
+                      {...register(`guardians.${index}.workAddress`)}
+                    />
+                  </FieldGroup>
+
+                  {/* Residential Address */}
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FieldGroup className="md:col-span-2">
+                      <FieldLabel>Residential Address</FieldLabel>
+                      <Textarea
+                        placeholder="Home address"
+                        {...register(`guardians.${index}.residentialAddress`)}
+                      />
+                    </FieldGroup>
+                    <div className="space-y-4">
+                      <FieldGroup>
+                        <FieldLabel>City</FieldLabel>
+                        <Input
+                          placeholder="Accra"
+                          {...register(`guardians.${index}.city`)}
+                        />
+                      </FieldGroup>
+                      <FieldGroup>
+                        <FieldLabel>Region</FieldLabel>
+                        <Input
+                          placeholder="Greater Accra"
+                          {...register(`guardians.${index}.region`)}
+                        />
+                      </FieldGroup>
+                    </div>
+                  </div>
+
+                  {/* Permissions */}
+                  <div className="space-y-3 pt-4 border-t">
+                    <FieldLabel className="text-base font-semibold">
+                      Permissions & Access
+                    </FieldLabel>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`guardian-${index}-primary`}
+                          checked={watch(`guardians.${index}.isPrimary`)}
+                          onCheckedChange={(checked) =>
+                            setValue(
+                              `guardians.${index}.isPrimary`,
+                              checked as boolean,
+                            )
+                          }
+                        />
+                        <label
+                          htmlFor={`guardian-${index}-primary`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Primary Guardian
+                        </label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`guardian-${index}-pickup`}
+                          checked={watch(`guardians.${index}.canPickup`)}
+                          onCheckedChange={(checked) =>
+                            setValue(
+                              `guardians.${index}.canPickup`,
+                              checked as boolean,
+                            )
+                          }
+                        />
+                        <label
+                          htmlFor={`guardian-${index}-pickup`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Can Pickup Student
+                        </label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`guardian-${index}-reports`}
+                          checked={watch(`guardians.${index}.receiveReports`)}
+                          onCheckedChange={(checked) =>
+                            setValue(
+                              `guardians.${index}.receiveReports`,
+                              checked as boolean,
+                            )
+                          }
+                        />
+                        <label
+                          htmlFor={`guardian-${index}-reports`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Receive Reports
+                        </label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`guardian-${index}-alerts`}
+                          checked={watch(`guardians.${index}.receiveAlerts`)}
+                          onCheckedChange={(checked) =>
+                            setValue(
+                              `guardians.${index}.receiveAlerts`,
+                              checked as boolean,
+                            )
+                          }
+                        />
+                        <label
+                          htmlFor={`guardian-${index}-alerts`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Receive Alerts
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Submit Button */}
       <div className="flex justify-end gap-4">
@@ -560,7 +954,9 @@ export function StudentForm({
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <Save className="mr-2 h-4 w-4" />
-          {studentProfileId ? "Update Student" : "Create Student"}
+          {studentProfileId
+            ? "Update Student"
+            : "Create Student & Send Invitations"}
         </Button>
       </div>
     </form>
