@@ -1,18 +1,4 @@
 // lib/auth/api.ts - Better Auth API Operations
-/**
- * ============================================================================
- * BETTER AUTH API OPERATIONS
- * ============================================================================
- *
- * Consolidates all Better Auth API calls into a single module.
- * Replaces redundant code from:
- * - helpers.ts (organization operations)
- * - super-admin.ts (admin operations)
- *
- * All functions use Better Auth's native API methods and return consistent
- * error handling.
- * ============================================================================
- */
 
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";

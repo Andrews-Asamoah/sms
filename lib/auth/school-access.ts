@@ -4,12 +4,9 @@ import type {
   SchoolAccess,
   EffectiveRole,
   ProfileRoleType,
+  OrganizationRole,
 } from "./types";
-import {
-  StudentStatus,
-  StaffType,
-  MemberRole,
-} from "@/lib/generated/prisma/client";
+import { StudentStatus, StaffType } from "@/lib/generated/prisma/client";
 import { ROLE_PRIORITY } from "./types";
 
 /**
@@ -29,9 +26,11 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
         schoolName: school.name,
         subdomain: school.subdomain,
         organizationId: membership.organizationId,
-        organizationRole: membership.role,
+        organizationRole: membership.role as OrganizationRole,
         profileRoles: [], // Will be populated below
-        effectiveRole: mapOrgRoleToEffective(membership.role),
+        effectiveRole: mapOrgRoleToEffective(
+          membership.role as OrganizationRole,
+        ),
         isActive: true,
       });
     }
@@ -48,7 +47,7 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
         existing.profileRoles.push("teacher");
         existing.effectiveRole = getHighestRole(
           existing.effectiveRole,
-          "teacher"
+          "teacher",
         );
       } else {
         schoolAccessMap.set(teacher.school.id, {
@@ -71,7 +70,7 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
         existing.profileRoles.push("student");
         existing.effectiveRole = getHighestRole(
           existing.effectiveRole,
-          "student"
+          "student",
         );
       } else {
         schoolAccessMap.set(student.school.id, {
@@ -97,7 +96,7 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
         existing.profileRoles.push(staffRole);
         existing.effectiveRole = getHighestRole(
           existing.effectiveRole,
-          staffRole
+          staffRole,
         );
       } else {
         schoolAccessMap.set(staff.school.id, {
@@ -113,14 +112,14 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
       }
     }
 
-    // Guardian role
+    // Guardian role (includes parents, legal guardians, and other caretakers)
     if (guardian && guardian.isActive && guardian.canLogin && guardian.school) {
       const existing = schoolAccessMap.get(guardian.school.id);
       if (existing) {
         existing.profileRoles.push("guardian");
         existing.effectiveRole = getHighestRole(
           existing.effectiveRole,
-          "guardian"
+          "guardian",
         );
       } else {
         schoolAccessMap.set(guardian.school.id, {
@@ -143,7 +142,7 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
 /**
  * Map Better Auth organization role to effective role
  */
-function mapOrgRoleToEffective(orgRole: MemberRole): EffectiveRole {
+function mapOrgRoleToEffective(orgRole: OrganizationRole): EffectiveRole {
   switch (orgRole) {
     case "owner":
       return "owner";
@@ -161,7 +160,7 @@ function mapOrgRoleToEffective(orgRole: MemberRole): EffectiveRole {
  */
 function getHighestRole(
   current: EffectiveRole,
-  candidate: ProfileRoleType | EffectiveRole
+  candidate: ProfileRoleType | EffectiveRole,
 ): EffectiveRole {
   const currentPriority = ROLE_PRIORITY[current];
   const candidatePriority =
@@ -176,7 +175,7 @@ function getHighestRole(
  */
 export function hasSchoolAccess(
   session: ExtendedSession,
-  subdomain: string
+  subdomain: string,
 ): boolean {
   if (session.isSuperAdmin) return true;
 
@@ -186,7 +185,7 @@ export function hasSchoolAccess(
 
 export function getSchoolRole(
   session: ExtendedSession,
-  subdomain: string
+  subdomain: string,
 ): SchoolAccess | null {
   console.log(`[School Access] 🔍 Checking access for: ${subdomain}`);
   console.log(`[School Access] User: ${session.user.email}`);
@@ -208,19 +207,19 @@ export function getSchoolRole(
 
   const access = getUserSchoolAccess(session);
   console.log(
-    `[School Access] 📋 User has access to ${access.length} schools:`
+    `[School Access] 📋 User has access to ${access.length} schools:`,
   );
 
   access.forEach((a, index) => {
     console.log(
-      `[School Access]   ${index + 1}. ${a.schoolName} (${a.subdomain})`
+      `[School Access]   ${index + 1}. ${a.schoolName} (${a.subdomain})`,
     );
     console.log(`[School Access]      Role: ${a.effectiveRole}`);
     console.log(
-      `[School Access]      Org Role: ${a.organizationRole || "none"}`
+      `[School Access]      Org Role: ${a.organizationRole || "none"}`,
     );
     console.log(
-      `[School Access]      Profile Roles: ${a.profileRoles.join(", ") || "none"}`
+      `[School Access]      Profile Roles: ${a.profileRoles.join(", ") || "none"}`,
     );
     console.log(`[School Access]      Active: ${a.isActive}`);
   });
@@ -233,7 +232,7 @@ export function getSchoolRole(
   } else {
     console.log(`[School Access] ❌ No access to ${subdomain}`);
     console.log(
-      `[School Access]    Available subdomains: ${access.map((a) => a.subdomain).join(", ") || "none"}`
+      `[School Access]    Available subdomains: ${access.map((a) => a.subdomain).join(", ") || "none"}`,
     );
   }
 
@@ -245,7 +244,7 @@ export function getSchoolRole(
  * Priority: highest role > first school
  */
 export function getPrimarySchool(
-  session: ExtendedSession
+  session: ExtendedSession,
 ): SchoolAccess | null {
   const access = getUserSchoolAccess(session);
 
@@ -273,7 +272,7 @@ export function getPrimarySchool(
 export function hasRoleInSchool(
   session: ExtendedSession,
   subdomain: string,
-  role: EffectiveRole | ProfileRoleType
+  role: EffectiveRole | ProfileRoleType,
 ): boolean {
   if (session.isSuperAdmin) return true;
 
@@ -298,7 +297,7 @@ export function hasRoleInSchool(
  */
 export function getAllRolesInSchool(
   session: ExtendedSession,
-  subdomain: string
+  subdomain: string,
 ): string[] {
   if (session.isSuperAdmin) return ["superAdmin"];
 
@@ -331,7 +330,7 @@ export function isMultiSchoolUser(session: ExtendedSession): boolean {
  */
 export function getSchoolAccessById(
   session: ExtendedSession,
-  schoolId: string
+  schoolId: string,
 ): SchoolAccess | null {
   if (session.isSuperAdmin) {
     return {

@@ -5,7 +5,7 @@ import { render } from "@react-email/render";
 import { AdminInvitationEmail } from "./templates/admin-invitation";
 import { GuardianInvitationEmail } from "./templates/guardian-invitation";
 import { PasswordResetEmail } from "./templates/password-reset";
-
+import { StudentCredentialsEmail } from "./templates/student-credentials";
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
@@ -48,6 +48,21 @@ interface PasswordResetEmailParams {
 interface WelcomeEmailParams {
   to: string;
   userName: string;
+  schoolName: string;
+  loginUrl: string;
+}
+
+interface StudentCredential {
+  name: string;
+  studentId: string;
+  email: string;
+  temporaryPassword: string;
+}
+
+interface StudentCredentialsEmailParams {
+  to: string;
+  parentName: string;
+  students: StudentCredential[];
   schoolName: string;
   loginUrl: string;
 }
@@ -166,6 +181,47 @@ export async function sendPasswordResetEmail(
   } catch (error) {
     console.error(`❌ [Email] Failed to send password reset to ${to}:`, error);
     throw new Error("Failed to send password reset email");
+  }
+}
+
+/**
+ * Send student login credentials to parent
+ * Supports single or multiple students (siblings)
+ */
+export async function sendStudentCredentialsEmail(
+  params: StudentCredentialsEmailParams,
+): Promise<void> {
+  const { to, parentName, students, schoolName, loginUrl } = params;
+
+  try {
+    const emailHtml = await render(
+      StudentCredentialsEmail({
+        parentName,
+        students,
+        schoolName,
+        loginUrl,
+      }),
+    );
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject:
+        students.length === 1
+          ? `Student Login Credentials - ${students[0].name}`
+          : `Student Login Credentials - ${schoolName}`,
+      html: emailHtml,
+    });
+
+    console.log(
+      `✅ [Email] Student credentials sent to ${to} for ${students.length} student(s)`,
+    );
+  } catch (error) {
+    console.error(
+      `❌ [Email] Failed to send student credentials to ${to}:`,
+      error,
+    );
+    throw new Error("Failed to send student credentials email");
   }
 }
 

@@ -1,8 +1,7 @@
-// app/api/schools/[schoolId]/invite-admin/route.ts - UPDATED
+// app/api/schools/[schoolSlug]/invite-admin/route.ts - FIXED WITH PROPER ERROR TYPING
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session"; // ✅ Updated import
+import { getSession } from "@/lib/auth/session";
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 
 type RouteContext = {
@@ -11,12 +10,34 @@ type RouteContext = {
   }>;
 };
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+interface APIError extends Error {
+  status?: string;
+  statusCode?: number;
+  body?: unknown;
+}
+
+function isAPIError(error: unknown): error is APIError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as Record<string, unknown>).message === "string"
+  );
+}
+
+// ============================================================================
 // POST - Create invitation
+// ============================================================================
+
 export async function POST(request: NextRequest, context: RouteContext) {
   console.log("📨 [Invite API] Starting invitation process...");
 
   try {
-    const session = await getSession(); // ✅ Updated from getAuthSession
+    const session = await getSession();
     if (!session || !session.isSuperAdmin) {
       console.log("❌ [Invite API] Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -98,7 +119,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           userId: existingUser.id,
           role: role.toLowerCase() as "owner" | "admin" | "member",
         },
-        headers: await headers(),
+        headers: request.headers,
       });
 
       if (!result) {
@@ -147,7 +168,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         email,
         role: role.toLowerCase() as "owner" | "admin" | "member",
       },
-      headers: await headers(),
+      headers: request.headers,
     });
 
     if (!invitation) {
@@ -167,6 +188,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
   } catch (error) {
     console.error("❌ [Invite API] Error inviting admin:", error);
+
+    // Enhanced error logging with proper typing
+    if (isAPIError(error)) {
+      console.error("❌ [Invite API] Error details:", {
+        message: error.message,
+        status: error.status,
+        statusCode: error.statusCode,
+        body: error.body,
+      });
+    }
+
     return NextResponse.json(
       {
         error: "Failed to invite admin",
@@ -177,12 +209,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 }
 
+// ============================================================================
 // GET - List pending invitations for a school
+// ============================================================================
+
 export async function GET(request: NextRequest, context: RouteContext) {
   console.log("📋 [Invite API] Fetching invitations...");
 
   try {
-    const session = await getSession(); // ✅ Updated from getAuthSession
+    const session = await getSession();
     if (!session) {
       console.log("❌ [Invite API] Unauthorized - no session");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -204,12 +239,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    // Use Better Auth API to list invitations
     const invitations = await auth.api.listInvitations({
       query: {
         organizationId: school.organizationId,
       },
-      headers: await headers(),
+      headers: request.headers,
     });
 
     console.log(`✅ [Invite API] Found invitations`);
@@ -218,6 +252,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
     });
   } catch (error) {
     console.error("❌ [Invite API] Error fetching invitations:", error);
+
+    if (isAPIError(error)) {
+      console.error("❌ [Invite API] Error details:", {
+        message: error.message,
+        status: error.status,
+        statusCode: error.statusCode,
+      });
+    }
+
     return NextResponse.json(
       { error: "Failed to fetch invitations" },
       { status: 500 },
@@ -225,12 +268,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 }
 
+// ============================================================================
 // DELETE - Cancel invitation
+// ============================================================================
+
 export async function DELETE(request: NextRequest) {
   console.log("🗑️ [Invite API] Cancelling invitation...");
 
   try {
-    const session = await getSession(); // ✅ Updated from getAuthSession
+    const session = await getSession();
     if (!session) {
       console.log("❌ [Invite API] Unauthorized - no session");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -247,12 +293,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Use Better Auth API to cancel invitation
     const result = await auth.api.cancelInvitation({
       body: {
         invitationId,
       },
-      headers: await headers(),
+      headers: request.headers,
     });
 
     if (!result) {
@@ -263,6 +308,15 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: "Invitation cancelled successfully" });
   } catch (error) {
     console.error("❌ [Invite API] Error cancelling invitation:", error);
+
+    if (isAPIError(error)) {
+      console.error("❌ [Invite API] Error details:", {
+        message: error.message,
+        status: error.status,
+        statusCode: error.statusCode,
+      });
+    }
+
     return NextResponse.json(
       { error: "Failed to cancel invitation" },
       { status: 500 },

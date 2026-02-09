@@ -136,12 +136,12 @@ model Organization {
 }
 
 model Member {
-  id             String     @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
   userId         String
-  role           MemberRole // owner, admin, or member
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  role           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1400,12 +1400,6 @@ model InvoiceRecord {
 // ============================================================================
 // ENUMS
 // ============================================================================
-
-enum MemberRole {
-  owner // Organization owner (SuperAdmin creates schools as owner)
-  admin // School administrator
-  member // Regular member (teacher, staff, etc.)
-}
 
 enum Gender {
   MALE

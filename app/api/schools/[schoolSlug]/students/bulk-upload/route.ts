@@ -1,416 +1,615 @@
-// app/api/schools/[schoolSlug]/students/bulk-upload/route.ts
+// app/api/schools/[schoolSlug]/students/bulk-upload/route.ts - CORRECTED
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import crypto from "crypto";
+import * as XLSX from "xlsx";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
-import { batchGenerateStudentIds } from "@/lib/utils/student-ids";
-import * as XLSX from "xlsx";
-import { Prisma } from "@/lib/generated/prisma/client";
+import type { Gender, GuardianType } from "@/lib/generated/prisma/client";
+import { headers } from "next/headers"; // ✅ ADD THIS IMPORT
+
+// ============================================================================
+// TYPES
+// ============================================================================
 
 interface StudentRow {
-  "First Name*": string;
-  "Last Name*": string;
-  "Other Names"?: string;
-  "Gender*": string;
-  "Date of Birth*": string | number;
-  Nationality?: string;
-  Phone?: string;
-  "Alternate Phone"?: string;
-  "Residential Address"?: string;
-  "Postal Address"?: string;
-  City?: string;
-  Region?: string;
-  Country?: string;
-  "Admission Date*": string | number;
-  "Class Name"?: string;
-  "Department Name"?: string;
-  "House Name"?: string;
-  "Previous School"?: string;
-  "Previous Class"?: string;
-  "Blood Group"?: string;
-  Allergies?: string;
-  "Medical Conditions"?: string;
-  "Emergency Contact Name"?: string;
-  "Emergency Contact Phone"?: string;
-  "Emergency Relationship"?: string;
+  firstName: string;
+  lastName: string;
+  otherNames?: string | null;
+  gender: Gender;
+  dateOfBirth: string;
+  nationality?: string | null;
+  phone?: string | null;
+  alternatePhone?: string | null;
+  residentialAddress?: string | null;
+  postalAddress?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  admissionDate: string;
+  className?: string | null;
+  departmentName?: string | null;
+  houseName?: string | null;
+  previousSchool?: string | null;
+  previousClass?: string | null;
+  bloodGroup?: string | null;
+  allergies?: string | null;
+  medicalConditions?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  emergencyRelationship?: string | null;
+  parentEmail?: string | null;
+  parentName?: string | null;
+  parentPhone?: string | null;
+  parentRelationship?: string | null;
 }
 
-// Helper to convert Excel date serial number to YYYY-MM-DD
-function excelDateToString(excelDate: number | string): string {
-  if (typeof excelDate === "string") {
-    // Already a string, validate format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (dateRegex.test(excelDate)) {
-      return excelDate;
-    }
-    // Try to parse it
-    const date = new Date(excelDate);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString().split("T")[0];
-    }
-    throw new Error(`Invalid date format: ${excelDate}`);
+interface ProcessResult {
+  row: number;
+  studentId: string;
+  admissionNumber: string;
+  name: string;
+  email: string;
+  status: "success" | "error";
+  message?: string;
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+function generateStudentEmail(
+  firstName: string,
+  lastName: string,
+  studentId: string,
+  schoolSubdomain: string,
+): string {
+  const cleanFirst = firstName.toLowerCase().replace(/[^a-z]/g, "");
+  const cleanLast = lastName.toLowerCase().replace(/[^a-z]/g, "");
+  const cleanStudentId = studentId.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${cleanFirst}.${cleanLast}.${cleanStudentId}@${schoolSubdomain}.edu`;
+}
+
+function generateSecurePassword(): string {
+  return crypto.randomBytes(16).toString("base64").slice(0, 16);
+}
+
+function parseGuardianRelationship(
+  relationship: string | null | undefined,
+): GuardianType {
+  if (!relationship) return "OTHER";
+
+  const upperRelationship = relationship.toUpperCase();
+
+  // Map to GuardianType enum values
+  switch (upperRelationship) {
+    case "FATHER":
+      return "FATHER";
+    case "MOTHER":
+      return "MOTHER";
+    case "GUARDIAN":
+      return "GUARDIAN";
+    case "SIBLING":
+      return "SIBLING";
+    case "RELATIVE":
+      return "RELATIVE";
+    default:
+      return "OTHER";
   }
-
-  // Excel date serial number (days since 1900-01-01)
-  const date = new Date((excelDate - 25569) * 86400 * 1000);
-  return date.toISOString().split("T")[0];
 }
+
+// ============================================================================
+// EXCEL PARSING
+// ============================================================================
+
+function parseExcelFile(buffer: Buffer): StudentRow[] {
+  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { raw: false }) as Record<
+    string,
+    unknown
+  >[];
+
+  return rows.map((row) => ({
+    firstName: String(row["First Name"] || "").trim(),
+    lastName: String(row["Last Name"] || "").trim(),
+    otherNames: row["Other Names"] ? String(row["Other Names"]).trim() : null,
+    gender: String(row["Gender"] || "").toUpperCase() as Gender,
+    dateOfBirth: String(row["Date of Birth"] || ""),
+    nationality: row["Nationality"] ? String(row["Nationality"]).trim() : null,
+    phone: row["Phone"] ? String(row["Phone"]) : null,
+    alternatePhone: row["Alternate Phone"]
+      ? String(row["Alternate Phone"])
+      : null,
+    residentialAddress: row["Residential Address"]
+      ? String(row["Residential Address"]).trim()
+      : null,
+    postalAddress: row["Postal Address"]
+      ? String(row["Postal Address"]).trim()
+      : null,
+    city: row["City"] ? String(row["City"]).trim() : null,
+    region: row["Region"] ? String(row["Region"]).trim() : null,
+    country: row["Country"] ? String(row["Country"]).trim() : null,
+    admissionDate: String(row["Admission Date"] || ""),
+    className: row["Class Name"] ? String(row["Class Name"]).trim() : null,
+    departmentName: row["Department Name"]
+      ? String(row["Department Name"]).trim()
+      : null,
+    houseName: row["House Name"] ? String(row["House Name"]).trim() : null,
+    previousSchool: row["Previous School"]
+      ? String(row["Previous School"]).trim()
+      : null,
+    previousClass: row["Previous Class"]
+      ? String(row["Previous Class"]).trim()
+      : null,
+    bloodGroup: row["Blood Group"] ? String(row["Blood Group"]).trim() : null,
+    allergies: row["Allergies"] ? String(row["Allergies"]).trim() : null,
+    medicalConditions: row["Medical Conditions"]
+      ? String(row["Medical Conditions"]).trim()
+      : null,
+    emergencyContactName: row["Emergency Contact Name"]
+      ? String(row["Emergency Contact Name"]).trim()
+      : null,
+    emergencyContactPhone: row["Emergency Contact Phone"]
+      ? String(row["Emergency Contact Phone"])
+      : null,
+    emergencyRelationship: row["Emergency Relationship"]
+      ? String(row["Emergency Relationship"]).trim()
+      : null,
+    parentEmail: row["Parent Email"]
+      ? String(row["Parent Email"]).trim().toLowerCase()
+      : null,
+    parentName: row["Parent Name"] ? String(row["Parent Name"]).trim() : null,
+    parentPhone: row["Parent Phone"]
+      ? String(row["Parent Phone"]).trim()
+      : null,
+    parentRelationship: row["Parent Relationship"]
+      ? String(row["Parent Relationship"]).trim()
+      : null,
+  }));
+}
+
+// ============================================================================
+// MAIN API HANDLER
+// ============================================================================
 
 export async function POST(
-  request: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
-  console.log("📦 [Bulk Upload] Starting bulk upload process...");
-
   try {
     const { schoolSlug } = await params;
-    const session = await requireSchoolAccess(schoolSlug);
-    const role = getSchoolRole(session, schoolSlug);
 
+    // ========================================================================
+    // STEP 1: Validate access
+    // ========================================================================
+    const session = await requireSchoolAccess(schoolSlug);
+    const schoolAccess = getSchoolRole(session, schoolSlug);
+
+    if (!schoolAccess) {
+      return NextResponse.json(
+        { error: "No access to this school" },
+        { status: 403 },
+      );
+    }
+
+    // Only admin/owner can bulk upload
     if (
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner" &&
+      schoolAccess.effectiveRole !== "admin" &&
+      schoolAccess.effectiveRole !== "owner" &&
       !session.isSuperAdmin
     ) {
-      console.log("❌ [Bulk Upload] Unauthorized access attempt");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Only administrators can perform bulk uploads" },
+        { status: 403 },
+      );
     }
 
-    const school = await prisma.school.findUnique({
-      where: { subdomain: schoolSlug },
-    });
-
-    if (!school) {
-      console.log("❌ [Bulk Upload] School not found");
-      return NextResponse.json({ error: "School not found" }, { status: 404 });
-    }
-
-    console.log(`🏫 [Bulk Upload] School: ${school.name}`);
-
-    // Parse form data
-    const formData = await request.formData();
+    // ========================================================================
+    // STEP 2: Parse form data
+    // ========================================================================
+    const formData = await req.formData();
     const file = formData.get("file") as File;
+    const schoolId = formData.get("schoolId") as string;
 
     if (!file) {
-      console.log("❌ [Bulk Upload] No file provided");
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Validate file type
-    const fileName = file.name.toLowerCase();
-    if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls")) {
-      console.log("❌ [Bulk Upload] Invalid file type");
+    // ========================================================================
+    // STEP 3: Fetch school
+    // ========================================================================
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      include: {
+        classes: true,
+        departments: true,
+        houses: true,
+      },
+    });
+
+    if (!school) {
+      return NextResponse.json({ error: "School not found" }, { status: 404 });
+    }
+
+    console.log(`📊 [Bulk Upload] Processing file for ${school.name}`);
+
+    // ========================================================================
+    // STEP 4: Parse Excel file
+    // ========================================================================
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const studentRows = parseExcelFile(buffer);
+
+    if (studentRows.length === 0) {
       return NextResponse.json(
-        {
-          error:
-            "Invalid file type. Only Excel files (.xlsx, .xls) are allowed.",
-        },
+        { error: "No student data found in file" },
         { status: 400 },
       );
     }
 
-    console.log(`📄 [Bulk Upload] Processing file: ${file.name}`);
-
-    // Read Excel file
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { cellDates: false });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json<StudentRow>(worksheet);
-
-    if (data.length === 0) {
-      console.log("❌ [Bulk Upload] No data found in file");
-      return NextResponse.json(
-        {
-          error:
-            "No data found in file. Please ensure you have filled in student data.",
-        },
-        { status: 400 },
-      );
-    }
-
-    console.log(`📊 [Bulk Upload] Found ${data.length} rows to process`);
-
-    // Get class, department, house mappings
-    const [classes, departments, houses] = await Promise.all([
-      prisma.class.findMany({
-        where: { schoolId: school.id },
-        select: { id: true, name: true },
-      }),
-      prisma.department.findMany({
-        where: { schoolId: school.id },
-        select: { id: true, name: true },
-      }),
-      prisma.house.findMany({
-        where: { schoolId: school.id },
-        select: { id: true, name: true },
-      }),
-    ]);
-
-    const classMap = new Map(
-      classes.map((c) => [c.name.trim().toLowerCase(), c.id]),
-    );
-    const deptMap = new Map(
-      departments.map((d) => [d.name.trim().toLowerCase(), d.id]),
-    );
-    const houseMap = new Map(
-      houses.map((h) => [h.name.trim().toLowerCase(), h.id]),
+    console.log(
+      `📋 [Bulk Upload] Found ${studentRows.length} students to process`,
     );
 
-    console.log("🆔 [Bulk Upload] Generating student IDs...");
-    // Generate IDs for all students
-    const generatedIds = await batchGenerateStudentIds(
-      school.id,
-      school.code,
-      data.length,
-    );
-    console.log(`✅ [Bulk Upload] Generated ${generatedIds.length} IDs`);
+    // ========================================================================
+    // STEP 5: Process students
+    // ========================================================================
+    const results: ProcessResult[] = [];
+    const guardianInvitations = new Set<string>(); // Track unique guardian emails
 
-    // Process each row
-    const results = [];
-    console.log("\n📝 [Bulk Upload] Processing students...\n");
+    // Get last student number for ID generation
+    const lastStudent = await prisma.student.findFirst({
+      where: { schoolId },
+      orderBy: { createdAt: "desc" },
+      select: { studentId: true, admissionNumber: true },
+    });
 
-    for (let i = 0; i < data.length; i++) {
-      const row = data[i];
-      const rowNumber = i + 2; // Excel row number (accounting for header)
-      const { studentId, admissionNumber } = generatedIds[i];
+    let nextStudentNumber = lastStudent
+      ? parseInt(lastStudent.studentId.replace(/\D/g, "")) + 1
+      : 1;
 
-      console.log(`[Row ${rowNumber}] Processing...`);
+    let nextAdmissionNumber = lastStudent?.admissionNumber
+      ? parseInt(lastStudent.admissionNumber.replace(/\D/g, "")) + 1
+      : 1;
+
+    for (let i = 0; i < studentRows.length; i++) {
+      const row = studentRows[i];
+      const rowNumber = i + 2; // Account for header row
 
       try {
+        // ====================================================================
         // Validate required fields
-        const firstName = row["First Name*"]?.toString().trim();
-        const lastName = row["Last Name*"]?.toString().trim();
-        const gender = row["Gender*"]?.toString().trim().toUpperCase();
-        const dateOfBirth = row["Date of Birth*"];
-        const admissionDate = row["Admission Date*"];
-
+        // ====================================================================
         if (
-          !firstName ||
-          !lastName ||
-          !gender ||
-          !dateOfBirth ||
-          !admissionDate
+          !row.firstName ||
+          !row.lastName ||
+          !row.gender ||
+          !row.dateOfBirth ||
+          !row.admissionDate
         ) {
-          console.log(`❌ [Row ${rowNumber}] Missing required fields`);
-          results.push({
-            row: rowNumber,
-            studentId,
-            admissionNumber,
-            name: `${firstName || ""} ${lastName || ""}`.trim() || "Unknown",
-            status: "error",
-            message:
-              "Missing required fields (First Name, Last Name, Gender, Date of Birth, or Admission Date)",
-          });
-          continue;
+          throw new Error("Missing required fields");
         }
 
-        // Validate gender
-        if (!["MALE", "FEMALE", "OTHER"].includes(gender)) {
-          console.log(`❌ [Row ${rowNumber}] Invalid gender: ${gender}`);
-          results.push({
-            row: rowNumber,
-            studentId,
-            admissionNumber,
-            name: `${firstName} ${lastName}`,
-            status: "error",
-            message: `Invalid gender: ${gender}. Must be MALE, FEMALE, or OTHER (uppercase)`,
-          });
-          continue;
-        }
+        // ====================================================================
+        // Generate IDs
+        // ====================================================================
+        const studentId = `STU${nextStudentNumber.toString().padStart(5, "0")}`;
+        const admissionNumber = `${school.code}${nextAdmissionNumber.toString().padStart(4, "0")}`;
+        nextStudentNumber++;
+        nextAdmissionNumber++;
 
-        // Convert dates
-        let dobString: string;
-        let admDateString: string;
+        // ====================================================================
+        // Generate credentials
+        // ====================================================================
+        const studentEmail = generateStudentEmail(
+          row.firstName,
+          row.lastName,
+          studentId,
+          school.subdomain,
+        );
+        const temporaryPassword = generateSecurePassword();
 
-        try {
-          dobString = excelDateToString(dateOfBirth);
-          admDateString = excelDateToString(admissionDate);
-        } catch {
-          console.log(`❌ [Row ${rowNumber}] Invalid date format`);
-          results.push({
-            row: rowNumber,
-            studentId,
-            admissionNumber,
-            name: `${firstName} ${lastName}`,
-            status: "error",
-            message: `Invalid date format. Use YYYY-MM-DD (e.g., 2010-01-15)`,
-          });
-          continue;
-        }
+        // ====================================================================
+        // Find class, department, house by name
+        // ====================================================================
+        const classRecord = row.className
+          ? school.classes.find((c) => c.name === row.className)
+          : null;
+        const department = row.departmentName
+          ? school.departments.find((d) => d.name === row.departmentName)
+          : null;
+        const house = row.houseName
+          ? school.houses.find((h) => h.name === row.houseName)
+          : null;
 
-        // Find class, department, house IDs
-        const className = row["Class Name"]?.toString().trim();
-        const deptName = row["Department Name"]?.toString().trim();
-        const houseName = row["House Name"]?.toString().trim();
-
-        const classId = className
-          ? classMap.get(className.toLowerCase())
-          : undefined;
-        const departmentId = deptName
-          ? deptMap.get(deptName.toLowerCase())
-          : undefined;
-        const houseId = houseName
-          ? houseMap.get(houseName.toLowerCase())
-          : undefined;
-
-        // Warn if name provided but not found
-        if (className && !classId) {
-          console.log(`❌ [Row ${rowNumber}] Class '${className}' not found`);
-          results.push({
-            row: rowNumber,
-            studentId,
-            admissionNumber,
-            name: `${firstName} ${lastName}`,
-            status: "error",
-            message: `Class '${className}' not found. Please use exact class name from the template.`,
-          });
-          continue;
-        }
-
-        if (deptName && !departmentId) {
-          console.log(
-            `❌ [Row ${rowNumber}] Department '${deptName}' not found`,
-          );
-          results.push({
-            row: rowNumber,
-            studentId,
-            admissionNumber,
-            name: `${firstName} ${lastName}`,
-            status: "error",
-            message: `Department '${deptName}' not found. Please use exact department name from the template.`,
-          });
-          continue;
-        }
-
-        if (houseName && !houseId) {
-          console.log(`❌ [Row ${rowNumber}] House '${houseName}' not found`);
-          results.push({
-            row: rowNumber,
-            studentId,
-            admissionNumber,
-            name: `${firstName} ${lastName}`,
-            status: "error",
-            message: `House '${houseName}' not found. Please use exact house name from the template.`,
-          });
-          continue;
-        }
-
-        // Create student in transaction
-        await prisma.$transaction(async (tx) => {
-          // Create temporary user for student
-          const tempUser = await tx.user.create({
-            data: {
-              name: `${firstName} ${lastName}`,
-              email: `${studentId.toLowerCase()}@temp.${school.subdomain}.edu`,
-              emailVerified: false,
-              role: "user",
-            },
-          });
-
-          // Create profile
-          const profile = await tx.userProfile.create({
-            data: {
-              userId: tempUser.id,
-              firstName,
-              lastName,
-              otherNames: row["Other Names"]?.toString().trim() || null,
-              phone: row["Phone"]?.toString().trim() || null,
-              alternatePhone: row["Alternate Phone"]?.toString().trim() || null,
-              gender: gender as "MALE" | "FEMALE" | "OTHER",
-              dateOfBirth: new Date(dobString),
-              nationality: row["Nationality"]?.toString().trim() || "Ghanaian",
-              residentialAddress:
-                row["Residential Address"]?.toString().trim() || null,
-              postalAddress: row["Postal Address"]?.toString().trim() || null,
-              city: row["City"]?.toString().trim() || null,
-              region: row["Region"]?.toString().trim() || null,
-              country: row["Country"]?.toString().trim() || "Ghana",
-              emergencyContactName:
-                row["Emergency Contact Name"]?.toString().trim() || null,
-              emergencyContactPhone:
-                row["Emergency Contact Phone"]?.toString().trim() || null,
-              emergencyRelationship:
-                row["Emergency Relationship"]?.toString().trim() || null,
-            },
-          });
-
-          // Create student
-          await tx.student.create({
-            data: {
-              profileId: profile.id,
-              schoolId: school.id,
-              studentId,
-              admissionNumber,
-              admissionDate: new Date(admDateString),
-              classId,
-              departmentId,
-              houseId,
-              previousSchool: row["Previous School"]?.toString().trim() || null,
-              previousClass: row["Previous Class"]?.toString().trim() || null,
-              bloodGroup: row["Blood Group"]?.toString().trim() || null,
-              allergies: row["Allergies"]?.toString().trim() || null,
-              medicalConditions:
-                row["Medical Conditions"]?.toString().trim() || null,
-              status: "ACTIVE",
-            },
-          });
+        // ====================================================================
+        // Create user via Better Auth
+        // ====================================================================
+        const userResult = await auth.api.signUpEmail({
+          body: {
+            email: studentEmail,
+            password: temporaryPassword,
+            name: `${row.firstName} ${row.lastName}`,
+          },
         });
 
-        console.log(`✅ [Row ${rowNumber}] Student created successfully`);
+        if (!userResult) {
+          throw new Error("Failed to create user account");
+        }
+
+        const userId = userResult.user.id;
+
+        // ====================================================================
+        // Add to organization with "student" role
+        // ====================================================================
+        await auth.api.addMember({
+          body: {
+            organizationId: school.organizationId,
+            userId: userId,
+            role: "student",
+          },
+        });
+
+        // ====================================================================
+        // Create UserProfile
+        // ====================================================================
+        const userProfile = await prisma.userProfile.create({
+          data: {
+            userId,
+            firstName: row.firstName,
+            lastName: row.lastName,
+            otherNames: row.otherNames,
+            gender: row.gender,
+            dateOfBirth: new Date(row.dateOfBirth),
+            nationality: row.nationality,
+            phone: row.phone,
+            alternatePhone: row.alternatePhone,
+            residentialAddress: row.residentialAddress,
+            postalAddress: row.postalAddress,
+            city: row.city,
+            region: row.region,
+            country: row.country,
+            emergencyContactName: row.emergencyContactName,
+            emergencyContactPhone: row.emergencyContactPhone,
+            emergencyRelationship: row.emergencyRelationship,
+          },
+        });
+
+        // ====================================================================
+        // Create Student record
+        // ====================================================================
+        const student = await prisma.student.create({
+          data: {
+            schoolId,
+            profileId: userProfile.id,
+            studentId,
+            admissionNumber,
+            admissionDate: new Date(row.admissionDate),
+            classId: classRecord?.id || null,
+            departmentId: department?.id || null,
+            houseId: house?.id || null,
+            previousSchool: row.previousSchool,
+            previousClass: row.previousClass,
+            bloodGroup: row.bloodGroup,
+            allergies: row.allergies,
+            medicalConditions: row.medicalConditions,
+            status: "ACTIVE",
+          },
+        });
+
+        // ====================================================================
+        // Process parent/guardian if email provided
+        // ====================================================================
+        if (row.parentEmail && row.parentName) {
+          const existingUser = await prisma.user.findUnique({
+            where: { email: row.parentEmail },
+          });
+
+          let guardian;
+
+          if (existingUser) {
+            // Guardian exists - add to organization if needed
+            const existingMembership = await prisma.member.findFirst({
+              where: {
+                userId: existingUser.id,
+                organizationId: school.organizationId,
+              },
+            });
+
+            if (!existingMembership) {
+              await auth.api.addMember({
+                body: {
+                  organizationId: school.organizationId,
+                  userId: existingUser.id,
+                  role: "guardian",
+                },
+              });
+            }
+
+            // Find or create guardian record
+            guardian = await prisma.guardian.findFirst({
+              where: {
+                schoolId,
+                email: row.parentEmail,
+              },
+            });
+
+            if (!guardian) {
+              const nameParts = row.parentName.trim().split(/\s+/);
+              const firstName = nameParts[0] || "Parent";
+              const lastName =
+                nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+              const userProfile = await prisma.userProfile.findUnique({
+                where: { userId: existingUser.id },
+              });
+
+              guardian = await prisma.guardian.create({
+                data: {
+                  schoolId,
+                  guardianId: crypto.randomUUID(),
+                  firstName,
+                  lastName,
+                  email: row.parentEmail,
+                  phone: row.parentPhone || "",
+                  relationshipType: parseGuardianRelationship(
+                    row.parentRelationship,
+                  ),
+                  profileId: userProfile?.id,
+                  canLogin: true,
+                },
+              });
+            }
+          } else {
+            // New guardian - create record first, then send invitation
+            const nameParts = row.parentName.trim().split(/\s+/);
+            const firstName = nameParts[0] || "Parent";
+            const lastName =
+              nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+            guardian = await prisma.guardian.create({
+              data: {
+                schoolId,
+                guardianId: crypto.randomUUID(),
+                firstName,
+                lastName,
+                email: row.parentEmail,
+                phone: row.parentPhone || "",
+                relationshipType: parseGuardianRelationship(
+                  row.parentRelationship,
+                ),
+                canLogin: true,
+              },
+            });
+
+            // Link to student BEFORE invitation
+            await prisma.guardianStudent.create({
+              data: {
+                guardianId: guardian.id,
+                studentId: student.id,
+                isPrimary: true,
+                canPickup: true,
+                receiveReports: true,
+                receiveAlerts: true,
+              },
+            });
+
+            // Send invitation (only once per unique email)
+            // ✅ FIXED: Added headers parameter
+            if (!guardianInvitations.has(row.parentEmail)) {
+              await auth.api.createInvitation({
+                body: {
+                  email: row.parentEmail,
+                  organizationId: school.organizationId,
+                  role: "guardian",
+                },
+                headers: await headers(), // ✅ ADDED THIS
+              });
+              guardianInvitations.add(row.parentEmail);
+            }
+          }
+
+          // Link guardian to student if not already linked
+          const existingLink = await prisma.guardianStudent.findUnique({
+            where: {
+              guardianId_studentId: {
+                guardianId: guardian.id,
+                studentId: student.id,
+              },
+            },
+          });
+
+          if (!existingLink) {
+            await prisma.guardianStudent.create({
+              data: {
+                guardianId: guardian.id,
+                studentId: student.id,
+                isPrimary: true,
+                canPickup: true,
+                receiveReports: true,
+                receiveAlerts: true,
+              },
+            });
+          }
+        }
 
         results.push({
           row: rowNumber,
           studentId,
           admissionNumber,
-          name: `${firstName} ${lastName}`,
+          name: `${row.firstName} ${row.lastName}`,
+          email: studentEmail,
           status: "success",
         });
 
-        // Log audit
-        await prisma.auditLog.create({
-          data: {
-            userId: session.user.id,
-            action: "CREATE",
-            entityType: "Student",
-            entityId: studentId,
-            newValues: {
-              studentId,
-              admissionNumber,
-              name: `${firstName} ${lastName}`,
-              bulkUpload: true,
-            } as Prisma.InputJsonValue,
-          },
-        });
+        console.log(`✅ [Bulk Upload] Row ${rowNumber}: Created ${studentId}`);
       } catch (error) {
-        console.error(`❌ [Row ${rowNumber}] Error:`, error);
         results.push({
           row: rowNumber,
-          studentId,
-          admissionNumber,
+          studentId: "",
+          admissionNumber: "",
           name:
-            row["First Name*"] && row["Last Name*"]
-              ? `${row["First Name*"]} ${row["Last Name*"]}`
+            row.firstName && row.lastName
+              ? `${row.firstName} ${row.lastName}`
               : "Unknown",
+          email: "",
           status: "error",
-          message:
-            error instanceof Error ? error.message : "Unknown error occurred",
+          message: error instanceof Error ? error.message : "Unknown error",
         });
+
+        console.error(`❌ [Bulk Upload] Row ${rowNumber} failed:`, error);
       }
     }
 
-    const successCount = results.filter((r) => r.status === "success").length;
-    const errorCount = results.filter((r) => r.status === "error").length;
+    // ========================================================================
+    // STEP 6: Create audit log
+    // ========================================================================
+    await prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: "CREATE",
+        entityType: "STUDENT",
+        entityId: "BULK_UPLOAD",
+        newValues: {
+          schoolId,
+          totalStudents: results.length,
+          successful: results.filter((r) => r.status === "success").length,
+          failed: results.filter((r) => r.status === "error").length,
+          guardianInvitationsSent: guardianInvitations.size,
+          uploadedBy: session.user.email,
+        },
+      },
+    });
+
+    // ========================================================================
+    // RESPONSE
+    // ========================================================================
+    const successful = results.filter((r) => r.status === "success").length;
+    const failed = results.filter((r) => r.status === "error").length;
 
     console.log(
-      `\n✅ [Bulk Upload] Completed: ${successCount} successful, ${errorCount} errors\n`,
+      `📊 [Bulk Upload] Complete: ${successful} success, ${failed} failed`,
     );
 
-    return NextResponse.json({ results });
+    return NextResponse.json({
+      success: true,
+      results,
+      summary: {
+        total: results.length,
+        successful,
+        failed,
+        guardianInvitationsSent: guardianInvitations.size,
+      },
+      message: `Bulk upload complete. ${successful} students created successfully. Guardian invitations sent to ${guardianInvitations.size} parent(s)/guardian(s).`,
+    });
   } catch (error) {
-    console.error("❌ [Bulk Upload] Error:", error);
+    console.error("[Bulk Upload] Error:", error);
     return NextResponse.json(
       {
-        error: "Internal server error",
+        error: "Failed to process bulk upload",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },

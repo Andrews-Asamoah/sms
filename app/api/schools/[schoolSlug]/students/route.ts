@@ -1,564 +1,428 @@
-// app/api/schools/[schoolSlug]/students/route.ts - FIXED
+// app/api/schools/[schoolSlug]/students/route.ts - CORRECTED
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import crypto from "crypto";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
-import {
-  generateStudentId,
-  generateAdmissionNumber,
-} from "@/lib/utils/student-ids";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { Prisma } from "@/lib/generated/prisma/client";
+import type { GuardianType } from "@/lib/generated/prisma/client";
+import { headers } from "next/headers"; // ✅ ADD THIS IMPORT
 
-// Guardian schema
-const guardianSchema = z.object({
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
-  otherNames: z.string().optional().nullable(),
-  email: z.string().email(), // This ensures email is always valid
-  phone: z.string().min(10),
-  alternatePhone: z.string().optional().nullable(),
-  gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional().nullable(),
-  relationshipType: z.enum([
-    "FATHER",
-    "MOTHER",
-    "GUARDIAN",
-    "SIBLING",
-    "RELATIVE",
-    "OTHER",
-  ]),
-  occupation: z.string().optional().nullable(),
-  employer: z.string().optional().nullable(),
-  workAddress: z.string().optional().nullable(),
-  workPhone: z.string().optional().nullable(),
-  residentialAddress: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  region: z.string().optional().nullable(),
-  isPrimary: z.boolean(),
-  canPickup: z.boolean(),
-  receiveReports: z.boolean(),
-  receiveAlerts: z.boolean(),
-});
+// ============================================================================
+// TYPES
+// ============================================================================
 
-const createStudentSchema = z.object({
-  // Personal Information
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
-  otherNames: z.string().optional().nullable(),
-  gender: z.enum(["MALE", "FEMALE", "OTHER"]),
-  dateOfBirth: z.string().min(1),
-  nationality: z.string().default("Ghanaian"),
-  // Contact
-  phone: z.string().optional().nullable(),
-  alternatePhone: z.string().optional().nullable(),
-  // Address
-  residentialAddress: z.string().optional().nullable(),
-  postalAddress: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  region: z.string().optional().nullable(),
-  country: z.string().default("Ghana"),
-  // Student Specific - IDs will be auto-generated if not provided
-  studentId: z.string().optional(),
-  admissionNumber: z.string().optional(),
-  admissionDate: z.string().min(1),
-  classId: z.string().optional().nullable(),
-  departmentId: z.string().optional().nullable(),
-  houseId: z.string().optional().nullable(),
-  // Previous School
-  previousSchool: z.string().optional().nullable(),
-  previousClass: z.string().optional().nullable(),
-  // Medical
-  bloodGroup: z.string().optional().nullable(),
-  allergies: z.string().optional().nullable(),
-  medicalConditions: z.string().optional().nullable(),
-  // Emergency
-  emergencyContactName: z.string().optional().nullable(),
-  emergencyContactPhone: z.string().optional().nullable(),
-  emergencyRelationship: z.string().optional().nullable(),
-  schoolId: z.string().min(1),
-  // Guardians array - OPTIONAL
-  guardians: z.array(guardianSchema).optional(),
-});
+interface GuardianData {
+  firstName: string;
+  lastName: string;
+  otherNames?: string | null;
+  email: string;
+  phone: string;
+  alternatePhone?: string | null;
+  relationshipType: GuardianType;
+  occupation?: string | null;
+  employer?: string | null;
+  workPhone?: string | null;
+  workAddress?: string | null;
+  isPrimary?: boolean;
+  canPickup?: boolean;
+  receiveReports?: boolean;
+  receiveAlerts?: boolean;
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+function generateStudentEmail(
+  firstName: string,
+  lastName: string,
+  studentId: string,
+  schoolSubdomain: string,
+): string {
+  const cleanFirst = firstName.toLowerCase().replace(/[^a-z]/g, "");
+  const cleanLast = lastName.toLowerCase().replace(/[^a-z]/g, "");
+  const cleanStudentId = studentId.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${cleanFirst}.${cleanLast}.${cleanStudentId}@${schoolSubdomain}.edu`;
+}
+
+function generateSecurePassword(): string {
+  return crypto.randomBytes(16).toString("base64").slice(0, 16);
+}
+
+// ============================================================================
+// MAIN API HANDLER
+// ============================================================================
 
 export async function POST(
-  request: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
-  console.log("📝 [Student Create] Starting student creation process...");
-
   try {
     const { schoolSlug } = await params;
-    const session = await requireSchoolAccess(schoolSlug);
-    const role = getSchoolRole(session, schoolSlug);
 
-    if (
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner" &&
-      !session.isSuperAdmin
-    ) {
-      console.log("❌ [Student Create] Unauthorized access attempt");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    // ========================================================================
+    // STEP 1: Validate access
+    // ========================================================================
+    const session = await requireSchoolAccess(schoolSlug);
+    const schoolAccess = getSchoolRole(session, schoolSlug);
+
+    if (!schoolAccess) {
+      return NextResponse.json(
+        { error: "No access to this school" },
+        { status: 403 },
+      );
     }
 
-    const body = await request.json();
-    const validatedData = createStudentSchema.parse(body);
+    // ========================================================================
+    // STEP 2: Parse request body
+    // ========================================================================
+    const body = await req.json();
 
-    console.log(
-      `👤 [Student Create] Creating student: ${validatedData.firstName} ${validatedData.lastName}`,
-    );
+    const {
+      firstName,
+      lastName,
+      gender,
+      dateOfBirth,
+      studentId,
+      admissionNumber,
+      admissionDate,
+      schoolId,
+      guardians = [],
+      ...otherData
+    } = body;
 
-    // Verify school exists
+    // ========================================================================
+    // STEP 3: Fetch school with organization
+    // ========================================================================
     const school = await prisma.school.findUnique({
-      where: { subdomain: schoolSlug, id: validatedData.schoolId },
-      include: {
-        organization: true,
+      where: { id: schoolId },
+      select: {
+        id: true,
+        name: true,
+        subdomain: true,
+        organizationId: true,
       },
     });
 
     if (!school) {
-      console.log("❌ [Student Create] School not found");
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    console.log(`🏫 [Student Create] School found: ${school.name}`);
+    // ========================================================================
+    // STEP 4: Create student user account
+    // ========================================================================
+    const studentEmail = generateStudentEmail(
+      firstName,
+      lastName,
+      studentId,
+      school.subdomain,
+    );
 
-    // Generate student ID if not provided
-    const studentId =
-      validatedData.studentId || (await generateStudentId(school.id));
-    console.log(`🆔 [Student Create] Student ID: ${studentId}`);
+    const temporaryPassword = generateSecurePassword();
 
-    // Generate admission number if not provided
-    const admissionNumber =
-      validatedData.admissionNumber ||
-      (await generateAdmissionNumber(school.id, school.code));
-    console.log(`🎫 [Student Create] Admission Number: ${admissionNumber}`);
+    const userResult = await auth.api.signUpEmail({
+      body: {
+        email: studentEmail,
+        password: temporaryPassword,
+        name: `${firstName} ${lastName}`,
+      },
+    });
 
-    // Check if studentId already exists
-    const existingStudent = await prisma.student.findFirst({
-      where: {
+    if (!userResult) {
+      throw new Error("Failed to create user account");
+    }
+
+    const userId = userResult.user.id;
+
+    // ========================================================================
+    // STEP 5: Add student to organization with "student" role
+    // ========================================================================
+    await auth.api.addMember({
+      body: {
+        organizationId: school.organizationId,
+        userId: userId,
+        role: "student",
+      },
+    });
+
+    console.log(
+      `✅ [Students] Added ${studentEmail} to organization as student`,
+    );
+
+    // ========================================================================
+    // STEP 6: Create UserProfile
+    // ========================================================================
+    const userProfile = await prisma.userProfile.create({
+      data: {
+        userId: userId,
+        firstName,
+        lastName,
+        otherNames: otherData.otherNames || null,
+        gender,
+        dateOfBirth: new Date(dateOfBirth),
+        nationality: otherData.nationality || null,
+        phone: otherData.phone || null,
+        alternatePhone: otherData.alternatePhone || null,
+        residentialAddress: otherData.residentialAddress || null,
+        postalAddress: otherData.postalAddress || null,
+        city: otherData.city || null,
+        region: otherData.region || null,
+        country: otherData.country || null,
+        emergencyContactName: otherData.emergencyContactName || null,
+        emergencyContactPhone: otherData.emergencyContactPhone || null,
+        emergencyRelationship: otherData.emergencyRelationship || null,
+      },
+    });
+
+    // ========================================================================
+    // STEP 7: Create Student record
+    // ========================================================================
+    const student = await prisma.student.create({
+      data: {
+        schoolId,
+        profileId: userProfile.id,
         studentId,
-        schoolId: school.id,
-      },
-    });
-
-    if (existingStudent) {
-      console.log("❌ [Student Create] Student ID already exists");
-      return NextResponse.json(
-        { error: "Student ID already exists" },
-        { status: 400 },
-      );
-    }
-
-    // Check if admissionNumber already exists
-    const existingAdmission = await prisma.student.findFirst({
-      where: {
         admissionNumber,
-        schoolId: school.id,
+        admissionDate: new Date(admissionDate),
+        classId: otherData.classId || null,
+        departmentId: otherData.departmentId || null,
+        houseId: otherData.houseId || null,
+        previousSchool: otherData.previousSchool || null,
+        previousClass: otherData.previousClass || null,
+        bloodGroup: otherData.bloodGroup || null,
+        allergies: otherData.allergies || null,
+        medicalConditions: otherData.medicalConditions || null,
+        status: "ACTIVE",
+      },
+      include: {
+        profile: true,
       },
     });
 
-    if (existingAdmission) {
-      console.log("❌ [Student Create] Admission number already exists");
-      return NextResponse.json(
-        { error: "Admission number already exists" },
-        { status: 400 },
-      );
-    }
+    console.log(`✅ [Students] Created student record: ${studentId}`);
 
-    // Create student with profile AND guardians in a transaction
-    console.log("💾 [Student Create] Starting database transaction...");
-    const result = await prisma.$transaction(async (tx) => {
-      // Create a temporary user account for the student
-      console.log("👤 [Student Create] Creating student user account...");
-      const tempUser = await tx.user.create({
-        data: {
-          name: `${validatedData.firstName} ${validatedData.lastName}`,
-          email: `${studentId.toLowerCase()}@temp.${school.subdomain}.edu`,
-          emailVerified: false,
-          role: "user",
-        },
+    // ========================================================================
+    // STEP 8: Process guardians (parents, legal guardians, caretakers)
+    // ========================================================================
+    const createdGuardians = [];
+
+    for (const guardianData of guardians as GuardianData[]) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: guardianData.email },
       });
 
-      // Create user profile for the student
-      console.log("📋 [Student Create] Creating student profile...");
-      const profile = await tx.userProfile.create({
-        data: {
-          userId: tempUser.id,
-          firstName: validatedData.firstName,
-          lastName: validatedData.lastName,
-          otherNames: validatedData.otherNames,
-          phone: validatedData.phone,
-          alternatePhone: validatedData.alternatePhone,
-          gender: validatedData.gender,
-          dateOfBirth: new Date(validatedData.dateOfBirth),
-          nationality: validatedData.nationality,
-          residentialAddress: validatedData.residentialAddress,
-          postalAddress: validatedData.postalAddress,
-          city: validatedData.city,
-          region: validatedData.region,
-          country: validatedData.country,
-          emergencyContactName: validatedData.emergencyContactName,
-          emergencyContactPhone: validatedData.emergencyContactPhone,
-          emergencyRelationship: validatedData.emergencyRelationship,
-        },
-      });
+      let guardian;
 
-      // Create student record
-      console.log("🎓 [Student Create] Creating student record...");
-      const newStudent = await tx.student.create({
-        data: {
-          profileId: profile.id,
-          schoolId: school.id,
-          studentId,
-          admissionNumber,
-          admissionDate: new Date(validatedData.admissionDate),
-          classId: validatedData.classId,
-          departmentId: validatedData.departmentId,
-          houseId: validatedData.houseId,
-          previousSchool: validatedData.previousSchool,
-          previousClass: validatedData.previousClass,
-          bloodGroup: validatedData.bloodGroup,
-          allergies: validatedData.allergies,
-          medicalConditions: validatedData.medicalConditions,
-          status: "ACTIVE",
-        },
-        include: {
-          profile: true,
-          class: {
-            include: { academicYear: true },
-          },
-          department: true,
-          house: true,
-        },
-      });
-
-      console.log("✅ [Student Create] Student record created successfully");
-
-      // ========== GUARDIAN PROCESSING ==========
-      const guardianResults = [];
-
-      if (validatedData.guardians && validatedData.guardians.length > 0) {
+      if (existingUser) {
+        // ====================================================================
+        // Guardian user EXISTS - add to organization if not already member
+        // ====================================================================
         console.log(
-          `👥 [Guardians] Processing ${validatedData.guardians.length} guardian(s)...`,
+          `📋 [Students] Guardian ${guardianData.email} already has account`,
         );
 
-        for (const guardianData of validatedData.guardians) {
-          console.log(`\n🔍 [Guardian] Processing: ${guardianData.email}`);
+        const guardianProfile = await prisma.userProfile.findUnique({
+          where: { userId: existingUser.id },
+        });
 
-          // Check if guardian already exists by email in this school
-          const existingGuardian = await tx.guardian.findFirst({
-            where: {
-              email: guardianData.email,
-              schoolId: school.id,
-            },
-            include: {
-              profile: {
-                include: {
-                  user: true,
-                },
-              },
-            },
-          });
+        if (!guardianProfile) {
+          throw new Error(
+            `User profile not found for guardian ${guardianData.email}`,
+          );
+        }
 
-          let guardian;
-          let needsInvitation = false;
+        // Find or create Guardian record
+        guardian = await prisma.guardian.findFirst({
+          where: {
+            schoolId,
+            email: guardianData.email,
+          },
+        });
 
-          if (existingGuardian) {
-            // Guardian exists in this school - just link to student
-            console.log(
-              `✓ [Guardian] Found existing guardian in school: ${guardianData.email}`,
-            );
-            guardian = existingGuardian;
-          } else {
-            // Check if user exists across platform
-            const existingUser = await tx.user.findUnique({
-              where: { email: guardianData.email },
-              include: {
-                profile: true,
-                memberships: {
-                  where: {
-                    organizationId: school.organizationId,
-                  },
-                },
-              },
-            });
-
-            // Generate guardian ID
-            const guardianCount = await tx.guardian.count({
-              where: { schoolId: school.id },
-            });
-            const nextGuardianId = `GRD${(guardianCount + 1).toString().padStart(5, "0")}`;
-
-            if (existingUser && existingUser.profile) {
-              // User exists - create guardian record and link profile
-              console.log(`✓ [Guardian] User exists: ${guardianData.email}`);
-
-              guardian = await tx.guardian.create({
-                data: {
-                  guardianId: nextGuardianId,
-                  schoolId: school.id,
-                  profileId: existingUser.profile.id,
-                  firstName: guardianData.firstName,
-                  lastName: guardianData.lastName,
-                  otherNames: guardianData.otherNames,
-                  email: guardianData.email,
-                  phone: guardianData.phone,
-                  alternatePhone: guardianData.alternatePhone,
-                  gender: guardianData.gender,
-                  relationshipType: guardianData.relationshipType,
-                  occupation: guardianData.occupation,
-                  employer: guardianData.employer,
-                  workAddress: guardianData.workAddress,
-                  workPhone: guardianData.workPhone,
-                  residentialAddress: guardianData.residentialAddress,
-                  city: guardianData.city,
-                  region: guardianData.region,
-                  canLogin: true,
-                  isActive: true,
-                },
-              });
-
-              console.log(`✓ [Guardian] Guardian record created`);
-
-              // Check if user is already a member of the school organization
-              if (existingUser.memberships.length === 0) {
-                // User exists but not in this school's organization - needs invitation
-                console.log(
-                  `📤 [Guardian] User exists but not in school organization - will send invitation`,
-                );
-                needsInvitation = true;
-              } else {
-                console.log(
-                  `✓ [Guardian] User already member of school organization`,
-                );
-              }
-            } else {
-              // Brand new guardian - create guardian record without profile (will be linked when they accept)
-              console.log(
-                `✨ [Guardian] New guardian - will send invitation: ${guardianData.email}`,
-              );
-
-              guardian = await tx.guardian.create({
-                data: {
-                  guardianId: nextGuardianId,
-                  schoolId: school.id,
-                  profileId: null, // Will be linked when they accept invitation
-                  firstName: guardianData.firstName,
-                  lastName: guardianData.lastName,
-                  otherNames: guardianData.otherNames,
-                  email: guardianData.email,
-                  phone: guardianData.phone,
-                  alternatePhone: guardianData.alternatePhone,
-                  gender: guardianData.gender,
-                  relationshipType: guardianData.relationshipType,
-                  occupation: guardianData.occupation,
-                  employer: guardianData.employer,
-                  workAddress: guardianData.workAddress,
-                  workPhone: guardianData.workPhone,
-                  residentialAddress: guardianData.residentialAddress,
-                  city: guardianData.city,
-                  region: guardianData.region,
-                  canLogin: true,
-                  isActive: true,
-                },
-              });
-
-              console.log(
-                `✓ [Guardian] Guardian record created (pending invitation)`,
-              );
-              needsInvitation = true;
-            }
-          }
-
-          // Link guardian to student via GuardianStudent junction table
-          console.log(`🔗 [Guardian] Linking to student...`);
-          await tx.guardianStudent.create({
+        if (!guardian) {
+          guardian = await prisma.guardian.create({
             data: {
-              guardianId: guardian.id,
-              studentId: newStudent.id,
-              isPrimary: guardianData.isPrimary,
-              canPickup: guardianData.canPickup,
-              receiveReports: guardianData.receiveReports,
-              receiveAlerts: guardianData.receiveAlerts,
+              schoolId,
+              guardianId: crypto.randomUUID(),
+              firstName: guardianData.firstName,
+              lastName: guardianData.lastName,
+              otherNames: guardianData.otherNames || null,
+              email: guardianData.email,
+              phone: guardianData.phone,
+              alternatePhone: guardianData.alternatePhone || null,
+              relationshipType: guardianData.relationshipType,
+              occupation: guardianData.occupation || null,
+              employer: guardianData.employer || null,
+              workPhone: guardianData.workPhone || null,
+              workAddress: guardianData.workAddress || null,
+              profileId: guardianProfile.id,
+              canLogin: true,
             },
-          });
-
-          console.log(`✓ [Guardian] Successfully linked to student`);
-
-          guardianResults.push({
-            guardian,
-            needsInvitation,
           });
         }
 
-        console.log(
-          `\n✅ [Guardians] Processed ${guardianResults.length} guardian(s)`,
-        );
-      }
-
-      return {
-        student: newStudent,
-        guardianResults,
-      };
-    });
-
-    console.log("✅ [Student Create] Transaction completed successfully");
-
-    // Send invitations to guardians who need them (outside transaction)
-    // Uses Better Auth's invitation system
-    if (result.guardianResults.length > 0) {
-      const guardiansNeedingInvitations = result.guardianResults.filter(
-        (gr) => gr.needsInvitation,
-      );
-
-      if (guardiansNeedingInvitations.length > 0) {
-        console.log(
-          `\n📧 [Invitations] Sending ${guardiansNeedingInvitations.length} invitation(s) via Better Auth...`,
-        );
-
-        const invitationPromises = guardiansNeedingInvitations.map(
-          async (gr) => {
-            try {
-              // ✅ FIX: Check if guardian email exists before creating invitation
-              if (!gr.guardian.email) {
-                console.warn(
-                  `⚠️ [Invitation] Skipping guardian without email: ${gr.guardian.firstName} ${gr.guardian.lastName}`,
-                );
-                return;
-              }
-
-              console.log(
-                `📤 [Invitation] Creating invitation for: ${gr.guardian.email}`,
-              );
-
-              // Create invitation via Better Auth
-              // Better Auth will automatically send the email via the hook in auth.ts
-              const invitation = await auth.api.createInvitation({
-                body: {
-                  organizationId: school.organizationId,
-                  email: gr.guardian.email, // ✅ TypeScript now knows this is not null
-                  role: "member",
-                },
-                headers: await headers(),
-              });
-
-              if (invitation) {
-                console.log(
-                  `✅ [Invitation] Created for ${gr.guardian.email} - Email will be sent by Better Auth hook`,
-                );
-              }
-            } catch (error) {
-              console.error(
-                `❌ [Invitation] Error processing invitation for ${gr.guardian.email || "unknown"}:`,
-                error,
-              );
-            }
+        // Check if already a member
+        const existingMembership = await prisma.member.findFirst({
+          where: {
+            userId: existingUser.id,
+            organizationId: school.organizationId,
           },
+        });
+
+        if (!existingMembership) {
+          await auth.api.addMember({
+            body: {
+              organizationId: school.organizationId,
+              userId: existingUser.id,
+              role: "guardian",
+            },
+          });
+          console.log(
+            `✅ [Students] Added ${guardianData.email} to organization as guardian`,
+          );
+        }
+      } else {
+        // ====================================================================
+        // NEW guardian - create Guardian record first, THEN send invitation
+        // The invitation will be sent via auth.ts sendInvitationEmail
+        // which will detect guardian and use guardian email template
+        // ====================================================================
+        console.log(
+          `📧 [Students] Creating guardian and sending invitation: ${guardianData.email}`,
         );
 
-        await Promise.all(invitationPromises);
-        console.log("✅ [Invitations] All invitations processed");
+        // Create Guardian record FIRST (without profileId)
+        guardian = await prisma.guardian.create({
+          data: {
+            schoolId,
+            guardianId: crypto.randomUUID(),
+            firstName: guardianData.firstName,
+            lastName: guardianData.lastName,
+            otherNames: guardianData.otherNames || null,
+            email: guardianData.email,
+            phone: guardianData.phone,
+            alternatePhone: guardianData.alternatePhone || null,
+            relationshipType: guardianData.relationshipType,
+            occupation: guardianData.occupation || null,
+            employer: guardianData.employer || null,
+            workPhone: guardianData.workPhone || null,
+            workAddress: guardianData.workAddress || null,
+            canLogin: true,
+            // profileId will be linked in auth.ts afterAddMember hook
+          },
+        });
+
+        // Link guardian to student BEFORE sending invitation
+        await prisma.guardianStudent.create({
+          data: {
+            guardianId: guardian.id,
+            studentId: student.id,
+            isPrimary: guardianData.isPrimary || false,
+            canPickup: guardianData.canPickup || true,
+            receiveReports: guardianData.receiveReports || true,
+            receiveAlerts: guardianData.receiveAlerts || true,
+          },
+        });
+
+        // NOW send invitation - this will trigger auth.ts sendInvitationEmail
+        // which will detect guardian and use guardian email template
+        // ✅ FIXED: Added headers parameter
+        await auth.api.createInvitation({
+          body: {
+            email: guardianData.email,
+            organizationId: school.organizationId,
+            role: "guardian",
+          },
+          headers: await headers(), // ✅ ADDED THIS
+        });
+
+        console.log(
+          `✅ [Students] Created guardian record and sent invitation to ${guardianData.email}`,
+        );
       }
+
+      // Link guardian to student (if not already done above)
+      const existingLink = await prisma.guardianStudent.findUnique({
+        where: {
+          guardianId_studentId: {
+            guardianId: guardian.id,
+            studentId: student.id,
+          },
+        },
+      });
+
+      if (!existingLink) {
+        await prisma.guardianStudent.create({
+          data: {
+            guardianId: guardian.id,
+            studentId: student.id,
+            isPrimary: guardianData.isPrimary || false,
+            canPickup: guardianData.canPickup || true,
+            receiveReports: guardianData.receiveReports || true,
+            receiveAlerts: guardianData.receiveAlerts || true,
+          },
+        });
+      }
+
+      createdGuardians.push({
+        id: guardian.id,
+        email: guardianData.email,
+        name: `${guardianData.firstName} ${guardianData.lastName}`,
+        relationshipType: guardianData.relationshipType,
+      });
     }
 
-    // Log audit trail
-    console.log("📝 [Audit] Creating audit log...");
+    // ========================================================================
+    // STEP 9: Create audit log
+    // ========================================================================
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: "CREATE",
-        entityType: "Student",
-        entityId: result.student.id,
+        entityType: "STUDENT",
+        entityId: student.id,
         newValues: {
-          studentId: result.student.studentId,
-          admissionNumber: result.student.admissionNumber,
-          name: `${validatedData.firstName} ${validatedData.lastName}`,
-          guardianCount: result.guardianResults.length,
-          newInvitations: result.guardianResults.filter(
-            (gr) => gr.needsInvitation,
-          ).length,
-        } as Prisma.InputJsonValue,
+          studentId: student.studentId,
+          admissionNumber: student.admissionNumber,
+          name: `${firstName} ${lastName}`,
+          email: studentEmail,
+          schoolId,
+          createdBy: session.user.email,
+          guardiansCount: createdGuardians.length,
+        },
       },
     });
 
-    console.log("✅ [Student Create] Process completed successfully!\n");
-
+    // ========================================================================
+    // RESPONSE
+    // ========================================================================
     return NextResponse.json(
       {
-        ...result.student,
-        guardians: result.guardianResults.map((gr) => ({
-          id: gr.guardian.id,
-          email: gr.guardian.email,
-          name: `${gr.guardian.firstName} ${gr.guardian.lastName}`,
-          invitationSent: gr.needsInvitation,
-        })),
+        success: true,
+        student: {
+          id: student.id,
+          studentId: student.studentId,
+          admissionNumber: student.admissionNumber,
+          name: `${firstName} ${lastName}`,
+          email: studentEmail,
+        },
+        credentials: {
+          email: studentEmail,
+          temporaryPassword, // Return for admin to share manually
+        },
+        message: `Student created successfully. Invitation${createdGuardians.length > 1 ? "s" : ""} sent to ${createdGuardians.length} guardian${createdGuardians.length > 1 ? "s" : ""}.`,
+        guardians: createdGuardians,
       },
       { status: 201 },
     );
   } catch (error) {
-    console.error("❌ [Student Create] Error:", error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid request data", details: error.message },
-        { status: 400 },
-      );
-    }
-
+    console.error("[Students] Error creating student:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ schoolSlug: string }> },
-) {
-  try {
-    const { schoolSlug } = await params;
-    const session = await requireSchoolAccess(schoolSlug);
-    const role = getSchoolRole(session, schoolSlug);
-
-    if (!role) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
-
-    const school = await prisma.school.findUnique({
-      where: { subdomain: schoolSlug },
-    });
-
-    if (!school) {
-      return NextResponse.json({ error: "School not found" }, { status: 404 });
-    }
-
-    const students = await prisma.student.findMany({
-      where: { schoolId: school.id },
-      include: {
-        profile: true,
-        class: {
-          include: { academicYear: true },
-        },
-        department: true,
-        house: true,
-        _count: {
-          select: {
-            guardians: true,
-            bills: true,
-          },
-        },
+      {
+        error: "Failed to create student",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return NextResponse.json(students);
-  } catch (error) {
-    console.error("[STUDENTS_GET] Error", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
       { status: 500 },
     );
   }

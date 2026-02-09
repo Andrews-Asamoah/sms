@@ -314,5 +314,4 @@ export {
   EmploymentType,
   GuardianType,
   StaffType,
-  MemberRole,
 } from "@/lib/generated/prisma/client";

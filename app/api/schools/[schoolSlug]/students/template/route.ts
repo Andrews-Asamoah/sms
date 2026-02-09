@@ -1,4 +1,4 @@
-// app/api/schools/[schoolSlug]/students/template/route.ts
+// app/api/schools/[schoolSlug]/students/template/route.ts - UPDATED
 import { NextRequest, NextResponse } from "next/server";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
@@ -77,6 +77,10 @@ export async function GET(
       "Emergency Contact Name",
       "Emergency Contact Phone",
       "Emergency Relationship",
+      "Parent Email", // NEW - for guardian invitation
+      "Parent Name", // NEW - for guardian invitation
+      "Parent Phone", // NEW - for guardian invitation
+      "Parent Relationship", // NEW - for guardian invitation
     ];
 
     // Sample data row
@@ -106,6 +110,10 @@ export async function GET(
       "Jane Doe",
       "+233244987654",
       "Mother",
+      "jane.doe@example.com", // Parent email
+      "Jane Doe", // Parent name
+      "+233244987654", // Parent phone
+      "MOTHER", // Parent relationship
     ];
 
     const data = [headers, sampleData];
@@ -138,6 +146,10 @@ export async function GET(
       { wch: 20 }, // Emergency Contact Name
       { wch: 15 }, // Emergency Contact Phone
       { wch: 15 }, // Emergency Relationship
+      { wch: 25 }, // Parent Email
+      { wch: 20 }, // Parent Name
+      { wch: 15 }, // Parent Phone
+      { wch: 15 }, // Parent Relationship
     ];
     worksheet["!cols"] = colWidths;
 
@@ -151,7 +163,7 @@ export async function GET(
       [
         "1. Student ID and Admission Number will be AUTO-GENERATED - DO NOT include these columns",
       ],
-      [`2. Student IDs will be generated as: STU00001, STU00002, etc.`],
+      ["2. Student IDs will be generated as: STU00001, STU00002, etc."],
       [
         `3. Admission Numbers will be generated as: ${school.code}0001, ${school.code}0002, etc.`,
       ],
@@ -159,6 +171,17 @@ export async function GET(
       ["5. Keep the header row as is (first row)"],
       ["6. Delete the sample data row before adding your data"],
       ["7. Save as .xlsx or .xls format only"],
+      [""],
+      ["PARENT/GUARDIAN INVITATIONS:"],
+      [
+        "- If Parent Email is provided, an invitation will be sent automatically",
+      ],
+      ["- Parent Name is required if Parent Email is provided"],
+      ["- Parent Phone is optional but recommended"],
+      ["- Parent Relationship should be: FATHER, MOTHER, GUARDIAN, or OTHER"],
+      [
+        "- Each unique parent email receives only ONE invitation (even for multiple children)",
+      ],
       [""],
       ["REQUIRED FIELDS (marked with *):"],
       ["- First Name"],
@@ -170,6 +193,14 @@ export async function GET(
       ["GENDER VALUES (case-sensitive):"],
       ["- MALE"],
       ["- FEMALE"],
+      ["- OTHER"],
+      [""],
+      ["PARENT RELATIONSHIP VALUES:"],
+      ["- FATHER"],
+      ["- MOTHER"],
+      ["- GUARDIAN"],
+      ["- SIBLING"],
+      ["- RELATIVE"],
       ["- OTHER"],
       [""],
       ["BLOOD GROUP OPTIONS:"],
@@ -194,6 +225,10 @@ export async function GET(
       ["3. Phone numbers can include country code (e.g., +233244123456)"],
       ["4. Double-check all dates are in YYYY-MM-DD format"],
       ["5. Ensure Gender is exactly MALE, FEMALE, or OTHER (uppercase)"],
+      [
+        "6. Parent Email must be valid - invitations will be sent automatically",
+      ],
+      ["7. Siblings can share the same Parent Email"],
     ];
 
     const instructionsSheet = XLSX.utils.aoa_to_sheet(instructionsData);
@@ -216,6 +251,14 @@ export async function GET(
       ["Gender Options"],
       ["MALE"],
       ["FEMALE"],
+      ["OTHER"],
+      [""],
+      ["Parent Relationship Options"],
+      ["FATHER"],
+      ["MOTHER"],
+      ["GUARDIAN"],
+      ["SIBLING"],
+      ["RELATIVE"],
       ["OTHER"],
       [""],
       ["Blood Groups"],
