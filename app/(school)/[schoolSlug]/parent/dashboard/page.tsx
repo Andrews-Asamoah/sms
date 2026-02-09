@@ -18,11 +18,8 @@ import {
   DollarSign,
   AlertCircle,
   Calendar,
-  TrendingUp,
   ArrowRight,
   Bell,
-  FileText,
-  GraduationCap,
 } from "lucide-react";
 import { Decimal } from "@/lib/generated/prisma/runtime/client";
 

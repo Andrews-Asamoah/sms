@@ -18,8 +18,6 @@ import {
   Calendar,
   MapPin,
   Phone,
-  Mail,
-  Heart,
   FileText,
   ArrowRight,
 } from "lucide-react";

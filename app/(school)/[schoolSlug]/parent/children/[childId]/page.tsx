@@ -3,20 +3,13 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { redirect, notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
   User,
-  Mail,
   Phone,
   MapPin,
   Calendar,

@@ -225,7 +225,7 @@ export async function POST(
         try {
           dobString = excelDateToString(dateOfBirth);
           admDateString = excelDateToString(admissionDate);
-        } catch (error) {
+        } catch {
           console.log(`❌ [Row ${rowNumber}] Invalid date format`);
           results.push({
             row: rowNumber,

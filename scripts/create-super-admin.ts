@@ -2,25 +2,6 @@
  * ============================================================================
  * SUPER ADMIN SETUP SCRIPT
  * Better Auth Integration with Organization Plugin
- * ============================================================================
- *
- * This script creates a system-wide SuperAdmin account.
- * SuperAdmin is the ONLY role that can create organizations (schools).
- *
- * Key Features:
- * - Uses Better Auth's native signUp API (no manual password hashing)
- * - Creates UserProfile for complete user data
- * - Sets role to "superAdmin" for system-wide privileges
- * - Verifies account creation and permissions
- *
- * Usage:
- *   npx tsx scripts/create-super-admin.ts
- *
- * Security Notes:
- * - Change the default password immediately after first login
- * - Only create SuperAdmin accounts for trusted personnel
- * - Consider using environment variables for credentials in production
- * ============================================================================
  */
 
 import "dotenv/config";

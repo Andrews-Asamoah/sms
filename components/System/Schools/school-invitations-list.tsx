@@ -50,7 +50,7 @@ export function SchoolInvitationsList({
         `/api/schools/${schoolId}/invite-admin?invitationId=${invitationId}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -59,7 +59,7 @@ export function SchoolInvitationsList({
 
       toast.success("Invitation cancelled");
       router.refresh();
-    } catch (error) {
+    } catch {
       toast.error("Failed to cancel invitation");
     } finally {
       setCancellingId(null);
@@ -86,7 +86,7 @@ export function SchoolInvitationsList({
           {invitations.map((invitation) => {
             const expiresIn = Math.ceil(
               (new Date(invitation.expiresAt).getTime() - Date.now()) /
-                (1000 * 60 * 60 * 24)
+                (1000 * 60 * 60 * 24),
             );
             const isExpired = expiresIn <= 0;
 

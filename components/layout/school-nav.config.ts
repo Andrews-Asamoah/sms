@@ -1,8 +1,4 @@
-// ============================================================
-// components/layout/school-nav.config.ts
-// Fixed to properly include school slug in all routes
-// ============================================================
-
+// components/layout/school-nav.config.ts - WITH ROLE-BASED FILTERING
 import {
   LayoutDashboard,
   Users,
@@ -28,12 +24,8 @@ import {
   CalendarDays,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
-import type { NavPermissions } from "@/lib/permissions/utils";
+import type { NavPermissions } from "@/lib/auth/types";
 
-/**
- * Base navigation sections (without school slug prefix)
- * The school slug will be added dynamically via getPrefixedNavSections
- */
 export const schoolNavSections: NavSection[] = [
   {
     title: "Main",
@@ -153,7 +145,7 @@ export const schoolNavSections: NavSection[] = [
       },
       {
         title: "Houses",
-        url: "/admin//houses",
+        url: "/admin/houses",
         icon: Home,
         permission: "canManageHouses",
       },
@@ -260,7 +252,54 @@ export const schoolNavSections: NavSection[] = [
 ];
 
 /**
+ * Role-specific navigation sections
+ * These define which sections each role should see
+ */
+const ROLE_NAV_SECTIONS: Record<string, string[]> = {
+  owner: [
+    "Main",
+    "Academic",
+    "Assessment",
+    "Operations",
+    "Communication",
+    "Personal",
+    "System",
+  ],
+  admin: [
+    "Main",
+    "Academic",
+    "Assessment",
+    "Operations",
+    "Communication",
+    "Personal",
+    "System",
+  ],
+  teacher: ["Main", "Assessment", "Operations", "Communication", "Personal"],
+  accountant: ["Main", "Operations", "Personal"],
+  staff: ["Main", "Operations", "Communication", "Personal"],
+  student: ["Main", "Assessment", "Operations", "Communication", "Personal"],
+  guardian: ["Main", "Operations", "Communication", "Personal"],
+  member: ["Main", "Personal"],
+};
+
+/**
+ * Filter navigation sections based on role
+ * This removes entire sections that aren't relevant to the role
+ */
+export function filterNavByRole(
+  sections: NavSection[],
+  role: string,
+): NavSection[] {
+  const allowedSections = ROLE_NAV_SECTIONS[role] || ROLE_NAV_SECTIONS.member;
+
+  return sections.filter(
+    (section) => !section.title || allowedSections.includes(section.title),
+  );
+}
+
+/**
  * Filter navigation sections based on user permissions
+ * This is applied AFTER role filtering to remove specific items
  */
 export function filterNavByPermissions(
   sections: NavSection[],

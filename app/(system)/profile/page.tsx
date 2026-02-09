@@ -1,17 +1,13 @@
-// ============================================
-// 4. SUPER ADMIN ACCOUNT PAGE
-// app/(system)/account/page.tsx
-// ============================================
-
+// app/(system)/profile/page.tsx
 import { redirect } from "next/navigation";
-import { getAuthSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth/session"; // ✅ Use getSession
 import { getCurrentUserProfile } from "@/app/actions/profile";
 import { ProfileForm } from "@/components/forms/profile-form";
 
 export default async function SuperAdminAccountPage() {
-  const session = await getAuthSession();
+  const session = await getSession();
 
-  if (!session || session.user.role !== "superAdmin") {
+  if (!session?.isSuperAdmin) {
     redirect("/auth/login");
   }
 
@@ -29,8 +25,7 @@ export default async function SuperAdminAccountPage() {
           Manage your account information and preferences
         </p>
       </div>
-
-      <ProfileForm userData={userData} revalidatePath="/profile" />
+      <ProfileForm userData={userData} />
     </div>
   );
 }

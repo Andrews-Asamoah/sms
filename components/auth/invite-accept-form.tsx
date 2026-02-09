@@ -2,7 +2,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -64,7 +63,6 @@ interface InviteAcceptFormProps {
 }
 
 export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
-  const router = useRouter();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -109,7 +107,7 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -165,7 +163,7 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
 
       if (!response.ok) {

@@ -10,13 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  DollarSign,
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  TrendingUp,
-} from "lucide-react";
+import { DollarSign, AlertCircle, Clock, TrendingUp } from "lucide-react";
 import {
   Table,
   TableBody,

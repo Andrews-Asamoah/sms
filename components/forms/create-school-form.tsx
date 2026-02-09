@@ -159,7 +159,7 @@ export function CreateSchoolForm() {
           isAvailable: data.available,
           message: data.available ? "Code is available" : data.message,
         });
-      } catch (error) {
+      } catch {
         setCodeAvailability({
           isChecking: false,
           isAvailable: null,
@@ -200,7 +200,7 @@ export function CreateSchoolForm() {
           isAvailable: data.available,
           message: data.available ? "Subdomain is available" : data.message,
         });
-      } catch (error) {
+      } catch {
         setSubdomainAvailability({
           isChecking: false,
           isAvailable: null,

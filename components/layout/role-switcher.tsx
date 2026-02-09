@@ -20,7 +20,7 @@ import {
   DollarSign,
   UserCog,
 } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface RoleSwitcherProps {
@@ -96,7 +96,6 @@ export function RoleSwitcher({
   className,
 }: RoleSwitcherProps) {
   const router = useRouter();
-  const pathname = usePathname();
 
   // Only show if user has multiple roles
   if (availableRoles.length <= 1) {

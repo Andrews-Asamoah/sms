@@ -1,4 +1,4 @@
-// config/navigation/system-nav.config.ts
+// config/navigation/system-nav.config.ts - ADD PROFILE LINK
 import {
   LayoutDashboard,
   Building2,
@@ -11,6 +11,7 @@ import {
   FileText,
   HelpCircle,
   GraduationCap,
+  UserCircle, // Add this
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 
@@ -132,6 +133,16 @@ export const systemNavSections: NavSection[] = [
           { title: "Migrations", url: "/system/database/migrations" },
           { title: "Performance", url: "/system/database/performance" },
         ],
+      },
+    ],
+  },
+  {
+    title: "Personal",
+    items: [
+      {
+        title: "My Profile",
+        url: "/profile",
+        icon: UserCircle,
       },
     ],
   },

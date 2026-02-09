@@ -8,17 +8,6 @@ import { auth } from "../auth";
 // MAIN PERMISSION FUNCTION
 // ============================================================================
 
-/**
- * Get navigation permissions for a user in a specific school
- *
- * Priority order:
- * 1. SuperAdmin gets all permissions
- * 2. Organization role permissions (owner, admin, member)
- * 3. Profile role permissions (teacher, student, etc.)
- * 4. Better Auth explicit permissions (if configured)
- *
- * Permissions are merged using union (most permissive wins)
- */
 export async function getNavPermissions(
   session: ExtendedSession,
   subdomain: string,

@@ -1,5 +1,4 @@
-// proxy.ts - Next.js 16 Request Interceptor
-
+// proxy.ts - Next.js 16 Request Interceptor with Role Detection Support
 import { type NextRequest, NextResponse } from "next/server";
 
 // Public routes that don't require authentication
@@ -118,8 +117,28 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(dashboardUrl);
   }
 
-  // 5. Continue to route
-  return NextResponse.next();
+  // ============================================================================
+  // 5. ADD PATHNAME TO HEADERS (for role detection in server components)
+  // ============================================================================
+
+  // Clone request headers
+  const requestHeaders = new Headers(request.headers);
+
+  // Add pathname to headers so server components can access it
+  // This is crucial for role switching to work correctly
+  requestHeaders.set("x-pathname", pathname);
+
+  // Add search params if they exist (useful for debugging)
+  if (request.nextUrl.search) {
+    requestHeaders.set("x-search-params", request.nextUrl.search);
+  }
+
+  // Continue to route with modified headers
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
 
 // ============================================================================

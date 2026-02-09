@@ -278,8 +278,6 @@ export async function GET(
   try {
     const { schoolSlug } = await params;
 
-    const session = await requireSchoolAccess(schoolSlug);
-
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
       select: {

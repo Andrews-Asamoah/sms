@@ -44,11 +44,7 @@ interface UploadResult {
   message?: string;
 }
 
-export function BulkUploadForm({
-  schoolId,
-  schoolSlug,
-  schoolCode,
-}: BulkUploadFormProps) {
+export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
