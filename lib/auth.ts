@@ -1,4 +1,4 @@
-// lib/auth.ts - COMPLETE FIXED VERSION
+// lib/auth.ts - FULLY TYPED VERSION
 
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -24,10 +24,28 @@ import {
 import { Gender } from "@/lib/generated/prisma/client";
 
 // ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+interface BetterAuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role?: string;
+}
+
+interface BetterAuthOrganization {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+// ============================================================================
 // BETTER AUTH INSTANCE
 // ============================================================================
 
 export const auth = betterAuth({
+  baseURL: process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000",
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -101,193 +119,200 @@ export const auth = betterAuth({
       // ======================================================================
       // PERMISSION: Who can create organizations?
       // ======================================================================
-      allowUserToCreateOrganization: async (user) => {
-        const isSuperAdmin = user.role === "superAdmin";
+      allowUserToCreateOrganization: async (user: BetterAuthUser) => {
+        console.log("\n[AUTH] CREATE_ORG PERMISSION CHECK");
+        console.log(`User: ${user.email}`);
 
-        console.log(
-          `[Auth] CREATE_ORG - User: ${user.email}, Role: ${user.role}`,
-        );
-        console.log(`[Auth] CREATE_ORG - Can create: ${isSuperAdmin}`);
-
-        return isSuperAdmin;
-      },
-
-      // ======================================================================
-      // PERMISSION: Who can invite users to organizations?
-      // CRITICAL: This function MUST return true for invitations to work
-      // ======================================================================
-      // In your lib/auth.ts, replace allowUserToInviteUser with this:
-
-      allowUserToInviteUser: async (opts: {
-        user: { id: string; email: string; role?: string };
-        organization: { id: string; name: string };
-      }): Promise<boolean> => {
-        const { user, organization } = opts;
-
-        console.log("");
-        console.log("=".repeat(70));
-        console.log("🔐 [Auth] INVITATION PERMISSION CHECK");
-        console.log("=".repeat(70));
-        console.log(`👤 User ID:    ${user.id}`);
-        console.log(`👤 User Email: ${user.email}`);
-        console.log(`👤 User Role:  ${user.role || "UNDEFINED!"}`); // ⚠️ Check this!
-        console.log(`🏢 Org ID:     ${organization.id}`);
-        console.log("");
-
-        // ✅ STRATEGY 1: Check if role field exists and is superAdmin
-        if (user.role === "superAdmin") {
-          console.log("✅ PERMISSION GRANTED - SUPERADMIN (from session)");
-          console.log("=".repeat(70));
-          console.log("");
-          return true;
-        }
-
-        // ✅ STRATEGY 2: Query the User table directly (FALLBACK)
-        console.log("⚠️ Role not in session, checking database...");
+        // Query database for role
         const userRecord = await prisma.user.findUnique({
           where: { id: user.id },
           select: { role: true },
         });
 
-        console.log(`📊 DB Query Result: role = ${userRecord?.role || "NULL"}`);
+        const isSuperAdmin = userRecord?.role === "superAdmin";
+        console.log(`Permission: ${isSuperAdmin ? "GRANTED" : "DENIED"}\n`);
 
-        if (userRecord?.role === "superAdmin") {
-          console.log("✅ PERMISSION GRANTED - SUPERADMIN (from database)");
-          console.log("=".repeat(70));
-          console.log("");
-          return true;
-        }
-
-        // ✅ STRATEGY 3: Check membership
-        console.log("⚠️ Not a SuperAdmin, checking membership...");
-        const membership = await prisma.member.findFirst({
-          where: {
-            userId: user.id,
-            organizationId: organization.id,
-            role: { in: ["owner", "admin"] },
-          },
-        });
-
-        if (membership) {
-          console.log(`✅ PERMISSION GRANTED - MEMBER (${membership.role})`);
-          console.log("=".repeat(70));
-          console.log("");
-          return true;
-        }
-
-        console.log("❌ PERMISSION DENIED");
-        console.log("=".repeat(70));
-        console.log("");
-        return false;
+        return isSuperAdmin;
       },
-      organizationLimit: 100,
 
       // ======================================================================
-      // EMAIL: Send invitation emails
+      // PERMISSION TO INVITE USERS
       // ======================================================================
-      async sendInvitationEmail(data) {
-        const { email, id, organization, inviter } = data;
+      allowUserToInviteUser: async (opts: {
+        user: BetterAuthUser;
+        organization: BetterAuthOrganization;
+      }) => {
+        console.error(
+          "\n╔════════════════════════════════════════════════════════════════════╗",
+        );
+        console.error(
+          "║   🔐 INVITATION PERMISSION CHECK                                   ║",
+        );
+        console.error(
+          "╚════════════════════════════════════════════════════════════════════╝",
+        );
+        console.error(`👤 User: ${opts.user.email}`);
+        console.error(
+          `🏢 Organization: ${organization.name} (${opts.organization.id})`,
+        );
 
         try {
-          console.log(`📧 [Auth] Sending invitation email to ${email}`);
-
-          const org = await prisma.organization.findUnique({
-            where: { id: organization.id },
-            include: {
-              school: {
-                select: {
-                  name: true,
-                  id: true,
-                },
-              },
-            },
+          // Strategy 1: Check superAdmin role
+          const userRecord = await prisma.user.findUnique({
+            where: { id: opts.user.id },
+            select: { role: true, email: true },
           });
 
-          if (!org || !org.school?.id) {
-            console.error("[Auth] Organization or school not found");
-            return;
+          console.error(`🎭 Role (database): ${userRecord?.role || "NULL"}`);
+
+          if (userRecord?.role === "superAdmin") {
+            console.error("✅ PERMISSION GRANTED - SUPERADMIN\n");
+            return true;
           }
 
-          const invitation = await prisma.invitation.findUnique({
-            where: { id },
-            select: {
-              role: true,
-              expiresAt: true,
-            },
-          });
-
-          if (!invitation) {
-            console.error("[Auth] Invitation not found");
-            return;
-          }
-
-          // Check if this is a guardian invitation
-          const guardian = await prisma.guardian.findFirst({
+          // Strategy 2: Check membership
+          const membership = await prisma.member.findFirst({
             where: {
-              email,
-              schoolId: org.school.id,
+              userId: opts.user.id,
+              organizationId: opts.organization.id,
+              role: { in: ["owner", "admin"] },
             },
-            include: {
-              students: {
-                include: {
-                  student: {
-                    include: {
-                      profile: true,
-                    },
-                  },
-                },
-              },
-            },
+            select: { role: true },
           });
 
-          if (guardian && guardian.students.length > 0) {
-            // Guardian invitation
-            console.log(`✓ [Auth] Guardian invitation for ${email}`);
+          console.error(
+            `🏢 Membership: ${membership ? membership.role : "NONE"}`,
+          );
 
-            const firstStudent = guardian.students[0].student;
-            const studentName = `${firstStudent.profile.firstName} ${firstStudent.profile.lastName}`;
-            const guardianName = `${guardian.firstName} ${guardian.lastName}`;
-
-            await sendGuardianInvitationEmail({
-              to: email,
-              guardianName,
-              studentName,
-              schoolName: org.school.name,
-              invitationId: id,
-              expiresAt: invitation.expiresAt,
-            });
-
-            console.log(`✅ [Auth] Guardian email sent to ${email}`);
-          } else {
-            // Admin/Staff invitation
-            console.log(`✓ [Auth] Admin/Staff invitation for ${email}`);
-
-            const inviterUser = await prisma.user.findUnique({
-              where: { id: inviter.id },
-              select: { name: true, email: true },
-            });
-
-            await sendAdminInvitationEmail({
-              to: email,
-              inviterName:
-                inviterUser?.name || inviterUser?.email || "Administrator",
-              schoolName: org.school.name,
-              role: invitation.role || "member",
-              invitationId: id,
-              expiresAt: invitation.expiresAt,
-            });
-
-            console.log(`✅ [Auth] Admin email sent to ${email}`);
+          if (membership) {
+            console.error(
+              `✅ PERMISSION GRANTED - ${membership.role.toUpperCase()}\n`,
+            );
+            return true;
           }
+
+          console.error("❌ PERMISSION DENIED - No valid permissions\n");
+          return false;
         } catch (error) {
-          console.error("[Auth] Error in sendInvitationEmail:", error);
+          console.error("❌ ERROR in allowUserToInviteUser:", error);
+          return false;
         }
       },
+
+      organizationLimit: 100,
 
       // ======================================================================
       // HOOKS: Organization lifecycle events
       // ======================================================================
       organizationHooks: {
+        // =====================================================================
+        // AFTER CREATE INVITATION - Send email here!
+        // =====================================================================
+        afterCreateInvitation: async ({
+          invitation,
+          inviter,
+          organization,
+        }) => {
+          console.log("\n[AUTH] 📧 afterCreateInvitation hook triggered");
+          console.log(`Email: ${invitation.email}`);
+          console.log(`Organization: ${organization.name}`);
+
+          try {
+            // Get organization with school data
+            const org = await prisma.organization.findUnique({
+              where: { id: organization.id },
+              include: {
+                school: {
+                  select: {
+                    name: true,
+                    id: true,
+                  },
+                },
+              },
+            });
+
+            if (!org || !org.school) {
+              console.error("[Auth] Organization or school not found");
+              return;
+            }
+
+            // Get invitation details
+            const invitationRecord = await prisma.invitation.findUnique({
+              where: { id: invitation.id },
+              select: {
+                role: true,
+                expiresAt: true,
+              },
+            });
+
+            if (!invitationRecord) {
+              console.error("[Auth] Invitation not found");
+              return;
+            }
+
+            // Check if this is a guardian invitation
+            const guardian = await prisma.guardian.findFirst({
+              where: {
+                email: invitation.email,
+                schoolId: org.school.id,
+              },
+              include: {
+                students: {
+                  include: {
+                    student: {
+                      include: {
+                        profile: true,
+                      },
+                    },
+                  },
+                },
+              },
+            });
+
+            if (guardian && guardian.students.length > 0) {
+              // Guardian invitation
+              console.log(
+                `[Auth] Sending guardian email to ${invitation.email}`,
+              );
+
+              const firstStudent = guardian.students[0].student;
+              const studentName = `${firstStudent.profile.firstName} ${firstStudent.profile.lastName}`;
+              const guardianName = `${guardian.firstName} ${guardian.lastName}`;
+
+              await sendGuardianInvitationEmail({
+                to: invitation.email,
+                guardianName,
+                studentName,
+                schoolName: org.school.name,
+                invitationId: invitation.id,
+                expiresAt: invitationRecord.expiresAt,
+              });
+
+              console.log(`✅ [Auth] Guardian email sent`);
+            } else {
+              // Admin/Staff invitation
+              console.log(`[Auth] Sending admin email to ${invitation.email}`);
+
+              await sendAdminInvitationEmail({
+                to: invitation.email,
+                inviterName: inviter.name || inviter.email,
+                schoolName: org.school.name,
+                role: invitationRecord.role || "member",
+                invitationId: invitation.id,
+                expiresAt: invitationRecord.expiresAt,
+              });
+
+              console.log(`✅ [Auth] Admin email sent`);
+            }
+          } catch (error) {
+            console.error("[Auth] Error in afterCreateInvitation:", error);
+            // Don't throw - invitation was created successfully
+          }
+        },
+
+        // =====================================================================
+        // AFTER ADD MEMBER
+        // =====================================================================
         afterAddMember: async ({ user, organization, member }) => {
           console.log(
             `✅ [Auth] Member added: ${user.email} → ${organization.name} as ${member.role}`,
@@ -380,6 +405,9 @@ export const auth = betterAuth({
           }
         },
 
+        // =====================================================================
+        // BEFORE REMOVE MEMBER
+        // =====================================================================
         beforeRemoveMember: async ({ user, organization }) => {
           console.log(
             `🗑️ [Auth] Removing ${user.email} from ${organization.name}`,
@@ -398,6 +426,9 @@ export const auth = betterAuth({
           }
         },
 
+        // =====================================================================
+        // AFTER REMOVE MEMBER
+        // =====================================================================
         afterRemoveMember: async ({ member, user, organization }) => {
           console.log(`✅ [Auth] Member removed: ${user.email}`);
 
@@ -421,6 +452,9 @@ export const auth = betterAuth({
           }
         },
 
+        // =====================================================================
+        // AFTER ACCEPT INVITATION
+        // =====================================================================
         afterAcceptInvitation: async ({ invitation, user, organization }) => {
           console.log(`✅ [Auth] Invitation accepted by ${user.email}`);
 
@@ -445,6 +479,9 @@ export const auth = betterAuth({
           }
         },
 
+        // =====================================================================
+        // AFTER CANCEL INVITATION
+        // =====================================================================
         afterCancelInvitation: async ({
           invitation,
           cancelledBy,
@@ -500,11 +537,17 @@ export const auth = betterAuth({
       }) {
         const { user, targetUser } = opts;
 
-        if (user.role === "superAdmin") {
+        // Query database for role
+        const userRecord = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true },
+        });
+
+        if (userRecord?.role === "superAdmin") {
           return true;
         }
 
-        if (user.role === "admin") {
+        if (userRecord?.role === "admin") {
           const adminMemberships = await prisma.member.findMany({
             where: {
               userId: user.id,

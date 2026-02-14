@@ -325,7 +325,7 @@ export default async function SchoolsPage() {
                           size="sm"
                           className="flex-1 min-w-0 hover:bg-primary/10 hover:border-primary/30"
                         >
-                          <Link href={`/schools/${school.id}/overview`}>
+                          <Link href={`/schools/${school.subdomain}/overview`}>
                             <Eye className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                             <span className="truncate">View</span>
                           </Link>
@@ -336,7 +336,7 @@ export default async function SchoolsPage() {
                           size="sm"
                           className="shrink-0 hover:bg-primary/10 hover:border-primary/30"
                         >
-                          <Link href={`/schools/${school.id}/settings`}>
+                          <Link href={`/schools/${school.subdomain}/settings`}>
                             <Settings className="h-3.5 w-3.5" />
                           </Link>
                         </Button>
@@ -450,7 +450,9 @@ export default async function SchoolsPage() {
                                 size="sm"
                                 className="hover:bg-primary/10"
                               >
-                                <Link href={`/schools/${school.id}/overview`}>
+                                <Link
+                                  href={`/schools/${school.subdomain}/overview`}
+                                >
                                   <Eye className="h-4 w-4" />
                                 </Link>
                               </Button>
@@ -460,7 +462,9 @@ export default async function SchoolsPage() {
                                 size="sm"
                                 className="hover:bg-primary/10"
                               >
-                                <Link href={`/schools/${school.id}/settings`}>
+                                <Link
+                                  href={`/schools/${school.subdomain}/settings`}
+                                >
                                   <Settings className="h-4 w-4" />
                                 </Link>
                               </Button>

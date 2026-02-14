@@ -7,7 +7,7 @@ import { SchoolSubscriptionManager } from "@/components/System/Schools/school-su
 
 interface SchoolSubscriptionPageProps {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
   }>;
 }
 
@@ -20,10 +20,10 @@ export default async function SchoolSubscriptionPage({
     redirect("/auth/login");
   }
 
-  const { schoolId } = await params;
+  const { schoolSlug } = await params;
 
   const school = await prisma.school.findUnique({
-    where: { id: schoolId },
+    where: { subdomain: schoolSlug },
     include: {
       subscription: {
         include: {
@@ -63,7 +63,7 @@ export default async function SchoolSubscriptionPage({
   );
 
   if (!isSuperAdmin && !isOwnerOrAdmin) {
-    redirect(`/schools/${schoolId}`);
+    redirect(`/schools/${schoolSlug}`);
   }
 
   return (

@@ -49,8 +49,7 @@ const inviteSchema = z.object({
 type InviteFormData = z.infer<typeof inviteSchema>;
 
 interface InviteAdminButtonProps {
-  schoolId: string;
-  schoolSlug: string; // IMPORTANT: Use subdomain for API call
+  schoolSlug: string;
   schoolName: string;
 }
 

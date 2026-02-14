@@ -1,21 +1,4 @@
-/**
- * ============================================================================
- * INVITATION ACCEPTANCE PAGE
- * ============================================================================
- *
- * This page handles organization invitation acceptance.
- * When a SuperAdmin or Owner invites someone to join their school,
- * they receive an email with a link to this page.
- *
- * Flow:
- * 1. User clicks invitation link from email
- * 2. This page validates invitation (exists, not expired, not used)
- * 3. User creates account or signs in (handled by InviteAcceptForm)
- * 4. Better Auth accepts invitation automatically
- * 5. User is added to organization
- *
- * ============================================================================
- */
+// app/auth/invite/[invitationId]/page.tsx
 
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";

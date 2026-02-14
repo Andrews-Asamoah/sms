@@ -21,14 +21,14 @@ import { Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface DeleteSchoolDialogProps {
-  schoolId: string;
+  schoolSlug: string;
   schoolName: string;
   schoolCode: string;
   hasData?: boolean;
 }
 
 export function DeleteSchoolDialog({
-  schoolId,
+  schoolSlug,
   schoolName,
   schoolCode,
   hasData = false,
@@ -45,7 +45,7 @@ export function DeleteSchoolDialog({
 
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/schools/${schoolId}`, {
+      const response = await fetch(`/api/schools/${schoolSlug}`, {
         method: "DELETE",
       });
 

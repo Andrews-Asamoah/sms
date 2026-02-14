@@ -15,7 +15,7 @@ import { DeleteSchoolDialog } from "@/components/System/Schools/delete-school-di
 
 interface SchoolSettingsPageProps {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
   }>;
 }
 
@@ -25,10 +25,10 @@ export default async function SchoolSettingsPage({
   // Only superAdmins can edit schools
   await requireSuperAdmin();
 
-  const { schoolId } = await params;
+  const { schoolSlug } = await params;
 
   const school = await prisma.school.findUnique({
-    where: { id: schoolId },
+    where: { subdomain: schoolSlug },
     include: {
       subscription: true,
       organization: true,
@@ -99,7 +99,7 @@ export default async function SchoolSettingsPage({
                 </p>
               </div>
               <DeleteSchoolDialog
-                schoolId={school.id}
+                schoolSlug={school.subdomain}
                 schoolName={school.name}
                 schoolCode={school.code}
                 hasData={hasData}

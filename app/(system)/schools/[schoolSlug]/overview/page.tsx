@@ -11,7 +11,7 @@ import { InviteAdminButton } from "@/components/System/Schools/invite-admin-butt
 
 interface SchoolOverviewPageProps {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
   }>;
 }
 
@@ -25,10 +25,10 @@ export default async function SchoolOverviewPage({
   }
 
   // Await params (Next.js 15+ requirement)
-  const { schoolId } = await params;
+  const { schoolSlug } = await params;
 
   const school = await prisma.school.findUnique({
-    where: { id: schoolId },
+    where: { subdomain: schoolSlug },
     include: {
       subscription: true,
       _count: {
@@ -139,8 +139,7 @@ export default async function SchoolOverviewPage({
         </div>
         {isSuperAdmin && (
           <InviteAdminButton
-            schoolId={school.id}
-            schoolSlug={school.subdomain} // ✅ Add subdomain for API call
+            schoolSlug={school.subdomain}
             schoolName={school.name}
           />
         )}

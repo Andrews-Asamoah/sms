@@ -1,30 +1,40 @@
-// app/api/schools/[schoolId]/invite-admin/route.ts
+// app/api/schools/[schoolSlug]/invite-admin/route.ts - CORRECT BETTER AUTH SERVER-SIDE
+
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
+import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
-// ============================================================================
-// VALIDATION SCHEMA
-// ============================================================================
-
 const inviteAdminSchema = z.object({
-  email: z.email("Invalid email address"),
+  email: z.string().email("Invalid email address"),
   role: z.enum(["OWNER", "ADMIN", "MEMBER"]),
-  // Optional profile fields for pre-filling
-  firstName: z
-    .string()
-    .min(2, "First name must be at least 2 characters")
-    .optional(),
-  lastName: z
-    .string()
-    .min(2, "Last name must be at least 2 characters")
-    .optional(),
+  firstName: z.string().min(2).optional(),
+  lastName: z.string().min(2).optional(),
   phone: z.string().optional(),
 });
 
 type InviteAdminData = z.infer<typeof inviteAdminSchema>;
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+interface BetterAuthInvitation {
+  id: string;
+  organizationId: string;
+  email: string;
+  role: string;
+  status: string;
+  expiresAt: Date;
+  inviterId: string;
+}
+
+interface ApiError extends Error {
+  status?: string;
+  statusCode?: number;
+  body?: unknown;
+}
 
 // ============================================================================
 // POST - Invite Admin to School
@@ -37,15 +47,16 @@ export async function POST(
   try {
     console.log("[INVITE_ADMIN] Starting invitation process");
 
-    // Await params (Next.js 15+ requirement)
     const { schoolSlug } = await context.params;
-
     console.log(`[INVITE_ADMIN] School Slug: ${schoolSlug}`);
 
     // ========================================================================
-    // STEP 1: Authenticate and verify permissions
+    // Get session for authentication & authorization
     // ========================================================================
-    const session = await getSession();
+    const requestHeaders = await headers();
+    const session = await auth.api.getSession({
+      headers: requestHeaders,
+    });
 
     if (!session) {
       console.error("[INVITE_ADMIN] Unauthorized: No session");
@@ -56,79 +67,65 @@ export async function POST(
     }
 
     console.log(`[INVITE_ADMIN] User: ${session.user.email}`);
-    console.log(`[INVITE_ADMIN] Is SuperAdmin: ${session.isSuperAdmin}`);
+    console.log(`[INVITE_ADMIN] User ID: ${session.user.id}`);
 
     // ========================================================================
-    // STEP 2: Validate school exists and get organization
+    // Get school and check permissions
     // ========================================================================
-    console.log("[INVITE_ADMIN] Fetching school by subdomain...");
-
-    let school;
-    try {
-      school = await prisma.school.findUnique({
-        where: { subdomain: schoolSlug }, // Use subdomain instead of id
-        include: {
-          organization: {
-            include: {
-              members: {
-                where: { userId: session.user.id },
-              },
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      include: {
+        organization: {
+          include: {
+            members: {
+              where: { userId: session.user.id },
             },
           },
         },
-      });
-    } catch (dbError) {
-      console.error("[INVITE_ADMIN] Database error fetching school:", dbError);
-      throw new Error(
-        `Database error: ${dbError instanceof Error ? dbError.message : String(dbError)}`,
-      );
-    }
+      },
+    });
 
     if (!school) {
-      console.error(
-        "[INVITE_ADMIN] School not found with subdomain:",
-        schoolSlug,
-      );
+      console.error("[INVITE_ADMIN] School not found:", schoolSlug);
       return NextResponse.json(
         { success: false, error: "School not found" },
         { status: 404 },
       );
     }
 
-    console.log(`[INVITE_ADMIN] School: ${school.name} (ID: ${school.id})`);
+    console.log(`[INVITE_ADMIN] School: ${school.name}`);
     console.log(`[INVITE_ADMIN] Organization ID: ${school.organizationId}`);
 
-    // ========================================================================
-    // STEP 3: Check permissions
-    // ========================================================================
-    const isSuperAdmin = session.isSuperAdmin;
-    const membership = school.organization.members[0]; // User's membership in this org
+    // Check permissions via database
+    const userRecord = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    const isSuperAdmin = userRecord?.role === "superAdmin";
+    const membership = school.organization.members[0];
     const isOwnerOrAdmin =
       membership &&
       (membership.role === "owner" || membership.role === "admin");
 
+    console.log(`[INVITE_ADMIN] Is SuperAdmin: ${isSuperAdmin}`);
+    console.log(`[INVITE_ADMIN] Is Owner/Admin: ${isOwnerOrAdmin}`);
+
     if (!isSuperAdmin && !isOwnerOrAdmin) {
-      console.error(
-        "[INVITE_ADMIN] Unauthorized: User is not owner/admin of this organization",
-      );
+      console.error("[INVITE_ADMIN] Insufficient permissions");
       return NextResponse.json(
         {
           success: false,
-          error: "You must be an owner or admin to invite users to this school",
+          error: "You must be an owner or admin to invite users",
         },
         { status: 403 },
       );
     }
 
-    console.log("[INVITE_ADMIN] Permission granted");
-    if (isSuperAdmin) {
-      console.log("[INVITE_ADMIN] Acting as SuperAdmin");
-    } else {
-      console.log(`[INVITE_ADMIN] Acting as ${membership.role}`);
-    }
+    console.log("[INVITE_ADMIN] ✅ Permission check passed");
 
     // ========================================================================
-    // STEP 4: Parse and validate request body
+    // Validate request body
     // ========================================================================
     const body = await request.json();
     const validation = inviteAdminSchema.safeParse(body);
@@ -149,7 +146,7 @@ export async function POST(
     console.log(`[INVITE_ADMIN] Inviting: ${data.email} as ${data.role}`);
 
     // ========================================================================
-    // STEP 5: Check if user already exists
+    // Check for existing user
     // ========================================================================
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
@@ -161,19 +158,18 @@ export async function POST(
     });
 
     if (existingUser) {
-      console.log("[INVITE_ADMIN] User already exists:", existingUser.id);
+      console.log("[INVITE_ADMIN] User exists:", existingUser.id);
 
-      // Check if already a member of this organization
       if (existingUser.memberships.length > 0) {
         const existingMembership = existingUser.memberships[0];
         console.error(
-          "[INVITE_ADMIN] User is already a member:",
+          "[INVITE_ADMIN] User already a member:",
           existingMembership.role,
         );
         return NextResponse.json(
           {
             success: false,
-            error: `${data.email} is already a ${existingMembership.role} of this school`,
+            error: `${data.email} is already a ${existingMembership.role}`,
             conflict: true,
             existingRole: existingMembership.role,
           },
@@ -181,30 +177,36 @@ export async function POST(
         );
       }
 
-      // User exists but not a member - add them directly
+      // Add existing user as member
       console.log("[INVITE_ADMIN] Adding existing user as member");
 
-      await auth.api.addMember({
-        body: {
-          organizationId: school.organizationId,
+      try {
+        await auth.api.addMember({
+          body: {
+            organizationId: school.organizationId,
+            userId: existingUser.id,
+            role: data.role.toLowerCase() as "owner" | "admin" | "member",
+          },
+          headers: requestHeaders,
+        });
+
+        console.log("[INVITE_ADMIN] ✅ Existing user added");
+
+        return NextResponse.json({
+          success: true,
+          message: `${data.email} has been added to ${school.name}`,
           userId: existingUser.id,
-          role: data.role.toLowerCase() as "owner" | "admin" | "member",
-        },
-        headers: request.headers,
-      });
-
-      console.log("[INVITE_ADMIN] ✅ Existing user added successfully");
-
-      return NextResponse.json({
-        success: true,
-        message: `${data.email} has been added to ${school.name}`,
-        userId: existingUser.id,
-        isExistingUser: true,
-      });
+          isExistingUser: true,
+        });
+      } catch (addError) {
+        console.error("[INVITE_ADMIN] Error adding member:", addError);
+        const error = addError as Error;
+        throw new Error(`Failed to add member: ${error.message}`);
+      }
     }
 
     // ========================================================================
-    // STEP 6: Check for pending invitation
+    // Check for pending invitation
     // ========================================================================
     const pendingInvitation = await prisma.invitation.findFirst({
       where: {
@@ -215,7 +217,7 @@ export async function POST(
     });
 
     if (pendingInvitation) {
-      console.error("[INVITE_ADMIN] Pending invitation already exists");
+      console.error("[INVITE_ADMIN] Pending invitation exists");
       return NextResponse.json(
         {
           success: false,
@@ -228,104 +230,89 @@ export async function POST(
     }
 
     // ========================================================================
-    // STEP 7: Create invitation via Better Auth
+    // CREATE INVITATION
+    // The issue is that Better Auth's permission check doesn't work properly
+    // when called from API routes. We've already done our permission check above.
+    //
+    // Since your allowUserToInviteUser is correctly checking superAdmin and
+    // owner/admin roles, but Better Auth is still blocking it, we need to
+    // ensure the session has the full user context.
     // ========================================================================
     console.log("[INVITE_ADMIN] Creating invitation via Better Auth...");
-    console.log("[INVITE_ADMIN] Organization ID:", school.organizationId);
-    console.log("[INVITE_ADMIN] Email:", data.email);
-    console.log("[INVITE_ADMIN] Role:", data.role);
+    console.log(`[INVITE_ADMIN] Organization: ${school.organizationId}`);
+    console.log(`[INVITE_ADMIN] Email: ${data.email}`);
+    console.log(`[INVITE_ADMIN] Role: ${data.role.toLowerCase()}`);
 
-    let invitation;
+    let invitation: BetterAuthInvitation;
     try {
-      invitation = await auth.api.createInvitation({
+      const result = await auth.api.createInvitation({
         body: {
           organizationId: school.organizationId,
           email: data.email,
           role: data.role.toLowerCase() as "owner" | "admin" | "member",
         },
-        headers: request.headers,
+        headers: requestHeaders,
       });
+
+      invitation = result as BetterAuthInvitation;
+
+      console.log(`[INVITE_ADMIN] ✅ Invitation created: ${invitation.id}`);
+      console.log(
+        "[INVITE_ADMIN] Email will be sent via afterCreateInvitation hook",
+      );
     } catch (inviteError) {
       console.error(
         "[INVITE_ADMIN] Better Auth createInvitation failed:",
         inviteError,
       );
 
-      // Log detailed error information
-      if (inviteError instanceof Error) {
-        console.error("[INVITE_ADMIN] Error name:", inviteError.name);
-        console.error("[INVITE_ADMIN] Error message:", inviteError.message);
-        console.error("[INVITE_ADMIN] Error stack:", inviteError.stack);
-      }
+      const error = inviteError as ApiError;
+      console.error("[INVITE_ADMIN] Error message:", error.message);
+      console.error("[INVITE_ADMIN] Error status:", error.status);
 
-      throw new Error(
-        `Failed to create invitation via Better Auth: ${
-          inviteError instanceof Error
-            ? inviteError.message
-            : String(inviteError)
-        }`,
+      // If Better Auth still blocks it due to permission issues,
+      // the problem is in the allowUserToInviteUser function not being
+      // called or not receiving correct user data
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message || "Failed to send invitation",
+          details: error.body || "Unknown error",
+          hint: "Check that allowUserToInviteUser function is being called with correct user data",
+        },
+        { status: error.statusCode || 500 },
       );
     }
 
-    if (!invitation) {
-      console.error("[INVITE_ADMIN] Invitation is null/undefined");
-      throw new Error("Failed to create invitation - no invitation returned");
-    }
-
-    console.log(`[INVITE_ADMIN] Invitation created: ${invitation.id}`);
-
     // ========================================================================
-    // STEP 8: Store optional profile data as metadata (for future use)
+    // Create audit log
     // ========================================================================
-    // Note: Better Auth invitation emails will include role and school info
-    // The optional profile fields (firstName, lastName, phone) can be used
-    // after the user accepts the invitation to pre-populate their profile
-    // You can store these in a separate mapping table if needed
-
-    if (data.firstName || data.lastName || data.phone) {
-      console.log("[INVITE_ADMIN] Optional profile data provided:");
-      console.log(`  - First Name: ${data.firstName || "N/A"}`);
-      console.log(`  - Last Name: ${data.lastName || "N/A"}`);
-      console.log(`  - Phone: ${data.phone || "N/A"}`);
-
-      // TODO: If you want to pre-fill profiles, you can:
-      // 1. Add a metadata JSON field to the Invitation model in Prisma
-      // 2. Store these values there
-      // 3. Use them in the afterAcceptInvitation hook in auth.ts
-      //
-      // For now, the user will need to complete their profile after accepting
-    }
-
-    // ========================================================================
-    // STEP 9: Log audit trail
-    // ========================================================================
-    await prisma.auditLog.create({
-      data: {
-        userId: session.user.id,
-        action: "CREATE",
-        entityType: "INVITATION",
-        entityId: invitation.id,
-        newValues: {
-          email: data.email,
-          role: data.role,
-          organizationId: school.organizationId,
-          schoolId: school.id,
-          schoolName: school.name,
-          invitedAt: new Date().toISOString(),
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: session.user.id,
+          action: "CREATE",
+          entityType: "INVITATION",
+          entityId: invitation.id,
+          newValues: {
+            email: data.email,
+            role: data.role,
+            organizationId: school.organizationId,
+            schoolId: school.id,
+            schoolName: school.name,
+            invitedAt: new Date().toISOString(),
+          },
         },
-      },
-    });
-
-    console.log("[INVITE_ADMIN] Audit log created");
+      });
+      console.log("[INVITE_ADMIN] Audit log created");
+    } catch (auditError) {
+      console.error("[INVITE_ADMIN] Failed to create audit log:", auditError);
+    }
 
     // ========================================================================
-    // STEP 10: Return success
+    // Success response
     // ========================================================================
-    // Note: Better Auth automatically sends the invitation email via the
-    // sendInvitationEmail hook in auth.ts
-
     console.log("[INVITE_ADMIN] ✅ Invitation sent successfully");
-    console.log("[INVITE_ADMIN] Email will be sent via Better Auth hook");
 
     return NextResponse.json({
       success: true,
@@ -335,60 +322,17 @@ export async function POST(
       isNewUser: true,
     });
   } catch (error) {
-    console.error("[INVITE_ADMIN] ❌ Error:", error);
+    console.error("[INVITE_ADMIN] ❌ Unhandled error:", error);
 
-    // Log detailed error information
-    if (error instanceof Error) {
-      console.error("[INVITE_ADMIN] Error name:", error.name);
-      console.error("[INVITE_ADMIN] Error message:", error.message);
-      console.error("[INVITE_ADMIN] Error stack:", error.stack);
-    }
-
-    // Handle specific Better Auth errors
-    if (error instanceof Error) {
-      if (error.message.includes("not allowed to invite")) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "You don't have permission to invite users to this school",
-            details: error.message,
-          },
-          { status: 403 },
-        );
-      }
-
-      if (error.message.includes("already invited")) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "User has already been invited",
-            details: error.message,
-          },
-          { status: 409 },
-        );
-      }
-
-      if (
-        error.message.includes("organization not found") ||
-        error.message.includes("Organization not found")
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Organization not found",
-            details: error.message,
-          },
-          { status: 404 },
-        );
-      }
-    }
+    const err = error as Error;
+    console.error("[INVITE_ADMIN] Error message:", err.message);
+    console.error("[INVITE_ADMIN] Error stack:", err.stack);
 
     return NextResponse.json(
       {
         success: false,
         error: "Failed to send invitation",
-        details: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : undefined,
+        details: err.message || "Unknown error",
       },
       { status: 500 },
     );
@@ -404,10 +348,11 @@ export async function GET(
   context: { params: Promise<{ schoolSlug: string }> },
 ) {
   try {
-    // Await params (Next.js 15+ requirement)
     const { schoolSlug } = await context.params;
 
-    const session = await getSession();
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
     if (!session) {
       return NextResponse.json(
@@ -416,9 +361,8 @@ export async function GET(
       );
     }
 
-    // Get school and organization
     const school = await prisma.school.findUnique({
-      where: { subdomain: schoolSlug }, // Use subdomain
+      where: { subdomain: schoolSlug },
       include: {
         organization: {
           include: {
@@ -437,8 +381,12 @@ export async function GET(
       );
     }
 
-    // Check permissions
-    const isSuperAdmin = session.isSuperAdmin;
+    const userRecord = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    const isSuperAdmin = userRecord?.role === "superAdmin";
     const membership = school.organization.members[0];
     const isOwnerOrAdmin =
       membership &&
@@ -451,7 +399,6 @@ export async function GET(
       );
     }
 
-    // Get pending invitations
     const invitations = await prisma.invitation.findMany({
       where: {
         organizationId: school.organizationId,
@@ -469,11 +416,13 @@ export async function GET(
     });
   } catch (error) {
     console.error("[INVITE_ADMIN_GET] Error:", error);
+
+    const err = error as Error;
     return NextResponse.json(
       {
         success: false,
         error: "Failed to fetch invitations",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: err.message || "Unknown error",
       },
       { status: 500 },
     );

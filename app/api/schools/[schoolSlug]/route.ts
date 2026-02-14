@@ -8,7 +8,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 
 type RouteContext = {
   params: Promise<{
-    schoolSlug: string; // ✅ Changed from schoolSlug
+    schoolSlug: string;
   }>;
 };
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { schoolSlug } = params;
 
     const school = await prisma.school.findUnique({
-      where: { id: schoolSlug },
+      where: { subdomain: schoolSlug },
       include: {
         subscription: true,
         organization: true,
@@ -71,7 +71,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     // Check if school exists
     const existingSchool = await prisma.school.findUnique({
-      where: { id: schoolSlug },
+      where: { subdomain: schoolSlug },
       select: {
         id: true,
         name: true,
@@ -212,7 +212,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     // Get school
     const school = await prisma.school.findUnique({
-      where: { id: schoolSlug },
+      where: { subdomain: schoolSlug },
       select: {
         id: true,
         organizationId: true,
