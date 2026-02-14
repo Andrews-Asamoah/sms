@@ -207,6 +207,7 @@ export async function POST(request: NextRequest) {
       body: {
         name,
         slug: subdomain.toLowerCase(),
+        userId: session.user.id,
       },
       headers: request.headers,
     });

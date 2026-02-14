@@ -24,6 +24,7 @@ export default async function SchoolOverviewPage({
     redirect("/auth/login");
   }
 
+  // Await params (Next.js 15+ requirement)
   const { schoolId } = await params;
 
   const school = await prisma.school.findUnique({
@@ -137,7 +138,11 @@ export default async function SchoolOverviewPage({
           </p>
         </div>
         {isSuperAdmin && (
-          <InviteAdminButton schoolId={school.id} schoolName={school.name} />
+          <InviteAdminButton
+            schoolId={school.id}
+            schoolSlug={school.subdomain} // ✅ Add subdomain for API call
+            schoolName={school.name}
+          />
         )}
       </div>
 
@@ -169,6 +174,7 @@ export default async function SchoolOverviewPage({
         <SchoolInvitationsList
           invitations={school.organization.invitations}
           schoolId={school.id}
+          schoolSlug={school.subdomain} // ✅ Add subdomain if component needs it
           isSuperAdmin={isSuperAdmin}
         />
       )}
