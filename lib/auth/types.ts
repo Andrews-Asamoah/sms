@@ -194,6 +194,7 @@ export interface NavPermissions {
   canViewReports: boolean;
   canManageAttendance: boolean;
   canManageAcademicYear: boolean;
+  canViewFinance: boolean; // NEW: View-only access
   canManageFinance: boolean;
   canManageDocuments: boolean;
   canViewTimetable: boolean;

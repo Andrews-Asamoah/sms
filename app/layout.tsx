@@ -4,6 +4,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider as ColorThemeProvider } from "@/lib/themes/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -39,10 +40,12 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <TooltipProvider>
-            <main className="w-full">{children}</main>
-            <Toaster />
-          </TooltipProvider>
+          <ColorThemeProvider>
+            <TooltipProvider>
+              <main className="w-full">{children}</main>
+              <Toaster />
+            </TooltipProvider>
+          </ColorThemeProvider>
         </ThemeProvider>
       </body>
     </html>

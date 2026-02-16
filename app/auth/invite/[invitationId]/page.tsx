@@ -1,13 +1,52 @@
-// app/auth/invite/[invitationId]/page.tsx
+// app/auth/invite/[invitationId]/page.tsx - FIXED WITH PROPER TYPES
 
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { InviteAcceptForm } from "@/components/auth/invite-accept-form";
 import Link from "next/link";
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
 interface InvitePageProps {
   params: Promise<{ invitationId: string }>;
 }
+
+interface InvitationWithRelations {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  expiresAt: Date;
+  organization: {
+    id: string;
+    name: string;
+    school: {
+      name: string;
+      subdomain: string;
+      logo: string | null;
+    } | null;
+  };
+  inviter: {
+    name: string;
+    email: string;
+  };
+}
+
+interface InvitationData {
+  email: string;
+  schoolName: string;
+  schoolLogo: string | null;
+  inviterName: string;
+  role: string;
+  invitationId: string;
+  organizationId: string;
+}
+
+// ============================================================================
+// MAIN PAGE COMPONENT
+// ============================================================================
 
 export default async function InvitePage({ params }: InvitePageProps) {
   const { invitationId } = await params;
@@ -63,11 +102,11 @@ export default async function InvitePage({ params }: InvitePageProps) {
   // PREPARE INVITATION DATA
   // ============================================================================
 
-  const invitationData = {
+  const invitationData: InvitationData = {
     email: invitation.email,
     schoolName:
       invitation.organization.school?.name || invitation.organization.name,
-    schoolLogo: invitation.organization.school?.logo,
+    schoolLogo: invitation.organization.school?.logo || null,
     inviterName: invitation.inviter.name,
     role: invitation.role || "member",
     invitationId: invitation.id,
@@ -81,7 +120,11 @@ export default async function InvitePage({ params }: InvitePageProps) {
 // EXPIRED INVITATION VIEW
 // ============================================================================
 
-function ExpiredInvitationView({ invitation }: { invitation: any }) {
+interface ExpiredInvitationViewProps {
+  invitation: InvitationWithRelations;
+}
+
+function ExpiredInvitationView({ invitation }: ExpiredInvitationViewProps) {
   return (
     <div className="w-full max-w-md">
       <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border border-white/20 shadow-2xl rounded-lg p-8">
@@ -130,7 +173,7 @@ function ExpiredInvitationView({ invitation }: { invitation: any }) {
           <div className="pt-4 space-y-2">
             <Link
               href="/auth/login"
-              className="block w-full px-4 py-2 text-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg transition-all"
+              className="block w-full px-4 py-2 text-center bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg transition-all"
             >
               Go to Login
             </Link>
@@ -188,7 +231,7 @@ function UsedInvitationView() {
           <div className="pt-4 space-y-2">
             <Link
               href="/auth/login"
-              className="block w-full px-4 py-2 text-center bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg transition-all"
+              className="block w-full px-4 py-2 text-center bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg transition-all"
             >
               Go to Login
             </Link>

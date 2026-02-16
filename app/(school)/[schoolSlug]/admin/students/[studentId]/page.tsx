@@ -1,4 +1,5 @@
 // app/(school)/[schoolSlug]/admin/students/[studentId]/page.tsx
+
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect, notFound } from "next/navigation";
@@ -25,6 +26,15 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AddGuardianDialog } from "@/components/school/students/add-guardian-dialog";
+import { Decimal } from "@/lib/generated/prisma/runtime/client";
+
+// Helper function to safely convert Decimal to string
+function decimalToString(value: Decimal | string | null): string {
+  if (!value) return "0";
+  if (typeof value === "string") return value;
+  return value.toString();
+}
 
 interface StudentDetailPageProps {
   params: Promise<{ schoolSlug: string; studentId: string }>;
@@ -353,50 +363,116 @@ export default async function StudentDetailPage({
           </div>
         </TabsContent>
 
-        {/* Guardians Tab */}
+        {/* Guardians Tab - ENHANCED WITH ADD BUTTON */}
         <TabsContent value="guardians">
           <Card className="backdrop-blur-sm bg-card/50 border-border/50">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Guardians ({student.guardians.length})
-              </CardTitle>
-              <CardDescription>
-                Parents and guardians responsible for the student
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Guardians ({student.guardians.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Parents and guardians responsible for the student
+                  </CardDescription>
+                </div>
+                <AddGuardianDialog
+                  studentId={student.id}
+                  studentName={`${student.profile.firstName} ${student.profile.lastName}`}
+                  schoolId={school.id}
+                  schoolSlug={schoolSlug}
+                  organizationId={school.organizationId}
+                />
+              </div>
             </CardHeader>
             <CardContent>
               {student.guardians.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  No guardians registered yet
-                </p>
+                <div className="text-center py-12">
+                  <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">
+                    No guardians registered yet
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Click &quot;Add Guardian&quot; above to register a parent or
+                    guardian
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {student.guardians.map((gs) => (
                     <div
                       key={gs.id}
-                      className="flex items-start justify-between p-4 rounded-lg border"
+                      className="flex items-start justify-between p-4 rounded-lg border hover:bg-accent/50 transition-colors"
                     >
-                      <div className="space-y-1">
-                        <p className="font-semibold">
-                          {gs.guardian.firstName} {gs.guardian.lastName}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {gs.guardian.relationshipType}
-                        </p>
-                        {gs.guardian.phone && (
-                          <p className="text-sm">{gs.guardian.phone}</p>
-                        )}
-                        {gs.guardian.email && (
-                          <p className="text-sm text-muted-foreground">
-                            {gs.guardian.email}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-lg">
+                            {gs.guardian.firstName} {gs.guardian.lastName}
                           </p>
+                          {gs.isPrimary && (
+                            <Badge variant="default" className="text-xs">
+                              Primary
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground capitalize">
+                            {gs.guardian.relationshipType
+                              .toLowerCase()
+                              .replace("_", " ")}
+                          </p>
+                          {gs.guardian.phone && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Phone className="h-3 w-3" />
+                              <span>{gs.guardian.phone}</span>
+                            </div>
+                          )}
+                          {gs.guardian.email && (
+                            <p className="text-sm text-muted-foreground">
+                              {gs.guardian.email}
+                            </p>
+                          )}
+                        </div>
+                        {(gs.guardian.occupation || gs.guardian.employer) && (
+                          <div className="pt-2 border-t space-y-1">
+                            {gs.guardian.occupation && (
+                              <p className="text-sm">
+                                <span className="text-muted-foreground">
+                                  Occupation:
+                                </span>{" "}
+                                {gs.guardian.occupation}
+                              </p>
+                            )}
+                            {gs.guardian.employer && (
+                              <p className="text-sm">
+                                <span className="text-muted-foreground">
+                                  Employer:
+                                </span>{" "}
+                                {gs.guardian.employer}
+                              </p>
+                            )}
+                          </div>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        {gs.isPrimary && (
-                          <Badge variant="outline">Primary</Badge>
-                        )}
+                      <div className="flex flex-col gap-2 items-end">
+                        <div className="flex flex-wrap gap-2 justify-end">
+                          {gs.canPickup && (
+                            <Badge variant="outline" className="text-xs">
+                              Can Pickup
+                            </Badge>
+                          )}
+                          {gs.receiveReports && (
+                            <Badge variant="outline" className="text-xs">
+                              Reports
+                            </Badge>
+                          )}
+                          {gs.receiveAlerts && (
+                            <Badge variant="outline" className="text-xs">
+                              Alerts
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -467,7 +543,7 @@ export default async function StudentDetailPage({
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">
-                          {school.currency} {bill.totalAmount.toString()}
+                          {school.currency} {decimalToString(bill.totalAmount)}
                         </p>
                         <Badge variant="outline">{bill.status}</Badge>
                       </div>

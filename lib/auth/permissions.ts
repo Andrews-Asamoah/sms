@@ -1,4 +1,5 @@
-// lib/auth/permissions.ts - REFACTORED with standardized lowercase roles
+// lib/auth/permissions.ts - FIXED with organization permissions
+
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements, adminAc } from "better-auth/plugins/admin/access";
 
@@ -6,14 +7,18 @@ import { defaultStatements, adminAc } from "better-auth/plugins/admin/access";
 // PERMISSION STATEMENTS
 // ============================================================================
 
-/**
- * Define all possible permissions for your School Management System
- * Use `as const` for proper TypeScript inference
- *
- * Format: resource: [action1, action2, ...]
- */
 export const statement = {
-  ...defaultStatements, // Include default user/session permissions from Better Auth
+  ...defaultStatements,
+
+  // 🔥 CRITICAL: Organization management (for Better Auth organization plugin)
+  organization: [
+    "create",
+    "update",
+    "delete",
+    "view",
+    "invite",
+    "remove-member",
+  ],
 
   // Core entities
   school: ["create", "update", "delete", "view", "manage"],
@@ -53,22 +58,25 @@ export const statement = {
   transport: ["create", "update", "delete", "view"],
 } as const;
 
-// Create the access controller
 export const ac = createAccessControl(statement);
 
 // ============================================================================
-// ROLE DEFINITIONS (lowercase - Better Auth convention)
+// ROLE DEFINITIONS
 // ============================================================================
 
-/**
- * SUPER_ADMIN: Platform-level administrator
- * - Can create and manage all schools
- * - Full access to all features
- * - Can impersonate any user
- * - System-wide analytics and settings
- */
 export const superAdmin = ac.newRole({
-  ...adminAc.statements, // All default admin permissions
+  ...adminAc.statements,
+
+  // Organization permissions
+  organization: [
+    "create",
+    "update",
+    "delete",
+    "view",
+    "invite",
+    "remove-member",
+  ],
+
   school: ["create", "update", "delete", "view", "manage"],
   student: ["create", "update", "delete", "view", "enroll"],
   teacher: ["create", "update", "delete", "view", "assign"],
@@ -96,16 +104,13 @@ export const superAdmin = ac.newRole({
   communication: ["view", "send"],
 });
 
-/**
- * OWNER: Organization owner (School Principal/Proprietor)
- * - Full access within their school
- * - Can manage all users and settings
- * - Financial approval authority
- * - Cannot create new schools
- */
 export const owner = ac.newRole({
   user: ["list", "ban", "set-role"],
   session: ["list", "revoke"],
+
+  // Organization permissions (owners can invite)
+  organization: ["update", "view", "invite", "remove-member"],
+
   school: ["update", "view", "manage"],
   student: ["create", "update", "delete", "view", "enroll"],
   teacher: ["create", "update", "delete", "view", "assign"],
@@ -133,16 +138,13 @@ export const owner = ac.newRole({
   communication: ["view", "send"],
 });
 
-/**
- * ADMIN: School-level administrator (Vice Principal/Administrator)
- * - Manages day-to-day operations
- * - Can manage students, teachers, and staff
- * - Limited financial access (view only)
- * - Cannot change critical settings
- */
 export const admin = ac.newRole({
   user: ["list", "ban", "set-role"],
   session: ["list", "revoke"],
+
+  // Organization permissions (admins can invite)
+  organization: ["view", "invite"],
+
   school: ["view", "update"],
   student: ["create", "update", "delete", "view", "enroll"],
   teacher: ["create", "update", "delete", "view", "assign"],
@@ -152,7 +154,7 @@ export const admin = ac.newRole({
   subject: ["create", "update", "delete", "view"],
   department: ["create", "update", "delete", "view"],
   house: ["create", "update", "delete", "view"],
-  finance: ["view"], // View only
+  finance: ["view"],
   bill: ["view"],
   payment: ["view"],
   assessment: ["create", "update", "delete", "view", "grade"],
@@ -160,7 +162,7 @@ export const admin = ac.newRole({
   report: ["create", "view", "download", "approve"],
   document: ["create", "update", "delete", "view", "upload"],
   announcement: ["create", "update", "delete", "view"],
-  setting: ["view"], // View only
+  setting: ["view"],
   analytics: ["view"],
   timetable: ["create", "update", "delete", "view"],
   hostel: ["create", "update", "delete", "view"],
@@ -170,13 +172,6 @@ export const admin = ac.newRole({
   communication: ["view", "send"],
 });
 
-/**
- * TEACHER: Classroom teacher
- * - Manages their classes and students
- * - Records grades and attendance
- * - Views financial information for their students
- * - Limited administrative access
- */
 export const teacher = ac.newRole({
   school: ["view"],
   student: ["view"],
@@ -197,14 +192,6 @@ export const teacher = ac.newRole({
   announcement: ["view"],
 });
 
-/**
- * ACCOUNTANT: Financial administrator
- * - Manages all financial operations
- * - Creates and manages bills
- * - Records payments
- * - Generates financial reports
- * - View-only access to students
- */
 export const accountant = ac.newRole({
   school: ["view"],
   student: ["view"],
@@ -217,12 +204,6 @@ export const accountant = ac.newRole({
   communication: ["view"],
 });
 
-/**
- * STAFF: General staff member (Librarian, Nurse, etc.)
- * - Limited access based on department
- * - Can upload documents
- * - View-only access to most features
- */
 export const staff = ac.newRole({
   school: ["view"],
   student: ["view"],
@@ -235,16 +216,9 @@ export const staff = ac.newRole({
   announcement: ["view"],
 });
 
-/**
- * STUDENT: Student account
- * - View their own information
- * - View grades, attendance, and reports
- * - View financial information (bills/payments)
- * - Access learning resources
- */
 export const student = ac.newRole({
   school: ["view"],
-  student: ["view"], // Only their own data
+  student: ["view"],
   class: ["view"],
   subject: ["view"],
   assessment: ["view"],
@@ -262,24 +236,17 @@ export const student = ac.newRole({
   document: ["view"],
 });
 
-/**
- * GUARDIAN/PARENT: Parent or guardian account
- * - View their children's information
- * - View grades, attendance, and reports
- * - Make payments
- * - Communicate with teachers
- */
 export const guardian = ac.newRole({
   school: ["view"],
-  student: ["view"], // Only their children
+  student: ["view"],
   class: ["view"],
   subject: ["view"],
   assessment: ["view"],
   attendance: ["view"],
   report: ["view"],
-  finance: ["view", "create"], // Can make payments
+  finance: ["view", "create"],
   bill: ["view"],
-  payment: ["view", "create"], // Can make payments
+  payment: ["view", "create"],
   timetable: ["view"],
   transport: ["view"],
   communication: ["view", "send"],
@@ -287,42 +254,15 @@ export const guardian = ac.newRole({
   document: ["view"],
 });
 
-/**
- * USER: Default role with minimal permissions
- * - Basic authenticated user
- * - No specific school access
- * - Can view own profile
- */
 export const user = ac.newRole({
   user: ["list"],
   school: ["view"],
 });
 
 // ============================================================================
-// ROLE HIERARCHY (For reference)
+// UTILITIES (Keep your existing utilities)
 // ============================================================================
 
-/**
- * Role Hierarchy (highest to lowest):
- *
- * 1. superAdmin - Platform administrator
- * 2. owner - School owner/principal
- * 3. admin - School administrator
- * 4. accountant - Financial manager
- * 5. teacher - Classroom teacher
- * 6. staff - General staff
- * 7. guardian - Parent/guardian
- * 8. student - Student
- * 9. user - Basic user
- */
-
-// ============================================================================
-// PERMISSION UTILITIES
-// ============================================================================
-
-/**
- * Get all available roles
- */
 export const ROLES = [
   "superAdmin",
   "owner",
@@ -335,14 +275,8 @@ export const ROLES = [
   "user",
 ] as const;
 
-/**
- * Type for role names
- */
 export type RoleName = (typeof ROLES)[number];
 
-/**
- * Check if a role has higher or equal priority than another
- */
 export function hasHigherOrEqualRole(
   userRole: RoleName,
   requiredRole: RoleName,
@@ -352,9 +286,6 @@ export function hasHigherOrEqualRole(
   return roleIndex <= requiredIndex;
 }
 
-/**
- * Get role display name
- */
 export function getRoleDisplayName(role: RoleName): string {
   const displayNames: Record<RoleName, string> = {
     superAdmin: "Super Administrator",
@@ -370,9 +301,6 @@ export function getRoleDisplayName(role: RoleName): string {
   return displayNames[role];
 }
 
-/**
- * Get role description
- */
 export function getRoleDescription(role: RoleName): string {
   const descriptions: Record<RoleName, string> = {
     superAdmin: "Full platform access and school creation",

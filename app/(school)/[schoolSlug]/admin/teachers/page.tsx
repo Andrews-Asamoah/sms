@@ -12,8 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { TeachersDataTable } from "@/components/school/teachers/teachers-table";
-import { columns } from "@/components/school/teachers/columns";
+import { TeachersClient } from "./client";
 import { TeacherDialog } from "@/components/school/teachers/teacher-dialog";
 
 interface TeachersPageProps {
@@ -150,9 +149,13 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <TeachersDataTable
-            columns={columns}
-            data={teachers}
+          <TeachersClient
+            data={teachers.map((teacher) => ({
+              ...teacher,
+              monthlySalary: teacher.monthlySalary
+                ? teacher.monthlySalary.toNumber()
+                : null,
+            }))}
             schoolSlug={schoolSlug}
             departments={departments}
             houses={houses}

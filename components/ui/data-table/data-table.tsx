@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import { DataTablePagination } from "./pagination";
 import { DataTableViewOptions } from "./view-options";
+import { DataTableExport } from "./data-table-export";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -79,6 +80,7 @@ export function DataTable<TData, TValue>({
           className="w-full"
         />
         <DataTableViewOptions table={table} />
+        <DataTableExport table={table} />
       </div>
       <div className="rounded-md border">
         <Table>

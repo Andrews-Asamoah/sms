@@ -41,25 +41,29 @@ export function RoleLayoutWrapper({
 }: RoleLayoutWrapperProps) {
   return (
     <SidebarProvider>
-      <AppSidebarSchool
-        schoolSlug={schoolSlug}
-        schoolName={schoolName}
-        schoolPlan={schoolPlan}
-        schoolLogo={schoolLogo}
-        user={user}
-        permissions={permissions}
-        currentActiveRole={currentRole}
-      />
-      <SidebarInset className="flex flex-col h-screen">
-        <SiteHeaderSchool
+      <div className="print:hidden">
+        <AppSidebarSchool
           schoolSlug={schoolSlug}
-          academicYear={academicYear}
-          currentTerm={currentTerm}
-          currentRole={currentRole}
-          availableRoles={availableRoles}
+          schoolName={schoolName}
+          schoolPlan={schoolPlan}
+          schoolLogo={schoolLogo}
+          user={user}
+          permissions={permissions}
+          currentActiveRole={currentRole}
         />
-        <main className="flex-1 overflow-y-auto min-h-0">
-          <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+      </div>
+      <SidebarInset className="flex flex-col h-screen print:h-auto print:block">
+        <div className="print:hidden">
+          <SiteHeaderSchool
+            schoolSlug={schoolSlug}
+            academicYear={academicYear}
+            currentTerm={currentTerm}
+            currentRole={currentRole}
+            availableRoles={availableRoles}
+          />
+        </div>
+        <main className="flex-1 overflow-y-auto min-h-0 print:overflow-visible print:h-auto print:block">
+          <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6 print:p-0 print:max-w-none">
             {children}
           </div>
         </main>

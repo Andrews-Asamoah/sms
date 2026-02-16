@@ -47,8 +47,13 @@ export function AppSidebarSchool({
 
   // Add school prefix to URLs
   const prefixedNavSections = useMemo(
-    () => getPrefixedNavSections(schoolSlug, filteredNavSections),
-    [schoolSlug, filteredNavSections],
+    () =>
+      getPrefixedNavSections(
+        schoolSlug,
+        filteredNavSections,
+        currentActiveRole,
+      ),
+    [schoolSlug, filteredNavSections, currentActiveRole],
   );
 
   console.log(`[Sidebar] Active role: ${currentActiveRole}`);

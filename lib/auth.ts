@@ -104,18 +104,6 @@ export const auth = betterAuth({
     // ORGANIZATION PLUGIN
     // ------------------------------------------------------------------------
     organization({
-      ac,
-      roles: {
-        owner,
-        admin: adminRole,
-        teacher,
-        accountant,
-        student,
-        guardian,
-        staff,
-        member: userRole,
-      },
-
       // ======================================================================
       // PERMISSION: Who can create organizations?
       // ======================================================================

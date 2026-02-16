@@ -1,4 +1,5 @@
-// app/api/schools/[schoolSlug]/students/route.ts - CORRECTED
+// app/api/schools/[schoolSlug]/students/route.ts - FIXED DUPLICATE PROFILE
+
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -6,7 +7,7 @@ import crypto from "crypto";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import type { GuardianType } from "@/lib/generated/prisma/client";
-import { headers } from "next/headers"; // ✅ ADD THIS IMPORT
+import { headers } from "next/headers";
 
 // ============================================================================
 // TYPES
@@ -78,7 +79,6 @@ export async function POST(
     // STEP 2: Parse request body
     // ========================================================================
     const body = await req.json();
-
     const {
       firstName,
       lastName,
@@ -118,7 +118,6 @@ export async function POST(
       studentId,
       school.subdomain,
     );
-
     const temporaryPassword = generateSecurePassword();
 
     const userResult = await auth.api.signUpEmail({
@@ -136,44 +135,82 @@ export async function POST(
     const userId = userResult.user.id;
 
     // ========================================================================
-    // STEP 5: Add student to organization with "student" role
+    // STEP 5: Add student to organization
+    // This triggers afterAddMember hook which creates a basic UserProfile
     // ========================================================================
     await auth.api.addMember({
       body: {
         organizationId: school.organizationId,
         userId: userId,
-        role: "student",
+        role: "member",
       },
     });
 
     console.log(
-      `✅ [Students] Added ${studentEmail} to organization as student`,
+      `✅ [Students] Added ${studentEmail} to organization as member`,
     );
 
     // ========================================================================
-    // STEP 6: Create UserProfile
+    // STEP 6: Get or update UserProfile
+    // ✅ FIX: The afterAddMember hook already created a profile, so we UPDATE it
     // ========================================================================
-    const userProfile = await prisma.userProfile.create({
-      data: {
-        userId: userId,
-        firstName,
-        lastName,
-        otherNames: otherData.otherNames || null,
-        gender,
-        dateOfBirth: new Date(dateOfBirth),
-        nationality: otherData.nationality || null,
-        phone: otherData.phone || null,
-        alternatePhone: otherData.alternatePhone || null,
-        residentialAddress: otherData.residentialAddress || null,
-        postalAddress: otherData.postalAddress || null,
-        city: otherData.city || null,
-        region: otherData.region || null,
-        country: otherData.country || null,
-        emergencyContactName: otherData.emergencyContactName || null,
-        emergencyContactPhone: otherData.emergencyContactPhone || null,
-        emergencyRelationship: otherData.emergencyRelationship || null,
-      },
+
+    // Wait a moment for the afterAddMember hook to complete
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    let userProfile = await prisma.userProfile.findUnique({
+      where: { userId },
     });
+
+    if (!userProfile) {
+      // Fallback: create if hook didn't run (shouldn't happen)
+      console.log("⚠️ [Students] Profile not found, creating...");
+      userProfile = await prisma.userProfile.create({
+        data: {
+          userId: userId,
+          firstName,
+          lastName,
+          otherNames: otherData.otherNames || null,
+          gender,
+          dateOfBirth: new Date(dateOfBirth),
+          nationality: otherData.nationality || "Ghanaian",
+          phone: otherData.phone || null,
+          alternatePhone: otherData.alternatePhone || null,
+          residentialAddress: otherData.residentialAddress || null,
+          postalAddress: otherData.postalAddress || null,
+          city: otherData.city || null,
+          region: otherData.region || null,
+          country: otherData.country || "Ghana",
+          emergencyContactName: otherData.emergencyContactName || null,
+          emergencyContactPhone: otherData.emergencyContactPhone || null,
+          emergencyRelationship: otherData.emergencyRelationship || null,
+        },
+      });
+    } else {
+      // Update the profile with complete student data
+      console.log("📝 [Students] Updating profile with student data...");
+      userProfile = await prisma.userProfile.update({
+        where: { userId },
+        data: {
+          firstName,
+          lastName,
+          otherNames: otherData.otherNames || null,
+          gender,
+          dateOfBirth: new Date(dateOfBirth),
+          nationality: otherData.nationality || "Ghanaian",
+          phone: otherData.phone || null,
+          alternatePhone: otherData.alternatePhone || null,
+          residentialAddress: otherData.residentialAddress || null,
+          postalAddress: otherData.postalAddress || null,
+          city: otherData.city || null,
+          region: otherData.region || null,
+          country: otherData.country || "Ghana",
+          emergencyContactName: otherData.emergencyContactName || null,
+          emergencyContactPhone: otherData.emergencyContactPhone || null,
+          emergencyRelationship: otherData.emergencyRelationship || null,
+        },
+      });
+    }
 
     // ========================================================================
     // STEP 7: Create Student record
@@ -203,7 +240,7 @@ export async function POST(
     console.log(`✅ [Students] Created student record: ${studentId}`);
 
     // ========================================================================
-    // STEP 8: Process guardians (parents, legal guardians, caretakers)
+    // STEP 8: Process guardians
     // ========================================================================
     const createdGuardians = [];
 
@@ -215,9 +252,7 @@ export async function POST(
       let guardian;
 
       if (existingUser) {
-        // ====================================================================
-        // Guardian user EXISTS - add to organization if not already member
-        // ====================================================================
+        // Guardian exists
         console.log(
           `📋 [Students] Guardian ${guardianData.email} already has account`,
         );
@@ -262,7 +297,7 @@ export async function POST(
           });
         }
 
-        // Check if already a member
+        // Add to organization if not already member
         const existingMembership = await prisma.member.findFirst({
           where: {
             userId: existingUser.id,
@@ -275,24 +310,19 @@ export async function POST(
             body: {
               organizationId: school.organizationId,
               userId: existingUser.id,
-              role: "guardian",
+              role: "member",
             },
           });
           console.log(
-            `✅ [Students] Added ${guardianData.email} to organization as guardian`,
+            `✅ [Students] Added ${guardianData.email} to organization`,
           );
         }
       } else {
-        // ====================================================================
-        // NEW guardian - create Guardian record first, THEN send invitation
-        // The invitation will be sent via auth.ts sendInvitationEmail
-        // which will detect guardian and use guardian email template
-        // ====================================================================
+        // New guardian
         console.log(
           `📧 [Students] Creating guardian and sending invitation: ${guardianData.email}`,
         );
 
-        // Create Guardian record FIRST (without profileId)
         guardian = await prisma.guardian.create({
           data: {
             schoolId,
@@ -309,11 +339,10 @@ export async function POST(
             workPhone: guardianData.workPhone || null,
             workAddress: guardianData.workAddress || null,
             canLogin: true,
-            // profileId will be linked in auth.ts afterAddMember hook
           },
         });
 
-        // Link guardian to student BEFORE sending invitation
+        // Link to student first
         await prisma.guardianStudent.create({
           data: {
             guardianId: guardian.id,
@@ -325,24 +354,20 @@ export async function POST(
           },
         });
 
-        // NOW send invitation - this will trigger auth.ts sendInvitationEmail
-        // which will detect guardian and use guardian email template
-        // ✅ FIXED: Added headers parameter
+        // Send invitation
         await auth.api.createInvitation({
           body: {
             email: guardianData.email,
             organizationId: school.organizationId,
-            role: "guardian",
+            role: "member",
           },
-          headers: await headers(), // ✅ ADDED THIS
+          headers: await headers(),
         });
 
-        console.log(
-          `✅ [Students] Created guardian record and sent invitation to ${guardianData.email}`,
-        );
+        console.log(`✅ [Students] Sent invitation to ${guardianData.email}`);
       }
 
-      // Link guardian to student (if not already done above)
+      // Link guardian to student if not already linked
       const existingLink = await prisma.guardianStudent.findUnique({
         where: {
           guardianId_studentId: {
@@ -409,7 +434,7 @@ export async function POST(
         },
         credentials: {
           email: studentEmail,
-          temporaryPassword, // Return for admin to share manually
+          temporaryPassword,
         },
         message: `Student created successfully. Invitation${createdGuardians.length > 1 ? "s" : ""} sent to ${createdGuardians.length} guardian${createdGuardians.length > 1 ? "s" : ""}.`,
         guardians: createdGuardians,

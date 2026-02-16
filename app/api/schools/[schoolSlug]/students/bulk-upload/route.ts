@@ -349,7 +349,7 @@ export async function POST(
           body: {
             organizationId: school.organizationId,
             userId: userId,
-            role: "student",
+            role: "member",
           },
         });
 
@@ -424,7 +424,7 @@ export async function POST(
                 body: {
                   organizationId: school.organizationId,
                   userId: existingUser.id,
-                  role: "guardian",
+                  role: "member",
                 },
               });
             }
@@ -504,7 +504,7 @@ export async function POST(
                 body: {
                   email: row.parentEmail,
                   organizationId: school.organizationId,
-                  role: "guardian",
+                  role: "member",
                 },
                 headers: await headers(), // ✅ ADDED THIS
               });

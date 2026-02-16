@@ -10,8 +10,6 @@ import {
   Settings,
   Home,
   UserCog,
-  BookMarked,
-  Building,
   Award,
   BarChart3,
   MessageSquare,
@@ -45,81 +43,93 @@ export const schoolNavSections: NavSection[] = [
     ],
   },
   {
-    title: "Academic",
+    title: "Directory",
     items: [
       {
-        title: "Students",
-        url: "/admin/students",
+        title: "People",
+        url: "#",
         icon: Users,
-        permission: "canManageStudents",
         items: [
-          { title: "All Students", url: "/admin/students" },
-          { title: "Enrollments", url: "/admin/students/enrollments" },
-          { title: "Promotions", url: "/admin/students/promotions" },
+          {
+            title: "Students",
+            url: "/admin/students",
+            permission: "canManageStudents",
+          },
+          {
+            title: "Teachers",
+            url: "/admin/teachers",
+            permission: "canManageTeachers",
+          },
+          {
+            title: "Staff",
+            url: "/admin/staff",
+            permission: "canManageStaff",
+          },
+          {
+            title: "Parents",
+            url: "/admin/parents",
+            permission: "canManageParents",
+          },
         ],
-      },
-      {
-        title: "Teachers",
-        url: "/admin/teachers",
-        icon: UserCog,
-        permission: "canManageTeachers",
-        items: [
-          { title: "All Teachers", url: "/admin/teachers" },
-          { title: "Assignments", url: "/admin/teachers/assignments" },
-          { title: "Schedule", url: "/admin/teachers/schedule" },
-        ],
-      },
-      {
-        title: "Staff",
-        url: "/admin/staff",
-        icon: UserCircle,
-        permission: "canManageStaff",
-      },
-      {
-        title: "Parents",
-        url: "/admin/parents",
-        icon: Users,
-        permission: "canManageParents",
-      },
-      {
-        title: "Classes",
-        url: "/admin/classes",
-        icon: BookOpen,
-        permission: "canManageClasses",
-      },
-      {
-        title: "Subjects",
-        url: "/admin/academic/subjects",
-        icon: BookMarked,
-        permission: "canManageSubjects",
-      },
-      {
-        title: "Departments",
-        url: "/admin/academic/departments",
-        icon: Building,
-        permission: "canManageDepartments",
       },
     ],
   },
   {
-    title: "Assessment",
+    title: "Academics",
     items: [
       {
-        title: "Grading",
-        url: "/admin/grading",
-        icon: Award,
-        permission: "canManageGrading",
+        title: "Academic Setup",
+        url: "#",
+        icon: BookOpen,
         items: [
-          { title: "Grade Book", url: "/admin/grading" },
-          { title: "Grade Entry", url: "/admin/grading/entry" },
-          { title: "Grade Scale", url: "/admin/grading/scale" },
+          {
+            title: "Departments",
+            url: "/admin/academics/departments",
+            permission: "canManageTeachers",
+          },
+          {
+            title: "Subjects",
+            url: "/admin/academics/subjects",
+            permission: "canManageTeachers",
+          },
+          {
+            title: "Classes",
+            url: "/admin/classes",
+            permission: "canManageClasses",
+          },
+          {
+            title: "Examinations",
+            url: "/admin/academics/examinations",
+            permission: "canManageTeachers",
+          },
+          {
+            title: "Timetable",
+            url: "/admin/timetable",
+            permission: "canViewTimetable",
+          },
         ],
       },
       {
-        title: "Report Cards",
-        url: "/admin/reports",
-        icon: FileText,
-        permission: "canViewReports",
+        title: "Assessment",
+        url: "#",
+        icon: Award,
+        items: [
+          {
+            title: "Grading Systems",
+            url: "/admin/academics/grading",
+            permission: "canManageGrading",
+          },
+          {
+            title: "Grade Entry",
+            url: "/admin/grading/entry",
+            permission: "canManageGrading",
+          },
+          {
+            title: "Report Cards",
+            url: "/admin/reports",
+            permission: "canViewReports",
+          },
+        ],
       },
     ],
   },
@@ -127,75 +137,67 @@ export const schoolNavSections: NavSection[] = [
     title: "Operations",
     items: [
       {
-        title: "Attendance",
-        url: "/admin/attendance",
-        icon: ClipboardCheck,
-        permission: "canManageAttendance",
+        title: "Administration",
+        url: "#",
+        icon: Hotel, // Using Hotel as a generic building/admin icon
         items: [
-          { title: "Daily Attendance", url: "/admin/attendance" },
-          { title: "Attendance Reports", url: "/admin/attendance/reports" },
-          { title: "Leave Requests", url: "/admin/attendance/leave" },
+          {
+            title: "Academic Years",
+            url: "/admin/academicYears",
+            permission: "canManageAcademicYear",
+          },
+          {
+            title: "Houses",
+            url: "/admin/houses",
+            permission: "canManageHouses",
+          },
+          {
+            title: "Attendance",
+            url: "/admin/attendance",
+            permission: "canManageAttendance",
+          },
         ],
       },
       {
-        title: "Academic Years",
-        url: "/admin/academicYears",
-        icon: Calendar,
-        permission: "canManageAcademicYear",
-      },
-      {
-        title: "Houses",
-        url: "/admin/houses",
-        icon: Home,
-        permission: "canManageHouses",
+        title: "Facilities",
+        url: "#",
+        icon: Package,
+        items: [
+          {
+            title: "Hostel",
+            url: "/admin/hostel",
+            permission: "canViewHostel",
+          },
+          {
+            title: "Transport",
+            url: "/admin/transport",
+            permission: "canViewTransport",
+          },
+          {
+            title: "Library",
+            url: "/admin/library",
+            permission: "canViewLibrary",
+          },
+          {
+            title: "Inventory",
+            url: "/admin/inventory",
+            permission: "canViewInventory",
+          },
+        ],
       },
       {
         title: "Finance",
-        url: "/accountant/finance",
+        url: "/admin/finance",
         icon: DollarSign,
-        permission: "canManageFinance",
+        permission: "canViewFinance",
         items: [
-          { title: "Fee Management", url: "/accountant/finance" },
-          { title: "Payments", url: "/accountant/finance/payments" },
-          { title: "Invoices", url: "/accountant/finance/invoices" },
-          { title: "Reports", url: "/accountant/finance/reports" },
+          { title: "Overview", url: "/admin/finance" },
+          { title: "Fee Management", url: "/admin/finance/fees" },
+          { title: "Payments", url: "/admin/finance/payments" },
+          { title: "Invoices", url: "/admin/finance/invoices" }, // Will need placeholder or implement
+          { title: "Outstanding", url: "/admin/finance/outstanding" },
+          { title: "Reports", url: "/admin/finance/reports" }, // Placeholder
         ],
-      },
-      {
-        title: "Documents",
-        url: "/admin/documents",
-        icon: FileText,
-        permission: "canManageDocuments",
-      },
-      {
-        title: "Timetable",
-        url: "/admin/timetable",
-        icon: CalendarDays,
-        permission: "canViewTimetable",
-      },
-      {
-        title: "Hostel",
-        url: "/admin/hostel",
-        icon: Hotel,
-        permission: "canViewHostel",
-      },
-      {
-        title: "Library",
-        url: "/admin/library",
-        icon: Library,
-        permission: "canViewLibrary",
-      },
-      {
-        title: "Inventory",
-        url: "/admin/inventory",
-        icon: Package,
-        permission: "canViewInventory",
-      },
-      {
-        title: "Transport",
-        url: "/admin/transport",
-        icon: Bus,
-        permission: "canViewTransport",
       },
     ],
   },
@@ -209,21 +211,16 @@ export const schoolNavSections: NavSection[] = [
         permission: "canManageAnnouncements",
       },
       {
-        title: "Communications",
+        title: "Messages",
         url: "/admin/communications",
         icon: MessageSquare,
         permission: "canViewCommunications",
       },
-    ],
-  },
-  {
-    title: "Personal",
-    items: [
       {
-        title: "My Profile",
-        url: "/profile",
-        icon: UserCircle,
-        permission: "canViewProfile",
+        title: "Documents",
+        url: "/admin/documents",
+        icon: FileText,
+        permission: "canManageDocuments",
       },
     ],
   },
@@ -242,7 +239,7 @@ export const schoolNavSections: NavSection[] = [
         ],
       },
       {
-        title: "Help & Support",
+        title: "Support",
         url: "/admin/support",
         icon: HelpCircle,
         permission: "canViewSupport",
@@ -258,16 +255,18 @@ export const schoolNavSections: NavSection[] = [
 const ROLE_NAV_SECTIONS: Record<string, string[]> = {
   owner: [
     "Main",
-    "Academic",
+    "Academics",
     "Assessment",
     "Operations",
     "Communication",
+    "User Management",
     "Personal",
     "System",
   ],
   admin: [
     "Main",
-    "Academic",
+    "Academics",
+    "User Management",
     "Assessment",
     "Operations",
     "Communication",
@@ -327,22 +326,58 @@ export function filterNavByPermissions(
 /**
  * Prefix all navigation URLs with a school slug
  * This ensures routes are: /{schoolSlug}/admin/dashboard, etc.
+ * Also handles role-specific URL rewrites (e.g. Finance)
  */
 export function getPrefixedNavSections(
   schoolSlug: string,
   sections: NavSection[],
+  currentRole?: string,
 ): NavSection[] {
   const safeSlug = schoolSlug.replace(/^\/+/, "");
 
   return sections.map((section) => ({
     ...section,
-    items: section.items.map((item) => ({
-      ...item,
-      url: `/${safeSlug}${item.url}`,
-      items: item.items?.map((subItem) => ({
-        ...subItem,
-        url: `/${safeSlug}${subItem.url}`,
-      })),
-    })),
+    items: section.items.map((item) => {
+      let url = item.url;
+
+      // Dynamic URL rewriting for Finance
+      if (
+        currentRole === "accountant" &&
+        (url.includes("/admin/finance") || url.includes("/accountant/finance"))
+      ) {
+        // Force accountant path if role is accountant
+        url = url.replace("/admin/finance", "/accountant/finance");
+      } else if (currentRole !== "accountant" && item.title === "Finance") {
+        // Force admin path for non-accountants (admins/owners)
+        // This assumes the base config might be set to either, setting to admin ensures consistency
+        url = url.replace("/accountant/finance", "/admin/finance");
+      }
+
+      return {
+        ...item,
+        url: `/${safeSlug}${url}`,
+        items: item.items?.map((subItem) => {
+          let subUrl = subItem.url;
+          if (
+            currentRole === "accountant" &&
+            (subUrl.includes("/admin/finance") ||
+              subUrl.includes("/accountant/finance"))
+          ) {
+            subUrl = subUrl.replace("/admin/finance", "/accountant/finance");
+          } else if (
+            currentRole !== "accountant" &&
+            (subUrl.includes("/admin/finance") ||
+              subUrl.includes("/accountant/finance"))
+          ) {
+            subUrl = subUrl.replace("/accountant/finance", "/admin/finance");
+          }
+
+          return {
+            ...subItem,
+            url: `/${safeSlug}${subUrl}`,
+          };
+        }),
+      };
+    }),
   }));
 }
