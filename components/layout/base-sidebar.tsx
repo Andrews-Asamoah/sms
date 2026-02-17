@@ -21,6 +21,7 @@ export interface NavSubItem {
   title: string;
   url: string;
   badge?: string;
+  permission?: string;
 }
 
 export interface NavItem {

@@ -1,7 +1,4 @@
-// ============================================================
-// components/layout/app-sidebar-school.tsx - Updated with Permissions
-// ============================================================
-
+// components/layout/app-sidebar-school.tsx - FIXED
 "use client";
 
 import { BaseSidebar } from "./base-sidebar";
@@ -9,9 +6,10 @@ import {
   schoolNavSections,
   getPrefixedNavSections,
   filterNavByPermissions,
+  filterNavByRole,
 } from "@/components/layout/school-nav.config";
 import { useMemo } from "react";
-import type { NavPermissions } from "@/lib/permissions/utils";
+import type { NavPermissions } from "@/lib/auth/types";
 
 interface AppSidebarSchoolProps {
   schoolSlug: string;
@@ -25,6 +23,7 @@ interface AppSidebarSchoolProps {
     role?: string;
   };
   permissions: NavPermissions;
+  currentActiveRole: string; // NEW: The active role from URL
 }
 
 export function AppSidebarSchool({
@@ -34,18 +33,32 @@ export function AppSidebarSchool({
   schoolLogo,
   user,
   permissions,
+  currentActiveRole,
   ...props
 }: AppSidebarSchoolProps) {
-  // Filter navigation by permissions
-  const filteredNavSections = useMemo(
-    () => filterNavByPermissions(schoolNavSections, permissions),
-    [permissions]
-  );
+  // Filter navigation by both role AND permissions
+  const filteredNavSections = useMemo(() => {
+    // First filter by role (removes sections not relevant to this role)
+    const roleFiltered = filterNavByRole(schoolNavSections, currentActiveRole);
+
+    // Then filter by permissions (removes items user doesn't have access to)
+    return filterNavByPermissions(roleFiltered, permissions);
+  }, [currentActiveRole, permissions]);
 
   // Add school prefix to URLs
   const prefixedNavSections = useMemo(
-    () => getPrefixedNavSections(schoolSlug, filteredNavSections),
-    [schoolSlug, filteredNavSections]
+    () =>
+      getPrefixedNavSections(
+        schoolSlug,
+        filteredNavSections,
+        currentActiveRole,
+      ),
+    [schoolSlug, filteredNavSections, currentActiveRole],
+  );
+
+  console.log(`[Sidebar] Active role: ${currentActiveRole}`);
+  console.log(
+    `[Sidebar] Sections after filtering: ${prefixedNavSections.length}`,
   );
 
   return (

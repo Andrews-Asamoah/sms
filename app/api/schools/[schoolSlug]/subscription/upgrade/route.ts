@@ -1,9 +1,9 @@
 // app/api/schools/[schoolId]/subscription/upgrade/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
 
-export type RouteContext = {
+type RouteContext = {
   params: Promise<{
     schoolId: string;
   }>;
@@ -11,7 +11,7 @@ export type RouteContext = {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const session = await getAuthSession();
+    const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -19,7 +19,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const params = await context.params;
     const { schoolId } = params;
 
-    // Check if user has permission (super admin or school owner/admin)
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
       include: {
@@ -42,14 +41,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const isSuperAdmin = session.user.role === "superAdmin";
     const isOwnerOrAdmin = school.organization.members.some(
-      (m) => m.role === "OWNER"
+      (m) => m.role === "owner" || m.role === "admin",
     );
 
     if (!isSuperAdmin && !isOwnerOrAdmin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Create or update subscription to premium
     const subscription = await prisma.subscription.upsert({
       where: { schoolId },
       create: {
@@ -62,7 +60,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         currency: "USD",
         currentPeriodStart: new Date(),
         currentPeriodEnd: new Date(
-          new Date().setMonth(new Date().getMonth() + 1)
+          new Date().setMonth(new Date().getMonth() + 1),
         ),
         isOnTrial: false,
         trialStartsAt: null,
@@ -78,7 +76,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         trialEndsAt: null,
         currentPeriodStart: new Date(),
         currentPeriodEnd: new Date(
-          new Date().setMonth(new Date().getMonth() + 1)
+          new Date().setMonth(new Date().getMonth() + 1),
         ),
       },
     });
@@ -88,7 +86,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     console.error("Error upgrading subscription:", error);
     return NextResponse.json(
       { error: "Failed to upgrade subscription" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

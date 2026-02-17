@@ -1,4 +1,4 @@
-// components/schools/invite-admin-button.tsx (Enhanced Version)
+// components/schools/invite-admin-button.tsx
 "use client";
 
 import { useState } from "react";
@@ -49,12 +49,12 @@ const inviteSchema = z.object({
 type InviteFormData = z.infer<typeof inviteSchema>;
 
 interface InviteAdminButtonProps {
-  schoolId: string;
+  schoolSlug: string;
   schoolName: string;
 }
 
 export function InviteAdminButton({
-  schoolId,
+  schoolSlug,
   schoolName,
 }: InviteAdminButtonProps) {
   const router = useRouter();
@@ -84,7 +84,8 @@ export function InviteAdminButton({
   async function onSubmit(data: InviteFormData) {
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/schools/${schoolId}/invite-admin`, {
+      // Use schoolSlug (subdomain) instead of schoolId
+      const response = await fetch(`/api/schools/${schoolSlug}/invite-admin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -134,7 +135,7 @@ export function InviteAdminButton({
           Invite Administrator
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-150 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />

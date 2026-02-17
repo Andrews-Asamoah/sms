@@ -1,3 +1,8 @@
+// ============================================================================
+// PRISMA SCHEMA - Better Auth Organization Plugin Optimized
+// School Management System for Ghana Basic Schools
+// ============================================================================
+
 generator client {
   provider = "prisma-client-js"
   output   = "../lib/generated/prisma"
@@ -6,6 +11,11 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ============================================================================
+// BETTER AUTH CORE MODELS
+// These are required by Better Auth and should not be modified
+// ============================================================================
 
 // ============================================================
 // BETTER AUTH CORE MODELS
@@ -42,7 +52,7 @@ model user {
   gradingSystems     GradingSystem[]
   paymentsRecorded   Payment[]           @relation("PaymentRecordedBy")
   transcriptRequests TranscriptRequest[]
-  profile            UserProfile?
+  userProfile        UserProfile?
 
   @@index([banned])
   @@index([email])
@@ -233,22 +243,32 @@ model School {
   @@map("schools")
 }
 
+// ============================================================================
+// USER PROFILES & ROLES
+// ============================================================================
+
 model UserProfile {
-  id                    String    @id @default(cuid())
-  userId                String    @unique
-  firstName             String
-  lastName              String
-  otherNames            String?
-  phone                 String?
-  alternatePhone        String?
-  gender                Gender
-  dateOfBirth           DateTime  @db.Date
-  nationality           String?   @default("Ghanaian")
-  residentialAddress    String?
-  postalAddress         String?
-  city                  String?
-  region                String?
-  country               String?   @default("Ghana")
+  id     String @id @default(cuid())
+  userId String @unique
+
+  // Personal Information
+  firstName      String
+  lastName       String
+  otherNames     String?
+  phone          String?
+  alternatePhone String?
+  gender         Gender
+  dateOfBirth    DateTime @db.Date
+
+  // Address Information
+  nationality        String? @default("Ghanaian")
+  residentialAddress String?
+  postalAddress      String?
+  city               String?
+  region             String?
+  country            String? @default("Ghana")
+
+  // Emergency Contact
   emergencyContactName  String?
   emergencyContactPhone String?
   emergencyRelationship String?
@@ -354,14 +374,20 @@ model Teacher {
 }
 
 model Staff {
-  id              String         @id @default(cuid())
-  profileId       String         @unique
-  schoolId        String
-  staffId         String
-  staffNumber     String?
-  staffType       StaffType
-  department      String?
-  jobTitle        String?
+  id        String @id @default(cuid())
+  profileId String @unique
+  schoolId  String
+
+  // Staff Identifiers
+  staffId     String // Auto-generated school-specific ID
+  staffNumber String?
+
+  // Job Information
+  staffType  StaffType
+  department String?
+  jobTitle   String?
+
+  // Employment Details
   employmentType  EmploymentType @default(FULL_TIME)
   hireDate        DateTime       @default(now()) @db.Date
   contractEndDate DateTime?      @db.Date
@@ -439,6 +465,10 @@ model GuardianStudent {
   @@index([isPrimary])
   @@map("guardian_students")
 }
+
+// ============================================================================
+// ACADEMIC STRUCTURE
+// ============================================================================
 
 model House {
   id             String   @id @default(cuid())
@@ -534,13 +564,15 @@ model Department {
 }
 
 model Class {
-  id             String   @id @default(cuid())
+  id             String @id @default(cuid())
   schoolId       String
   academicYearId String
-  name           String
-  level          String
-  section        String?
-  capacity       Int?
+
+  name     String
+  level    String
+  section  String?
+  capacity Int?
+
   classTeacherId String?
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
@@ -601,9 +633,10 @@ model ClassSubject {
 }
 
 model SubjectTeacher {
-  id        String   @id @default(cuid())
+  id        String @id @default(cuid())
   subjectId String
   teacherId String
+
   createdAt DateTime @default(now())
 
   subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
@@ -640,16 +673,22 @@ model Enrollment {
   @@map("enrollments")
 }
 
+// ============================================================================
+// ATTENDANCE & ASSESSMENT
+// ============================================================================
+
 model Attendance {
-  id         String           @id @default(cuid())
-  studentId  String
-  date       DateTime         @db.Date
-  status     AttendanceStatus
-  remarks    String?
+  id        String @id @default(cuid())
+  studentId String
+
+  date    DateTime         @db.Date
+  status  AttendanceStatus
+  remarks String?
+
   markedById String
-  markedAt   DateTime         @default(now())
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  markedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   markedBy user    @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
@@ -824,16 +863,17 @@ model Remark {
 }
 
 model TranscriptRequest {
-  id            String                @id @default(cuid())
-  studentId     String
-  requestType   TranscriptRequestType
-  purpose       String?
-  status        RequestStatus         @default(PENDING)
-  requestedAt   DateTime              @default(now())
+  id          String                @id @default(cuid())
+  studentId   String
+  requestType TranscriptRequestType
+  purpose     String?
+  status      RequestStatus         @default(PENDING)
+
+  requestedAt   DateTime  @default(now())
   processedAt   DateTime?
   processedById String?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   processedBy user?   @relation(fields: [processedById], references: [id])
@@ -844,6 +884,11 @@ model TranscriptRequest {
   @@index([processedById])
   @@map("transcript_requests")
 }
+
+// ============================================================================
+// FINANCE & ACCOUNTING
+// Complex models for audit trail purposes
+// ============================================================================
 
 model ChartAccount {
   id          String          @id @default(cuid())
@@ -952,9 +997,10 @@ model Bill {
 }
 
 model BillItem {
-  id          String   @id @default(cuid())
-  billId      String
-  feeItemId   String?
+  id        String  @id @default(cuid())
+  billId    String
+  feeItemId String?
+
   description String
   amount      Decimal  @db.Decimal(10, 2)
   quantity    Int      @default(1)
@@ -970,10 +1016,11 @@ model BillItem {
 }
 
 model Payment {
-  id              String        @id @default(cuid())
-  schoolId        String
-  studentId       String
-  billId          String?
+  id        String  @id @default(cuid())
+  schoolId  String
+  studentId String
+  billId    String?
+
   paymentNumber   String
   amount          Decimal       @db.Decimal(10, 2)
   paymentMethod   PaymentMethod
@@ -1039,6 +1086,7 @@ model Transaction {
   @@map("transactions")
 }
 
+// Custom Categories for Financial Flexibility
 model CustomFeeCategory {
   id          String   @id @default(cuid())
   schoolId    String
@@ -1058,8 +1106,9 @@ model CustomFeeCategory {
 }
 
 model CustomExpenseCategory {
-  id          String      @id @default(cuid())
-  schoolId    String
+  id       String @id @default(cuid())
+  schoolId String
+
   name        String
   code        String
   description String?
@@ -1077,8 +1126,9 @@ model CustomExpenseCategory {
 }
 
 model CustomTransactionCategory {
-  id           String          @id @default(cuid())
-  schoolId     String
+  id       String @id @default(cuid())
+  schoolId String
+
   name         String
   code         String
   description  String?
@@ -1095,6 +1145,10 @@ model CustomTransactionCategory {
   @@index([categoryType])
   @@map("custom_transaction_categories")
 }
+
+// ============================================================================
+// DOCUMENTS & AUDIT
+// ============================================================================
 
 model Document {
   id           String     @id @default(cuid())
@@ -1129,8 +1183,9 @@ model Document {
 }
 
 model AuditLog {
-  id         String      @id @default(cuid())
-  userId     String
+  id     String @id @default(cuid())
+  userId String
+
   action     AuditAction
   entityType String
   entityId   String
@@ -1149,30 +1204,42 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// ============================================================================
+// SUBSCRIPTION & BILLING
+// ============================================================================
+
 model Subscription {
-  id                    String             @id @default(cuid())
-  schoolId              String             @unique
-  planType              PlanType           @default(FREE)
-  planName              String             @default("Free Plan")
-  billingCycle          BillingCycle?
-  status                SubscriptionStatus @default(ACTIVE)
-  amount                Decimal?           @db.Decimal(10, 2)
-  currency              String             @default("USD")
-  trialStartsAt         DateTime?
-  trialEndsAt           DateTime?
-  isOnTrial             Boolean            @default(false)
-  currentPeriodStart    DateTime?
-  currentPeriodEnd      DateTime?
-  stripeCustomerId      String?            @unique
-  stripeSubscriptionId  String?            @unique
+  id       String @id @default(cuid())
+  schoolId String @unique
+
+  planType     PlanType           @default(FREE)
+  planName     String             @default("Free Plan")
+  billingCycle BillingCycle?
+  status       SubscriptionStatus @default(ACTIVE)
+
+  amount   Decimal? @db.Decimal(10, 2)
+  currency String   @default("USD")
+
+  // Trial Period
+  trialStartsAt DateTime?
+  trialEndsAt   DateTime?
+  isOnTrial     Boolean   @default(false)
+
+  // Billing Period
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+
+  // Stripe Integration
+  stripeCustomerId      String?   @unique
+  stripeSubscriptionId  String?   @unique
   stripePaymentMethodId String?
-  cancelAtPeriodEnd     Boolean            @default(false)
+  cancelAtPeriodEnd     Boolean   @default(false)
   canceledAt            DateTime?
   maxStudents           Int?
   maxTeachers           Int?
   maxStaff              Int?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   school   School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   invoices InvoiceRecord[]
@@ -1186,21 +1253,26 @@ model Subscription {
 }
 
 model InvoiceRecord {
-  id              String        @id @default(cuid())
-  subscriptionId  String
-  invoiceNumber   String        @unique
-  amount          Decimal       @db.Decimal(10, 2)
-  currency        String        @default("USD")
-  status          InvoiceStatus @default(PENDING)
-  periodStart     DateTime
-  periodEnd       DateTime
-  paidAt          DateTime?
-  paymentMethod   String?
-  stripeInvoiceId String?       @unique
+  id             String @id @default(cuid())
+  subscriptionId String
+
+  invoiceNumber String        @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  currency      String        @default("USD")
+  status        InvoiceStatus @default(PENDING)
+
+  periodStart DateTime
+  periodEnd   DateTime
+  paidAt      DateTime?
+
+  paymentMethod String?
+
+  // Stripe Integration
+  stripeInvoiceId String?  @unique
   invoiceUrl      String?
   pdfUrl          String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 

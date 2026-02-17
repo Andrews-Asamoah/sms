@@ -63,7 +63,7 @@ export default function AuthLayout({
         {/* Footer */}
         <div className="relative z-10">
           <p className="text-blue-100 text-sm">
-            © 2025 SchoolMS. All rights reserved.
+            © {new Date().getFullYear()} SchoolMS. All rights reserved.
           </p>
         </div>
       </div>

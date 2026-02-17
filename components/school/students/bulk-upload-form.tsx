@@ -9,6 +9,7 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 interface BulkUploadFormProps {
   schoolId: string;
   schoolSlug: string;
+  schoolCode: string;
   classes: Array<{ id: string; name: string }>;
   departments: Array<{ id: string; name: string }>;
   houses: Array<{ id: string; name: string }>;
@@ -36,6 +38,7 @@ interface BulkUploadFormProps {
 interface UploadResult {
   row: number;
   studentId: string;
+  admissionNumber: string;
   name: string;
   status: "success" | "error";
   message?: string;
@@ -52,16 +55,32 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      // Validate file type
+      // Validate file type - EXCEL ONLY
       const validTypes = [
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+        "application/vnd.ms-excel", // .xls
       ];
 
-      if (!validTypes.includes(selectedFile.type)) {
+      const fileExtension = selectedFile.name.split(".").pop()?.toLowerCase();
+      const isValidExtension =
+        fileExtension === "xlsx" || fileExtension === "xls";
+
+      if (!validTypes.includes(selectedFile.type) && !isValidExtension) {
         toast.error("Invalid file type", {
-          description: "Please upload an Excel file (.xlsx or .xls)",
+          description:
+            "Please upload an Excel file (.xlsx or .xls) only. Other formats are not supported.",
         });
+        e.target.value = ""; // Clear the input
+        return;
+      }
+
+      // Check file size (max 10MB)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (selectedFile.size > maxSize) {
+        toast.error("File too large", {
+          description: "File size must be less than 10MB",
+        });
+        e.target.value = "";
         return;
       }
 
@@ -80,7 +99,7 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
     }
 
     setIsUploading(true);
-    setUploadProgress(0);
+    setUploadProgress(10);
     setResults([]);
 
     try {
@@ -88,13 +107,17 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
       formData.append("file", file);
       formData.append("schoolId", schoolId);
 
+      setUploadProgress(30);
+
       const response = await fetch(
         `/api/schools/${schoolSlug}/students/bulk-upload`,
         {
           method: "POST",
           body: formData,
-        }
+        },
       );
+
+      setUploadProgress(70);
 
       if (!response.ok) {
         const error = await response.json();
@@ -107,21 +130,29 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
       setUploadProgress(100);
 
       const successCount = data.results.filter(
-        (r: UploadResult) => r.status === "success"
+        (r: UploadResult) => r.status === "success",
       ).length;
       const errorCount = data.results.filter(
-        (r: UploadResult) => r.status === "error"
+        (r: UploadResult) => r.status === "error",
       ).length;
 
-      toast.success("Upload completed", {
-        description: `${successCount} students uploaded successfully. ${errorCount} errors.`,
-      });
+      if (successCount > 0 && errorCount === 0) {
+        toast.success("Upload completed successfully!", {
+          description: `${successCount} students uploaded successfully.`,
+        });
 
-      if (errorCount === 0) {
         setTimeout(() => {
           router.push(`/${schoolSlug}/admin/students`);
           router.refresh();
         }, 2000);
+      } else if (successCount > 0 && errorCount > 0) {
+        toast.warning("Upload completed with errors", {
+          description: `${successCount} students uploaded, ${errorCount} failed.`,
+        });
+      } else {
+        toast.error("Upload failed", {
+          description: `All ${errorCount} students failed to upload.`,
+        });
       }
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -129,6 +160,7 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
         description:
           error instanceof Error ? error.message : "Please try again later.",
       });
+      setUploadProgress(0);
     } finally {
       setIsUploading(false);
     }
@@ -142,12 +174,14 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
       {/* File Upload */}
       <div className="space-y-4">
         <FieldGroup>
-          <FieldLabel htmlFor="file">Select Excel File</FieldLabel>
+          <FieldLabel htmlFor="file">
+            Select Excel File (.xlsx or .xls only)
+          </FieldLabel>
           <div className="flex gap-4">
             <Input
               id="file"
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               onChange={handleFileChange}
               disabled={isUploading}
               className="flex-1"
@@ -172,20 +206,24 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
           </div>
           {file && !isUploading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-              <FileSpreadsheet className="h-4 w-4" />
-              <span>{file.name}</span>
+              <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              <span className="font-medium">{file.name}</span>
               <span className="text-xs">
                 ({(file.size / 1024).toFixed(2)} KB)
               </span>
             </div>
           )}
+          <p className="text-xs text-muted-foreground mt-1">
+            Maximum file size: 10MB • Supported formats: .xlsx, .xls
+          </p>
         </FieldGroup>
 
         {isUploading && (
           <div className="space-y-2">
             <Progress value={uploadProgress} className="w-full" />
             <p className="text-sm text-muted-foreground text-center">
-              Processing students data...
+              Processing students data... Student IDs and admission numbers are
+              being auto-generated.
             </p>
           </div>
         )}
@@ -199,24 +237,43 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
             <div className="flex gap-4">
               <Badge
                 variant="outline"
-                className="bg-green-500/10 text-green-700"
+                className="bg-green-500/10 text-green-700 border-green-300"
               >
                 <CheckCircle className="mr-1 h-3 w-3" />
                 {successCount} Successful
               </Badge>
-              <Badge variant="outline" className="bg-red-500/10 text-red-700">
-                <XCircle className="mr-1 h-3 w-3" />
-                {errorCount} Errors
-              </Badge>
+              {errorCount > 0 && (
+                <Badge
+                  variant="outline"
+                  className="bg-red-500/10 text-red-700 border-red-300"
+                >
+                  <XCircle className="mr-1 h-3 w-3" />
+                  {errorCount} Errors
+                </Badge>
+              )}
             </div>
           </div>
+
+          {errorCount > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800">
+                <p className="font-semibold">Some students failed to upload</p>
+                <p className="mt-1">
+                  Review the errors below, correct the data in your Excel file,
+                  and try uploading again.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-md border max-h-96 overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Row</TableHead>
+                  <TableHead className="w-16">Row</TableHead>
                   <TableHead>Student ID</TableHead>
+                  <TableHead>Admission No.</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Message</TableHead>
@@ -224,17 +281,23 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
               </TableHeader>
               <TableBody>
                 {results.map((result, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{result.row}</TableCell>
+                  <TableRow
+                    key={index}
+                    className={result.status === "error" ? "bg-red-50/50" : ""}
+                  >
+                    <TableCell className="font-medium">{result.row}</TableCell>
                     <TableCell className="font-mono text-sm">
-                      {result.studentId}
+                      {result.studentId || "-"}
                     </TableCell>
-                    <TableCell>{result.name}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {result.admissionNumber || "-"}
+                    </TableCell>
+                    <TableCell className="font-medium">{result.name}</TableCell>
                     <TableCell>
                       {result.status === "success" ? (
                         <Badge
                           variant="outline"
-                          className="bg-green-500/10 text-green-700"
+                          className="bg-green-500/10 text-green-700 border-green-300"
                         >
                           <CheckCircle className="mr-1 h-3 w-3" />
                           Success
@@ -242,7 +305,7 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
                       ) : (
                         <Badge
                           variant="outline"
-                          className="bg-red-500/10 text-red-700"
+                          className="bg-red-500/10 text-red-700 border-red-300"
                         >
                           <XCircle className="mr-1 h-3 w-3" />
                           Error
@@ -250,7 +313,7 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {result.message || "-"}
+                      {result.message || "Successfully created"}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -258,8 +321,8 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
             </Table>
           </div>
 
-          {errorCount === 0 && (
-            <div className="flex justify-end">
+          <div className="flex justify-end gap-3">
+            {errorCount === 0 && (
               <Button
                 onClick={() => {
                   router.push(`/${schoolSlug}/admin/students`);
@@ -268,8 +331,24 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
               >
                 View All Students
               </Button>
-            </div>
-          )}
+            )}
+            {errorCount > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setFile(null);
+                  setResults([]);
+                  setShowResults(false);
+                  const fileInput = document.getElementById(
+                    "file",
+                  ) as HTMLInputElement;
+                  if (fileInput) fileInput.value = "";
+                }}
+              >
+                Upload Again
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -110,7 +110,7 @@ export function EditSchoolForm({ school }: EditSchoolFormProps) {
         return;
       }
 
-      const response = await fetch(`/api/schools/${school.id}`, {
+      const response = await fetch(`/api/schools/${school.subdomain}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(changedData),

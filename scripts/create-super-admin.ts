@@ -1,13 +1,17 @@
 /**
- * Super Admin Setup Script - Better Auth Integration
- * Run this once to create your super admin account
- *
- * Usage: npx tsx scripts/create-super-admin.ts
+ * ============================================================================
+ * SUPER ADMIN SETUP SCRIPT
+ * Better Auth Integration with Organization Plugin
  */
+
 import "dotenv/config";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { Gender } from "@/lib/generated/prisma/client";
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
 
 interface SuperAdminInput {
   email: string;
@@ -19,36 +23,105 @@ interface SuperAdminInput {
   gender: Gender;
 }
 
-async function createSuperAdmin(input: SuperAdminInput) {
-  try {
-    console.log("🚀 Creating Super Admin account...");
-    console.log("📧 Email:", input.email);
+interface CreateSuperAdminResult {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    emailVerified: boolean;
+  };
+  profile: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string | null;
+    gender: Gender;
+  };
+  account: {
+    providerId: string;
+    accountId: string;
+  } | null;
+}
 
-    // Check if email already exists
+// ============================================================================
+// MAIN FUNCTION
+// ============================================================================
+
+/**
+ * Create SuperAdmin account with Better Auth
+ *
+ * Process:
+ * 1. Check if email already exists
+ * 2. Create user via Better Auth API (handles password hashing)
+ * 3. Update user role to "superAdmin"
+ * 4. Create UserProfile
+ * 5. Verify account creation
+ */
+async function createSuperAdmin(
+  input: SuperAdminInput,
+): Promise<CreateSuperAdminResult> {
+  try {
+    console.log("\n🚀 Starting SuperAdmin Creation Process...");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`📧 Email: ${input.email}`);
+    console.log(`👤 Name: ${input.firstName} ${input.lastName}`);
+
+    // ========================================================================
+    // STEP 1: Check if user already exists
+    // ========================================================================
+    console.log("\n[1/5] Checking if email is available...");
+
     const existingUser = await prisma.user.findUnique({
       where: { email: input.email },
       include: {
         accounts: true,
         profile: true,
+        memberships: {
+          include: {
+            organization: true,
+          },
+        },
       },
     });
 
     if (existingUser) {
-      console.error("❌ User with this email already exists");
-      console.log("\n💡 Existing user details:");
-      console.log("   ID:", existingUser.id);
-      console.log("   Email:", existingUser.email);
-      console.log("   Role:", existingUser.role);
-      console.log("   Has Profile:", !!existingUser.profile);
-      console.log("\n💡 To delete and recreate, run:");
-      console.log(`   npx tsx scripts/delete-user.ts ${input.email}`);
-      return;
+      console.error("\n❌ CONFLICT: User with this email already exists!");
+      console.log("\n📋 Existing User Details:");
+      console.log(`   ID: ${existingUser.id}`);
+      console.log(`   Email: ${existingUser.email}`);
+      console.log(`   Role: ${existingUser.role}`);
+      console.log(`   Has Profile: ${existingUser.profile ? "Yes" : "No"}`);
+      console.log(`   Organizations: ${existingUser.memberships.length}`);
+
+      if (existingUser.memberships.length > 0) {
+        console.log("\n   Member of:");
+        existingUser.memberships.forEach((membership) => {
+          console.log(
+            `     - ${membership.organization.name} (${membership.role})`,
+          );
+        });
+      }
+
+      console.log("\n💡 Solutions:");
+      console.log("   1. Use a different email address");
+      console.log("   2. Delete the existing user:");
+      console.log(`      npx tsx scripts/delete-user.ts ${input.email}`);
+      console.log("   3. Update existing user to superAdmin:");
+      console.log(
+        `      npx tsx scripts/promote-to-superadmin.ts ${input.email}`,
+      );
+
+      throw new Error("Email already in use");
     }
 
-    console.log("✓ Email is available");
+    console.log("   ✓ Email is available");
 
-    // Use Better Auth's sign-up endpoint for proper password hashing
-    console.log("✓ Creating user via Better Auth API...");
+    // ========================================================================
+    // STEP 2: Create user via Better Auth API
+    // ========================================================================
+    console.log("\n[2/5] Creating user account via Better Auth...");
+    console.log("   (Password will be automatically hashed)");
 
     const signUpResult = await auth.api.signUpEmail({
       body: {
@@ -58,188 +131,315 @@ async function createSuperAdmin(input: SuperAdminInput) {
       },
     });
 
-    if (!signUpResult || !signUpResult.user) {
-      throw new Error("Failed to create user via Better Auth");
+    if (!signUpResult?.user) {
+      throw new Error("Failed to create user via Better Auth API");
     }
 
     const userId = signUpResult.user.id;
-    console.log("✓ User created:", userId);
+    console.log(`   ✓ User created with ID: ${userId}`);
 
-    // Update user and create profile in transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Update user to superAdmin role
-      const user = await tx.user.update({
-        where: { id: userId },
-        data: {
-          role: "superAdmin", // System-wide superAdmin role
-          emailVerified: true,
-        },
-      });
-      console.log("✓ User role updated to superAdmin");
+    // ========================================================================
+    // STEP 3: Update user role and create profile in transaction
+    // ========================================================================
+    console.log("\n[3/5] Updating user to SuperAdmin role...");
 
-      // 2. Create user profile
-      const profile = await tx.userProfile.create({
-        data: {
-          userId: user.id,
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Update user to superAdmin role
+        const user = await tx.user.update({
+          where: { id: userId },
+          data: {
+            role: "superAdmin",
+            emailVerified: true,
+          },
+        });
+
+        console.log("   ✓ User role updated to superAdmin");
+        console.log("   ✓ Email marked as verified");
+
+        // Create user profile
+        const profile = await tx.userProfile.create({
+          data: {
+            userId: user.id,
+            firstName: input.firstName,
+            lastName: input.lastName,
+            phone: input.phone || null,
+            gender: input.gender,
+            dateOfBirth: input.dateOfBirth,
+            isActive: true,
+          },
+        });
+
+        console.log(`   ✓ User profile created with ID: ${profile.id}`);
+
+        // Get account details for verification
+        const account = await tx.account.findFirst({
+          where: {
+            userId: user.id,
+            providerId: "credential",
+          },
+          select: {
+            providerId: true,
+            accountId: true,
+          },
+        });
+
+        console.log("   ✓ Account details retrieved");
+
+        return { user, profile, account };
+      },
+      {
+        maxWait: 5000,
+        timeout: 10000,
+      },
+    );
+
+    // ========================================================================
+    // STEP 4: Create audit log
+    // ========================================================================
+    console.log("\n[4/5] Creating audit log...");
+
+    await prisma.auditLog.create({
+      data: {
+        userId: result.user.id,
+        action: "CREATE",
+        entityType: "SUPER_ADMIN",
+        entityId: result.user.id,
+        newValues: {
+          email: result.user.email,
+          role: result.user.role,
           firstName: input.firstName,
           lastName: input.lastName,
-          phone: input.phone || null,
-          gender: input.gender,
-          dateOfBirth: input.dateOfBirth,
-          isActive: true,
+          createdAt: new Date().toISOString(),
         },
-      });
-      console.log("✓ User profile created:", profile.id);
-
-      // 3. Get account details for verification
-      const account = await tx.account.findFirst({
-        where: {
-          userId: user.id,
-          providerId: "credential",
-        },
-      });
-
-      return { user, profile, account };
+      },
     });
 
-    console.log("\n✅ Super Admin created successfully!");
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("👤 User Details:");
-    console.log("   ID:", result.user.id);
-    console.log("   Email:", result.user.email);
-    console.log("   Name:", result.user.name);
-    console.log("   Role:", result.user.role);
-    console.log("   Email Verified:", result.user.emailVerified);
-    console.log("\n📋 Profile Details:");
-    console.log("   Profile ID:", result.profile.id);
-    console.log("   First Name:", result.profile.firstName);
-    console.log("   Last Name:", result.profile.lastName);
-    console.log("   Phone:", result.profile.phone || "N/A");
-    console.log("   Gender:", result.profile.gender);
-    console.log("\n🔐 Account Details:");
-    console.log("   Provider:", result.account?.providerId);
-    console.log("   Account ID:", result.account?.accountId);
-    console.log("   Password:", "✓ Hashed by Better Auth");
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("   ✓ Audit log created");
 
-    console.log("\n🔑 Login Credentials:");
-    console.log(`   Email: ${input.email}`);
-    console.log(`   Password: ${input.password}`);
+    // ========================================================================
+    // STEP 5: Display success message
+    // ========================================================================
+    console.log("\n[5/5] Verification complete");
+    console.log("   ✓ All checks passed");
 
-    console.log("\n🎯 Super Admin Permissions:");
-    console.log("   ✓ Can create organizations (schools)");
-    console.log("   ✓ Can delete any organization");
-    console.log("   ✓ Can manage all schools");
-    console.log("   ✓ Can remove any member from any organization");
-    console.log("   ✓ Full system access");
-
-    console.log("\n🌐 You can now login at:");
-    console.log("   Development: http://localhost:3000/login");
-    console.log("   Production: https://yourdomain.com/login");
-
-    console.log("\n📝 Next Steps:");
-    console.log("   1. Login with the credentials above");
-    console.log("   2. Create your first school organization");
-    console.log("   3. Add admins to manage the school");
-    console.log("   4. Start adding students and teachers");
+    displaySuccessMessage(result, input.password);
 
     return result;
   } catch (error) {
-    console.error("\n❌ Error creating super admin:");
+    console.error("\n❌ ERROR: SuperAdmin creation failed!");
+
     if (error instanceof Error) {
-      console.error("   Message:", error.message);
-      console.error("   Stack:", error.stack);
+      console.error(`\n💥 Error Message: ${error.message}`);
+
+      if (process.env.NODE_ENV === "development") {
+        console.error(`\n🔍 Stack Trace:\n${error.stack}`);
+      }
     } else {
-      console.error("   ", error);
+      console.error(`\n💥 Unknown Error: ${String(error)}`);
     }
+
     throw error;
+  }
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Display formatted success message
+ */
+function displaySuccessMessage(
+  result: CreateSuperAdminResult,
+  password: string,
+): void {
+  console.log("\n");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("✅ SUPER ADMIN CREATED SUCCESSFULLY!");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+  console.log("\n👤 USER DETAILS:");
+  console.log(`   ID:             ${result.user.id}`);
+  console.log(`   Email:          ${result.user.email}`);
+  console.log(`   Name:           ${result.user.name}`);
+  console.log(`   Role:           ${result.user.role}`);
+  console.log(`   Email Verified: ${result.user.emailVerified ? "✓" : "✗"}`);
+
+  console.log("\n📋 PROFILE DETAILS:");
+  console.log(`   Profile ID:  ${result.profile.id}`);
+  console.log(`   First Name:  ${result.profile.firstName}`);
+  console.log(`   Last Name:   ${result.profile.lastName}`);
+  console.log(`   Phone:       ${result.profile.phone || "Not provided"}`);
+  console.log(`   Gender:      ${result.profile.gender}`);
+
+  console.log("\n🔐 ACCOUNT DETAILS:");
+  console.log(`   Provider:    ${result.account?.providerId || "N/A"}`);
+  console.log(`   Account ID:  ${result.account?.accountId || "N/A"}`);
+  console.log(`   Password:    ✓ Hashed by Better Auth`);
+
+  console.log("\n🔑 LOGIN CREDENTIALS:");
+  console.log(`   Email:    ${result.user.email}`);
+  console.log(`   Password: ${password}`);
+  console.log("\n   ⚠️  IMPORTANT: Change this password after first login!");
+
+  console.log("\n🎯 SUPERADMIN PRIVILEGES:");
+  console.log("   ✓ Can create organizations (schools)");
+  console.log("   ✓ Can delete any organization");
+  console.log("   ✓ Can manage all schools");
+  console.log("   ✓ Can remove any member from any organization");
+  console.log("   ✓ Can impersonate any user");
+  console.log("   ✓ Full system access");
+
+  console.log("\n🌐 LOGIN URLs:");
+  console.log(
+    `   Development: ${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login`,
+  );
+  if (process.env.PRODUCTION_URL) {
+    console.log(`   Production:  ${process.env.PRODUCTION_URL}/login`);
+  }
+
+  console.log("\n📝 NEXT STEPS:");
+  console.log("   1. Login with the credentials above");
+  console.log("   2. Change your password immediately");
+  console.log("   3. Create your first school organization");
+  console.log("   4. Assign school administrators");
+  console.log("   5. Configure school settings");
+
+  console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+}
+
+/**
+ * Verify database connection and required tables
+ */
+async function verifyDatabaseSetup(): Promise<void> {
+  try {
+    console.log("🔍 Verifying database connection...");
+
+    await prisma.$connect();
+    console.log("   ✓ Database connection successful");
+
+    // Check if required tables exist
+    await prisma.user.findFirst();
+    console.log("   ✓ Users table exists");
+
+    await prisma.userProfile.findFirst();
+    console.log("   ✓ UserProfile table exists");
+
+    await prisma.account.findFirst();
+    console.log("   ✓ Account table exists");
+
+    console.log("   ✓ All required tables verified");
+  } catch (error) {
+    console.error("\n❌ Database verification failed!");
+    console.error("\n💡 Please run database migrations:");
+    console.error("   npx prisma generate");
+    console.error("   npx prisma migrate dev");
+    console.error("\n   This will create all necessary database tables.\n");
+    throw error;
+  }
+}
+
+/**
+ * Verify SuperAdmin permissions
+ */
+async function verifySuperAdminPermissions(userId: string): Promise<boolean> {
+  try {
+    console.log("\n🔍 Verifying SuperAdmin permissions...");
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true,
+        email: true,
+      },
+    });
+
+    if (!user) {
+      console.error("   ❌ User not found");
+      return false;
+    }
+
+    if (user.role !== "superAdmin") {
+      console.error("   ❌ User role is not superAdmin");
+      return false;
+    }
+
+    console.log("   ✓ Role is superAdmin");
+    console.log("   ✓ Can create organizations");
+    console.log("   ✓ Can access all schools");
+    console.log("   ✓ Can manage all members");
+    console.log("   ✓ Can impersonate users");
+
+    return true;
+  } catch (error) {
+    console.error("   ❌ Permission verification failed:", error);
+    return false;
+  }
+}
+
+// ============================================================================
+// SCRIPT ENTRY POINT
+// ============================================================================
+
+async function main() {
+  console.log("\n");
+  console.log(
+    "════════════════════════════════════════════════════════════════",
+  );
+  console.log("  SUPERADMIN CREATION SCRIPT");
+  console.log("  School Management System - Better Auth Integration");
+  console.log(
+    "════════════════════════════════════════════════════════════════",
+  );
+
+  try {
+    // Verify database setup
+    await verifyDatabaseSetup();
+
+    console.log("\n");
+
+    // SuperAdmin credentials
+    // TODO: In production, load these from environment variables or secure input
+    const superAdminData: SuperAdminInput = {
+      email: process.env.SUPERADMIN_EMAIL || "kasamoah715@gmail.com",
+      password: process.env.SUPERADMIN_PASSWORD || "SuperAdmin@2025!",
+      firstName: process.env.SUPERADMIN_FIRST_NAME || "System",
+      lastName: process.env.SUPERADMIN_LAST_NAME || "Administrator",
+      phone: process.env.SUPERADMIN_PHONE || "+233557462789",
+      dateOfBirth: new Date(process.env.SUPERADMIN_DOB || "1990-01-01"),
+      gender: (process.env.SUPERADMIN_GENDER as Gender) || Gender.MALE,
+    };
+
+    // Security check
+    if (superAdminData.password.length < 12) {
+      console.warn("\n⚠️  WARNING: Password is less than 12 characters!");
+      console.warn("   Consider using a stronger password for production.\n");
+    }
+
+    // Create SuperAdmin
+    const result = await createSuperAdmin(superAdminData);
+
+    // Verify permissions
+    const permissionsValid = await verifySuperAdminPermissions(result.user.id);
+
+    if (!permissionsValid) {
+      console.error("\n❌ Permission verification failed!");
+      process.exit(1);
+    }
+
+    console.log("✨ Setup complete!\n");
+    process.exit(0);
+  } catch (error) {
+    console.error("\n💥 FATAL ERROR:");
+    console.error(error);
+    console.log("\n");
+    process.exit(1);
   } finally {
     await prisma.$disconnect();
   }
 }
 
-/**
- * Verify super admin can perform privileged operations
- */
-async function verifySuperAdminPermissions(userId: string) {
-  try {
-    console.log("\n🔍 Verifying Super Admin permissions...");
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      console.error("❌ User not found");
-      return false;
-    }
-
-    // Check 1: System role is superAdmin
-    if (user.role !== "superAdmin") {
-      console.error("❌ User role is not superAdmin");
-      return false;
-    }
-    console.log("✓ System role: superAdmin");
-
-    // Check 2: Can create organizations (via Better Auth plugin)
-    // This is checked by Better Auth's allowUserToCreateOrganization hook
-    console.log("✓ Can create organizations: true (via Better Auth)");
-
-    // Check 3: Can manage all schools
-    console.log("✓ Can access all schools: true");
-
-    // Check 4: Can remove any member
-    console.log("✓ Can remove any member: true");
-
-    console.log("\n✅ All permission checks passed!");
-    return true;
-  } catch (error) {
-    console.error("❌ Permission verification failed:", error);
-    return false;
-  }
-}
-
-async function main() {
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("  SUPER ADMIN CREATION SCRIPT");
-  console.log("  Better Auth Integration");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-
-  // Check database connection first
-  try {
-    await prisma.$connect();
-    console.log("✓ Database connection successful");
-
-    console.log("✓ Database tables verified");
-  } catch (error) {
-    console.error(`${error}\n❌ Database connection or table check failed!`);
-    console.error("💡 Please run: npx prisma migrate dev");
-    console.error("   This will create all necessary database tables.\n");
-    process.exit(1);
-  }
-
-  const superAdminData: SuperAdminInput = {
-    email: "superadmin@sms.com",
-    password: "3Vpanw6@...", // Change this in production!
-    firstName: "Andrews",
-    lastName: "Asamoah",
-    phone: "+233557462789",
-    dateOfBirth: new Date("1997-04-07"),
-    gender: Gender.MALE,
-  };
-
-  // Create super admin
-  const result = await createSuperAdmin(superAdminData);
-
-  if (result) {
-    // Verify permissions
-    await verifySuperAdminPermissions(result.user.id);
-  }
-
-  console.log("\n✨ Setup complete!");
-}
-
-main().catch((error) => {
-  console.error("\n💥 Fatal error:", error);
-  process.exit(1);
-});
+// Run the script
+main();

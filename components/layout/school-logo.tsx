@@ -1,5 +1,6 @@
-// components/layout/school-logo.tsx
+// components/layout/school-logo.tsx - FIXED
 "use client";
+
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,7 @@ export default function SchoolLogo({
       href={href}
       className={cn(
         "flex items-center gap-3 px-3 py-2 transition-all hover:bg-accent/50 rounded-lg",
-        "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2"
+        "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2",
       )}
     >
       {logo && (
@@ -36,7 +37,6 @@ export default function SchoolLogo({
           />
         </div>
       )}
-
       <div className="flex flex-col min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
         <span className="font-semibold text-sm truncate">{name}</span>
         {plan && (

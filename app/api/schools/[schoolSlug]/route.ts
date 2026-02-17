@@ -1,47 +1,33 @@
 // app/api/schools/[schoolId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth/session";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@/lib/generated/prisma";
+import { Prisma } from "@/lib/generated/prisma/client";
 
-// Add this type for params in Next.js 16
 type RouteContext = {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
   }>;
 };
 
 // GET - Fetch single school
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const session = await getAuthSession();
+    const session = await getSession();
     if (!session || session.user.role !== "superAdmin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const params = await context.params;
-    const { schoolId } = params;
+    const { schoolSlug } = params;
 
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { subdomain: schoolSlug },
       include: {
         subscription: true,
-        organization: {
-          include: {
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true,
-                  },
-                },
-              },
-            },
-          },
-        },
+        organization: true,
         _count: {
           select: {
             students: true,
@@ -71,22 +57,27 @@ export async function GET(request: NextRequest, context: RouteContext) {
 // PATCH - Update school
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
-    const session = await getAuthSession();
+    const session = await getSession();
     if (!session || session.user.role !== "superAdmin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const params = await context.params;
-    const { schoolId } = params;
+    const { schoolSlug } = params;
     const body = await request.json();
 
-    console.log("Received update data:", body); // Debug log
+    console.log("Received update for school:", schoolSlug);
+    console.log("Update data:", JSON.stringify(body, null, 2));
 
     // Check if school exists
     const existingSchool = await prisma.school.findUnique({
-      where: { id: schoolId },
-      include: {
-        organization: true,
+      where: { subdomain: schoolSlug },
+      select: {
+        id: true,
+        name: true,
+        subdomain: true,
+        logo: true,
+        organizationId: true,
       },
     });
 
@@ -94,76 +85,102 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    // Build update object only with provided fields
+    // Build update object
     const updateData: Prisma.SchoolUpdateInput = {};
-    const orgUpdateData: Prisma.OrganizationUpdateInput = {};
 
-    // School fields
-    if (body.name !== undefined) updateData.name = body.name;
-    if (body.code !== undefined) updateData.code = body.code;
-    if (body.subdomain !== undefined) updateData.subdomain = body.subdomain;
-    if (body.email !== undefined) updateData.email = body.email || null;
-    if (body.phone !== undefined) updateData.phone = body.phone || null;
-    if (body.address !== undefined) updateData.address = body.address || null;
-    if (body.motto !== undefined) updateData.motto = body.motto || null;
-    if (body.website !== undefined) updateData.website = body.website || null;
-    if (body.currency !== undefined) updateData.currency = body.currency;
-    if (body.timezone !== undefined) updateData.timezone = body.timezone;
-    if (body.locale !== undefined) updateData.locale = body.locale;
-    if (body.primaryColor !== undefined)
-      updateData.primaryColor = body.primaryColor;
-    if (body.secondaryColor !== undefined)
-      updateData.secondaryColor = body.secondaryColor;
-    if (body.logo !== undefined) updateData.logo = body.logo || null;
-    if (body.settings !== undefined) updateData.settings = body.settings;
-    if (body.features !== undefined) updateData.features = body.features;
+    // String fields
+    const stringFields = [
+      "name",
+      "code",
+      "currency",
+      "timezone",
+      "locale",
+      "primaryColor",
+      "secondaryColor",
+    ] as const;
 
-    // Organization fields
-    if (body.name !== undefined && body.name !== existingSchool.name) {
-      orgUpdateData.name = body.name;
-    }
-    if (
-      body.subdomain !== undefined &&
-      body.subdomain !== existingSchool.subdomain
-    ) {
-      orgUpdateData.slug = body.subdomain;
+    for (const field of stringFields) {
+      if (body[field] !== undefined && typeof body[field] === "string") {
+        updateData[field] = body[field];
+      }
     }
 
-    console.log("School update data:", updateData); // Debug log
-    console.log("Organization update data:", orgUpdateData); // Debug log
+    // Nullable string fields
+    const nullableFields = [
+      "email",
+      "phone",
+      "address",
+      "motto",
+      "website",
+      "logo",
+    ] as const;
 
-    // Use transaction to update both school and organization
-    const updatedSchool = await prisma.$transaction(async (tx) => {
-      // Update organization if needed
-      if (Object.keys(orgUpdateData).length > 0) {
-        await tx.organization.update({
-          where: { id: existingSchool.organizationId },
-          data: orgUpdateData,
-        });
+    for (const field of nullableFields) {
+      if (body[field] !== undefined) {
+        updateData[field] = body[field] === "" ? null : body[field];
+      }
+    }
+
+    // JSON fields
+    if (body.settings !== undefined) {
+      updateData.settings =
+        typeof body.settings === "string"
+          ? JSON.parse(body.settings)
+          : body.settings;
+    }
+
+    if (body.features !== undefined) {
+      updateData.features =
+        typeof body.features === "string"
+          ? JSON.parse(body.features)
+          : body.features;
+    }
+
+    console.log("Prepared update data:", JSON.stringify(updateData, null, 2));
+
+    // Check if organization needs updating
+    const needsOrgUpdate =
+      (body.name && body.name !== existingSchool.name) ||
+      (body.logo !== undefined && body.logo !== existingSchool.logo);
+
+    // Update organization if needed
+    if (needsOrgUpdate) {
+      const orgData: Record<string, string | undefined> = {};
+
+      if (body.name && body.name !== existingSchool.name) {
+        orgData.name = body.name;
+      }
+      if (body.logo !== undefined && body.logo !== existingSchool.logo) {
+        orgData.logo = body.logo || undefined;
       }
 
-      // Update school
-      const school = await tx.school.update({
-        where: { id: schoolId },
-        data: updateData,
-        include: {
-          subscription: true,
-          organization: true,
-        },
-      });
+      console.log("Updating organization with:", orgData);
 
-      return school;
+      await auth.api.updateOrganization({
+        body: {
+          data: orgData,
+          organizationId: existingSchool.organizationId,
+        },
+        headers: await headers(),
+      });
+    }
+
+    // Update school
+    const updatedSchool = await prisma.school.update({
+      where: { id: schoolSlug },
+      data: updateData,
+      include: {
+        subscription: true,
+        organization: true,
+      },
     });
 
     return NextResponse.json(updatedSchool);
   } catch (error) {
     console.error("Error updating school:", error);
 
-    if (error instanceof Error) {
-      if (
-        error.message.includes("Unique constraint") ||
-        error.message.includes("unique")
-      ) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
         return NextResponse.json(
           { error: "School code or subdomain already exists" },
           { status: 400 },
@@ -172,215 +189,126 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     return NextResponse.json(
-      { error: "Failed to update school" },
+      {
+        error: "Failed to update school",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 },
     );
   }
 }
+
 // DELETE - Delete school
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    console.log("DELETE request received"); // Debug log
-
-    const session = await getAuthSession();
-    console.log("Session:", session?.user?.role); // Debug log
+    const session = await getSession();
 
     if (!session || session.user.role !== "superAdmin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const params = await context.params;
-    const { schoolId } = params;
-    console.log("School ID to delete:", schoolId); // Debug log
+    const { schoolSlug } = params;
 
-    // Check if school exists
+    // Get school
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
-      include: {
-        organization: true,
-        subscription: true,
+      where: { subdomain: schoolSlug },
+      select: {
+        id: true,
+        organizationId: true,
+        subscription: {
+          select: { id: true },
+        },
         _count: {
           select: {
             students: true,
             teachers: true,
             staff: true,
             guardians: true,
-            academicYears: true,
-            departments: true,
-            classes: true,
-            subjects: true,
-            houses: true,
-            gradingSystems: true,
-            feeStructures: true,
-            chartAccounts: true,
-            transactions: true,
-            bills: true,
-            payments: true,
-            documents: true,
-            assessmentTemplates: true,
           },
         },
       },
     });
 
-    console.log("School found:", school ? "Yes" : "No"); // Debug log
-
     if (!school) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    // Check if school has any data
-    const hasUsers =
-      school._count.students > 0 ||
-      school._count.teachers > 0 ||
-      school._count.staff > 0 ||
-      school._count.guardians > 0;
+    // Check for users
+    const totalUsers =
+      school._count.students +
+      school._count.teachers +
+      school._count.staff +
+      school._count.guardians;
 
-    const hasAcademicData =
-      school._count.academicYears > 0 ||
-      school._count.departments > 0 ||
-      school._count.classes > 0 ||
-      school._count.subjects > 0 ||
-      school._count.houses > 0;
-
-    const hasFinancialData =
-      school._count.bills > 0 ||
-      school._count.payments > 0 ||
-      school._count.transactions > 0;
-
-    console.log("Has data:", { hasUsers, hasAcademicData, hasFinancialData }); // Debug log
-
-    // Build detailed error message
-    if (hasUsers || hasAcademicData || hasFinancialData) {
-      const details = [];
-      if (hasUsers) {
-        details.push(
-          `${school._count.students} students, ${school._count.teachers} teachers, ${school._count.staff} staff, ${school._count.guardians} guardians`,
-        );
-      }
-      if (hasAcademicData) {
-        details.push(
-          `${school._count.academicYears} academic years, ${school._count.classes} classes, ${school._count.departments} departments`,
-        );
-      }
-      if (hasFinancialData) {
-        details.push(
-          `${school._count.bills} bills, ${school._count.payments} payments, ${school._count.transactions} transactions`,
-        );
-      }
-
+    if (totalUsers > 0) {
       return NextResponse.json(
         {
-          error: "Cannot delete school with existing data",
-          details: `This school has: ${details.join(
-            "; ",
-          )}. Please remove all data first.`,
+          error: "Cannot delete school with existing users",
+          details: `This school has ${totalUsers} users. Please remove all users first.`,
         },
         { status: 400 },
       );
     }
 
-    console.log("Starting deletion..."); // Debug log
+    const organizationId = school.organizationId;
+    const subscriptionId = school.subscription?.id;
 
-    // Delete in transaction - order matters due to foreign key constraints
+    // Delete in transaction
     await prisma.$transaction(async (tx) => {
-      // 1. Delete custom categories (no dependencies)
-      await tx.customFeeCategory.deleteMany({
-        where: { schoolId },
-      });
-      await tx.customExpenseCategory.deleteMany({
-        where: { schoolId },
-      });
-      await tx.customTransactionCategory.deleteMany({
-        where: { schoolId },
-      });
-
-      // 2. Delete assessment templates and grading systems
-      await tx.assessmentTemplate.deleteMany({
-        where: { schoolId },
-      });
-      await tx.gradingSystem.deleteMany({
-        where: { schoolId },
-      });
-
-      // 3. Delete fee structures
-      await tx.feeStructure.deleteMany({
-        where: { schoolId },
-      });
-
-      // 4. Delete chart accounts
-      await tx.chartAccount.deleteMany({
-        where: { schoolId },
-      });
-
-      // 5. Delete documents
-      await tx.document.deleteMany({
-        where: { schoolId },
-      });
-
-      // 6. Delete houses
-      await tx.house.deleteMany({
-        where: { schoolId },
-      });
-
-      // 7. Delete subjects
-      await tx.subject.deleteMany({
-        where: { schoolId },
-      });
-
-      // 8. Delete academic years (will cascade to terms)
-      await tx.academicYear.deleteMany({
-        where: { schoolId },
-      });
-
-      // 9. Delete departments
-      await tx.department.deleteMany({
-        where: { schoolId },
-      });
-
-      // 10. Delete subscription and invoices
-      if (school.subscription) {
+      // Delete subscription
+      if (subscriptionId) {
         await tx.invoiceRecord.deleteMany({
-          where: { subscriptionId: school.subscription.id },
+          where: { subscriptionId },
         });
         await tx.subscription.delete({
-          where: { id: school.subscription.id },
+          where: { id: subscriptionId },
         });
       }
 
-      // 11. Delete the school
+      // Delete school
       await tx.school.delete({
-        where: { id: schoolId },
-      });
-
-      // 12. Delete organization (will cascade to members and invitations)
-      await tx.organization.delete({
-        where: { id: school.organizationId },
+        where: { id: schoolSlug },
       });
     });
 
-    console.log("Deletion completed successfully"); // Debug log
+    // Delete organization
+    try {
+      await auth.api.deleteOrganization({
+        body: {
+          organizationId: organizationId,
+        },
+        headers: await headers(),
+      });
+    } catch (orgError) {
+      console.warn("Organization deletion failed:", orgError);
+    }
 
     return NextResponse.json({
       message: "School deleted successfully",
-      schoolId,
+      schoolSlug,
     });
   } catch (error) {
-    console.error("Error deleting school:", error);
+    console.error("Error in DELETE handler:", error);
 
-    // Provide more detailed error info
-    if (error instanceof Error) {
-      return NextResponse.json(
-        {
-          error: "Failed to delete school",
-          details: error.message,
-        },
-        { status: 500 },
-      );
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2003" || error.code === "P2014") {
+        return NextResponse.json(
+          {
+            error: "Cannot delete school",
+            details:
+              "There are still related records that must be deleted first.",
+          },
+          { status: 400 },
+        );
+      }
     }
 
     return NextResponse.json(
-      { error: "Failed to delete school" },
+      {
+        error: "Failed to delete school",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 },
     );
   }

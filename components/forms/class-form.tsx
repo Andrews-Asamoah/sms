@@ -1,4 +1,4 @@
-// components/admin/classes/class-form.tsx
+// components/forms/class-form.tsx
 "use client";
 
 import { useState } from "react";
@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 import {
   Field,
@@ -21,6 +21,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Teacher {
   id: string;
@@ -39,6 +40,7 @@ interface AcademicYear {
 interface ClassFormProps {
   schoolId: string;
   schoolSlug: string;
+  organizationId: string; // Added organizationId
   academicYears: AcademicYear[];
   teachers: Teacher[];
   initialData?: {
@@ -66,6 +68,7 @@ interface FormData {
 interface FormErrors {
   name?: string;
   level?: string;
+  capacity?: string;
   academicYearId?: string;
   general?: string;
 }
@@ -73,6 +76,7 @@ interface FormErrors {
 export function ClassForm({
   schoolId,
   schoolSlug,
+  organizationId,
   academicYears,
   teachers,
   initialData,
@@ -80,6 +84,7 @@ export function ClassForm({
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   const [formData, setFormData] = useState<FormData>({
     name: initialData?.name || "",
@@ -96,6 +101,8 @@ export function ClassForm({
 
   const handleChange = (field: keyof FormData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    setTouched((prev) => ({ ...prev, [field]: true }));
+
     // Clear error for this field
     if (errors[field as keyof FormErrors]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -105,16 +112,35 @@ export function ClassForm({
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
+    // Name validation
     if (!formData.name.trim()) {
       newErrors.name = "Class name is required";
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = "Class name must be at least 2 characters";
+    } else if (formData.name.trim().length > 50) {
+      newErrors.name = "Class name must not exceed 50 characters";
     }
 
+    // Level validation
     if (!formData.level.trim()) {
       newErrors.level = "Level is required";
+    } else if (formData.level.trim().length < 1) {
+      newErrors.level = "Level must be at least 1 character";
     }
 
+    // Academic year validation
     if (!formData.academicYearId) {
       newErrors.academicYearId = "Academic year is required";
+    }
+
+    // Capacity validation (optional but if provided must be valid)
+    if (formData.capacity) {
+      const capacityNum = parseInt(formData.capacity);
+      if (isNaN(capacityNum) || capacityNum < 1) {
+        newErrors.capacity = "Capacity must be a positive number";
+      } else if (capacityNum > 500) {
+        newErrors.capacity = "Capacity seems unusually high (max: 500)";
+      }
     }
 
     setErrors(newErrors);
@@ -124,7 +150,18 @@ export function ClassForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    // Mark all fields as touched
+    setTouched({
+      name: true,
+      level: true,
+      capacity: true,
+      academicYearId: true,
+    });
+
     if (!validateForm()) {
+      toast.error("Validation Failed", {
+        description: "Please fix the errors in the form",
+      });
       return;
     }
 
@@ -140,6 +177,7 @@ export function ClassForm({
         classTeacherId: formData.classTeacherId || null,
         isActive: formData.isActive,
         schoolId,
+        organizationId, // Include organizationId in payload
       };
 
       const url = initialData
@@ -159,22 +197,24 @@ export function ClassForm({
         throw new Error(error.error || "Failed to save class");
       }
 
-      toast.success(initialData ? "Class updated" : "Class created", {
+      toast.success(initialData ? "Class Updated" : "Class Created", {
         description: initialData
-          ? "The class has been updated successfully."
-          : "The new class has been created successfully.",
+          ? `${formData.name} has been updated successfully.`
+          : `${formData.name} has been created successfully.`,
       });
 
       router.push(`/${schoolSlug}/admin/classes`);
       router.refresh();
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Something went wrong";
+
       toast.error("Error", {
-        description:
-          error instanceof Error ? error.message : "Something went wrong",
+        description: errorMessage,
       });
+
       setErrors({
-        general:
-          error instanceof Error ? error.message : "Something went wrong",
+        general: errorMessage,
       });
     } finally {
       setIsSubmitting(false);
@@ -184,117 +224,141 @@ export function ClassForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {errors.general && (
-        <div className="rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 p-4">
-          <p className="text-sm text-red-600 dark:text-red-400">
-            {errors.general}
-          </p>
-        </div>
+        <Alert variant="destructive" className="animate-in fade-in-50">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{errors.general}</AlertDescription>
+        </Alert>
       )}
 
       <div className="grid gap-6 md:grid-cols-2">
+        {/* Class Name */}
         <Field>
           <FieldLabel htmlFor="name">
-            Class Name <span className="text-red-500">*</span>
+            Class Name <span className="text-destructive">*</span>
           </FieldLabel>
           <FieldGroup>
             <Input
               id="name"
-              placeholder="e.g., Form 1A"
+              placeholder="e.g., Form 1A, Grade 7B"
               value={formData.name}
               onChange={(e) => handleChange("name", e.target.value)}
-              className="bg-white/50 dark:bg-slate-950/50"
+              className="bg-background/50"
+              disabled={isSubmitting}
             />
           </FieldGroup>
-          {errors.name && <FieldError>{errors.name}</FieldError>}
-          <p className="text-sm text-muted-foreground mt-1">
+          {errors.name && touched.name && (
+            <FieldError className="animate-in fade-in-50">
+              {errors.name}
+            </FieldError>
+          )}
+          <p className="text-sm text-muted-foreground mt-1.5">
             The name of the class (e.g., Form 1A, Grade 7B)
           </p>
         </Field>
 
+        {/* Level */}
         <Field>
           <FieldLabel htmlFor="level">
-            Level <span className="text-red-500">*</span>
+            Level <span className="text-destructive">*</span>
           </FieldLabel>
           <FieldGroup>
             <Input
               id="level"
-              placeholder="e.g., Form 1, Grade 7"
+              placeholder="e.g., Form 1, Grade 7, JHS 1"
               value={formData.level}
               onChange={(e) => handleChange("level", e.target.value)}
-              className="bg-white/50 dark:bg-slate-950/50"
+              className="bg-background/50"
+              disabled={isSubmitting}
             />
           </FieldGroup>
-          {errors.level && <FieldError>{errors.level}</FieldError>}
-          <p className="text-sm text-muted-foreground mt-1">
-            The level or grade of the class
+          {errors.level && touched.level && (
+            <FieldError className="animate-in fade-in-50">
+              {errors.level}
+            </FieldError>
+          )}
+          <p className="text-sm text-muted-foreground mt-1.5">
+            The grade or form level
           </p>
         </Field>
 
+        {/* Section */}
         <Field>
           <FieldLabel htmlFor="section">Section (Optional)</FieldLabel>
           <FieldGroup>
             <Input
               id="section"
-              placeholder="e.g., A, B, Science"
+              placeholder="e.g., A, B, Science, Arts"
               value={formData.section}
               onChange={(e) => handleChange("section", e.target.value)}
-              className="bg-white/50 dark:bg-slate-950/50"
+              className="bg-background/50"
+              disabled={isSubmitting}
             />
           </FieldGroup>
-          <p className="text-sm text-muted-foreground mt-1">
-            The section or stream of the class
+          <p className="text-sm text-muted-foreground mt-1.5">
+            The section or stream (if applicable)
           </p>
         </Field>
 
+        {/* Capacity */}
         <Field>
           <FieldLabel htmlFor="capacity">Capacity (Optional)</FieldLabel>
           <FieldGroup>
             <Input
               id="capacity"
               type="number"
+              min="1"
+              max="500"
               placeholder="e.g., 40"
               value={formData.capacity}
               onChange={(e) => handleChange("capacity", e.target.value)}
-              className="bg-white/50 dark:bg-slate-950/50"
+              className="bg-background/50"
+              disabled={isSubmitting}
             />
           </FieldGroup>
-          <p className="text-sm text-muted-foreground mt-1">
+          {errors.capacity && touched.capacity && (
+            <FieldError className="animate-in fade-in-50">
+              {errors.capacity}
+            </FieldError>
+          )}
+          <p className="text-sm text-muted-foreground mt-1.5">
             Maximum number of students
           </p>
         </Field>
 
+        {/* Academic Year */}
         <Field>
           <FieldLabel htmlFor="academicYearId">
-            Academic Year <span className="text-red-500">*</span>
+            Academic Year <span className="text-destructive">*</span>
           </FieldLabel>
           <FieldGroup>
             <Select
               value={formData.academicYearId}
               onValueChange={(value) => handleChange("academicYearId", value)}
+              disabled={isSubmitting}
             >
-              <SelectTrigger
-                id="academicYearId"
-                className="bg-white/50 dark:bg-slate-950/50"
-              >
+              <SelectTrigger id="academicYearId" className="bg-background/50">
                 <SelectValue placeholder="Select academic year" />
               </SelectTrigger>
               <SelectContent>
                 {academicYears.map((year) => (
                   <SelectItem key={year.id} value={year.id}>
-                    {year.name} {year.isCurrent && "(Current)"}
+                    {year.name} {year.isCurrent && "✓ Current"}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </FieldGroup>
-          {errors.academicYearId && (
-            <FieldError>{errors.academicYearId}</FieldError>
+          {errors.academicYearId && touched.academicYearId && (
+            <FieldError className="animate-in fade-in-50">
+              {errors.academicYearId}
+            </FieldError>
           )}
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1.5">
             The academic year for this class
           </p>
         </Field>
 
+        {/* Class Teacher */}
         <Field>
           <FieldLabel htmlFor="classTeacherId">
             Class Teacher (Optional)
@@ -302,12 +366,12 @@ export function ClassForm({
           <FieldGroup>
             <Select
               value={formData.classTeacherId}
-              onValueChange={(value) => handleChange("classTeacherId", value)}
+              onValueChange={(value) =>
+                handleChange("classTeacherId", value === "none" ? "" : value)
+              }
+              disabled={isSubmitting}
             >
-              <SelectTrigger
-                id="classTeacherId"
-                className="bg-white/50 dark:bg-slate-950/50"
-              >
+              <SelectTrigger id="classTeacherId" className="bg-background/50">
                 <SelectValue placeholder="Select class teacher" />
               </SelectTrigger>
               <SelectContent>
@@ -320,29 +384,43 @@ export function ClassForm({
               </SelectContent>
             </Select>
           </FieldGroup>
-          <p className="text-sm text-muted-foreground mt-1">
-            Assign a class teacher to this class
+          <p className="text-sm text-muted-foreground mt-1.5">
+            Assign a class teacher (can be changed later)
           </p>
         </Field>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/50 p-4">
+      {/* Active Status */}
+      <div className="flex items-center justify-between rounded-lg border bg-card/50 p-4">
         <div className="space-y-0.5">
           <FieldLabel htmlFor="isActive" className="text-base">
             Active Status
           </FieldLabel>
           <p className="text-sm text-muted-foreground">
-            Make this class active and available for enrollment
+            Active classes are available for student enrollment
           </p>
         </div>
         <Switch
           id="isActive"
           checked={formData.isActive}
           onCheckedChange={(checked) => handleChange("isActive", checked)}
+          disabled={isSubmitting}
         />
       </div>
 
-      <div className="flex gap-4">
+      {/* Info Alert */}
+      {!initialData && (
+        <Alert className="animate-in fade-in-50">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            After creating the class, you can assign subjects and manage
+            students from the class details page.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 pt-4 border-t">
         <Button
           type="button"
           variant="outline"
@@ -355,7 +433,7 @@ export function ClassForm({
         <Button
           type="submit"
           disabled={isSubmitting}
-          className="flex-1 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+          className="flex-1 bg-gradient-to-r from-primary to-primary/80"
         >
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {initialData ? "Update Class" : "Create Class"}

@@ -1,6 +1,7 @@
-// app/auth/callback/page.tsx
+// app/auth/callback/page.tsx - REFACTORED
+
 import { redirect } from "next/navigation";
-import { getEnhancedSession } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 import { getDefaultRoute } from "@/lib/auth/route-resolver";
 import { headers } from "next/headers";
 
@@ -23,7 +24,8 @@ export default async function CallbackPage({
   // Give Better Auth time to fully establish session
   await new Promise((resolve) => setTimeout(resolve, 500));
 
-  const session = await getEnhancedSession();
+  // Get session using consolidated session module
+  const session = await getSession();
 
   if (!session) {
     console.log("[Callback] ❌ No session found after auth");
@@ -32,14 +34,14 @@ export default async function CallbackPage({
   }
 
   console.log(`[Callback] ✅ Session loaded for: ${session.user.email}`);
-  console.log(`[Callback] Is Super Admin: ${session.isSuperAdmin}`);
+  console.log(`[Callback] Is SuperAdmin: ${session.isSuperAdmin}`);
   console.log(`[Callback] Memberships: ${session.memberships.length}`);
   console.log(`[Callback] Has Profile: ${!!session.profile}`);
 
   // If there's a specific callback URL, validate and use it
   if (params.callbackUrl) {
     const decodedUrl = decodeURIComponent(params.callbackUrl);
-    console.log(`[Callback] ➡️ Redirecting to: ${decodedUrl}`);
+    console.log(`[Callback] ➡️ Redirecting to callback: ${decodedUrl}`);
 
     // Security: ensure it's a relative URL
     if (decodedUrl.startsWith("/") && !decodedUrl.startsWith("//")) {
@@ -47,16 +49,20 @@ export default async function CallbackPage({
     }
   }
 
-  // Determine default route based on role
+  // Determine default route based on role and memberships
   const defaultRoute = getDefaultRoute(session);
   console.log(`[Callback] ➡️ Redirecting to default: ${defaultRoute}`);
 
   redirect(defaultRoute);
 }
 
-// Show a loading state while processing
+// ============================================================================
+// METADATA
+// ============================================================================
+
 export function generateMetadata() {
   return {
     title: "Signing in...",
+    description: "Completing authentication process",
   };
 }

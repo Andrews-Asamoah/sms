@@ -13,13 +13,13 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AcademicYearDialog } from "@/components/school/academic-years/academic-year-dialog";
-import { TermDialog } from "@/components/school/academic-years/term-dialog";
-import { SetGlobalYearTermButton } from "@/components/school/academic-years/set-global-year-term-button";
-import { DeleteAcademicYearButton } from "@/components/school/academic-years/delete-academic-year-button";
-import { DeleteTermButton } from "@/components/school/academic-years/delete-term-button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AcademicYearDialog } from "@/components/school/academic-years/academic-year-dialog";
+import { SetGlobalYearTermButton } from "@/components/school/academic-years/set-global-year-term-button";
+import { DeleteAcademicYearButton } from "@/components/school/academic-years/delete-academic-year-button";
+import { TermDialog } from "@/components/school/academic-years/term-dialog";
+import { DeleteTermButton } from "@/components/school/academic-years/delete-term-button";
 
 interface AcademicYearsPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -60,6 +60,11 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
         },
         orderBy: { startDate: "desc" },
       },
+      organization: {
+        select: {
+          id: true,
+        },
+      },
     },
   });
 
@@ -80,10 +85,10 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
   const globalTermId = globalSettings.currentTermId;
 
   const globalAcademicYear = school.academicYears.find(
-    (year) => year.id === globalAcademicYearId
+    (year) => year.id === globalAcademicYearId,
   );
   const globalTerm = globalAcademicYear?.terms.find(
-    (term) => term.id === globalTermId
+    (term) => term.id === globalTermId,
   );
 
   const canManageGlobal =
@@ -104,7 +109,11 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
               Manage academic years, terms, and system-wide settings
             </p>
           </div>
-          <AcademicYearDialog schoolId={school.id} schoolSlug={schoolSlug}>
+          <AcademicYearDialog
+            schoolId={school.id}
+            schoolSlug={schoolSlug}
+            organizationId={school.organizationId}
+          >
             <Button
               size="lg"
               className="shadow-lg hover:shadow-xl transition-all duration-300"
@@ -161,7 +170,15 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                 <SetGlobalYearTermButton
                   schoolId={school.id}
                   schoolSlug={schoolSlug}
-                  academicYears={school.academicYears}
+                  organizationId={school.organizationId}
+                  academicYears={school.academicYears.map((year) => ({
+                    ...year,
+                    terms: year.terms.map((term) => ({
+                      ...term,
+                      startDate: term.startDate,
+                      endDate: term.endDate,
+                    })),
+                  }))}
                   currentYearId={globalAcademicYearId}
                   currentTermId={globalTermId}
                 />
@@ -195,7 +212,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
               <div className="text-2xl font-bold">
                 {school.academicYears.reduce(
                   (sum, year) => sum + year.terms.length,
-                  0
+                  0,
                 )}
               </div>
             </CardContent>
@@ -212,7 +229,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
               <div className="text-2xl font-bold">
                 {school.academicYears.reduce(
                   (sum, year) => sum + year._count.classes,
-                  0
+                  0,
                 )}
               </div>
             </CardContent>
@@ -230,7 +247,11 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
               <p className="text-muted-foreground text-center mb-4">
                 Create your first academic year to get started
               </p>
-              <AcademicYearDialog schoolId={school.id} schoolSlug={schoolSlug}>
+              <AcademicYearDialog
+                schoolId={school.id}
+                schoolSlug={schoolSlug}
+                organizationId={school.organizationId}
+              >
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
                   Create Academic Year
@@ -270,7 +291,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                               month: "long",
                               day: "numeric",
                               year: "numeric",
-                            }
+                            },
                           )}{" "}
                           -{" "}
                           {new Date(year.endDate).toLocaleDateString("en-US", {
@@ -284,6 +305,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                         <AcademicYearDialog
                           schoolId={school.id}
                           schoolSlug={schoolSlug}
+                          organizationId={school.organizationId}
                           initialData={year}
                         >
                           <Button variant="outline" size="sm">
@@ -339,6 +361,8 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                           <TermDialog
                             academicYearId={year.id}
                             academicYearName={year.name}
+                            academicYearStartDate={year.startDate}
+                            academicYearEndDate={year.endDate}
                             schoolSlug={schoolSlug}
                             existingTerms={year.terms}
                           >
@@ -390,17 +414,19 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                                   </div>
                                   <p className="text-sm text-muted-foreground mb-3">
                                     {new Date(
-                                      term.startDate
+                                      term.startDate,
                                     ).toLocaleDateString()}{" "}
                                     -{" "}
                                     {new Date(
-                                      term.endDate
+                                      term.endDate,
                                     ).toLocaleDateString()}
                                   </p>
                                   <div className="flex gap-2">
                                     <TermDialog
                                       academicYearId={year.id}
                                       academicYearName={year.name}
+                                      academicYearStartDate={year.startDate}
+                                      academicYearEndDate={year.endDate}
                                       schoolSlug={schoolSlug}
                                       existingTerms={year.terms}
                                       initialData={term}

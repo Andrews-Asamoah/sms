@@ -1,22 +1,26 @@
-// lib/email/resend.ts
-import { Resend } from "resend";
-import { AdminInvitationEmail } from "./templates/admin-invitation";
-import { PasswordResetEmail } from "./templates/password-reset";
+// /lib/email/resend.ts
 
-if (!process.env.RESEND_API_KEY) {
-  throw new Error("RESEND_API_KEY is not defined");
-}
-if (!process.env.RESEND_FROM_EMAIL) {
-  throw new Error("RESEND_FROM_EMAIL is not defined");
-}
+import { Resend } from "resend";
+import { render } from "@react-email/render";
+import { AdminInvitationEmail } from "./templates/admin-invitation";
+import { GuardianInvitationEmail } from "./templates/guardian-invitation";
+import { PasswordResetEmail } from "./templates/password-reset";
+import { StudentCredentialsEmail } from "./templates/student-credentials";
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@yourdomain.com";
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "SchoolMS";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
 // ============================================================================
-// TYPES & INTERFACES
+// TYPE DEFINITIONS
 // ============================================================================
 
-export interface SendInvitationEmailParams {
+interface AdminInvitationEmailParams {
   to: string;
   inviterName: string;
   schoolName: string;
@@ -25,122 +29,60 @@ export interface SendInvitationEmailParams {
   expiresAt: Date;
 }
 
-export interface SendPasswordResetEmailParams {
+interface GuardianInvitationEmailParams {
+  to: string;
+  guardianName: string;
+  studentName: string;
+  schoolName: string;
+  invitationId: string;
+  expiresAt: Date;
+}
+
+interface PasswordResetEmailParams {
   to: string;
   userName: string;
   resetUrl: string;
   expiresAt: Date;
 }
 
-interface ResendEmailResponse {
-  data?: { id: string } | null;
-  error?: Error | null;
-}
-
-interface EmailResult {
-  success: boolean;
-  data?: { id: string } | null;
-}
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Helper function to create a timeout promise
- */
-function timeoutPromise(ms: number): Promise<never> {
-  return new Promise((_, reject) => {
-    setTimeout(
-      () => reject(new Error(`Email sending timeout after ${ms}ms`)),
-      ms,
-    );
-  });
-}
-
-/**
- * Helper to safely log email sending attempts
- */
-function logEmailStart(params: {
+interface WelcomeEmailParams {
   to: string;
-  subject: string;
-  id?: string;
-}): void {
-  console.log("📧 [Resend] ===== EMAIL SEND START =====");
-  console.log(`📧 [Resend] Timestamp: ${new Date().toISOString()}`);
-  console.log(`📧 [Resend] To: ${params.to}`);
-  console.log(`📧 [Resend] Subject: ${params.subject}`);
-  if (params.id) {
-    console.log(`📧 [Resend] ID: ${params.id}`);
-  }
-  console.log(
-    `📧 [Resend] From: DrewsTech Services <${process.env.RESEND_FROM_EMAIL}>`,
-  );
-  console.log(
-    `📧 [Resend] API Key: ${process.env.RESEND_API_KEY?.substring(0, 10)}...`,
-  );
+  userName: string;
+  schoolName: string;
+  loginUrl: string;
 }
 
-/**
- * Helper to log successful email send
- */
-function logEmailSuccess(duration: number, emailId?: string): void {
-  console.log(`✅ [Resend] Email sent successfully!`);
-  console.log(`✅ [Resend] Duration: ${duration}ms`);
-  console.log(`✅ [Resend] Email ID: ${emailId || "N/A"}`);
-  console.log("📧 [Resend] ===== EMAIL SEND END =====");
+interface StudentCredential {
+  name: string;
+  studentId: string;
+  email: string;
+  temporaryPassword: string;
 }
 
-/**
- * Helper to log email send failure
- */
-function logEmailError(error: unknown): void {
-  console.error("❌ [Resend] ===== EMAIL SEND FAILED =====");
-  console.error("❌ [Resend] Error caught:", error);
-  if (error instanceof Error) {
-    console.error("❌ [Resend] Error name:", error.name);
-    console.error("❌ [Resend] Error message:", error.message);
-    console.error("❌ [Resend] Error stack:", error.stack);
-  }
-  console.error("❌ [Resend] ===== EMAIL SEND END =====");
+interface StudentCredentialsEmailParams {
+  to: string;
+  parentName: string;
+  students: StudentCredential[];
+  schoolName: string;
+  loginUrl: string;
 }
 
 // ============================================================================
-// ADMIN INVITATION EMAIL
+// EMAIL SENDING FUNCTIONS
 // ============================================================================
 
-export async function sendAdminInvitationEmail({
-  to,
-  inviterName,
-  schoolName,
-  role,
-  invitationId,
-  expiresAt,
-}: SendInvitationEmailParams): Promise<EmailResult> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const inviteUrl = `${baseUrl}/auth/invite/${invitationId}`;
-  const subject = `${inviterName} invited you to join ${schoolName}`;
-
-  logEmailStart({
-    to,
-    subject,
-    id: invitationId,
-  });
-
-  console.log(`📧 [Resend] School: ${schoolName}`);
-  console.log(`📧 [Resend] Role: ${role}`);
-  console.log(`📧 [Resend] Invite URL: ${inviteUrl}`);
+/**
+ * Send invitation email to new admin/staff member
+ */
+export async function sendAdminInvitationEmail(
+  params: AdminInvitationEmailParams,
+): Promise<void> {
+  const { to, schoolName, inviterName, role, invitationId, expiresAt } = params;
+  const inviteUrl = `${APP_URL}/auth/invite/${invitationId}`;
 
   try {
-    const startTime = Date.now();
-    console.log(`📧 [Resend] Calling Resend API...`);
-
-    // Send email with proper headers to avoid spam
-    const emailPromise = resend.emails.send({
-      from: `DrewsTech School System <${process.env.RESEND_FROM_EMAIL}>`,
-      to,
-      subject,
-      react: AdminInvitationEmail({
+    const emailHtml = await render(
+      AdminInvitationEmail({
         invitedUserEmail: to,
         inviterName,
         schoolName,
@@ -148,124 +90,209 @@ export async function sendAdminInvitationEmail({
         inviteUrl,
         expiresAt,
       }),
-      headers: {
-        "X-Entity-Ref-ID": invitationId,
-      },
-      tags: [
-        {
-          name: "category",
-          value: "invitation",
-        },
-      ],
+    );
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `You've been invited to join ${schoolName}`,
+      html: emailHtml,
     });
 
-    // Race between email send and timeout
-    const result = (await Promise.race([
-      emailPromise,
-      timeoutPromise(30000), // 30 second timeout
-    ])) as ResendEmailResponse;
-
-    const { data, error } = result;
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-
-    console.log(`📧 [Resend] API call completed in ${duration}ms`);
-
-    if (error) {
-      console.error("❌ [Resend] Error response from Resend:", error);
-      console.error("❌ [Resend] Error type:", typeof error);
-      console.error(
-        "❌ [Resend] Error details:",
-        JSON.stringify(error, null, 2),
-      );
-      throw new Error(error.message || "Failed to send email");
-    }
-
-    logEmailSuccess(duration, data?.id);
-
-    return { success: true, data };
+    console.log(`✅ [Email] Admin invitation email sent to ${to}`);
   } catch (error) {
-    logEmailError(error);
-    throw error;
+    console.error(
+      `❌ [Email] Failed to send admin invitation to ${to}:`,
+      error,
+    );
+    throw new Error("Failed to send invitation email");
   }
 }
 
-// ============================================================================
-// PASSWORD RESET EMAIL
-// ============================================================================
-
-export async function sendPasswordResetEmail({
-  to,
-  userName,
-  resetUrl,
-  expiresAt,
-}: SendPasswordResetEmailParams): Promise<EmailResult> {
-  const subject = "Reset Your Password - DrewsTech School System";
-
-  logEmailStart({ to, subject });
-
-  console.log(`📧 [Resend] User: ${userName}`);
-  console.log(`📧 [Resend] Reset URL: ${resetUrl}`);
-  console.log(`📧 [Resend] Expires: ${expiresAt.toISOString()}`);
+/**
+ * Send invitation email to guardian/parent
+ */
+export async function sendGuardianInvitationEmail(
+  params: GuardianInvitationEmailParams,
+): Promise<void> {
+  const { to, guardianName, studentName, schoolName, invitationId, expiresAt } =
+    params;
+  const inviteUrl = `${APP_URL}/auth/invite/${invitationId}`;
 
   try {
-    const startTime = Date.now();
-    console.log(`📧 [Resend] Calling Resend API...`);
+    // Render React Email component to HTML (await because render returns Promise<string>)
+    const emailHtml = await render(
+      GuardianInvitationEmail({
+        guardianName,
+        studentName,
+        schoolName,
+        inviteUrl,
+        expiresAt,
+      }),
+    );
 
-    // Send email with proper headers to avoid spam
-    const emailPromise = resend.emails.send({
-      from: `DrewsTech School System <${process.env.RESEND_FROM_EMAIL}>`,
+    await resend.emails.send({
+      from: FROM_EMAIL,
       to,
-      subject,
-      react: PasswordResetEmail({
+      subject: `Parent Portal Invitation - ${schoolName}`,
+      html: emailHtml,
+    });
+
+    console.log(`✅ [Email] Guardian invitation email sent to ${to}`);
+  } catch (error) {
+    console.error(
+      `❌ [Email] Failed to send guardian invitation to ${to}:`,
+      error,
+    );
+    throw new Error("Failed to send guardian invitation email");
+  }
+}
+
+/**
+ * Alias for backwards compatibility
+ */
+export const sendInvitationEmail = sendAdminInvitationEmail;
+
+/**
+ * Send password reset email
+ */
+export async function sendPasswordResetEmail(
+  params: PasswordResetEmailParams,
+): Promise<void> {
+  const { to, userName, resetUrl, expiresAt } = params;
+
+  try {
+    const emailHtml = await render(
+      PasswordResetEmail({
         userName,
         resetUrl,
         expiresAt,
       }),
-      headers: {
-        "X-Priority": "1",
-        Importance: "high",
-      },
-      tags: [
-        {
-          name: "category",
-          value: "password-reset",
-        },
-      ],
+    );
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `Reset your ${APP_NAME} password`,
+      html: emailHtml,
     });
 
-    // Race between email send and timeout
-    const result = (await Promise.race([
-      emailPromise,
-      timeoutPromise(30000), // 30 second timeout
-    ])) as ResendEmailResponse;
-
-    const { data, error } = result;
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-
-    console.log(`📧 [Resend] API call completed in ${duration}ms`);
-
-    if (error) {
-      console.error("❌ [Resend] Error response from Resend:", error);
-      console.error("❌ [Resend] Error type:", typeof error);
-      console.error(
-        "❌ [Resend] Error details:",
-        JSON.stringify(error, null, 2),
-      );
-      throw new Error(error.message || "Failed to send password reset email");
-    }
-
-    logEmailSuccess(duration, data?.id);
-
-    return { success: true, data };
+    console.log(`✅ [Email] Password reset email sent to ${to}`);
   } catch (error) {
-    logEmailError(error);
-    // Don't throw the error - we don't want to reveal if the email exists
-    // Just log it and return success
-    console.warn(
-      "⚠️ [Resend] Failed to send password reset email, but returning success for security",
+    console.error(`❌ [Email] Failed to send password reset to ${to}:`, error);
+    throw new Error("Failed to send password reset email");
+  }
+}
+
+/**
+ * Send student login credentials to parent
+ * Supports single or multiple students (siblings)
+ */
+export async function sendStudentCredentialsEmail(
+  params: StudentCredentialsEmailParams,
+): Promise<void> {
+  const { to, parentName, students, schoolName, loginUrl } = params;
+
+  try {
+    const emailHtml = await render(
+      StudentCredentialsEmail({
+        parentName,
+        students,
+        schoolName,
+        loginUrl,
+      }),
     );
-    return { success: true, data: null };
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject:
+        students.length === 1
+          ? `Student Login Credentials - ${students[0].name}`
+          : `Student Login Credentials - ${schoolName}`,
+      html: emailHtml,
+    });
+
+    console.log(
+      `✅ [Email] Student credentials sent to ${to} for ${students.length} student(s)`,
+    );
+  } catch (error) {
+    console.error(
+      `❌ [Email] Failed to send student credentials to ${to}:`,
+      error,
+    );
+    throw new Error("Failed to send student credentials email");
+  }
+}
+
+/**
+ * Send welcome email to new user
+ * TODO: Create WelcomeEmail React component for consistency
+ */
+export async function sendWelcomeEmail(
+  params: WelcomeEmailParams,
+): Promise<void> {
+  const { to, userName, schoolName, loginUrl } = params;
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `Welcome to ${schoolName}!`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <body>
+            <h1>Welcome ${userName}!</h1>
+            <p>Your account has been created for ${schoolName}.</p>
+            <p><a href="${loginUrl}">Login to your account</a></p>
+          </body>
+        </html>
+      `,
+    });
+
+    console.log(`✅ [Email] Welcome email sent to ${to}`);
+  } catch (error) {
+    console.error(`❌ [Email] Failed to send welcome email to ${to}:`, error);
+    throw new Error("Failed to send welcome email");
+  }
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Validate email configuration
+ */
+export function validateEmailConfig(): boolean {
+  if (!process.env.RESEND_API_KEY) {
+    console.error("❌ [Email] RESEND_API_KEY not configured");
+    return false;
+  }
+
+  if (!process.env.RESEND_FROM_EMAIL) {
+    console.warn("⚠️ [Email] RESEND_FROM_EMAIL not configured, using default");
+  }
+
+  return true;
+}
+
+/**
+ * Test email sending
+ */
+export async function sendTestEmail(to: string): Promise<void> {
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: "Test Email from SchoolMS",
+      html: "<h1>Test Email</h1><p>Email configuration is working!</p>",
+    });
+
+    console.log(`✅ [Email] Test email sent to ${to}`);
+  } catch (error) {
+    console.error(`❌ [Email] Test email failed:`, error);
+    throw error;
   }
 }

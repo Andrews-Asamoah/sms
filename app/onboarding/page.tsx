@@ -23,7 +23,7 @@ export default async function OnboardingPage() {
           Welcome to SchoolMS
         </h1>
         <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">
-          You don't have access to any schools yet. Please contact your
+          You don&apos;t have access to any schools yet. Please contact your
           administrator.
         </p>
         <div className="flex gap-4 justify-center">

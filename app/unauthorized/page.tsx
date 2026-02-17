@@ -15,7 +15,7 @@ export default function UnauthorizedPage() {
           Access Denied
         </h1>
         <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">
-          You don't have permission to access this resource.
+          You don&apos;t have permission to access this resource.
         </p>
         <div className="flex gap-4 justify-center">
           <Button asChild variant="default">

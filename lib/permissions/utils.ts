@@ -1,64 +1,43 @@
-// lib/permissions/utils.ts - UPDATED for Better Auth Access Control
-import { auth } from "@/lib/auth";
-import type { ExtendedSession } from "@/lib/auth/types";
+// @/lib/permissions/utils.ts
+
+import type { ExtendedSession, NavPermissions } from "@/lib/auth/types";
 import { getSchoolRole } from "@/lib/auth/school-access";
+import { auth } from "../auth";
 
-/**
- * Navigation permissions interface
- */
-export interface NavPermissions {
-  canViewDashboard: boolean;
-  canViewAnalytics: boolean;
-  canManageStudents: boolean;
-  canManageTeachers: boolean;
-  canManageStaff: boolean;
-  canManageParents: boolean;
-  canManageClasses: boolean;
-  canManageSubjects: boolean;
-  canManageDepartments: boolean;
-  canManageHouses: boolean;
-  canManageGrading: boolean;
-  canViewReports: boolean;
-  canManageAttendance: boolean;
-  canManageAcademicYear: boolean;
-  canManageFinance: boolean;
-  canManageDocuments: boolean;
-  canViewTimetable: boolean;
-  canViewHostel: boolean;
-  canViewLibrary: boolean;
-  canViewInventory: boolean;
-  canViewTransport: boolean;
-  canManageAnnouncements: boolean;
-  canViewCommunications: boolean;
-  canViewProfile: boolean;
-  canManageSettings: boolean;
-  canViewSupport: boolean;
-}
+// ============================================================================
+// MAIN PERMISSION FUNCTION
+// ============================================================================
 
-/**
- * Get navigation permissions for a user in a specific school
- * Uses Better Auth permission system + role-based fallback
- */
 export async function getNavPermissions(
   session: ExtendedSession,
-  subdomain: string
+  subdomain: string,
 ): Promise<NavPermissions> {
   // SuperAdmin - all permissions
   if (session.isSuperAdmin) {
+    console.log(
+      `[Permissions] SuperAdmin ${session.user.email} - granting all permissions`,
+    );
     return getAllPermissions();
   }
 
   // Get user's access to this school
   const schoolAccess = getSchoolRole(session, subdomain);
+
   if (!schoolAccess) {
-    console.log(`No school access found for ${subdomain}`);
+    console.log(`[Permissions] No school access found for ${subdomain}`);
     return getNoPermissions();
   }
 
-  console.log(`Getting permissions for ${session.user.email} in ${subdomain}`);
-  console.log(`Effective role: ${schoolAccess.effectiveRole}`);
-  console.log(`Organization role: ${schoolAccess.organizationRole}`);
-  console.log(`Profile roles: ${schoolAccess.profileRoles.join(", ")}`);
+  console.log(
+    `[Permissions] Getting permissions for ${session.user.email} in ${subdomain}`,
+  );
+  console.log(`[Permissions] Effective role: ${schoolAccess.effectiveRole}`);
+  console.log(
+    `[Permissions] Organization role: ${schoolAccess.organizationRole ?? "none"}`,
+  );
+  console.log(
+    `[Permissions] Profile roles: ${schoolAccess.profileRoles.join(", ") || "none"}`,
+  );
 
   // Start with permissions based on effective role
   let permissions = getPermissionsByRole(schoolAccess.effectiveRole);
@@ -77,21 +56,28 @@ export async function getNavPermissions(
     });
 
     if (hasSchoolManage) {
-      // User has explicit school management permission
+      console.log(`[Permissions] User has explicit school:manage permission`);
       const adminPerms = getPermissionsByRole("admin");
       permissions = mergePermissions(permissions, adminPerms);
     }
   } catch (error) {
-    console.log("Could not check Better Auth permissions:", error);
+    console.log(
+      "[Permissions] Could not check Better Auth permissions:",
+      error,
+    );
     // Continue with role-based permissions
   }
 
   return permissions;
 }
 
+// ============================================================================
+// ROLE-BASED PERMISSIONS
+// ============================================================================
+
 /**
  * Get permissions for a single role
- * Maps to your Better Auth permission statements
+ * Maps to Better Auth permission statements
  */
 function getPermissionsByRole(role: string): NavPermissions {
   switch (role) {
@@ -112,6 +98,7 @@ function getPermissionsByRole(role: string): NavPermissions {
         canViewReports: true,
         canManageAttendance: true,
         canManageAcademicYear: true,
+        canViewFinance: true, // Everyone in Admin/Owner can view
         canManageFinance: role === "owner", // Only owner can manage finance fully
         canManageDocuments: true,
         canViewTimetable: true,
@@ -142,6 +129,7 @@ function getPermissionsByRole(role: string): NavPermissions {
         canViewReports: true,
         canManageAttendance: true, // Can mark attendance
         canManageAcademicYear: false,
+        canViewFinance: false,
         canManageFinance: false,
         canManageDocuments: true,
         canViewTimetable: true,
@@ -172,6 +160,7 @@ function getPermissionsByRole(role: string): NavPermissions {
         canViewReports: true,
         canManageAttendance: false,
         canManageAcademicYear: false,
+        canViewFinance: true,
         canManageFinance: true, // Full finance access
         canManageDocuments: true,
         canViewTimetable: false,
@@ -202,6 +191,7 @@ function getPermissionsByRole(role: string): NavPermissions {
         canViewReports: false,
         canManageAttendance: false,
         canManageAcademicYear: false,
+        canViewFinance: false,
         canManageFinance: false,
         canManageDocuments: true,
         canViewTimetable: false,
@@ -232,6 +222,7 @@ function getPermissionsByRole(role: string): NavPermissions {
         canViewReports: true,
         canManageAttendance: false,
         canManageAcademicYear: false,
+        canViewFinance: false,
         canManageFinance: false,
         canManageDocuments: false,
         canViewTimetable: true,
@@ -262,6 +253,7 @@ function getPermissionsByRole(role: string): NavPermissions {
         canViewReports: true,
         canManageAttendance: false,
         canManageAcademicYear: false,
+        canViewFinance: false,
         canManageFinance: true, // Can pay fees
         canManageDocuments: false,
         canViewTimetable: true,
@@ -293,6 +285,7 @@ function getPermissionsByRole(role: string): NavPermissions {
         canViewReports: false,
         canManageAttendance: false,
         canManageAcademicYear: false,
+        canViewFinance: false,
         canManageFinance: false,
         canManageDocuments: true,
         canViewTimetable: true,
@@ -308,17 +301,21 @@ function getPermissionsByRole(role: string): NavPermissions {
       };
 
     default:
-      console.warn(`Unknown role: ${role}`);
+      console.warn(`[Permissions] Unknown role: ${role}`);
       return getNoPermissions();
   }
 }
+
+// ============================================================================
+// PERMISSION MERGING
+// ============================================================================
 
 /**
  * Merge two permission sets (union - most permissive wins)
  */
 function mergePermissions(
   p1: NavPermissions,
-  p2: NavPermissions
+  p2: NavPermissions,
 ): NavPermissions {
   return {
     canViewDashboard: p1.canViewDashboard || p2.canViewDashboard,
@@ -335,6 +332,7 @@ function mergePermissions(
     canViewReports: p1.canViewReports || p2.canViewReports,
     canManageAttendance: p1.canManageAttendance || p2.canManageAttendance,
     canManageAcademicYear: p1.canManageAcademicYear || p2.canManageAcademicYear,
+    canViewFinance: p1.canViewFinance || p2.canViewFinance,
     canManageFinance: p1.canManageFinance || p2.canManageFinance,
     canManageDocuments: p1.canManageDocuments || p2.canManageDocuments,
     canViewTimetable: p1.canViewTimetable || p2.canViewTimetable,
@@ -350,6 +348,10 @@ function mergePermissions(
     canViewSupport: p1.canViewSupport || p2.canViewSupport,
   };
 }
+
+// ============================================================================
+// PERMISSION PRESETS
+// ============================================================================
 
 /**
  * All permissions granted
@@ -370,6 +372,7 @@ function getAllPermissions(): NavPermissions {
     canViewReports: true,
     canManageAttendance: true,
     canManageAcademicYear: true,
+    canViewFinance: true,
     canManageFinance: true,
     canManageDocuments: true,
     canViewTimetable: true,
@@ -386,7 +389,7 @@ function getAllPermissions(): NavPermissions {
 }
 
 /**
- * No permissions granted
+ * No permissions granted (except profile view and support)
  */
 function getNoPermissions(): NavPermissions {
   return {
@@ -404,6 +407,7 @@ function getNoPermissions(): NavPermissions {
     canViewReports: false,
     canManageAttendance: false,
     canManageAcademicYear: false,
+    canViewFinance: false,
     canManageFinance: false,
     canManageDocuments: false,
     canViewTimetable: false,
@@ -419,12 +423,16 @@ function getNoPermissions(): NavPermissions {
   };
 }
 
+// ============================================================================
+// BETTER AUTH PERMISSION HELPERS
+// ============================================================================
+
 /**
- * Check Better Auth permission (your permission system)
+ * Check Better Auth permission
  */
 export async function checkBetterAuthPermission(
   userId: string,
-  permissions: Record<string, string[]>
+  permissions: Record<string, string[]>,
 ): Promise<boolean> {
   try {
     const result = await auth.api.userHasPermission({
@@ -435,7 +443,7 @@ export async function checkBetterAuthPermission(
     });
     return !!result;
   } catch (error) {
-    console.error("Permission check error:", error);
+    console.error("[Permissions] Permission check error:", error);
     return false;
   }
 }
@@ -445,12 +453,12 @@ export async function checkBetterAuthPermission(
  */
 export async function checkMultiplePermissions(
   userId: string,
-  permissionsList: Array<Record<string, string[]>>
+  permissionsList: Array<Record<string, string[]>>,
 ): Promise<boolean[]> {
   const results = await Promise.all(
     permissionsList.map((permissions) =>
-      checkBetterAuthPermission(userId, permissions)
-    )
+      checkBetterAuthPermission(userId, permissions),
+    ),
   );
   return results;
 }

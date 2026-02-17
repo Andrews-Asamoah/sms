@@ -1,9 +1,9 @@
-// app/(school)/[schoolSlug]/admin/classes/new/page.tsx - FIXED
+// app/(school)/[schoolSlug]/admin/classes/new/page.tsx
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +37,9 @@ export default async function NewClassPage({ params }: NewClassPageProps) {
   // Fetch school with academic years and teachers
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
-    include: {
+    select: {
+      id: true,
+      organizationId: true, // Include organizationId
       academicYears: {
         orderBy: { startDate: "desc" },
       },
@@ -68,28 +70,37 @@ export default async function NewClassPage({ params }: NewClassPageProps) {
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Create New Class
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Add a new class to your school
-          </p>
+        <div className="flex-1">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <GraduationCap className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">
+                Create New Class
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                Add a new class to your school
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Form Card with Glassmorphism */}
-      <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-        <CardHeader>
-          <CardTitle>Class Information</CardTitle>
+      {/* Form Card */}
+      <Card className="border-0 bg-card/95 backdrop-blur-xl">
+        <CardHeader className="space-y-3">
+          <CardTitle className="text-2xl">Class Information</CardTitle>
           <CardDescription>
-            Fill in the details to create a new class
+            Fill in the details to create a new class. Required fields are
+            marked with an asterisk (*).
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ClassForm
             schoolId={school.id}
             schoolSlug={schoolSlug}
+            organizationId={school.organizationId} // Pass organizationId
             academicYears={school.academicYears}
             teachers={school.teachers}
           />
