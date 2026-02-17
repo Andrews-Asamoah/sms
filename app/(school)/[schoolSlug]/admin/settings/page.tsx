@@ -1,7 +1,11 @@
-import React from "react";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 
 function page() {
-  return <div>Helo</div>;
+  return (
+    <div>
+      <ThemeToggle />
+    </div>
+  );
 }
 
 export default page;

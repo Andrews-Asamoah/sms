@@ -7,137 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id                 String              @id @default(cuid())
-  name               String
-  email              String              @unique
-  emailVerified      Boolean             @default(false)
-  image              String?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  role               String              @default("user")
-  banned             Boolean             @default(false)
-  banReason          String?
-  banExpires         DateTime?
-  accounts           Account[]
-  memberships        Member[]
-  sessions           Session[]
-  attendancesMarked  Attendance[]        @relation("AttendanceMarkedBy")
-  auditLogs          AuditLog[]
-  componentScores    ComponentScore[]
-  documents          Document[]
-  gradingSystems     GradingSystem[]
-  invitations        Invitation[]
-  paymentsRecorded   Payment[]           @relation("PaymentRecordedBy")
-  transcriptRequests TranscriptRequest[]
-  profile            UserProfile?
-
-  @@index([email])
-  @@index([role])
-  @@index([banned])
-}
-
-model Session {
-  id                   String   @id @default(cuid())
-  expiresAt            DateTime
-  token                String   @unique
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  ipAddress            String?
-  userAgent            String?
-  impersonatedBy       String?
-  userId               String
-  activeOrganizationId String?
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([token])
-  @@index([activeOrganizationId])
-  @@index([impersonatedBy])
-}
-
-model Account {
-  id                    String    @id @default(cuid())
-  accountId             String
-  providerId            String
-  userId                String
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
-  scope                 String?
-  password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([providerId, accountId])
-  @@index([userId])
-}
-
-model Verification {
-  id         String   @id @default(cuid())
-  identifier String
-  value      String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@unique([identifier, value])
-  @@index([identifier])
-  @@index([expiresAt])
-}
-
-model Organization {
-  id          String       @id @default(cuid())
-  name        String
-  slug        String       @unique
-  logo        String?
-  metadata    String? //can store additional school metadata here
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  members     Member[]
-  invitations Invitation[]
-  school      School?
-
-  @@index([slug])
-}
-
-model Member {
-  id             String       @id @default(cuid())
-  organizationId String
-  userId         String
-  role           MemberRole
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, userId])
-  @@index([organizationId])
-  @@index([userId])
-  @@index([role])
-}
-
-model Invitation {
-  id             String       @id
-  organizationId String
-  email          String
-  role           String
-  status         String       @default("pending")
-  expiresAt      DateTime
-  createdAt      DateTime     @default(now())
-  inviterId      String
-  inviter        User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId])
-  @@index([email])
-  @@index([status])
-  @@map("invitation")
-}
-
 model School {
   id                          String                      @id @default(cuid())
   organizationId              String                      @unique
@@ -174,7 +43,7 @@ model School {
   guardians                   Guardian[]
   houses                      House[]
   payments                    Payment[]
-  organization                Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization                organizations               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   staff                       Staff[]
   students                    Student[]
   subjects                    Subject[]
@@ -215,7 +84,7 @@ model UserProfile {
   staff                 Staff?
   student               Student?
   teacher               Teacher?
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  users     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isActive])
@@ -226,7 +95,7 @@ model Student {
   id                 String              @id @default(cuid())
   profileId          String              @unique
   schoolId           String
-  studentId          String // Auto-generated school-specific ID
+  studentId          String
   admissionNumber    String?
   admissionDate      DateTime            @default(now()) @db.Date
   classId            String?
@@ -271,7 +140,7 @@ model Teacher {
   id                    String           @id @default(cuid())
   profileId             String           @unique
   schoolId              String
-  teacherId             String // Auto-generated school-specific ID
+  teacherId             String
   staffNumber           String?
   departmentId          String
   houseId               String?
@@ -335,7 +204,7 @@ model Staff {
 
 model Guardian {
   id                 String            @id @default(cuid())
-  profileId          String?           @unique // Optional - only if guardian can login
+  profileId          String?           @unique
   schoolId           String
   guardianId         String
   firstName          String
@@ -590,7 +459,7 @@ model Attendance {
   markedAt   DateTime         @default(now())
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
-  markedBy   User             @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
+  markedBy   users            @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
   student    Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, date])
@@ -614,7 +483,7 @@ model GradingSystem {
   updatedAt           DateTime             @updatedAt
   assessmentTemplates AssessmentTemplate[]
   gradeScales         GradeScale[]
-  createdBy           User?                @relation(fields: [createdById], references: [id])
+  createdBy           users?               @relation(fields: [createdById], references: [id])
   school              School?              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([code, schoolId])
@@ -727,7 +596,7 @@ model ComponentScore {
   updatedAt         DateTime            @updatedAt
   assessmentScore   AssessmentScore     @relation(fields: [assessmentScoreId], references: [id], onDelete: Cascade)
   component         AssessmentComponent @relation(fields: [componentId], references: [id])
-  recordedBy        User?               @relation(fields: [recordedById], references: [id])
+  recordedBy        users?              @relation(fields: [recordedById], references: [id])
 
   @@unique([assessmentScoreId, componentId])
   @@index([assessmentScoreId])
@@ -766,7 +635,7 @@ model TranscriptRequest {
   processedById String?
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
-  processedBy   User?                 @relation(fields: [processedById], references: [id])
+  processedBy   users?                @relation(fields: [processedById], references: [id])
   student       Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId])
@@ -912,7 +781,7 @@ model Payment {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   bill            Bill?         @relation(fields: [billId], references: [id])
-  recordedBy      User          @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  recordedBy      users         @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
   school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   student         Student       @relation(fields: [studentId], references: [id])
   transaction     Transaction?  @relation(fields: [transactionId], references: [id])
@@ -1018,26 +887,26 @@ model CustomTransactionCategory {
 }
 
 model Document {
-  id           String             @id @default(cuid())
+  id           String     @id @default(cuid())
   schoolId     String
   title        String
   description  String?
   fileUrl      String
   fileType     String
   fileSize     Int
-  entityType   DocumentEntityType
+  entityType   EntityType
   entityId     String
   studentId    String?
   teacherId    String?
   staffId      String?
   uploadedById String
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  school       School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  staff        Staff?             @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  student      Student?           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  teacher      Teacher?           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  uploadedBy   User               @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  staff        Staff?     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  student      Student?   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher      Teacher?   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  uploadedBy   users      @relation(fields: [uploadedById], references: [id])
 
   @@index([uploadedById])
   @@index([schoolId])
@@ -1059,7 +928,7 @@ model AuditLog {
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime    @default(now())
-  user       User        @relation(fields: [userId], references: [id])
+  user       users       @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([entityType, entityId])
@@ -1127,10 +996,135 @@ model InvoiceRecord {
   @@map("invoice_records")
 }
 
-enum MemberRole {
-  owner // Organization owner (like school principal/owner)
-  admin // School admin
-  member // Regular member (teacher, staff, etc.)
+model accounts {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime
+  users                 users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model invitations {
+  id             String        @id
+  organizationId String
+  email          String
+  role           String
+  status         String        @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime      @default(now())
+  inviterId      String
+  users          users         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  organizations  organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([inviterId])
+  @@index([organizationId])
+  @@index([status])
+}
+
+model members {
+  id             String        @id
+  organizationId String
+  userId         String
+  role           String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  organizations  organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users          users         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([role])
+  @@index([userId])
+}
+
+model organizations {
+  id          String        @id
+  name        String
+  slug        String        @unique
+  logo        String?
+  metadata    String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  invitations invitations[]
+  members     members[]
+  school      School?
+
+  @@index([slug])
+}
+
+model sessions {
+  id                   String   @id
+  expiresAt            DateTime
+  token                String   @unique
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime
+  ipAddress            String?
+  userAgent            String?
+  impersonatedBy       String?
+  userId               String
+  activeOrganizationId String?
+  users                users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([activeOrganizationId])
+  @@index([impersonatedBy])
+  @@index([token])
+  @@index([userId])
+}
+
+model users {
+  id                 String              @id
+  name               String
+  email              String              @unique
+  emailVerified      Boolean             @default(false)
+  image              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime
+  role               String              @default("user")
+  banned             Boolean             @default(false)
+  banReason          String?
+  banExpires         DateTime?
+  accounts           accounts[]
+  attendancesMarked  Attendance[]        @relation("AttendanceMarkedBy")
+  auditLogs          AuditLog[]
+  componentScores    ComponentScore[]
+  documents          Document[]
+  gradingSystems     GradingSystem[]
+  invitations        invitations[]
+  members            members[]
+  paymentsRecorded   Payment[]           @relation("PaymentRecordedBy")
+  sessions           sessions[]
+  transcriptRequests TranscriptRequest[]
+  profile            UserProfile?
+
+  @@index([banned])
+  @@index([email])
+  @@index([role])
+}
+
+model verifications {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+
+  @@unique([identifier, value])
+  @@index([expiresAt])
+  @@index([identifier])
 }
 
 enum Gender {
@@ -1341,16 +1335,6 @@ enum TranscriptRequestType {
   OTHER
 }
 
-enum DocumentEntityType {
-  STUDENT
-  TEACHER
-  STAFF
-  SCHOOL
-  BILL
-  PAYMENT
-  OTHER
-}
-
 enum AuditAction {
   CREATE
   UPDATE
@@ -1392,4 +1376,14 @@ enum InvoiceStatus {
   FAILED
   REFUNDED
   VOID
+}
+
+enum EntityType {
+  STUDENT
+  TEACHER
+  STAFF
+  SCHOOL
+  BILL
+  PAYMENT
+  OTHER
 }

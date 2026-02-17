@@ -120,18 +120,13 @@ export const auth = betterAuth({
             return;
           }
 
-          const inviterUser = await prisma.user.findUnique({
-            where: { id: inviter.id },
-            select: {
-              name: true,
-              email: true,
-            },
-          });
+          // inviter contains the user object directly in Better Auth
+          const inviterName =
+            inviter.user?.name || inviter.user?.email || "Administrator";
 
           await sendAdminInvitationEmail({
             to: email,
-            inviterName:
-              inviterUser?.name || inviterUser?.email || "Administrator",
+            inviterName,
             schoolName: org.school?.name || org.name,
             role: invitation.role || "member",
             invitationId: id,
