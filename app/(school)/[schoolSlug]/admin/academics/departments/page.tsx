@@ -5,7 +5,13 @@ import { redirect } from "next/navigation";
 import { DepartmentsClient } from "./client";
 import { DepartmentDialog } from "@/components/school/departments/department-dialog";
 import { Building2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Academics | Departments",
+  description: "Manage all schools in the system",
+};
 
 interface DepartmentsPageProps {
   params: Promise<{ schoolSlug: string }>;

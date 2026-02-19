@@ -2,6 +2,12 @@
 import { getRoleLayoutData } from "@/lib/layout/get-role-layout-data";
 import { RoleLayoutWrapper } from "@/components/layout/role-layout-wrapper";
 import { ReactNode } from "react";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: { template: "%s | DTS-SMS", default: "DTS-SMS" },
+  description: "The best SMS management system",
+};
 
 export default async function AdminLayout({
   children,

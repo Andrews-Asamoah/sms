@@ -1343,6 +1343,12 @@ model Subscription {
   stripeSubscriptionId  String? @unique
   stripePaymentMethodId String?
 
+  // Paystack Integration
+  paystackEmail            String?
+  paystackCustomerCode     String?
+  paystackSubscriptionCode String?
+  paystackTransactionId    String?
+
   // Cancellation
   cancelAtPeriodEnd Boolean   @default(false)
   canceledAt        DateTime?
@@ -1351,6 +1357,9 @@ model Subscription {
   maxStudents Int?
   maxTeachers Int?
   maxStaff    Int?
+
+  // Flexible settings
+  settings Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1633,14 +1642,14 @@ enum AuditAction {
 
 enum PlanType {
   FREE
+  BASIC
+  STANDARD
   PREMIUM
   ENTERPRISE
-  CUSTOM
 }
 
 enum BillingCycle {
   MONTHLY
-  QUARTERLY
   YEARLY
 }
 

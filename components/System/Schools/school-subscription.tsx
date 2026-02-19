@@ -8,11 +8,14 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Check,
   X,
@@ -27,6 +30,13 @@ import {
 import { Prisma } from "@/lib/generated/prisma";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {
+  SUBSCRIPTION_PLANS,
+  SubscriptionPlan,
+  getPlanById,
+} from "@/lib/subscription-plans";
+import { format } from "date-fns";
+import { Clock, AlertTriangle } from "lucide-react";
 
 type SchoolWithSubscriptionData = Prisma.SchoolGetPayload<{
   include: {
@@ -48,50 +58,18 @@ type SchoolWithSubscriptionData = Prisma.SchoolGetPayload<{
 
 interface SchoolSubscriptionProps {
   school: SchoolWithSubscriptionData;
+  isSuperAdmin?: boolean;
 }
 
-const FREE_LIMITS = {
-  students: 50,
-  teachers: 10,
-  staff: 5,
-};
-
-const FEATURES = {
-  free: [
-    { name: "Up to 50 students", included: true },
-    { name: "Up to 10 teachers", included: true },
-    { name: "Up to 5 staff members", included: true },
-    { name: "Basic student management", included: true },
-    { name: "Grade entry", included: true },
-    { name: "Attendance tracking", included: true },
-    { name: "Basic reports", included: true },
-    { name: "Email support", included: true },
-    { name: "Advanced analytics", included: false },
-    { name: "Custom branding", included: false },
-    { name: "API access", included: false },
-    { name: "Multiple academic years", included: false },
-    { name: "Priority support", included: false },
-  ],
-  premium: [
-    { name: "Unlimited students", included: true },
-    { name: "Unlimited teachers", included: true },
-    { name: "Unlimited staff", included: true },
-    { name: "Advanced student management", included: true },
-    { name: "Comprehensive grading system", included: true },
-    { name: "Advanced attendance tracking", included: true },
-    { name: "Advanced reports & analytics", included: true },
-    { name: "Priority email & chat support", included: true },
-    { name: "Custom dashboards", included: true },
-    { name: "Full branding customization", included: true },
-    { name: "API access", included: true },
-    { name: "Unlimited academic years", included: true },
-    { name: "White-label options", included: true },
-  ],
-};
-
-export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
+export function SchoolSubscription({
+  school,
+  isSuperAdmin = false,
+}: SchoolSubscriptionProps) {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<string | null>(null);
+  const [billingCycle, setBillingCycle] = useState<"MONTHLY" | "YEARLY">(
+    "MONTHLY",
+  );
 
   const subscriptionStatus = useMemo(() => {
     const subscription = school.subscription;
@@ -103,6 +81,8 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
         trialDaysRemaining: 0,
         canAccessPremiumFeatures: false,
         isActive: false,
+        planName: "Free Plan",
+        currentPlanId: "FREE",
       };
     }
 
@@ -117,17 +97,26 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
             0,
             Math.ceil(
               (new Date(trialEndsAt).getTime() - now.getTime()) /
-                (1000 * 60 * 60 * 24)
-            )
+                (1000 * 60 * 60 * 24),
+            ),
           )
         : 0;
 
-    const isPremium =
-      subscription.planType === "PREMIUM" ||
-      subscription.planType === "ENTERPRISE";
+    const isPremium = subscription.planType !== "FREE";
     const canAccessPremiumFeatures = isPremium || isOnTrial;
     const isActive =
       subscription.status === "ACTIVE" || subscription.status === "TRIALING";
+
+    // Attempt to match current subscription to a plan ID
+    // Note: This is an approximation since we don't store planId directly in DB yet, only paystackSubscriptionCode
+    // But we can infer from PlanType + BillingCycle
+    // Ideally we should store planId on Subscription model for exact match
+    const currentPlanId =
+      SUBSCRIPTION_PLANS.find(
+        (p) =>
+          p.planType === subscription.planType &&
+          p.billingCycle === subscription.billingCycle,
+      )?.id || (isPremium ? "CUSTOM" : "FREE");
 
     return {
       isPremium,
@@ -135,98 +124,127 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
       trialDaysRemaining,
       canAccessPremiumFeatures,
       isActive,
+      planName: subscription.planName,
+      currentPlanId,
+      billingCycle: subscription.billingCycle,
     };
   }, [school.subscription]);
 
-  const studentUsagePercent = subscriptionStatus.isPremium
-    ? Math.min((school._count.students / 1000) * 100, 100)
-    : Math.min((school._count.students / FREE_LIMITS.students) * 100, 100);
+  // Determine effective limits (from subscription or default to Free)
+  const limits = useMemo(() => {
+    return {
+      students: school.subscription?.maxStudents ?? 50,
+      teachers: school.subscription?.maxTeachers ?? 5,
+      staff: school.subscription?.maxStaff ?? 2,
+    };
+  }, [school.subscription]);
 
-  const teacherUsagePercent = subscriptionStatus.isPremium
-    ? Math.min((school._count.teachers / 100) * 100, 100)
-    : Math.min((school._count.teachers / FREE_LIMITS.teachers) * 100, 100);
-
-  const staffUsagePercent = subscriptionStatus.isPremium
-    ? Math.min((school._count.staff / 50) * 100, 100)
-    : Math.min((school._count.staff / FREE_LIMITS.staff) * 100, 100);
+  const studentUsagePercent = Math.min(
+    (school._count.students /
+      (limits.students === Infinity ? 10000 : limits.students)) *
+      100,
+    100,
+  );
+  const teacherUsagePercent = Math.min(
+    (school._count.teachers /
+      (limits.teachers === Infinity ? 1000 : limits.teachers)) *
+      100,
+    100,
+  );
+  const staffUsagePercent = Math.min(
+    (school._count.staff / (limits.staff === Infinity ? 500 : limits.staff)) *
+      100,
+    100,
+  );
 
   const isApproachingStudentLimit =
-    !subscriptionStatus.isPremium &&
-    school._count.students >= FREE_LIMITS.students * 0.8;
+    limits.students !== Infinity &&
+    school._count.students >= limits.students * 0.8;
   const isApproachingTeacherLimit =
-    !subscriptionStatus.isPremium &&
-    school._count.teachers >= FREE_LIMITS.teachers * 0.8;
+    limits.teachers !== Infinity &&
+    school._count.teachers >= limits.teachers * 0.8;
   const isApproachingStaffLimit =
-    !subscriptionStatus.isPremium &&
-    school._count.staff >= FREE_LIMITS.staff * 0.8;
+    limits.staff !== Infinity && school._count.staff >= limits.staff * 0.8;
 
-  const handleUpgradeToPremium = async () => {
-    setIsLoading(true);
+  const handleUpgrade = async (planId: string) => {
+    setIsLoading(planId);
     try {
-      const response = await fetch(
-        `/api/schools/${school.id}/subscription/upgrade`,
+      // SuperAdmins can bypass payment (logic same as before but need API support for planId)
+      // For now we assume SuperAdmin uses same flow or specific endpoint handling
+      if (isSuperAdmin) {
+        toast.info(
+          "SuperAdmin upgrade not fully implemented via UI yet. Use API.",
+        );
+        setIsLoading(null);
+        return;
+      }
+
+      // Regular users go through Paystack checkout
+      const initResponse = await fetch(
+        `/api/schools/${school.subdomain}/subscription/initialize`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-        }
+          body: JSON.stringify({
+            planId,
+            billingCycle,
+          }),
+        },
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to upgrade subscription");
+      if (!initResponse.ok) {
+        const err = await initResponse.json();
+        throw new Error(err.error || "Failed to initialize payment");
       }
 
-      toast.success("Successfully upgraded to Premium!");
-      router.refresh();
+      const paymentData = await initResponse.json();
+
+      if (paymentData.scheduled) {
+        toast.success(
+          paymentData.message || "Plan change scheduled successfully.",
+        );
+        router.refresh();
+        return;
+      }
+
+      // Redirect to Paystack checkout page
+      if (paymentData.authorization_url) {
+        // Store reference for verification after redirect
+        sessionStorage.setItem("paystack_reference", paymentData.reference);
+        sessionStorage.setItem("paystack_school_subdomain", school.subdomain);
+        window.location.href = paymentData.authorization_url;
+      } else {
+        throw new Error("No authorization URL received");
+      }
     } catch (error) {
       console.error("Upgrade error:", error);
-      toast.error("Failed to upgrade. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleStartTrial = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(
-        `/api/schools/${school.id}/subscription/trial`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        }
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to upgrade. Please try again.",
       );
-
-      if (!response.ok) {
-        throw new Error("Failed to start trial");
-      }
-
-      toast.success("Premium trial started!");
-      router.refresh();
-    } catch (error) {
-      console.error("Trial error:", error);
-      toast.error("Failed to start trial. Please try again.");
     } finally {
-      setIsLoading(false);
+      setIsLoading(null);
     }
   };
 
   const handleCancelSubscription = async () => {
     if (
       !confirm(
-        "Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your billing period."
+        "Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your billing period.",
       )
     ) {
       return;
     }
 
-    setIsLoading(true);
+    setIsLoading("CANCEL");
     try {
       const response = await fetch(
-        `/api/schools/${school.id}/subscription/cancel`,
+        `/api/schools/${school.subdomain}/subscription/cancel`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -239,12 +257,56 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
       console.error("Cancel error:", error);
       toast.error("Failed to cancel subscription. Please try again.");
     } finally {
-      setIsLoading(false);
+      setIsLoading(null);
     }
   };
 
+  // Filter plans based on billing cycle
+  const availablePlans = SUBSCRIPTION_PLANS.filter(
+    (plan) => plan.id === "FREE" || plan.billingCycle === billingCycle,
+  );
+
+  const pendingPlanId = (school.subscription?.settings as any)?.pendingPlanId;
+  const pendingPlan = pendingPlanId ? getPlanById(pendingPlanId) : null;
+
   return (
     <div className="space-y-8">
+      {pendingPlan && (
+        <Alert className="border-yellow-500/50 bg-yellow-500/5">
+          <Clock className="h-4 w-4 text-yellow-600" />
+          <AlertTitle className="text-yellow-800">
+            Plan Change Scheduled
+          </AlertTitle>
+          <AlertDescription className="text-yellow-700">
+            Your plan will automatically switch to{" "}
+            <span className="font-bold">{pendingPlan.name}</span> at the end of
+            your current billing period (
+            {school.subscription?.currentPeriodEnd
+              ? format(new Date(school.subscription.currentPeriodEnd), "PPP")
+              : "soon"}
+            ).
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {school.subscription?.cancelAtPeriodEnd && !pendingPlan && (
+        <Alert className="border-red-500/50 bg-red-500/5">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertTitle className="text-red-800">
+            Subscription Canceled
+          </AlertTitle>
+          <AlertDescription className="text-red-700">
+            Your subscription has been canceled and will expire on{" "}
+            <span className="font-bold">
+              {school.subscription.currentPeriodEnd
+                ? format(new Date(school.subscription.currentPeriodEnd), "PPP")
+                : "soon"}
+            </span>
+            .
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Current Plan Status */}
       <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
         <CardHeader>
@@ -256,9 +318,7 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
                     <div className="rounded-full bg-yellow-500/10 p-2">
                       <Crown className="h-5 w-5 text-yellow-500" />
                     </div>
-                    {subscriptionStatus.isPremium
-                      ? "Premium Plan"
-                      : "Premium Trial"}
+                    {subscriptionStatus.planName}
                   </>
                 ) : (
                   <>
@@ -271,10 +331,8 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
               </CardTitle>
               <CardDescription className="mt-2">
                 {subscriptionStatus.canAccessPremiumFeatures
-                  ? subscriptionStatus.isPremium
-                    ? "You're on the premium plan with full access to all features"
-                    : "You're currently on a premium trial with full access to all features"
-                  : "You're on the free plan with limited features"}
+                  ? `You are on the ${subscriptionStatus.planName} (${school.subscription?.billingCycle}).`
+                  : "You're on the free plan with limited features."}
               </CardDescription>
             </div>
             <Badge
@@ -285,11 +343,11 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
               }
               className="text-base px-4 py-2"
             >
-              {subscriptionStatus.isPremium
+              {subscriptionStatus.isActive
                 ? "Active"
                 : subscriptionStatus.isOnTrial
-                ? "Trial"
-                : "Free Tier"}
+                  ? "Trial"
+                  : "Free Tier"}
             </Badge>
           </div>
         </CardHeader>
@@ -328,12 +386,12 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
               <AlertTitle>Approaching Plan Limits</AlertTitle>
               <AlertDescription>
                 {isApproachingStudentLimit &&
-                  `You're using ${school._count.students} of ${FREE_LIMITS.students} students. `}
+                  `You're using ${school._count.students} of ${limits.students} students. `}
                 {isApproachingTeacherLimit &&
-                  `You're using ${school._count.teachers} of ${FREE_LIMITS.teachers} teachers. `}
+                  `You're using ${school._count.teachers} of ${limits.teachers} teachers. `}
                 {isApproachingStaffLimit &&
-                  `You're using ${school._count.staff} of ${FREE_LIMITS.staff} staff members. `}
-                Consider upgrading to Premium for unlimited access.
+                  `You're using ${school._count.staff} of ${limits.staff} staff members. `}
+                Consider upgrading to a higher plan for more capacity.
               </AlertDescription>
             </Alert>
           )}
@@ -349,9 +407,9 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
               </p>
               <Progress value={studentUsagePercent} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {subscriptionStatus.isPremium
+                {limits.students === Infinity
                   ? "Unlimited"
-                  : `${school._count.students}/${FREE_LIMITS.students} limit`}
+                  : `${school._count.students}/${limits.students} limit`}
               </p>
             </div>
             <div className="space-y-2 p-4 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors">
@@ -363,9 +421,9 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
               </p>
               <Progress value={teacherUsagePercent} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {subscriptionStatus.isPremium
+                {limits.teachers === Infinity
                   ? "Unlimited"
-                  : `${school._count.teachers}/${FREE_LIMITS.teachers} limit`}
+                  : `${school._count.teachers}/${limits.teachers} limit`}
               </p>
             </div>
             <div className="space-y-2 p-4 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors">
@@ -375,151 +433,114 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
               </p>
               <Progress value={staffUsagePercent} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {subscriptionStatus.isPremium
+                {limits.staff === Infinity
                   ? "Unlimited"
-                  : `${school._count.staff}/${FREE_LIMITS.staff} limit`}
+                  : `${school._count.staff}/${limits.staff} limit`}
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Pricing Plans */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Free Plan */}
-        <Card
-          className={`backdrop-blur-xl bg-background/60 transition-all duration-300 ${
-            !subscriptionStatus.canAccessPremiumFeatures
-              ? "border-primary/30 shadow-lg scale-[1.02]"
-              : "border-primary/10 hover:border-primary/20"
-          }`}
+      {/* Billing Cycle Toggle */}
+      <div className="flex justify-center items-center space-x-4">
+        <Label
+          htmlFor="billing-cycle"
+          className={`cursor-pointer ${billingCycle === "MONTHLY" ? "font-bold" : ""}`}
         >
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-primary" />
-                Free Plan
-              </span>
-              <Badge variant="outline" className="text-base px-3 py-1">
-                $0/month
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              Perfect for small schools getting started
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-              {FEATURES.free.map((feature, index) => (
-                <div key={index} className="flex items-start gap-2">
-                  {feature.included ? (
-                    <Check className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                  ) : (
-                    <X className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                  )}
-                  <span
-                    className={
-                      feature.included
-                        ? "text-sm"
-                        : "text-sm text-muted-foreground"
-                    }
-                  >
-                    {feature.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {!subscriptionStatus.canAccessPremiumFeatures && (
-              <Button variant="outline" className="w-full" disabled>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Current Plan
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+          Monthly
+        </Label>
+        <Switch
+          id="billing-cycle"
+          checked={billingCycle === "YEARLY"}
+          onCheckedChange={(checked) =>
+            setBillingCycle(checked ? "YEARLY" : "MONTHLY")
+          }
+        />
+        <Label
+          htmlFor="billing-cycle"
+          className={`cursor-pointer ${billingCycle === "YEARLY" ? "font-bold" : ""}`}
+        >
+          Yearly{" "}
+          <span className="text-green-600 text-xs ml-1">(2 Months Free)</span>
+        </Label>
+      </div>
 
-        {/* Premium Plan */}
-        <Card
-          className={`backdrop-blur-xl bg-background/60 transition-all duration-300 ${
-            subscriptionStatus.canAccessPremiumFeatures
-              ? "border-primary/30 shadow-lg scale-[1.02] ring-2 ring-primary/10"
-              : "border-primary/10 hover:border-primary/20 hover:shadow-lg"
-          }`}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <div className="rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 p-1.5">
-                  <Crown className="h-4 w-4 text-white" />
+      {/* Pricing Plans */}
+      <div className="grid gap-6 lg:grid-cols-4">
+        {availablePlans.map((plan) => {
+          const isCurrentPlan = subscriptionStatus.currentPlanId === plan.id; // Simple ID match might fail if switching cycles, but 'Free' is special.
+          // Actually, if I am on Basic Monthly, and viewing Yearly, 'Basic Yearly' is effectively an 'Upgrade' (or switch).
+          // But 'Free' is always 'Free'.
+          // Let's rely on planType match for "Current" badge if cycle matches.
+          const isActivePlan =
+            school.subscription?.planType === plan.planType &&
+            (plan.id === "FREE" ||
+              school.subscription?.billingCycle === plan.billingCycle);
+
+          return (
+            <Card
+              key={plan.id}
+              className={`backdrop-blur-xl bg-background/60 transition-all duration-300 flex flex-col ${
+                isActivePlan
+                  ? "border-primary/30 shadow-lg scale-[1.02] ring-2 ring-primary/10"
+                  : "border-primary/10 hover:border-primary/20 hover:shadow-lg"
+              }`}
+            >
+              <CardHeader>
+                <CardTitle className="flex flex-col gap-2">
+                  <span className="flex items-center gap-2 text-lg">
+                    {plan.planType === "PREMIUM" && (
+                      <Crown className="h-4 w-4 text-yellow-500" />
+                    )}
+                    {plan.name
+                      .replace(" (Monthly)", "")
+                      .replace(" (Yearly)", "")}
+                  </span>
+                  <div className="text-2xl font-bold">
+                    {plan.currency} {plan.price}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      /{plan.billingCycle === "MONTHLY" ? "mo" : "yr"}
+                    </span>
+                  </div>
+                </CardTitle>
+                <CardDescription>{plan.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 flex-grow">
+                <div className="space-y-2 text-sm">
+                  {plan.features.description.map((feature, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
                 </div>
-                Premium Plan
-              </span>
-              <Badge className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-base px-3 py-1">
-                $99/month
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              Full-featured solution for growing schools
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-              {FEATURES.premium.map((feature, index) => (
-                <div key={index} className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">{feature.name}</span>
-                </div>
-              ))}
-            </div>
-            {subscriptionStatus.isPremium ? (
-              <Button variant="outline" className="w-full" disabled>
-                <Crown className="mr-2 h-4 w-4" />
-                Current Plan
-              </Button>
-            ) : subscriptionStatus.isOnTrial ? (
-              <Button
-                className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
-                onClick={handleUpgradeToPremium}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              </CardContent>
+              <CardFooter>
+                {isActivePlan ? (
+                  <Button variant="outline" className="w-full" disabled>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Current Plan
+                  </Button>
                 ) : (
-                  <TrendingUp className="mr-2 h-4 w-4" />
+                  <Button
+                    className={`w-full ${plan.planType === "PREMIUM" ? "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600" : ""}`}
+                    onClick={() => handleUpgrade(plan.id)}
+                    disabled={!!isLoading}
+                    variant={plan.id === "FREE" ? "outline" : "default"}
+                  >
+                    {isLoading === plan.id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <TrendingUp className="mr-2 h-4 w-4" />
+                    )}
+                    {plan.id === "FREE" ? "Downgrade" : "Upgrade"}
+                  </Button>
                 )}
-                Convert Trial to Premium
-              </Button>
-            ) : (
-              <div className="space-y-2">
-                <Button
-                  className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
-                  onClick={handleUpgradeToPremium}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <TrendingUp className="mr-2 h-4 w-4" />
-                  )}
-                  Upgrade to Premium
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleStartTrial}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Zap className="mr-2 h-4 w-4" />
-                  )}
-                  Start 14-Day Free Trial
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardFooter>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Billing Information */}
@@ -539,7 +560,7 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
                 </span>
                 <span className="font-medium">
                   {new Date(
-                    school.subscription.currentPeriodEnd
+                    school.subscription.currentPeriodEnd,
                   ).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "long",
@@ -549,73 +570,26 @@ export function SchoolSubscription({ school }: SchoolSubscriptionProps) {
               </div>
               <div className="pt-4 space-y-2">
                 <Button variant="outline" className="w-full">
-                  Update Payment Method
+                  Update Payment Method via Paystack
                 </Button>
                 <Button
                   variant="ghost"
                   className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
                   onClick={handleCancelSubscription}
-                  disabled={isLoading}
+                  disabled={!!isLoading}
                 >
-                  {isLoading ? (
+                  {isLoading === "CANCEL" ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
                   Cancel Subscription
                 </Button>
               </div>
             </>
-          ) : subscriptionStatus.isOnTrial &&
-            school.subscription?.trialEndsAt ? (
-            <>
-              <div className="flex items-center gap-2 text-sm p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                <span className="text-muted-foreground">Trial ends:</span>
-                <span className="font-medium text-blue-600">
-                  {new Date(school.subscription.trialEndsAt).toLocaleDateString(
-                    "en-US",
-                    {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    }
-                  )}
-                </span>
-              </div>
-              <div className="pt-4">
-                <Button
-                  className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
-                  onClick={handleUpgradeToPremium}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Crown className="mr-2 h-4 w-4" />
-                  )}
-                  Subscribe to Premium
-                </Button>
-              </div>
-            </>
           ) : (
             <div className="text-center py-8">
-              <div className="rounded-full bg-primary/10 w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <TrendingUp className="h-8 w-8 text-primary" />
-              </div>
               <p className="text-sm text-muted-foreground mb-4">
-                No active subscription or trial
+                No active recurring subscription.
               </p>
-              <Button
-                className="w-full max-w-xs mx-auto"
-                onClick={handleStartTrial}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <TrendingUp className="mr-2 h-4 w-4" />
-                )}
-                Start Premium Trial
-              </Button>
             </div>
           )}
         </CardContent>

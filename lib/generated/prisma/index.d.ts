@@ -543,9 +543,10 @@ export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction]
 
 export const PlanType: {
   FREE: 'FREE',
+  BASIC: 'BASIC',
+  STANDARD: 'STANDARD',
   PREMIUM: 'PREMIUM',
-  ENTERPRISE: 'ENTERPRISE',
-  CUSTOM: 'CUSTOM'
+  ENTERPRISE: 'ENTERPRISE'
 };
 
 export type PlanType = (typeof PlanType)[keyof typeof PlanType]
@@ -553,7 +554,6 @@ export type PlanType = (typeof PlanType)[keyof typeof PlanType]
 
 export const BillingCycle: {
   MONTHLY: 'MONTHLY',
-  QUARTERLY: 'QUARTERLY',
   YEARLY: 'YEARLY'
 };
 
@@ -60929,6 +60929,10 @@ export namespace Prisma {
     stripeCustomerId: string | null
     stripeSubscriptionId: string | null
     stripePaymentMethodId: string | null
+    paystackEmail: string | null
+    paystackCustomerCode: string | null
+    paystackSubscriptionCode: string | null
+    paystackTransactionId: string | null
     cancelAtPeriodEnd: boolean | null
     canceledAt: Date | null
     maxStudents: number | null
@@ -60955,6 +60959,10 @@ export namespace Prisma {
     stripeCustomerId: string | null
     stripeSubscriptionId: string | null
     stripePaymentMethodId: string | null
+    paystackEmail: string | null
+    paystackCustomerCode: string | null
+    paystackSubscriptionCode: string | null
+    paystackTransactionId: string | null
     cancelAtPeriodEnd: boolean | null
     canceledAt: Date | null
     maxStudents: number | null
@@ -60981,11 +60989,16 @@ export namespace Prisma {
     stripeCustomerId: number
     stripeSubscriptionId: number
     stripePaymentMethodId: number
+    paystackEmail: number
+    paystackCustomerCode: number
+    paystackSubscriptionCode: number
+    paystackTransactionId: number
     cancelAtPeriodEnd: number
     canceledAt: number
     maxStudents: number
     maxTeachers: number
     maxStaff: number
+    settings: number
     createdAt: number
     updatedAt: number
     _all: number
@@ -61023,6 +61036,10 @@ export namespace Prisma {
     stripeCustomerId?: true
     stripeSubscriptionId?: true
     stripePaymentMethodId?: true
+    paystackEmail?: true
+    paystackCustomerCode?: true
+    paystackSubscriptionCode?: true
+    paystackTransactionId?: true
     cancelAtPeriodEnd?: true
     canceledAt?: true
     maxStudents?: true
@@ -61049,6 +61066,10 @@ export namespace Prisma {
     stripeCustomerId?: true
     stripeSubscriptionId?: true
     stripePaymentMethodId?: true
+    paystackEmail?: true
+    paystackCustomerCode?: true
+    paystackSubscriptionCode?: true
+    paystackTransactionId?: true
     cancelAtPeriodEnd?: true
     canceledAt?: true
     maxStudents?: true
@@ -61075,11 +61096,16 @@ export namespace Prisma {
     stripeCustomerId?: true
     stripeSubscriptionId?: true
     stripePaymentMethodId?: true
+    paystackEmail?: true
+    paystackCustomerCode?: true
+    paystackSubscriptionCode?: true
+    paystackTransactionId?: true
     cancelAtPeriodEnd?: true
     canceledAt?: true
     maxStudents?: true
     maxTeachers?: true
     maxStaff?: true
+    settings?: true
     createdAt?: true
     updatedAt?: true
     _all?: true
@@ -61188,11 +61214,16 @@ export namespace Prisma {
     stripeCustomerId: string | null
     stripeSubscriptionId: string | null
     stripePaymentMethodId: string | null
+    paystackEmail: string | null
+    paystackCustomerCode: string | null
+    paystackSubscriptionCode: string | null
+    paystackTransactionId: string | null
     cancelAtPeriodEnd: boolean
     canceledAt: Date | null
     maxStudents: number | null
     maxTeachers: number | null
     maxStaff: number | null
+    settings: JsonValue | null
     createdAt: Date
     updatedAt: Date
     _count: SubscriptionCountAggregateOutputType | null
@@ -61233,11 +61264,16 @@ export namespace Prisma {
     stripeCustomerId?: boolean
     stripeSubscriptionId?: boolean
     stripePaymentMethodId?: boolean
+    paystackEmail?: boolean
+    paystackCustomerCode?: boolean
+    paystackSubscriptionCode?: boolean
+    paystackTransactionId?: boolean
     cancelAtPeriodEnd?: boolean
     canceledAt?: boolean
     maxStudents?: boolean
     maxTeachers?: boolean
     maxStaff?: boolean
+    settings?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     school?: boolean | SchoolDefaultArgs<ExtArgs>
@@ -61262,11 +61298,16 @@ export namespace Prisma {
     stripeCustomerId?: boolean
     stripeSubscriptionId?: boolean
     stripePaymentMethodId?: boolean
+    paystackEmail?: boolean
+    paystackCustomerCode?: boolean
+    paystackSubscriptionCode?: boolean
+    paystackTransactionId?: boolean
     cancelAtPeriodEnd?: boolean
     canceledAt?: boolean
     maxStudents?: boolean
     maxTeachers?: boolean
     maxStaff?: boolean
+    settings?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     school?: boolean | SchoolDefaultArgs<ExtArgs>
@@ -61289,11 +61330,16 @@ export namespace Prisma {
     stripeCustomerId?: boolean
     stripeSubscriptionId?: boolean
     stripePaymentMethodId?: boolean
+    paystackEmail?: boolean
+    paystackCustomerCode?: boolean
+    paystackSubscriptionCode?: boolean
+    paystackTransactionId?: boolean
     cancelAtPeriodEnd?: boolean
     canceledAt?: boolean
     maxStudents?: boolean
     maxTeachers?: boolean
     maxStaff?: boolean
+    settings?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     school?: boolean | SchoolDefaultArgs<ExtArgs>
@@ -61316,16 +61362,21 @@ export namespace Prisma {
     stripeCustomerId?: boolean
     stripeSubscriptionId?: boolean
     stripePaymentMethodId?: boolean
+    paystackEmail?: boolean
+    paystackCustomerCode?: boolean
+    paystackSubscriptionCode?: boolean
+    paystackTransactionId?: boolean
     cancelAtPeriodEnd?: boolean
     canceledAt?: boolean
     maxStudents?: boolean
     maxTeachers?: boolean
     maxStaff?: boolean
+    settings?: boolean
     createdAt?: boolean
     updatedAt?: boolean
   }
 
-  export type SubscriptionOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "schoolId" | "planType" | "planName" | "billingCycle" | "status" | "amount" | "currency" | "trialStartsAt" | "trialEndsAt" | "isOnTrial" | "currentPeriodStart" | "currentPeriodEnd" | "stripeCustomerId" | "stripeSubscriptionId" | "stripePaymentMethodId" | "cancelAtPeriodEnd" | "canceledAt" | "maxStudents" | "maxTeachers" | "maxStaff" | "createdAt" | "updatedAt", ExtArgs["result"]["subscription"]>
+  export type SubscriptionOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "schoolId" | "planType" | "planName" | "billingCycle" | "status" | "amount" | "currency" | "trialStartsAt" | "trialEndsAt" | "isOnTrial" | "currentPeriodStart" | "currentPeriodEnd" | "stripeCustomerId" | "stripeSubscriptionId" | "stripePaymentMethodId" | "paystackEmail" | "paystackCustomerCode" | "paystackSubscriptionCode" | "paystackTransactionId" | "cancelAtPeriodEnd" | "canceledAt" | "maxStudents" | "maxTeachers" | "maxStaff" | "settings" | "createdAt" | "updatedAt", ExtArgs["result"]["subscription"]>
   export type SubscriptionInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     school?: boolean | SchoolDefaultArgs<ExtArgs>
     invoices?: boolean | Subscription$invoicesArgs<ExtArgs>
@@ -61361,11 +61412,16 @@ export namespace Prisma {
       stripeCustomerId: string | null
       stripeSubscriptionId: string | null
       stripePaymentMethodId: string | null
+      paystackEmail: string | null
+      paystackCustomerCode: string | null
+      paystackSubscriptionCode: string | null
+      paystackTransactionId: string | null
       cancelAtPeriodEnd: boolean
       canceledAt: Date | null
       maxStudents: number | null
       maxTeachers: number | null
       maxStaff: number | null
+      settings: Prisma.JsonValue | null
       createdAt: Date
       updatedAt: Date
     }, ExtArgs["result"]["subscription"]>
@@ -61809,11 +61865,16 @@ export namespace Prisma {
     readonly stripeCustomerId: FieldRef<"Subscription", 'String'>
     readonly stripeSubscriptionId: FieldRef<"Subscription", 'String'>
     readonly stripePaymentMethodId: FieldRef<"Subscription", 'String'>
+    readonly paystackEmail: FieldRef<"Subscription", 'String'>
+    readonly paystackCustomerCode: FieldRef<"Subscription", 'String'>
+    readonly paystackSubscriptionCode: FieldRef<"Subscription", 'String'>
+    readonly paystackTransactionId: FieldRef<"Subscription", 'String'>
     readonly cancelAtPeriodEnd: FieldRef<"Subscription", 'Boolean'>
     readonly canceledAt: FieldRef<"Subscription", 'DateTime'>
     readonly maxStudents: FieldRef<"Subscription", 'Int'>
     readonly maxTeachers: FieldRef<"Subscription", 'Int'>
     readonly maxStaff: FieldRef<"Subscription", 'Int'>
+    readonly settings: FieldRef<"Subscription", 'Json'>
     readonly createdAt: FieldRef<"Subscription", 'DateTime'>
     readonly updatedAt: FieldRef<"Subscription", 'DateTime'>
   }
@@ -64265,11 +64326,16 @@ export namespace Prisma {
     stripeCustomerId: 'stripeCustomerId',
     stripeSubscriptionId: 'stripeSubscriptionId',
     stripePaymentMethodId: 'stripePaymentMethodId',
+    paystackEmail: 'paystackEmail',
+    paystackCustomerCode: 'paystackCustomerCode',
+    paystackSubscriptionCode: 'paystackSubscriptionCode',
+    paystackTransactionId: 'paystackTransactionId',
     cancelAtPeriodEnd: 'cancelAtPeriodEnd',
     canceledAt: 'canceledAt',
     maxStudents: 'maxStudents',
     maxTeachers: 'maxTeachers',
     maxStaff: 'maxStaff',
+    settings: 'settings',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
   };
@@ -69089,11 +69155,16 @@ export namespace Prisma {
     stripeCustomerId?: StringNullableFilter<"Subscription"> | string | null
     stripeSubscriptionId?: StringNullableFilter<"Subscription"> | string | null
     stripePaymentMethodId?: StringNullableFilter<"Subscription"> | string | null
+    paystackEmail?: StringNullableFilter<"Subscription"> | string | null
+    paystackCustomerCode?: StringNullableFilter<"Subscription"> | string | null
+    paystackSubscriptionCode?: StringNullableFilter<"Subscription"> | string | null
+    paystackTransactionId?: StringNullableFilter<"Subscription"> | string | null
     cancelAtPeriodEnd?: BoolFilter<"Subscription"> | boolean
     canceledAt?: DateTimeNullableFilter<"Subscription"> | Date | string | null
     maxStudents?: IntNullableFilter<"Subscription"> | number | null
     maxTeachers?: IntNullableFilter<"Subscription"> | number | null
     maxStaff?: IntNullableFilter<"Subscription"> | number | null
+    settings?: JsonNullableFilter<"Subscription">
     createdAt?: DateTimeFilter<"Subscription"> | Date | string
     updatedAt?: DateTimeFilter<"Subscription"> | Date | string
     school?: XOR<SchoolScalarRelationFilter, SchoolWhereInput>
@@ -69117,11 +69188,16 @@ export namespace Prisma {
     stripeCustomerId?: SortOrderInput | SortOrder
     stripeSubscriptionId?: SortOrderInput | SortOrder
     stripePaymentMethodId?: SortOrderInput | SortOrder
+    paystackEmail?: SortOrderInput | SortOrder
+    paystackCustomerCode?: SortOrderInput | SortOrder
+    paystackSubscriptionCode?: SortOrderInput | SortOrder
+    paystackTransactionId?: SortOrderInput | SortOrder
     cancelAtPeriodEnd?: SortOrder
     canceledAt?: SortOrderInput | SortOrder
     maxStudents?: SortOrderInput | SortOrder
     maxTeachers?: SortOrderInput | SortOrder
     maxStaff?: SortOrderInput | SortOrder
+    settings?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
     school?: SchoolOrderByWithRelationInput
@@ -69148,11 +69224,16 @@ export namespace Prisma {
     currentPeriodStart?: DateTimeNullableFilter<"Subscription"> | Date | string | null
     currentPeriodEnd?: DateTimeNullableFilter<"Subscription"> | Date | string | null
     stripePaymentMethodId?: StringNullableFilter<"Subscription"> | string | null
+    paystackEmail?: StringNullableFilter<"Subscription"> | string | null
+    paystackCustomerCode?: StringNullableFilter<"Subscription"> | string | null
+    paystackSubscriptionCode?: StringNullableFilter<"Subscription"> | string | null
+    paystackTransactionId?: StringNullableFilter<"Subscription"> | string | null
     cancelAtPeriodEnd?: BoolFilter<"Subscription"> | boolean
     canceledAt?: DateTimeNullableFilter<"Subscription"> | Date | string | null
     maxStudents?: IntNullableFilter<"Subscription"> | number | null
     maxTeachers?: IntNullableFilter<"Subscription"> | number | null
     maxStaff?: IntNullableFilter<"Subscription"> | number | null
+    settings?: JsonNullableFilter<"Subscription">
     createdAt?: DateTimeFilter<"Subscription"> | Date | string
     updatedAt?: DateTimeFilter<"Subscription"> | Date | string
     school?: XOR<SchoolScalarRelationFilter, SchoolWhereInput>
@@ -69176,11 +69257,16 @@ export namespace Prisma {
     stripeCustomerId?: SortOrderInput | SortOrder
     stripeSubscriptionId?: SortOrderInput | SortOrder
     stripePaymentMethodId?: SortOrderInput | SortOrder
+    paystackEmail?: SortOrderInput | SortOrder
+    paystackCustomerCode?: SortOrderInput | SortOrder
+    paystackSubscriptionCode?: SortOrderInput | SortOrder
+    paystackTransactionId?: SortOrderInput | SortOrder
     cancelAtPeriodEnd?: SortOrder
     canceledAt?: SortOrderInput | SortOrder
     maxStudents?: SortOrderInput | SortOrder
     maxTeachers?: SortOrderInput | SortOrder
     maxStaff?: SortOrderInput | SortOrder
+    settings?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
     _count?: SubscriptionCountOrderByAggregateInput
@@ -69210,11 +69296,16 @@ export namespace Prisma {
     stripeCustomerId?: StringNullableWithAggregatesFilter<"Subscription"> | string | null
     stripeSubscriptionId?: StringNullableWithAggregatesFilter<"Subscription"> | string | null
     stripePaymentMethodId?: StringNullableWithAggregatesFilter<"Subscription"> | string | null
+    paystackEmail?: StringNullableWithAggregatesFilter<"Subscription"> | string | null
+    paystackCustomerCode?: StringNullableWithAggregatesFilter<"Subscription"> | string | null
+    paystackSubscriptionCode?: StringNullableWithAggregatesFilter<"Subscription"> | string | null
+    paystackTransactionId?: StringNullableWithAggregatesFilter<"Subscription"> | string | null
     cancelAtPeriodEnd?: BoolWithAggregatesFilter<"Subscription"> | boolean
     canceledAt?: DateTimeNullableWithAggregatesFilter<"Subscription"> | Date | string | null
     maxStudents?: IntNullableWithAggregatesFilter<"Subscription"> | number | null
     maxTeachers?: IntNullableWithAggregatesFilter<"Subscription"> | number | null
     maxStaff?: IntNullableWithAggregatesFilter<"Subscription"> | number | null
+    settings?: JsonNullableWithAggregatesFilter<"Subscription">
     createdAt?: DateTimeWithAggregatesFilter<"Subscription"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"Subscription"> | Date | string
   }
@@ -74004,11 +74095,16 @@ export namespace Prisma {
     stripeCustomerId?: string | null
     stripeSubscriptionId?: string | null
     stripePaymentMethodId?: string | null
+    paystackEmail?: string | null
+    paystackCustomerCode?: string | null
+    paystackSubscriptionCode?: string | null
+    paystackTransactionId?: string | null
     cancelAtPeriodEnd?: boolean
     canceledAt?: Date | string | null
     maxStudents?: number | null
     maxTeachers?: number | null
     maxStaff?: number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: Date | string
     updatedAt?: Date | string
     school: SchoolCreateNestedOneWithoutSubscriptionInput
@@ -74032,11 +74128,16 @@ export namespace Prisma {
     stripeCustomerId?: string | null
     stripeSubscriptionId?: string | null
     stripePaymentMethodId?: string | null
+    paystackEmail?: string | null
+    paystackCustomerCode?: string | null
+    paystackSubscriptionCode?: string | null
+    paystackTransactionId?: string | null
     cancelAtPeriodEnd?: boolean
     canceledAt?: Date | string | null
     maxStudents?: number | null
     maxTeachers?: number | null
     maxStaff?: number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: Date | string
     updatedAt?: Date | string
     invoices?: InvoiceRecordUncheckedCreateNestedManyWithoutSubscriptionInput
@@ -74058,11 +74159,16 @@ export namespace Prisma {
     stripeCustomerId?: NullableStringFieldUpdateOperationsInput | string | null
     stripeSubscriptionId?: NullableStringFieldUpdateOperationsInput | string | null
     stripePaymentMethodId?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackCustomerCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackSubscriptionCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackTransactionId?: NullableStringFieldUpdateOperationsInput | string | null
     cancelAtPeriodEnd?: BoolFieldUpdateOperationsInput | boolean
     canceledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     maxStudents?: NullableIntFieldUpdateOperationsInput | number | null
     maxTeachers?: NullableIntFieldUpdateOperationsInput | number | null
     maxStaff?: NullableIntFieldUpdateOperationsInput | number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     school?: SchoolUpdateOneRequiredWithoutSubscriptionNestedInput
@@ -74086,11 +74192,16 @@ export namespace Prisma {
     stripeCustomerId?: NullableStringFieldUpdateOperationsInput | string | null
     stripeSubscriptionId?: NullableStringFieldUpdateOperationsInput | string | null
     stripePaymentMethodId?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackCustomerCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackSubscriptionCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackTransactionId?: NullableStringFieldUpdateOperationsInput | string | null
     cancelAtPeriodEnd?: BoolFieldUpdateOperationsInput | boolean
     canceledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     maxStudents?: NullableIntFieldUpdateOperationsInput | number | null
     maxTeachers?: NullableIntFieldUpdateOperationsInput | number | null
     maxStaff?: NullableIntFieldUpdateOperationsInput | number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     invoices?: InvoiceRecordUncheckedUpdateManyWithoutSubscriptionNestedInput
@@ -74113,11 +74224,16 @@ export namespace Prisma {
     stripeCustomerId?: string | null
     stripeSubscriptionId?: string | null
     stripePaymentMethodId?: string | null
+    paystackEmail?: string | null
+    paystackCustomerCode?: string | null
+    paystackSubscriptionCode?: string | null
+    paystackTransactionId?: string | null
     cancelAtPeriodEnd?: boolean
     canceledAt?: Date | string | null
     maxStudents?: number | null
     maxTeachers?: number | null
     maxStaff?: number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: Date | string
     updatedAt?: Date | string
   }
@@ -74138,11 +74254,16 @@ export namespace Prisma {
     stripeCustomerId?: NullableStringFieldUpdateOperationsInput | string | null
     stripeSubscriptionId?: NullableStringFieldUpdateOperationsInput | string | null
     stripePaymentMethodId?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackCustomerCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackSubscriptionCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackTransactionId?: NullableStringFieldUpdateOperationsInput | string | null
     cancelAtPeriodEnd?: BoolFieldUpdateOperationsInput | boolean
     canceledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     maxStudents?: NullableIntFieldUpdateOperationsInput | number | null
     maxTeachers?: NullableIntFieldUpdateOperationsInput | number | null
     maxStaff?: NullableIntFieldUpdateOperationsInput | number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -74164,11 +74285,16 @@ export namespace Prisma {
     stripeCustomerId?: NullableStringFieldUpdateOperationsInput | string | null
     stripeSubscriptionId?: NullableStringFieldUpdateOperationsInput | string | null
     stripePaymentMethodId?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackCustomerCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackSubscriptionCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackTransactionId?: NullableStringFieldUpdateOperationsInput | string | null
     cancelAtPeriodEnd?: BoolFieldUpdateOperationsInput | boolean
     canceledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     maxStudents?: NullableIntFieldUpdateOperationsInput | number | null
     maxTeachers?: NullableIntFieldUpdateOperationsInput | number | null
     maxStaff?: NullableIntFieldUpdateOperationsInput | number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -77801,11 +77927,16 @@ export namespace Prisma {
     stripeCustomerId?: SortOrder
     stripeSubscriptionId?: SortOrder
     stripePaymentMethodId?: SortOrder
+    paystackEmail?: SortOrder
+    paystackCustomerCode?: SortOrder
+    paystackSubscriptionCode?: SortOrder
+    paystackTransactionId?: SortOrder
     cancelAtPeriodEnd?: SortOrder
     canceledAt?: SortOrder
     maxStudents?: SortOrder
     maxTeachers?: SortOrder
     maxStaff?: SortOrder
+    settings?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
   }
@@ -77834,6 +77965,10 @@ export namespace Prisma {
     stripeCustomerId?: SortOrder
     stripeSubscriptionId?: SortOrder
     stripePaymentMethodId?: SortOrder
+    paystackEmail?: SortOrder
+    paystackCustomerCode?: SortOrder
+    paystackSubscriptionCode?: SortOrder
+    paystackTransactionId?: SortOrder
     cancelAtPeriodEnd?: SortOrder
     canceledAt?: SortOrder
     maxStudents?: SortOrder
@@ -77860,6 +77995,10 @@ export namespace Prisma {
     stripeCustomerId?: SortOrder
     stripeSubscriptionId?: SortOrder
     stripePaymentMethodId?: SortOrder
+    paystackEmail?: SortOrder
+    paystackCustomerCode?: SortOrder
+    paystackSubscriptionCode?: SortOrder
+    paystackTransactionId?: SortOrder
     cancelAtPeriodEnd?: SortOrder
     canceledAt?: SortOrder
     maxStudents?: SortOrder
@@ -86675,11 +86814,16 @@ export namespace Prisma {
     stripeCustomerId?: string | null
     stripeSubscriptionId?: string | null
     stripePaymentMethodId?: string | null
+    paystackEmail?: string | null
+    paystackCustomerCode?: string | null
+    paystackSubscriptionCode?: string | null
+    paystackTransactionId?: string | null
     cancelAtPeriodEnd?: boolean
     canceledAt?: Date | string | null
     maxStudents?: number | null
     maxTeachers?: number | null
     maxStaff?: number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: Date | string
     updatedAt?: Date | string
     invoices?: InvoiceRecordCreateNestedManyWithoutSubscriptionInput
@@ -86701,11 +86845,16 @@ export namespace Prisma {
     stripeCustomerId?: string | null
     stripeSubscriptionId?: string | null
     stripePaymentMethodId?: string | null
+    paystackEmail?: string | null
+    paystackCustomerCode?: string | null
+    paystackSubscriptionCode?: string | null
+    paystackTransactionId?: string | null
     cancelAtPeriodEnd?: boolean
     canceledAt?: Date | string | null
     maxStudents?: number | null
     maxTeachers?: number | null
     maxStaff?: number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: Date | string
     updatedAt?: Date | string
     invoices?: InvoiceRecordUncheckedCreateNestedManyWithoutSubscriptionInput
@@ -87446,11 +87595,16 @@ export namespace Prisma {
     stripeCustomerId?: NullableStringFieldUpdateOperationsInput | string | null
     stripeSubscriptionId?: NullableStringFieldUpdateOperationsInput | string | null
     stripePaymentMethodId?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackCustomerCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackSubscriptionCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackTransactionId?: NullableStringFieldUpdateOperationsInput | string | null
     cancelAtPeriodEnd?: BoolFieldUpdateOperationsInput | boolean
     canceledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     maxStudents?: NullableIntFieldUpdateOperationsInput | number | null
     maxTeachers?: NullableIntFieldUpdateOperationsInput | number | null
     maxStaff?: NullableIntFieldUpdateOperationsInput | number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     invoices?: InvoiceRecordUpdateManyWithoutSubscriptionNestedInput
@@ -87472,11 +87626,16 @@ export namespace Prisma {
     stripeCustomerId?: NullableStringFieldUpdateOperationsInput | string | null
     stripeSubscriptionId?: NullableStringFieldUpdateOperationsInput | string | null
     stripePaymentMethodId?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackCustomerCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackSubscriptionCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackTransactionId?: NullableStringFieldUpdateOperationsInput | string | null
     cancelAtPeriodEnd?: BoolFieldUpdateOperationsInput | boolean
     canceledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     maxStudents?: NullableIntFieldUpdateOperationsInput | number | null
     maxTeachers?: NullableIntFieldUpdateOperationsInput | number | null
     maxStaff?: NullableIntFieldUpdateOperationsInput | number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     invoices?: InvoiceRecordUncheckedUpdateManyWithoutSubscriptionNestedInput
@@ -101551,11 +101710,16 @@ export namespace Prisma {
     stripeCustomerId?: string | null
     stripeSubscriptionId?: string | null
     stripePaymentMethodId?: string | null
+    paystackEmail?: string | null
+    paystackCustomerCode?: string | null
+    paystackSubscriptionCode?: string | null
+    paystackTransactionId?: string | null
     cancelAtPeriodEnd?: boolean
     canceledAt?: Date | string | null
     maxStudents?: number | null
     maxTeachers?: number | null
     maxStaff?: number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: Date | string
     updatedAt?: Date | string
     school: SchoolCreateNestedOneWithoutSubscriptionInput
@@ -101578,11 +101742,16 @@ export namespace Prisma {
     stripeCustomerId?: string | null
     stripeSubscriptionId?: string | null
     stripePaymentMethodId?: string | null
+    paystackEmail?: string | null
+    paystackCustomerCode?: string | null
+    paystackSubscriptionCode?: string | null
+    paystackTransactionId?: string | null
     cancelAtPeriodEnd?: boolean
     canceledAt?: Date | string | null
     maxStudents?: number | null
     maxTeachers?: number | null
     maxStaff?: number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: Date | string
     updatedAt?: Date | string
   }
@@ -101619,11 +101788,16 @@ export namespace Prisma {
     stripeCustomerId?: NullableStringFieldUpdateOperationsInput | string | null
     stripeSubscriptionId?: NullableStringFieldUpdateOperationsInput | string | null
     stripePaymentMethodId?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackCustomerCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackSubscriptionCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackTransactionId?: NullableStringFieldUpdateOperationsInput | string | null
     cancelAtPeriodEnd?: BoolFieldUpdateOperationsInput | boolean
     canceledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     maxStudents?: NullableIntFieldUpdateOperationsInput | number | null
     maxTeachers?: NullableIntFieldUpdateOperationsInput | number | null
     maxStaff?: NullableIntFieldUpdateOperationsInput | number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     school?: SchoolUpdateOneRequiredWithoutSubscriptionNestedInput
@@ -101646,11 +101820,16 @@ export namespace Prisma {
     stripeCustomerId?: NullableStringFieldUpdateOperationsInput | string | null
     stripeSubscriptionId?: NullableStringFieldUpdateOperationsInput | string | null
     stripePaymentMethodId?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackEmail?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackCustomerCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackSubscriptionCode?: NullableStringFieldUpdateOperationsInput | string | null
+    paystackTransactionId?: NullableStringFieldUpdateOperationsInput | string | null
     cancelAtPeriodEnd?: BoolFieldUpdateOperationsInput | boolean
     canceledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     maxStudents?: NullableIntFieldUpdateOperationsInput | number | null
     maxTeachers?: NullableIntFieldUpdateOperationsInput | number | null
     maxStaff?: NullableIntFieldUpdateOperationsInput | number | null
+    settings?: NullableJsonNullValueInput | InputJsonValue
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }

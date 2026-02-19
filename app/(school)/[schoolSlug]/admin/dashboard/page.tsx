@@ -2,6 +2,12 @@
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+  description: "Manage all schools in the system",
+};
 
 interface AdminDashboardProps {
   params: Promise<{ schoolSlug: string }>; // ✅ Fixed param name

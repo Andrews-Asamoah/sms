@@ -24,6 +24,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Academics",
+  description: "Manage all schools in the system",
+};
+
 interface AcademicOverviewPageProps {
   params: Promise<{ schoolSlug: string }>;
 }
