@@ -85,27 +85,26 @@ export const systemNavSections: NavSection[] = [
     items: [
       {
         title: "Subscriptions",
-        url: "/billing/subscriptions",
+        url: "/subscriptions",
         icon: CreditCard,
         items: [
-          { title: "Overview", url: "/billing/subscriptions" },
-          { title: "Active Plans", url: "/billing/subscriptions/active" },
+          { title: "All Subscriptions", url: "/subscriptions" },
+          { title: "Active Plans", url: "/subscriptions?status=active" },
           {
             title: "Trials",
-            url: "/billing/subscriptions/trials",
+            url: "/subscriptions?status=trialing",
             badge: "8",
           },
-          { title: "Expired", url: "/billing/subscriptions/expired" },
+          { title: "Expired", url: "/subscriptions?status=expired" },
         ],
       },
       {
         title: "Plans & Pricing",
-        url: "/billing/plans",
+        url: "/settings/billing/plans",
         icon: FileText,
         items: [
-          { title: "Plan Templates", url: "/billing/plans" },
-          { title: "Pricing Rules", url: "/billing/plans/pricing" },
-          { title: "Feature Toggles", url: "/billing/plans/features" },
+          { title: "Plan Templates", url: "/settings/billing/plans" },
+          { title: "Pricing Rules", url: "/settings/billing/pricing" },
         ],
       },
     ],

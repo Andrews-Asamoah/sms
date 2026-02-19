@@ -24,7 +24,6 @@ export default async function SchoolOverviewPage({
     redirect("/auth/login");
   }
 
-  // Await params (Next.js 15+ requirement)
   const { schoolSlug } = await params;
 
   const school = await prisma.school.findUnique({
@@ -89,6 +88,30 @@ export default async function SchoolOverviewPage({
 
   if (!school) {
     notFound();
+  }
+
+  // Lazy expiration check
+  const now = new Date();
+  const expiredInvitations = school.organization.invitations.filter(
+    (invitation) =>
+      invitation.status === "pending" && new Date(invitation.expiresAt) < now,
+  );
+
+  if (expiredInvitations.length > 0) {
+    // Update expired invitations (fire and forget or await)
+    await prisma.invitation.updateMany({
+      where: {
+        id: { in: expiredInvitations.map((i) => i.id) },
+      },
+      data: {
+        status: "EXPIRED",
+      },
+    });
+
+    // Remove expired from the list to be displayed locally
+    school.organization.invitations = school.organization.invitations.filter(
+      (invitation) => !expiredInvitations.includes(invitation),
+    );
   }
 
   // Check permissions

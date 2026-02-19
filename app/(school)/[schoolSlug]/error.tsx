@@ -57,11 +57,11 @@ export default function SchoolError({
             Try again
           </Button>
           <Button
-            onClick={() => router.push(`/${schoolSlug}/admin/dashboard`)}
+            onClick={() => router.push(`/${schoolSlug}`)}
             className="flex-1"
           >
             <Home className="mr-2 h-4 w-4" />
-            Dashboard
+            School Home
           </Button>
         </CardFooter>
       </Card>

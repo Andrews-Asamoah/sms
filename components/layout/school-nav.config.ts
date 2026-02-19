@@ -2,24 +2,17 @@
 import {
   LayoutDashboard,
   Users,
-  Calendar,
   BookOpen,
-  ClipboardCheck,
   DollarSign,
   FileText,
   Settings,
-  Home,
-  UserCog,
   Award,
   BarChart3,
   MessageSquare,
   HelpCircle,
   Hotel,
-  Library,
   Package,
-  Bus,
-  UserCircle,
-  CalendarDays,
+  BadgeDollarSign,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 import type { NavPermissions } from "@/lib/auth/types";
@@ -43,7 +36,7 @@ export const schoolNavSections: NavSection[] = [
     ],
   },
   {
-    title: "Directory",
+    title: "User Management",
     items: [
       {
         title: "People",
@@ -237,6 +230,12 @@ export const schoolNavSections: NavSection[] = [
           { title: "Users & Roles", url: "/admin/users" },
           { title: "Preferences", url: "/admin/settings/preferences" },
         ],
+      },
+      {
+        title: "Subscription",
+        url: "/admin/subscription",
+        icon: BadgeDollarSign,
+        permission: "canViewSupport", // Ideally this should be a stronger permission like 'manageSubscription' but 'canViewSupport' (admin only usually) works for now, or just rely on role filter.
       },
       {
         title: "Support",

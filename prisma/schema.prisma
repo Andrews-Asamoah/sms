@@ -1233,13 +1233,27 @@ model Subscription {
   stripeCustomerId      String?   @unique
   stripeSubscriptionId  String?   @unique
   stripePaymentMethodId String?
-  cancelAtPeriodEnd     Boolean   @default(false)
-  canceledAt            DateTime?
-  maxStudents           Int?
-  maxTeachers           Int?
-  maxStaff              Int?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+
+  // Paystack Integration
+  paystackEmail            String?
+  paystackCustomerCode     String?
+  paystackSubscriptionCode String?
+  paystackTransactionId    String?
+
+  // Cancellation
+  cancelAtPeriodEnd Boolean   @default(false)
+  canceledAt        DateTime?
+
+  // Plan Limits
+  maxStudents Int?
+  maxTeachers Int?
+  maxStaff    Int?
+
+  // Flexible settings
+  settings Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   school   School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   invoices InvoiceRecord[]
@@ -1508,14 +1522,14 @@ enum AuditAction {
 
 enum PlanType {
   FREE
+  BASIC
+  STANDARD
   PREMIUM
   ENTERPRISE
-  CUSTOM
 }
 
 enum BillingCycle {
   MONTHLY
-  QUARTERLY
   YEARLY
 }
 

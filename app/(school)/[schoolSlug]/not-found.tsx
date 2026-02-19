@@ -38,9 +38,9 @@ export default function SchoolNotFound() {
         </CardContent>
         <CardFooter>
           <Button asChild className="w-full">
-            <Link href={`/${schoolSlug}/admin/dashboard`}>
+            <Link href={`/${schoolSlug}`}>
               <Home className="mr-2 h-4 w-4" />
-              Back to Dashboard
+              Back to School Home
             </Link>
           </Button>
         </CardFooter>
