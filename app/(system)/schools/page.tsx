@@ -39,6 +39,8 @@ export const metadata = {
   description: "Manage all schools in the system",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function SchoolsPage() {
   const session = await getSession();
 

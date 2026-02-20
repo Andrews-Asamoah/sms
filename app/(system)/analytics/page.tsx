@@ -1,11 +1,9 @@
-import React from 'react'
+import React from "react";
+
+export const dynamic = "force-dynamic";
 
 function page() {
-  return (
-    <div>
-      Analytics Page
-    </div>
-  )
+  return <div>Analytics Page</div>;
 }
 
-export default page
+export default page;

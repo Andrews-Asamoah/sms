@@ -6,6 +6,8 @@ import { AppSidebarSystem } from "@/components/layout/app-sidebar-system";
 import { SiteHeaderSystem } from "@/components/layout/site-header-system";
 import { ReactNode } from "react";
 
+export const dynamic = "force-dynamic";
+
 export default async function SystemLayout({
   children,
 }: {

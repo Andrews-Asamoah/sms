@@ -4,6 +4,8 @@ import { getSession } from "@/lib/auth/session"; // ✅ Use getSession
 import { getCurrentUserProfile } from "@/app/actions/profile";
 import { ProfileForm } from "@/components/forms/profile-form";
 
+export const dynamic = "force-dynamic";
+
 export default async function SuperAdminAccountPage() {
   const session = await getSession();
 
