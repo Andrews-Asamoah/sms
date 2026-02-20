@@ -7,7 +7,7 @@ import prisma from "@/lib/prisma";
 
 type BanRouteContext = {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
     userId: string;
   }>;
 };
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, context: BanRouteContext) {
     if (userId === session.user.id) {
       return NextResponse.json(
         { error: "You cannot ban yourself" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

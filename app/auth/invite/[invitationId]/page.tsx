@@ -16,7 +16,7 @@ interface InvitePageProps {
 interface InvitationWithRelations {
   id: string;
   email: string;
-  role: string;
+  role: string | null;
   status: string;
   expiresAt: Date;
   organization: {
@@ -39,7 +39,7 @@ interface InvitationData {
   schoolName: string;
   schoolLogo: string | null;
   inviterName: string;
-  role: string;
+  role: string | null;
   invitationId: string;
   organizationId: string;
 }

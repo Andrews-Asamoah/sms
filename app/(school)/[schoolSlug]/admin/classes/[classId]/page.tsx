@@ -98,6 +98,7 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
           <ClassForm
             schoolId={school.id}
             schoolSlug={schoolSlug}
+            organizationId={school.organizationId}
             academicYears={school.academicYears}
             teachers={school.teachers}
             initialData={classData}

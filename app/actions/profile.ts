@@ -20,7 +20,7 @@ export async function getCurrentUserProfile(): Promise<UserProfileData | null> {
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     include: {
-      profile: true,
+      userProfile: true,
     },
   });
 
@@ -34,27 +34,28 @@ export async function getCurrentUserProfile(): Promise<UserProfileData | null> {
     email: user.email,
     image: user.image ?? undefined,
     role: user.role,
-    profile: user.profile
+    profile: user.userProfile
       ? {
-          id: user.profile.id,
-          firstName: user.profile.firstName,
-          lastName: user.profile.lastName,
-          otherNames: user.profile.otherNames ?? undefined,
-          phone: user.profile.phone ?? undefined,
-          alternatePhone: user.profile.alternatePhone ?? undefined,
-          gender: user.profile.gender,
-          dateOfBirth: user.profile.dateOfBirth,
-          nationality: user.profile.nationality ?? undefined,
-          residentialAddress: user.profile.residentialAddress ?? undefined,
-          postalAddress: user.profile.postalAddress ?? undefined,
-          city: user.profile.city ?? undefined,
-          region: user.profile.region ?? undefined,
-          country: user.profile.country ?? undefined,
-          emergencyContactName: user.profile.emergencyContactName ?? undefined,
+          id: user.userProfile.id,
+          firstName: user.userProfile.firstName,
+          lastName: user.userProfile.lastName,
+          otherNames: user.userProfile.otherNames ?? undefined,
+          phone: user.userProfile.phone ?? undefined,
+          alternatePhone: user.userProfile.alternatePhone ?? undefined,
+          gender: user.userProfile.gender,
+          dateOfBirth: user.userProfile.dateOfBirth,
+          nationality: user.userProfile.nationality ?? undefined,
+          residentialAddress: user.userProfile.residentialAddress ?? undefined,
+          postalAddress: user.userProfile.postalAddress ?? undefined,
+          city: user.userProfile.city ?? undefined,
+          region: user.userProfile.region ?? undefined,
+          country: user.userProfile.country ?? undefined,
+          emergencyContactName:
+            user.userProfile.emergencyContactName ?? undefined,
           emergencyContactPhone:
-            user.profile.emergencyContactPhone ?? undefined,
+            user.userProfile.emergencyContactPhone ?? undefined,
           emergencyRelationship:
-            user.profile.emergencyRelationship ?? undefined,
+            user.userProfile.emergencyRelationship ?? undefined,
         }
       : undefined,
   };

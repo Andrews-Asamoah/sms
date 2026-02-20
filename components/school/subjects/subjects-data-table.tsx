@@ -148,11 +148,9 @@ export function SubjectsDataTable({
                 </Link>
               </DropdownMenuItem>
               <SubjectDialog
-                schoolId={schoolId}
                 schoolSlug={schoolSlug}
-                organizationId={organizationId}
                 departments={departments}
-                initialData={subject}
+                subject={subject}
               >
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <Edit className="mr-2 h-4 w-4" />

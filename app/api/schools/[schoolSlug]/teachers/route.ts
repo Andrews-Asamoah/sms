@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { z } from "zod";
+import crypto from "crypto";
 
 // Schema for teacher creation validation
 const teacherCreateSchema = z.object({
@@ -146,6 +147,7 @@ export async function POST(
         // Create new User
         const newUser = await tx.user.create({
           data: {
+            id: crypto.randomUUID(),
             name: `${data.firstName} ${data.lastName}`,
             email: email,
             role: "user", // Default role

@@ -75,7 +75,7 @@ export const membershipInclude = {
       },
     },
   },
-} as const satisfies Prisma.MemberInclude;
+} as const satisfies Prisma.memberInclude;
 
 // ============================================================================
 // INFERRED TYPES FROM PRISMA QUERIES
@@ -85,7 +85,7 @@ export type UserProfileWithRelations = Prisma.UserProfileGetPayload<{
   include: typeof profileInclude;
 }>;
 
-export type MembershipWithOrganization = Prisma.MemberGetPayload<{
+export type MembershipWithOrganization = Prisma.memberGetPayload<{
   include: typeof membershipInclude;
 }>;
 

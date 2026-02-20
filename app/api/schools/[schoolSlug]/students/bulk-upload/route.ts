@@ -223,7 +223,7 @@ export async function POST(
     // STEP 3: Fetch school
     // ========================================================================
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { subdomain: schoolSlug },
       include: {
         classes: true,
         departments: true,

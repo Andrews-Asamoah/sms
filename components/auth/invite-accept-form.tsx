@@ -57,7 +57,7 @@ interface InviteAcceptFormProps {
     email: string;
     schoolName: string;
     inviterName: string;
-    role: string;
+    role: string | null;
     invitationId: string;
   };
 }

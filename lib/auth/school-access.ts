@@ -5,6 +5,7 @@ import type {
   EffectiveRole,
   ProfileRoleType,
   OrganizationRole,
+  MembershipWithOrganization,
 } from "./types";
 import { StudentStatus, StaffType } from "@/lib/generated/prisma/client";
 import { ROLE_PRIORITY } from "./types";
@@ -17,7 +18,7 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
   const schoolAccessMap = new Map<string, SchoolAccess>();
 
   // Step 1: Process organization memberships first (OWNER, ADMIN, MEMBER)
-  session.memberships.forEach((membership) => {
+  session.memberships.forEach((membership: MembershipWithOrganization) => {
     if (membership.organization.school) {
       const school = membership.organization.school;
 

@@ -151,7 +151,7 @@ export async function POST(
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
       include: {
-        memberships: {
+        members: {
           where: { organizationId: school.organizationId },
         },
       },
@@ -160,8 +160,8 @@ export async function POST(
     if (existingUser) {
       console.log("[INVITE_ADMIN] User exists:", existingUser.id);
 
-      if (existingUser.memberships.length > 0) {
-        const existingMembership = existingUser.memberships[0];
+      if (existingUser.members.length > 0) {
+        const existingMembership = existingUser.members[0];
         console.error(
           "[INVITE_ADMIN] User already a member:",
           existingMembership.role,

@@ -10,7 +10,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -68,6 +68,24 @@ type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 // ============================================================================
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <Card className="w-full max-w-md backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 shadow-2xl">
+          <CardHeader className="text-center">
+            <Loader2 className="h-12 w-12 mx-auto animate-spin text-blue-600 mb-4" />
+            <CardTitle>Loading...</CardTitle>
+            <CardDescription>Validating your reset link...</CardDescription>
+          </CardHeader>
+        </Card>
+      }
+    >
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -96,10 +114,6 @@ export default function ResetPasswordPage() {
       );
     }
   }, [urlError]);
-
-  // ============================================================================
-  // FORM SUBMISSION
-  // ============================================================================
 
   const onSubmit = async (data: ResetPasswordFormValues) => {
     if (!token) {
@@ -136,17 +150,9 @@ export default function ResetPasswordPage() {
     }
   };
 
-  // ============================================================================
-  // RENDER GUARDS
-  // ============================================================================
-
   if (!token && !urlError) {
     return <InvalidTokenCard />;
   }
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
 
   return (
     <Card className="w-full max-w-md backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 shadow-2xl">
@@ -269,8 +275,8 @@ interface PasswordFieldProps {
   id: string;
   label: string;
   placeholder: string;
-  register: ReturnType<ReturnType<typeof useForm>["register"]>;
-  error: { message?: string } | undefined;
+  register: any; // Simplified for brevity
+  error: any;
   isSubmitting: boolean;
   showPassword: boolean;
   onToggleVisibility: () => void;

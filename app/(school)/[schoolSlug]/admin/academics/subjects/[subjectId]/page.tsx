@@ -149,11 +149,12 @@ export default async function SubjectDetailPage(props: SubjectDetailPageProps) {
             </p>
           </div>
           <SubjectDialog
-            schoolId={subject.schoolId}
             schoolSlug={schoolSlug}
-            organizationId={subject.school.organizationId}
-            departments={subject.school.departments}
-            initialData={subject}
+            departments={subject.school.departments.map((d) => ({
+              id: d.id,
+              name: d.name,
+            }))}
+            subject={subject}
           >
             <Button variant="outline">
               <Edit className="mr-2 h-4 w-4" />

@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 
 type RouteContext = {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
   }>;
 };
 
@@ -17,10 +17,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const params = await context.params;
-    const { schoolId } = params;
+    const { schoolSlug } = params;
 
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { subdomain: schoolSlug },
       include: {
         subscription: true,
         organization: {
@@ -49,9 +49,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const subscription = await prisma.subscription.upsert({
-      where: { schoolId },
+      where: { schoolId: school.id },
       create: {
-        schoolId,
+        schoolId: school.id,
         planType: "PREMIUM",
         planName: "Premium Plan",
         billingCycle: "MONTHLY",

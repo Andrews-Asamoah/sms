@@ -7,14 +7,14 @@ import prisma from "@/lib/prisma";
 
 type DeleteRouteContext = {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
     userId: string;
   }>;
 };
 
 export async function DELETE(
   request: NextRequest,
-  context: DeleteRouteContext
+  context: DeleteRouteContext,
 ) {
   try {
     const session = await getAuthSession();
@@ -29,7 +29,7 @@ export async function DELETE(
     if (userId === session.user.id) {
       return NextResponse.json(
         { error: "You cannot delete your own account" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -46,7 +46,7 @@ export async function DELETE(
     if (user.role === "superAdmin") {
       return NextResponse.json(
         { error: "Cannot delete super admin accounts" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -64,7 +64,7 @@ export async function DELETE(
     console.error("❌ Error deleting user:", error);
     return NextResponse.json(
       { error: "Failed to delete user account" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

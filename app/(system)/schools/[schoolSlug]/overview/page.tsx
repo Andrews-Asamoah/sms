@@ -131,25 +131,6 @@ export default async function SchoolOverviewPage({
   const hasNoAdmins = nonSuperAdminMembers.length === 0;
   const hasPendingInvitations = school.organization.invitations.length > 0;
 
-  // Serialize the school data to fix Decimal/Date issues
-  const serializedSchool = JSON.parse(
-    JSON.stringify(school, (key, value) => {
-      // Convert Decimal to number
-      if (
-        value !== null &&
-        typeof value === "object" &&
-        value.constructor?.name === "Decimal"
-      ) {
-        return parseFloat(value.toString());
-      }
-      // Convert Date to ISO string
-      if (value instanceof Date) {
-        return value.toISOString();
-      }
-      return value;
-    }),
-  );
-
   return (
     <div className="container mx-auto py-10 space-y-8">
       {/* Header with Invite Button */}
@@ -203,7 +184,7 @@ export default async function SchoolOverviewPage({
 
       {/* Main School Overview */}
       <SchoolOverview
-        school={serializedSchool}
+        school={school as any}
         currentUserId={session.user.id}
         isSuperAdmin={isSuperAdmin}
       />

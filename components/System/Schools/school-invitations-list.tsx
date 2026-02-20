@@ -34,7 +34,7 @@ import { formatDistanceToNow } from "date-fns";
 interface Invitation {
   id: string;
   email: string;
-  role: string;
+  role: string | null;
   status: string;
   expiresAt: Date;
   createdAt: Date;
@@ -96,7 +96,9 @@ export function SchoolInvitationsList({
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadgeColor = (role: string | null) => {
+    if (!role)
+      return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
     switch (role.toLowerCase()) {
       case "owner":
         return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100";

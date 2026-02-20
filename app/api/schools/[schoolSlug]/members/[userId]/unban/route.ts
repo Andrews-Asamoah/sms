@@ -7,7 +7,7 @@ import prisma from "@/lib/prisma";
 
 type UnbanRouteContext = {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
     userId: string;
   }>;
 };
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, context: UnbanRouteContext) {
     console.error("❌ Error unbanning user:", error);
     return NextResponse.json(
       { error: "Failed to unban user" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

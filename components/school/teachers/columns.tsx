@@ -10,26 +10,32 @@ import { TeacherActions } from "./teacher-actions";
 export type Teacher = {
   id: string;
   teacherId: string;
+  schoolId: string;
   staffNumber: string | null;
   isActive: boolean;
   employmentType: string;
   qualification: string | null;
   specialization: string | null;
+  experience: number | null;
   hireDate: Date;
+  contractEndDate: Date | null;
   monthlySalary: number | null;
   profile: {
     firstName: string;
     lastName: string;
     otherNames: string | null;
     gender: string;
+    dateOfBirth: Date;
     phone: string | null;
     email?: string;
   };
   department: {
+    id: string;
     name: string;
     code: string;
   };
   house: {
+    id: string;
     name: string;
     code: string;
   } | null;

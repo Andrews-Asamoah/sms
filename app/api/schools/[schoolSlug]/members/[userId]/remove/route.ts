@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma";
 
 type RouteContext = {
   params: Promise<{
-    schoolId: string;
+    schoolSlug: string;
     userId: string;
   }>;
 };
@@ -14,11 +14,11 @@ type RouteContext = {
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const params = await context.params;
-    const { schoolId, userId } = params;
+    const { schoolSlug, userId } = params;
 
     // Get the school to find the organizationId
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { subdomain: schoolSlug },
       select: {
         organizationId: true,
       },
@@ -58,7 +58,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     if (!result) {
       return NextResponse.json(
         { error: "Failed to remove member" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -74,7 +74,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         error: "Failed to remove member",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -92,11 +92,8 @@ export async function POST(
       ...otherData
     } = body;
 
-    // ========================================================================
-    // STEP 3: Fetch school with organization
-    // ========================================================================
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
+      where: { subdomain: schoolSlug },
       select: {
         id: true,
         name: true,

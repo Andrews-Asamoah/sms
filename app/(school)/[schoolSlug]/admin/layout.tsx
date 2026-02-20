@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   description: "The best SMS management system",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
   params,

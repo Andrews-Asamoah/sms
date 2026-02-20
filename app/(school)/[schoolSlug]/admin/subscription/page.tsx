@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "Manage your school subscription and billing",
 };
 
+export const dynamic = "force-dynamic";
+
 interface SubscriptionPageProps {
   params: Promise<{ schoolSlug: string }>;
 }

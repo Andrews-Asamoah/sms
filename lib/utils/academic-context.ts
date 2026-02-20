@@ -49,7 +49,7 @@ export async function getActiveAcademicContext(schoolId: string) {
       user: {
         select: {
           role: true,
-          memberships: {
+          members: {
             where: { organization: { school: { id: schoolId } } },
             select: { role: true },
           },
@@ -60,8 +60,8 @@ export async function getActiveAcademicContext(schoolId: string) {
 
   const canOverride =
     userSession?.user.role === "admin" ||
-    userSession?.user.memberships.some(
-      (m) => m.role === "admin" || m.role === "owner"
+    userSession?.user.members.some(
+      (m: { role: string }) => m.role === "admin" || m.role === "owner",
     );
 
   // For now, we use global settings

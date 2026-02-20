@@ -7,17 +7,18 @@ import { redirect } from "next/navigation";
 export default async function TeacherDashboard({
   params,
 }: {
-  params: { subdomain: string };
+  params: Promise<{ schoolSlug: string }>;
 }) {
-  const session = await requireSchoolAccess(params.subdomain);
-  const role = getSchoolRole(session, params.subdomain);
+  const { schoolSlug } = await params;
+  const session = await requireSchoolAccess(schoolSlug);
+  const schoolRole = getSchoolRole(session, schoolSlug);
 
   if (
-    role?.role !== "teacher" &&
-    role?.role !== "admin" &&
+    schoolRole?.effectiveRole !== "teacher" &&
+    schoolRole?.effectiveRole !== "admin" &&
     !session.isSuperAdmin
   ) {
-    redirect("/unauthorized");
+    redirect(`/${schoolSlug}/unauthorized`);
   }
 
   return (

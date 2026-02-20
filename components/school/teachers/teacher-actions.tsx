@@ -163,7 +163,7 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
       {/* Edit Dialog */}
       {showEditDialog && !loadingData && (
         <TeacherDialog
-          schoolId={teacher.id}
+          schoolId={teacher.schoolId}
           schoolSlug={schoolSlug}
           departments={departments}
           houses={houses}

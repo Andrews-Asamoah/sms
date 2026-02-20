@@ -76,8 +76,8 @@ async function createSuperAdmin(
       where: { email: input.email },
       include: {
         accounts: true,
-        profile: true,
-        memberships: {
+        userProfile: true,
+        members: {
           include: {
             organization: true,
           },
@@ -91,12 +91,12 @@ async function createSuperAdmin(
       console.log(`   ID: ${existingUser.id}`);
       console.log(`   Email: ${existingUser.email}`);
       console.log(`   Role: ${existingUser.role}`);
-      console.log(`   Has Profile: ${existingUser.profile ? "Yes" : "No"}`);
-      console.log(`   Organizations: ${existingUser.memberships.length}`);
+      console.log(`   Has Profile: ${existingUser.userProfile ? "Yes" : "No"}`);
+      console.log(`   Organizations: ${existingUser.members.length}`);
 
-      if (existingUser.memberships.length > 0) {
+      if (existingUser.members.length > 0) {
         console.log("\n   Member of:");
-        existingUser.memberships.forEach((membership) => {
+        existingUser.members.forEach((membership: any) => {
           console.log(
             `     - ${membership.organization.name} (${membership.role})`,
           );

@@ -167,7 +167,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     // Update school
     const updatedSchool = await prisma.school.update({
-      where: { id: schoolSlug },
+      where: { id: existingSchool.id },
       data: updateData,
       include: {
         subscription: true,
@@ -268,7 +268,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
       // Delete school
       await tx.school.delete({
-        where: { id: schoolSlug },
+        where: { id: school.id },
       });
     });
 

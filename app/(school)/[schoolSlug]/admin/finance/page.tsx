@@ -9,8 +9,8 @@ import {
   TrendingUp,
   AlertCircle,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils"; // Assuming utils exists, or native Intl
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatCurrency } from "@/lib/utils";
 
 interface FinanceStats {
   currency: string;
@@ -50,11 +50,6 @@ export default function FinanceDashboardPage() {
 
   if (!stats) return <div>Failed to load data.</div>;
 
-  const formatter = new Intl.NumberFormat("en-GH", {
-    style: "currency",
-    currency: stats.currency,
-  });
-
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold tracking-tight">Finance Dashboard</h1>
@@ -67,7 +62,7 @@ export default function FinanceDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatter.format(stats.revenue)}
+              {formatCurrency(stats.revenue, stats.currency)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Total collected fees
@@ -83,7 +78,7 @@ export default function FinanceDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatter.format(stats.outstanding)}
+              {formatCurrency(stats.outstanding, stats.currency)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Unpaid student balances
@@ -99,7 +94,7 @@ export default function FinanceDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatter.format(stats.expenses)}
+              {formatCurrency(stats.expenses, stats.currency)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Operational costs

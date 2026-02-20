@@ -10,7 +10,9 @@ import {
 } from "@/components/ui/card";
 import Link from "next/link";
 import { getAuthSession } from "@/lib/auth";
-import { signOut } from "@/lib/auth-client";
+import { SignOutButton } from "@/components/auth/sign-out-button";
+
+export const dynamic = "force-dynamic";
 
 export default async function NoAccessPage() {
   const session = await getAuthSession();
@@ -62,14 +64,7 @@ export default async function NoAccessPage() {
               </Link>
             </Button>
 
-            <Button
-              onClick={() => signOut()}
-              variant="outline"
-              className="w-full bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm"
-              size="lg"
-            >
-              Sign Out
-            </Button>
+            <SignOutButton />
           </div>
         </CardContent>
       </Card>
