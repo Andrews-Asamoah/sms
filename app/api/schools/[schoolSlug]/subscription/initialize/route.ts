@@ -236,7 +236,7 @@ async function initializePaystackTransaction({
     email,
     amount: amount,
     currency: "GHS",
-    callback_url: `${(process.env.NEXT_PUBLIC_BASE_URL || "").replace(/\/$/, "")}/api/schools/${schoolSlug}/subscription/verify`,
+    callback_url: `${(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")}/api/schools/${schoolSlug}/subscription/verify`,
     metadata: {
       schoolId: school.id,
       planId: plan.id,
