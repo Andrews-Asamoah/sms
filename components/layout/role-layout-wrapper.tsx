@@ -52,8 +52,8 @@ export function RoleLayoutWrapper({
           currentActiveRole={currentRole}
         />
       </div>
-      <SidebarInset className="flex flex-col h-screen print:h-auto print:block">
-        <div className="print:hidden">
+      <SidebarInset className="flex flex-col h-svh overflow-hidden print:h-auto print:block">
+        <div className="print:hidden flex-shrink-0">
           <SiteHeaderSchool
             schoolSlug={schoolSlug}
             academicYear={academicYear}

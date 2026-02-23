@@ -102,7 +102,9 @@ export default async function NewClassPage({ params }: NewClassPageProps) {
             schoolSlug={schoolSlug}
             organizationId={school.organizationId} // Pass organizationId
             academicYears={school.academicYears}
-            teachers={school.teachers}
+            teachers={school.teachers
+              .filter((t) => t.profile !== null)
+              .map((t) => ({ ...t, profile: t.profile! }))}
           />
         </CardContent>
       </Card>

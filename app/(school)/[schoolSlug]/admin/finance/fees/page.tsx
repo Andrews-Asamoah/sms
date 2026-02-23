@@ -1,16 +1,14 @@
 import { getSession } from "@/lib/auth/session";
 import { getNavPermissions } from "@/lib/permissions/utils";
-import { redirect, notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import FeesClient from "./client";
 
 interface PageProps {
-  params: {
-    schoolSlug: string;
-  };
+  params: Promise<{ schoolSlug: string }>;
 }
 
 export default async function FeesPage({ params }: PageProps) {
-  const { schoolSlug } = params;
+  const { schoolSlug } = await params;
   const session = await getSession();
 
   if (!session) {

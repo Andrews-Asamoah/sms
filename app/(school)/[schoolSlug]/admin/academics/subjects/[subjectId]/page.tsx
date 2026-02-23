@@ -126,9 +126,13 @@ export default async function SubjectDetailPage(props: SubjectDetailPageProps) {
   );
 
   // Get available teachers (not already assigned to this subject)
-  const availableTeachers = subject.school.teachers.filter(
-    (t) => !subject.teachers.some((st) => st.teacherId === t.id),
-  );
+  const availableTeachers = subject.school.teachers
+    .filter(
+      (t) =>
+        t.profile !== null &&
+        !subject.teachers.some((st) => st.teacherId === t.id),
+    )
+    .map((t) => ({ ...t, profile: t.profile! }));
 
   return (
     <div className="min-h-screen bg-linear-to-br from-background via-muted/30 to-muted/50">
@@ -314,8 +318,9 @@ export default async function SubjectDetailPage(props: SubjectDetailPageProps) {
                       </div>
                       <div>
                         <p className="font-medium">
-                          {st.teacher.profile.firstName}{" "}
-                          {st.teacher.profile.lastName}
+                          {st.teacher.profile
+                            ? `${st.teacher.profile.firstName} ${st.teacher.profile.lastName}`
+                            : st.teacher.invitationEmail || "Pending Teacher"}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Teacher ID: {st.teacher.teacherId}
@@ -324,7 +329,11 @@ export default async function SubjectDetailPage(props: SubjectDetailPageProps) {
                     </div>
                     <RemoveTeacherButton
                       subjectTeacherId={st.id}
-                      teacherName={`${st.teacher.profile.firstName} ${st.teacher.profile.lastName}`}
+                      teacherName={
+                        st.teacher.profile
+                          ? `${st.teacher.profile.firstName} ${st.teacher.profile.lastName}`
+                          : st.teacher.invitationEmail || "Pending Teacher"
+                      }
                       subjectName={subject.name}
                       schoolSlug={schoolSlug}
                     />

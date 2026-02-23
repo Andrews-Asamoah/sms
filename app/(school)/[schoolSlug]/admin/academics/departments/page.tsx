@@ -68,18 +68,21 @@ export default async function DepartmentsPage(props: DepartmentsPageProps) {
   });
 
   // Safe mapping for DataTable
-  const formattedDepartments = departments.map((dept) => ({
-    ...dept,
-    headOfDept: dept.headOfDept
-      ? {
-          id: dept.headOfDept.id,
-          firstName: dept.headOfDept.profile.firstName,
-          lastName: dept.headOfDept.profile.lastName,
-          // Flatten profile for easier access if needed, but keeping structure for type safety of columns
-          profile: dept.headOfDept.profile,
-        }
-      : null,
-  }));
+  const formattedDepartments = departments.map((dept) => {
+    const profile = dept.headOfDept?.profile;
+    return {
+      ...dept,
+      headOfDept:
+        dept.headOfDept && profile
+          ? {
+              id: dept.headOfDept.id,
+              firstName: profile.firstName,
+              lastName: profile.lastName,
+              profile: profile,
+            }
+          : null,
+    };
+  });
 
   return (
     <div className="min-h-screen bg-muted/30">

@@ -68,7 +68,7 @@ export function BaseHeader({
         "supports-backdrop-filter:bg-background/60",
         "transition-all duration-200 ease-in-out",
         "shadow-sm dark:shadow-none",
-        className
+        className,
       )}
     >
       <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
@@ -89,33 +89,29 @@ export function BaseHeader({
                   {rootLabel}
                 </BreadcrumbLink>
               </BreadcrumbItem>
-              {breadcrumbs.length > 0 && (
-                <BreadcrumbSeparator className="hidden sm:block">
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
-                </BreadcrumbSeparator>
-              )}
               {breadcrumbs.map((crumb, index) => (
-                <BreadcrumbItem key={crumb.href} className="max-w-50">
-                  {!crumb.isLast ? (
-                    <>
+                <>
+                  <BreadcrumbSeparator
+                    key={`sep-${crumb.href}`}
+                    className="hidden sm:block"
+                  >
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
+                  </BreadcrumbSeparator>
+                  <BreadcrumbItem key={crumb.href} className="max-w-[180px]">
+                    {!crumb.isLast ? (
                       <BreadcrumbLink
                         href={crumb.href}
-                        className="text-muted-foreground hover:text-foreground transition-colors truncate"
+                        className="text-muted-foreground hover:text-foreground transition-colors truncate block"
                       >
                         {crumb.label}
                       </BreadcrumbLink>
-                      {index < breadcrumbs.length - 1 && (
-                        <BreadcrumbSeparator className="hidden sm:block">
-                          <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
-                        </BreadcrumbSeparator>
-                      )}
-                    </>
-                  ) : (
-                    <BreadcrumbPage className="font-medium truncate">
-                      {crumb.label}
-                    </BreadcrumbPage>
-                  )}
-                </BreadcrumbItem>
+                    ) : (
+                      <BreadcrumbPage className="font-medium truncate block">
+                        {crumb.label}
+                      </BreadcrumbPage>
+                    )}
+                  </BreadcrumbItem>
+                </>
               ))}
             </BreadcrumbList>
           </Breadcrumb>

@@ -115,18 +115,20 @@ export async function PATCH(
 
     // Update Transaction (Profile + Teacher)
     const updatedTeacher = await prisma.$transaction(async (tx) => {
-      // Update Profile
-      await tx.userProfile.update({
-        where: { id: teacher.profileId },
-        data: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          otherNames: data.otherNames,
-          gender: data.gender,
-          dateOfBirth: formatDate(data.dateOfBirth),
-          phone: data.phone,
-        },
-      });
+      // Update Profile if it exists
+      if (teacher.profileId) {
+        await tx.userProfile.update({
+          where: { id: teacher.profileId },
+          data: {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            otherNames: data.otherNames,
+            gender: data.gender,
+            dateOfBirth: formatDate(data.dateOfBirth),
+            phone: data.phone,
+          },
+        });
+      }
 
       // Update Teacher
       return await tx.teacher.update({

@@ -85,7 +85,7 @@ const roleConfig = {
     icon: User,
     color: "text-gray-600",
     badge: "gray",
-    route: "member",
+    route: "teacher", // no /member/ folder — member users see teacher dashboard
   },
 } as const;
 
@@ -97,14 +97,10 @@ export function RoleSwitcher({
 }: RoleSwitcherProps) {
   const router = useRouter();
 
-  // Only show if user has multiple roles
-  if (availableRoles.length <= 1) {
-    return null;
-  }
-
   const currentConfig =
     roleConfig[currentRole as keyof typeof roleConfig] || roleConfig.member;
   const CurrentIcon = currentConfig.icon;
+  const hasMultipleRoles = availableRoles.length > 1;
 
   const handleRoleSwitch = (role: string) => {
     const config = roleConfig[role as keyof typeof roleConfig];
@@ -114,18 +110,29 @@ export function RoleSwitcher({
     router.push(`/${schoolSlug}/${config.route}/dashboard`);
   };
 
+  const SwitcherButton = (
+    <Button
+      variant="outline"
+      className={cn(
+        "flex items-center gap-2 h-9 px-3",
+        !hasMultipleRoles &&
+          "cursor-default hover:bg-background shadow-none border-dashed",
+        className,
+      )}
+    >
+      <CurrentIcon className={cn("h-4 w-4", currentConfig.color)} />
+      <span className="hidden sm:inline-block">{currentConfig.label}</span>
+      {hasMultipleRoles && <ChevronDown className="h-4 w-4 opacity-50" />}
+    </Button>
+  );
+
+  if (!hasMultipleRoles) {
+    return SwitcherButton;
+  }
+
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn("flex items-center gap-2 h-9 px-3", className)}
-        >
-          <CurrentIcon className={cn("h-4 w-4", currentConfig.color)} />
-          <span className="hidden sm:inline-block">{currentConfig.label}</span>
-          <ChevronDown className="h-4 w-4 opacity-50" />
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>{SwitcherButton}</DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>Switch Role</DropdownMenuLabel>
         <DropdownMenuSeparator />

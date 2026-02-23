@@ -100,7 +100,9 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
             schoolSlug={schoolSlug}
             organizationId={school.organizationId}
             academicYears={school.academicYears}
-            teachers={school.teachers}
+            teachers={school.teachers
+              .filter((t) => t.profile !== null)
+              .map((t) => ({ ...t, profile: t.profile! }))}
             initialData={classData}
           />
         </CardContent>

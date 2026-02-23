@@ -129,19 +129,23 @@ export default async function AcademicOverviewPage(
     gradingSystems: school.gradingSystems.length,
   };
 
-  const topDepartments = school.departments.slice(0, 5).map((dept) => ({
-    id: dept.id,
-    name: dept.name,
-    subjectsCount: dept._count.subjects,
-    teachersCount: dept._count.teachersInDepartment,
-    headOfDept: dept.headOfDept
-      ? {
-          id: dept.headOfDept.id,
-          firstName: dept.headOfDept.profile.firstName,
-          lastName: dept.headOfDept.profile.lastName,
-        }
-      : null,
-  }));
+  const topDepartments = school.departments.slice(0, 5).map((dept) => {
+    const profile = dept.headOfDept?.profile;
+    return {
+      id: dept.id,
+      name: dept.name,
+      subjectsCount: dept._count.subjects,
+      teachersCount: dept._count.teachersInDepartment,
+      headOfDept:
+        dept.headOfDept && profile
+          ? {
+              id: dept.headOfDept.id,
+              firstName: profile.firstName,
+              lastName: profile.lastName,
+            }
+          : null,
+    };
+  });
 
   const recentAcademicYears = school.academicYears.slice(0, 5).map((year) => ({
     id: year.id,

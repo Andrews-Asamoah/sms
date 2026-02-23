@@ -76,7 +76,21 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
         </Link>
       </div>
 
-      <ClassesClient data={school.classes} schoolSlug={schoolSlug} />
+      <ClassesClient
+        data={
+          school.classes.map((cls) => ({
+            ...cls,
+            classTeacher:
+              cls.classTeacher && cls.classTeacher.profile
+                ? {
+                    id: cls.classTeacher.id,
+                    profile: cls.classTeacher.profile,
+                  }
+                : null,
+          })) as any
+        }
+        schoolSlug={schoolSlug}
+      />
     </div>
   );
 }

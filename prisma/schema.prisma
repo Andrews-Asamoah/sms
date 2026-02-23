@@ -336,10 +336,11 @@ model Student {
 
 model Teacher {
   id              String         @id @default(cuid())
-  profileId       String         @unique
+  profileId       String?        @unique
   schoolId        String
   teacherId       String
   staffNumber     String?
+  invitationEmail String?
   departmentId    String
   houseId         String?
   qualification   String?
@@ -353,7 +354,7 @@ model Teacher {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  profile               UserProfile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile               UserProfile?     @relation(fields: [profileId], references: [id], onDelete: Cascade)
   school                School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   department            Department       @relation("TeacherDepartment", fields: [departmentId], references: [id])
   house                 House?           @relation("TeacherHouse", fields: [houseId], references: [id])
@@ -370,6 +371,7 @@ model Teacher {
   @@index([departmentId])
   @@index([houseId])
   @@index([profileId])
+  @@index([invitationEmail])
   @@map("teachers")
 }
 
@@ -685,13 +687,13 @@ model Attendance {
   status  AttendanceStatus
   remarks String?
 
-  markedById String
+  markedById String?
   markedAt   DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  markedBy user    @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
+  markedBy user?    @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: SetNull)
 
   @@unique([studentId, date])
   @@index([studentId])
@@ -714,7 +716,7 @@ model GradingSystem {
   updatedAt       DateTime @updatedAt
 
   school              School?              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  createdBy           user?                @relation(fields: [createdById], references: [id])
+  createdBy           user?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
   assessmentTemplates AssessmentTemplate[]
   gradeScales         GradeScale[]
 
@@ -833,7 +835,7 @@ model ComponentScore {
 
   assessmentScore AssessmentScore     @relation(fields: [assessmentScoreId], references: [id], onDelete: Cascade)
   component       AssessmentComponent @relation(fields: [componentId], references: [id])
-  recordedBy      user?               @relation(fields: [recordedById], references: [id])
+  recordedBy      user?               @relation(fields: [recordedById], references: [id], onDelete: SetNull)
 
   @@unique([assessmentScoreId, componentId])
   @@index([assessmentScoreId])
@@ -876,7 +878,7 @@ model TranscriptRequest {
   updatedAt     DateTime  @updatedAt
 
   student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  processedBy user?   @relation(fields: [processedById], references: [id])
+  processedBy user?   @relation(fields: [processedById], references: [id], onDelete: SetNull)
 
   @@index([studentId])
   @@index([status])
@@ -1029,7 +1031,7 @@ model Payment {
   transactionId   String?
   status          PaymentStatus @default(COMPLETED)
   notes           String?
-  recordedById    String
+  recordedById    String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -1037,7 +1039,7 @@ model Payment {
   student     Student      @relation(fields: [studentId], references: [id])
   bill        Bill?        @relation(fields: [billId], references: [id])
   transaction Transaction? @relation(fields: [transactionId], references: [id])
-  recordedBy  user         @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  recordedBy  user?        @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
 
   @@unique([paymentNumber, schoolId])
   @@index([schoolId, paymentDate])
@@ -1163,7 +1165,7 @@ model Document {
   studentId    String?
   teacherId    String?
   staffId      String?
-  uploadedById String
+  uploadedById String?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -1171,7 +1173,7 @@ model Document {
   student    Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacher    Teacher? @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   staff      Staff?   @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  uploadedBy user     @relation(fields: [uploadedById], references: [id])
+  uploadedBy user?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@index([uploadedById])
   @@index([schoolId])
@@ -1195,7 +1197,7 @@ model AuditLog {
   userAgent  String?
   createdAt  DateTime    @default(now())
 
-  user user @relation(fields: [userId], references: [id])
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([entityType, entityId])

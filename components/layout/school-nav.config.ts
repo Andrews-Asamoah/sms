@@ -13,10 +13,15 @@ import {
   Hotel,
   Package,
   BadgeDollarSign,
+  GraduationCap,
+  Calendar,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 import type { NavPermissions } from "@/lib/auth/types";
 
+// ============================================================================
+// ADMIN / OWNER NAVIGATION
+// ============================================================================
 export const schoolNavSections: NavSection[] = [
   {
     title: "Main",
@@ -113,11 +118,6 @@ export const schoolNavSections: NavSection[] = [
             permission: "canManageGrading",
           },
           {
-            title: "Grade Entry",
-            url: "/admin/grading/entry",
-            permission: "canManageGrading",
-          },
-          {
             title: "Report Cards",
             url: "/admin/reports",
             permission: "canViewReports",
@@ -132,7 +132,7 @@ export const schoolNavSections: NavSection[] = [
       {
         title: "Administration",
         url: "#",
-        icon: Hotel, // Using Hotel as a generic building/admin icon
+        icon: Hotel,
         items: [
           {
             title: "Academic Years",
@@ -152,33 +152,6 @@ export const schoolNavSections: NavSection[] = [
         ],
       },
       {
-        title: "Facilities",
-        url: "#",
-        icon: Package,
-        items: [
-          {
-            title: "Hostel",
-            url: "/admin/hostel",
-            permission: "canViewHostel",
-          },
-          {
-            title: "Transport",
-            url: "/admin/transport",
-            permission: "canViewTransport",
-          },
-          {
-            title: "Library",
-            url: "/admin/library",
-            permission: "canViewLibrary",
-          },
-          {
-            title: "Inventory",
-            url: "/admin/inventory",
-            permission: "canViewInventory",
-          },
-        ],
-      },
-      {
         title: "Finance",
         url: "/admin/finance",
         icon: DollarSign,
@@ -187,10 +160,34 @@ export const schoolNavSections: NavSection[] = [
           { title: "Overview", url: "/admin/finance" },
           { title: "Fee Management", url: "/admin/finance/fees" },
           { title: "Payments", url: "/admin/finance/payments" },
-          { title: "Invoices", url: "/admin/finance/invoices" }, // Will need placeholder or implement
           { title: "Outstanding", url: "/admin/finance/outstanding" },
-          { title: "Reports", url: "/admin/finance/reports" }, // Placeholder
+          { title: "Reports", url: "/admin/finance/reports" },
         ],
+      },
+    ],
+  },
+  {
+    title: "Teacher Area",
+    items: [
+      {
+        title: "My Gradebooks",
+        url: "/teacher/gradebook",
+        icon: GraduationCap,
+      },
+      {
+        title: "My Classes",
+        url: "/teacher/classes",
+        icon: Users,
+      },
+      {
+        title: "Schedule",
+        url: "/teacher/schedule",
+        icon: Calendar,
+      },
+      {
+        title: "Subjects",
+        url: "/teacher/subjects",
+        icon: BookOpen,
       },
     ],
   },
@@ -199,15 +196,9 @@ export const schoolNavSections: NavSection[] = [
     items: [
       {
         title: "Announcements",
-        url: "/admin/announcements",
-        icon: MessageSquare,
-        permission: "canManageAnnouncements",
-      },
-      {
-        title: "Messages",
         url: "/admin/communications",
         icon: MessageSquare,
-        permission: "canViewCommunications",
+        permission: "canManageAnnouncements",
       },
       {
         title: "Documents",
@@ -228,14 +219,13 @@ export const schoolNavSections: NavSection[] = [
         items: [
           { title: "General", url: "/admin/settings" },
           { title: "Users & Roles", url: "/admin/users" },
-          { title: "Preferences", url: "/admin/settings/preferences" },
         ],
       },
       {
         title: "Subscription",
         url: "/admin/subscription",
         icon: BadgeDollarSign,
-        permission: "canViewSupport", // Ideally this should be a stronger permission like 'manageSubscription' but 'canViewSupport' (admin only usually) works for now, or just rely on role filter.
+        permission: "canViewSupport",
       },
       {
         title: "Support",
@@ -247,42 +237,39 @@ export const schoolNavSections: NavSection[] = [
   },
 ];
 
-/**
- * Role-specific navigation sections
- * These define which sections each role should see
- */
+// ============================================================================
+// ROLE → SECTION MAPPING
+// Only sections relevant to each role's portal are shown.
+// Teacher role ONLY sees Teacher Area (not admin sections).
+// ============================================================================
 const ROLE_NAV_SECTIONS: Record<string, string[]> = {
   owner: [
     "Main",
+    "User Management",
     "Academics",
-    "Assessment",
     "Operations",
     "Communication",
-    "User Management",
-    "Personal",
     "System",
   ],
   admin: [
     "Main",
-    "Academics",
     "User Management",
-    "Assessment",
+    "Academics",
     "Operations",
     "Communication",
-    "Personal",
     "System",
   ],
-  teacher: ["Main", "Assessment", "Operations", "Communication", "Personal"],
-  accountant: ["Main", "Operations", "Personal"],
-  staff: ["Main", "Operations", "Communication", "Personal"],
-  student: ["Main", "Assessment", "Operations", "Communication", "Personal"],
-  guardian: ["Main", "Operations", "Communication", "Personal"],
-  member: ["Main", "Personal"],
+  teacher: ["Teacher Area", "Communication"],
+  accountant: ["Operations"],
+  staff: ["Communication"],
+  student: [],
+  guardian: [],
+  member: ["Teacher Area"],
 };
 
 /**
- * Filter navigation sections based on role
- * This removes entire sections that aren't relevant to the role
+ * Filter navigation sections based on role.
+ * This removes entire sections that aren't relevant to the role.
  */
 export function filterNavByRole(
   sections: NavSection[],
@@ -296,8 +283,8 @@ export function filterNavByRole(
 }
 
 /**
- * Filter navigation sections based on user permissions
- * This is applied AFTER role filtering to remove specific items
+ * Filter navigation sections based on user permissions.
+ * This is applied AFTER role filtering to remove specific items.
  */
 export function filterNavByPermissions(
   sections: NavSection[],
@@ -313,8 +300,8 @@ export function filterNavByPermissions(
         })
         .map((item) => ({
           ...item,
-          items: item.items?.filter(() => {
-            const permission = item.permission as keyof NavPermissions;
+          items: item.items?.filter((subItem) => {
+            const permission = subItem.permission as keyof NavPermissions;
             return !permission || permissions[permission];
           }),
         })),
@@ -323,9 +310,9 @@ export function filterNavByPermissions(
 }
 
 /**
- * Prefix all navigation URLs with a school slug
- * This ensures routes are: /{schoolSlug}/admin/dashboard, etc.
- * Also handles role-specific URL rewrites (e.g. Finance)
+ * Prefix all navigation URLs with the school slug.
+ * Result: /{schoolSlug}/admin/dashboard, /{schoolSlug}/teacher/gradebook, etc.
+ * Also handles per-role URL rewrites (e.g., accountant gets /accountant/finance).
  */
 export function getPrefixedNavSections(
   schoolSlug: string,
@@ -339,38 +326,22 @@ export function getPrefixedNavSections(
     items: section.items.map((item) => {
       let url = item.url;
 
-      // Dynamic URL rewriting for Finance
-      if (
-        currentRole === "accountant" &&
-        (url.includes("/admin/finance") || url.includes("/accountant/finance"))
-      ) {
-        // Force accountant path if role is accountant
+      // Rewrite finance base path for accountant role
+      if (currentRole === "accountant" && url.includes("/admin/finance")) {
         url = url.replace("/admin/finance", "/accountant/finance");
-      } else if (currentRole !== "accountant" && item.title === "Finance") {
-        // Force admin path for non-accountants (admins/owners)
-        // This assumes the base config might be set to either, setting to admin ensures consistency
-        url = url.replace("/accountant/finance", "/admin/finance");
       }
 
       return {
         ...item,
-        url: `/${safeSlug}${url}`,
+        url: url === "#" ? "#" : `/${safeSlug}${url}`,
         items: item.items?.map((subItem) => {
           let subUrl = subItem.url;
           if (
             currentRole === "accountant" &&
-            (subUrl.includes("/admin/finance") ||
-              subUrl.includes("/accountant/finance"))
+            subUrl.includes("/admin/finance")
           ) {
             subUrl = subUrl.replace("/admin/finance", "/accountant/finance");
-          } else if (
-            currentRole !== "accountant" &&
-            (subUrl.includes("/admin/finance") ||
-              subUrl.includes("/accountant/finance"))
-          ) {
-            subUrl = subUrl.replace("/accountant/finance", "/admin/finance");
           }
-
           return {
             ...subItem,
             url: `/${safeSlug}${subUrl}`,

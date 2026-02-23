@@ -1,4 +1,4 @@
-// app/api/schools/[schoolSlug]/invite-admin/route.ts - CORRECT BETTER AUTH SERVER-SIDE
+// app/api/schools/[schoolSlug]/invite-admin/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";

@@ -4,7 +4,7 @@ import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, GraduationCap, Home } from "lucide-react";
+import { Plus, Users, GraduationCap, Clock } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -12,8 +12,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { TeachersClient } from "./client";
 import { TeacherDialog } from "@/components/school/teachers/teacher-dialog";
+import { CancelInvitationButton } from "@/components/school/teachers/cancel-invitation-button";
 
 interface TeachersPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -25,7 +27,6 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
   const session = await requireSchoolAccess(schoolSlug);
   const role = getSchoolRole(session, schoolSlug);
 
-  // Check authorization
   if (
     role?.effectiveRole !== "admin" &&
     role?.effectiveRole !== "owner" &&
@@ -34,7 +35,6 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  // Fetch school
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
   });
@@ -43,38 +43,52 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
     redirect("/");
   }
 
-  // Fetch teachers with related data
-  const [teachers, activeCount, departments, houses] = await Promise.all([
-    prisma.teacher.findMany({
-      where: { schoolId: school.id },
-      include: {
-        profile: true,
-        department: true,
-        house: true,
-        _count: {
-          select: {
-            subjects: true,
-            classesAsClassTeacher: true,
+  const [allTeachers, activeCount, pendingInvitations, departments, houses] =
+    await Promise.all([
+      // Active (linked) teachers only
+      prisma.teacher.findMany({
+        where: { schoolId: school.id, profileId: { not: null } },
+        include: {
+          profile: true,
+          department: true,
+          house: true,
+          _count: {
+            select: {
+              subjects: true,
+              classesAsClassTeacher: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.teacher.count({
-      where: { schoolId: school.id, isActive: true },
-    }),
-    prisma.department.findMany({
-      where: { schoolId: school.id, isActive: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.house.findMany({
-      where: { schoolId: school.id, isActive: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.teacher.count({
+        where: {
+          schoolId: school.id,
+          isActive: true,
+          profileId: { not: null },
+        },
+      }),
+      // Pending invitations (no profile yet)
+      prisma.teacher.findMany({
+        where: { schoolId: school.id, profileId: null },
+        include: {
+          department: true,
+          house: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.department.findMany({
+        where: { schoolId: school.id, isActive: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.house.findMany({
+        where: { schoolId: school.id, isActive: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
-  const totalTeachers = teachers.length;
-  const inactiveCount = totalTeachers - activeCount;
+  const totalActive = allTeachers.length;
+  const inactiveCount = totalActive - activeCount;
 
   return (
     <div className="space-y-6">
@@ -96,13 +110,13 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
         >
           <Button size="lg">
             <Plus className="mr-2 h-5 w-5" />
-            New Teacher
+            Invite Teacher
           </Button>
         </TeacherDialog>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card className="backdrop-blur-sm bg-card/50 border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -111,7 +125,7 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
             <GraduationCap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalTeachers}</div>
+            <div className="text-2xl font-bold">{totalActive}</div>
           </CardContent>
         </Card>
 
@@ -132,13 +146,82 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
             <CardTitle className="text-sm font-medium">
               Inactive Teachers
             </CardTitle>
-            <Home className="h-4 w-4 text-orange-600" />
+            <Users className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{inactiveCount}</div>
           </CardContent>
         </Card>
+
+        <Card className="backdrop-blur-sm bg-card/50 border-border/50">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Pending Invitations
+            </CardTitle>
+            <Clock className="h-4 w-4 text-yellow-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {pendingInvitations.length}
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Pending Invitations */}
+      {pendingInvitations.length > 0 && (
+        <Card className="backdrop-blur-sm bg-card/50 border-border/50 border-yellow-500/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-yellow-600" />
+              Pending Invitations
+            </CardTitle>
+            <CardDescription>
+              These teachers have been invited but haven&apos;t accepted yet.
+              Their profile details will be linked automatically when they sign
+              up.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y">
+              {pendingInvitations.map((pending) => (
+                <div
+                  key={pending.id}
+                  className="flex items-center justify-between py-3"
+                >
+                  <div className="space-y-0.5">
+                    <p className="font-medium text-sm">
+                      {pending.invitationEmail}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {pending.department.name} ·{" "}
+                      {pending.employmentType.replace("_", " ")} · Invited{" "}
+                      {new Date(pending.createdAt).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className="text-yellow-600 border-yellow-500/50"
+                    >
+                      Awaiting signup
+                    </Badge>
+                    <CancelInvitationButton
+                      schoolSlug={schoolSlug}
+                      teacherId={pending.id}
+                      email={pending.invitationEmail!}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Teachers Table */}
       <Card className="backdrop-blur-sm bg-card/50 border-border/50">
@@ -150,12 +233,15 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
         </CardHeader>
         <CardContent>
           <TeachersClient
-            data={teachers.map((teacher) => ({
-              ...teacher,
-              monthlySalary: teacher.monthlySalary
-                ? teacher.monthlySalary.toNumber()
-                : null,
-            }))}
+            data={allTeachers
+              .filter((t) => t.profile !== null)
+              .map((teacher) => ({
+                ...teacher,
+                profile: teacher.profile!,
+                monthlySalary: teacher.monthlySalary
+                  ? teacher.monthlySalary.toNumber()
+                  : null,
+              }))}
             schoolSlug={schoolSlug}
             departments={departments}
             houses={houses}

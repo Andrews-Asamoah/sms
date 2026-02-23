@@ -4,13 +4,11 @@ import { redirect } from "next/navigation";
 import OutstandingFeesClient from "./client";
 
 interface PageProps {
-  params: {
-    schoolSlug: string;
-  };
+  params: Promise<{ schoolSlug: string }>;
 }
 
 export default async function OutstandingPage({ params }: PageProps) {
-  const { schoolSlug } = params;
+  const { schoolSlug } = await params;
   const session = await getSession();
 
   if (!session) {

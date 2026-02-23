@@ -35,7 +35,12 @@ export async function getRoleLayoutData(
 
   if (!hasRequiredRole) {
     // Redirect to their appropriate portal
-    redirect(`/${schoolSlug}/${schoolRole.effectiveRole}/dashboard`);
+    // Note: 'member' role has no dedicated /member/ folder — redirect to teacher dashboard
+    const roleRoute =
+      schoolRole.effectiveRole === "member"
+        ? "teacher"
+        : schoolRole.effectiveRole;
+    redirect(`/${schoolSlug}/${roleRoute}/dashboard`);
   }
 
   // Get school details

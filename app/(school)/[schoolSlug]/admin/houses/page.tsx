@@ -74,10 +74,11 @@ export default async function HousesPage({ params }: HousesPageProps) {
   ]);
 
   // Fetch available teachers for house teacher assignment
-  const teachers = await prisma.teacher.findMany({
+  const rawTeachers = await prisma.teacher.findMany({
     where: {
       schoolId: school.id,
       isActive: true,
+      profileId: { not: null },
     },
     include: {
       profile: true,
@@ -88,6 +89,11 @@ export default async function HousesPage({ params }: HousesPageProps) {
       },
     },
   });
+
+  const teachers = rawTeachers.map((t) => ({
+    id: t.id,
+    profile: t.profile!,
+  }));
 
   return (
     <div className="space-y-6">
@@ -158,7 +164,18 @@ export default async function HousesPage({ params }: HousesPageProps) {
         </CardHeader>
         <CardContent>
           <HousesDataTable
-            data={houses}
+            data={
+              houses.map((h) => ({
+                ...h,
+                houseTeacher:
+                  h.houseTeacher && h.houseTeacher.profile
+                    ? {
+                        id: h.houseTeacher.id,
+                        profile: h.houseTeacher.profile,
+                      }
+                    : null,
+              })) as any
+            }
             schoolSlug={schoolSlug}
             schoolId={school.id}
             teachers={teachers}

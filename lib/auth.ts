@@ -336,21 +336,28 @@ export const auth = betterAuth({
               console.log(`✅ [Auth] Profile created`);
             }
 
-            // Verify email
-            const currentUser = await prisma.user.findUnique({
+            // ----------------------------------------------------------------
+            // EMAIL VERIFICATION — mark verified + clear verification tokens
+            // All invitation-accepted users have proven email ownership by
+            // clicking the invite link, so no verification token is needed.
+            // ----------------------------------------------------------------
+            await prisma.user.update({
               where: { id: user.id },
-              select: { emailVerified: true },
+              data: { emailVerified: true },
             });
 
-            if (!currentUser?.emailVerified) {
-              await prisma.user.update({
-                where: { id: user.id },
-                data: { emailVerified: true },
-              });
-              console.log(`✅ [Auth] Email verified for ${user.email}`);
-            }
+            // Delete any stale email-verification tokens (applies to ALL invited users)
+            await prisma.verification.deleteMany({
+              where: { identifier: user.email },
+            });
 
-            // Link guardian profile if applicable
+            console.log(
+              `✅ [Auth] Email verified and verification tokens cleared for ${user.email}`,
+            );
+
+            // ----------------------------------------------------------------
+            // GUARDIAN LINKING
+            // ----------------------------------------------------------------
             const guardianRecord = await prisma.guardian.findFirst({
               where: {
                 email: user.email,
@@ -374,7 +381,41 @@ export const auth = betterAuth({
               }
             }
 
-            // Audit log
+            // ----------------------------------------------------------------
+            // TEACHER LINKING — link pending Teacher record on invite acceptance
+            // ----------------------------------------------------------------
+            const school = await prisma.school.findUnique({
+              where: { organizationId: organization.id },
+              select: { id: true },
+            });
+
+            const userProfile = await prisma.userProfile.findUnique({
+              where: { userId: user.id },
+            });
+
+            if (school && userProfile) {
+              const linked = await prisma.teacher.updateMany({
+                where: {
+                  invitationEmail: user.email,
+                  schoolId: school.id,
+                  profileId: null,
+                },
+                data: {
+                  profileId: userProfile.id,
+                  invitationEmail: null,
+                },
+              });
+
+              if (linked.count > 0) {
+                console.log(
+                  `✅ [Auth] Linked ${linked.count} Teacher record(s) for ${user.email}`,
+                );
+              }
+            }
+
+            // ----------------------------------------------------------------
+            // AUDIT LOG
+            // ----------------------------------------------------------------
             await prisma.auditLog.create({
               data: {
                 userId: user.id,
@@ -448,6 +489,102 @@ export const auth = betterAuth({
           console.log(`✅ [Auth] Invitation accepted by ${user.email}`);
 
           try {
+            // ------------------------------------------------------------------
+            // ENSURE USER PROFILE EXISTS
+            // (new users may not have a profile yet at this point)
+            // ------------------------------------------------------------------
+            let userProfile = await prisma.userProfile.findUnique({
+              where: { userId: user.id },
+            });
+
+            if (!userProfile) {
+              console.log(
+                `📝 [Auth] Creating profile for invited user ${user.email}`,
+              );
+              const nameParts = user.name.trim().split(/\s+/);
+              const firstName = nameParts[0] || "User";
+              const lastName =
+                nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+              userProfile = await prisma.userProfile.create({
+                data: {
+                  userId: user.id,
+                  firstName,
+                  lastName: lastName || "Profile",
+                  phone: null,
+                  gender: Gender.OTHER,
+                  dateOfBirth: new Date("2000-01-01"),
+                  isActive: true,
+                },
+              });
+              console.log(`✅ [Auth] Profile created for invited user`);
+            }
+
+            // ------------------------------------------------------------------
+            // MARK EMAIL VERIFIED — invitation link proves email ownership
+            // ------------------------------------------------------------------
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { emailVerified: true },
+            });
+            await prisma.verification.deleteMany({
+              where: { identifier: user.email },
+            });
+            console.log(`✅ [Auth] Email verified for ${user.email}`);
+
+            // ------------------------------------------------------------------
+            // LOOK UP THE SCHOOL for this organization
+            // ------------------------------------------------------------------
+            const school = await prisma.school.findUnique({
+              where: { organizationId: organization.id },
+              select: { id: true },
+            });
+
+            if (school && userProfile) {
+              // ----------------------------------------------------------------
+              // TEACHER LINKING — link pending Teacher record
+              // ----------------------------------------------------------------
+              const linkedTeachers = await prisma.teacher.updateMany({
+                where: {
+                  invitationEmail: invitation.email,
+                  schoolId: school.id,
+                  profileId: null,
+                },
+                data: {
+                  profileId: userProfile.id,
+                  invitationEmail: null,
+                },
+              });
+
+              if (linkedTeachers.count > 0) {
+                console.log(
+                  `✅ [Auth] Linked ${linkedTeachers.count} Teacher record(s) for ${user.email}`,
+                );
+              }
+
+              // ----------------------------------------------------------------
+              // GUARDIAN LINKING — link pending Guardian record
+              // ----------------------------------------------------------------
+              const guardianRecord = await prisma.guardian.findFirst({
+                where: {
+                  email: invitation.email,
+                  schoolId: school.id,
+                  profileId: null,
+                },
+              });
+
+              if (guardianRecord) {
+                await prisma.guardian.update({
+                  where: { id: guardianRecord.id },
+                  data: { profileId: userProfile.id },
+                });
+                console.log(`✅ [Auth] Guardian linked for ${user.email}`);
+              }
+            }
+
+            // ------------------------------------------------------------------
+            // AUDIT LOG
+            // ------------------------------------------------------------------
             await prisma.auditLog.create({
               data: {
                 userId: user.id,

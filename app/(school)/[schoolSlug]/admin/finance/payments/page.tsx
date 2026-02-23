@@ -4,13 +4,11 @@ import { redirect } from "next/navigation";
 import PaymentsClient from "./client";
 
 interface PageProps {
-  params: {
-    schoolSlug: string;
-  };
+  params: Promise<{ schoolSlug: string }>;
 }
 
 export default async function PaymentsPage({ params }: PageProps) {
-  const { schoolSlug } = params;
+  const { schoolSlug } = await params;
   const session = await getSession();
 
   if (!session) {

@@ -2,20 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
+import { auth } from "@/lib/auth";
 import { z } from "zod";
-import crypto from "crypto";
+import { Gender } from "@/lib/generated/prisma/client";
 
-// Schema for teacher creation validation
-const teacherCreateSchema = z.object({
-  schoolId: z.string().min(1, "School ID is required"),
-  firstName: z.string().min(2, "First name is required"),
-  lastName: z.string().min(2, "Last name is required"),
-  otherNames: z.string().nullable().optional(),
-  gender: z.enum(["MALE", "FEMALE", "OTHER"]),
-  dateOfBirth: z.string().min(1, "Date of birth is required"),
-  phone: z.string().nullable().optional(),
-  email: z.string().email().nullable().optional().or(z.literal("")),
-
+// Schema for teacher invitation
+const teacherInviteSchema = z.object({
+  email: z.string().email("Valid email is required"),
   staffNumber: z.string().nullable().optional(),
   departmentId: z.string().min(1, "Department is required"),
   houseId: z.string().nullable().optional(),
@@ -33,7 +26,101 @@ const teacherCreateSchema = z.object({
   contractEndDate: z.string().nullable().optional(),
   monthlySalary: z.number().nullable().optional(),
   isActive: z.boolean().default(true),
+  // When true, skip the confirmation prompt and directly add as teacher
+  force: z.boolean().optional().default(false),
 });
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ schoolSlug: string }> },
+) {
+  try {
+    const { schoolSlug } = await params;
+    const session = await requireSchoolAccess(schoolSlug);
+    const role = getSchoolRole(session, schoolSlug);
+
+    if (
+      role?.effectiveRole !== "admin" &&
+      role?.effectiveRole !== "owner" &&
+      !session.isSuperAdmin
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get("search");
+    const departmentId = searchParams.get("departmentId");
+    const houseId = searchParams.get("houseId");
+    const isActiveParam = searchParams.get("isActive");
+
+    // Get school ID
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { id: true },
+    });
+
+    if (!school) {
+      return NextResponse.json({ error: "School not found" }, { status: 404 });
+    }
+
+    const where: Record<string, unknown> = {
+      schoolId: school.id,
+    };
+
+    if (isActiveParam !== null && isActiveParam !== undefined) {
+      where.isActive = isActiveParam === "true";
+    }
+
+    if (departmentId) {
+      where.departmentId = departmentId;
+    }
+
+    if (houseId) {
+      where.houseId = houseId;
+    }
+
+    if (search) {
+      where.OR = [
+        {
+          profile: {
+            OR: [
+              { firstName: { contains: search, mode: "insensitive" } },
+              { lastName: { contains: search, mode: "insensitive" } },
+              { otherNames: { contains: search, mode: "insensitive" } },
+            ],
+          },
+        },
+        { teacherId: { contains: search, mode: "insensitive" } },
+        { staffNumber: { contains: search, mode: "insensitive" } },
+        { invitationEmail: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const teachers = await prisma.teacher.findMany({
+      where,
+      include: {
+        profile: true,
+        department: true,
+        house: true,
+        _count: {
+          select: {
+            subjects: true,
+            classesAsClassTeacher: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json(teachers);
+  } catch (error) {
+    console.error("Error fetching teachers:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
 
 export async function POST(
   req: NextRequest,
@@ -53,7 +140,7 @@ export async function POST(
     }
 
     const body = await req.json();
-    const result = teacherCreateSchema.safeParse(body);
+    const result = teacherInviteSchema.safeParse(body);
 
     if (!result.success) {
       return NextResponse.json(
@@ -64,138 +151,198 @@ export async function POST(
 
     const data = result.data;
 
-    // Generate teacher ID (format: T-{YEAR}-{RANDOM})
+    // Fetch school + its organization
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { id: true, name: true, organizationId: true },
+    });
+
+    if (!school) {
+      return NextResponse.json({ error: "School not found" }, { status: 404 });
+    }
+
+    // Reject duplicate pending invite for the same email in this school
+    const existingPending = await prisma.teacher.findFirst({
+      where: { schoolId: school.id, invitationEmail: data.email },
+    });
+
+    if (existingPending) {
+      return NextResponse.json(
+        { error: "A pending invitation already exists for this email" },
+        { status: 409 },
+      );
+    }
+
+    // Process based on whether the user already exists in the system
+    const formatDate = (dateString: string) => new Date(dateString);
     const year = new Date().getFullYear();
     const random = Math.floor(1000 + Math.random() * 9000);
     const teacherId = `T-${year}-${random}`;
 
-    // Helper to format date
-    const formatDate = (dateString: string) => new Date(dateString);
-
-    // Transaction to create Profile and Teacher
-    const teacher = await prisma.$transaction(async (tx) => {
-      // 1. Create User Profile
-      // Note: We're creating a standalone profile first.
-      // If email exists and matches a User, we'd ideally link it, but for now
-      // we'll create a profile that can be linked to a User later if they sign up.
-      // However, UserProfile requires a unique userId in the schema?
-      // Wait, schema says: userId String @unique. relationships: user User @relation...
-      // This means a Profile MUST belong to a User.
-
-      // Check if we can create a profile without a user.
-      // Schema: model UserProfile { ... userId String @unique ... user User ... }
-      // So we MUST have a User record to create a Profile.
-
-      // Strategy:
-      // 1. If email is provided, checking if User exists.
-      // 2. If User exists, use their ID.
-      // 3. If no User, we must create a User record. Since this is an admin adding a teacher,
-      //    we can create a placeholder User.
-
-      let userId: string;
-      const email = data.email || `teacher-${teacherId}@placeholder.com`; // Fallback email if none provided
-
-      let existingUser = null;
-      if (data.email) {
-        existingUser = await tx.user.findUnique({
-          where: { email: data.email },
-        });
-      }
-
-      if (existingUser) {
-        userId = existingUser.id;
-        // Check if this user already has a profile
-        const existingProfile = await tx.userProfile.findUnique({
-          where: { userId },
-        });
-
-        if (existingProfile) {
-          // Check if this profile is already a teacher in THIS school
-          const existingTeacher = await tx.teacher.findFirst({
-            where: { profileId: existingProfile.id, schoolId: data.schoolId },
-          });
-
-          if (existingTeacher) {
-            throw new Error("This user is already a teacher in this school");
-          }
-
-          // If profile exists but not a teacher in this school, we reuse the profile
-          // But we can't overwrite their personal info without permission.
-          // For simplicity, we'll just link the new Teacher record to the existing profile.
-          return await tx.teacher.create({
-            data: {
-              teacherId,
-              staffNumber: data.staffNumber,
-              schoolId: data.schoolId,
-              profileId: existingProfile.id,
-              departmentId: data.departmentId,
-              houseId: data.houseId || null,
-              qualification: data.qualification,
-              specialization: data.specialization,
-              experience: data.experience,
-              employmentType: data.employmentType,
-              hireDate: formatDate(data.hireDate),
-              contractEndDate: data.contractEndDate
-                ? formatDate(data.contractEndDate)
-                : null,
-              monthlySalary: data.monthlySalary,
-              isActive: data.isActive,
-            },
-          });
-        }
-      } else {
-        // Create new User
-        const newUser = await tx.user.create({
-          data: {
-            id: crypto.randomUUID(),
-            name: `${data.firstName} ${data.lastName}`,
-            email: email,
-            role: "user", // Default role
-          },
-        });
-        userId = newUser.id;
-      }
-
-      // Create Profile
-      const newProfile = await tx.userProfile.create({
-        data: {
-          userId: userId,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          otherNames: data.otherNames,
-          gender: data.gender,
-          dateOfBirth: formatDate(data.dateOfBirth),
-          phone: data.phone,
-          nationality: "Ghanaian", // Default
+    // Reject if a fully linked teacher with this email already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: data.email },
+      include: {
+        userProfile: true,
+        members: {
+          where: { organizationId: school.organizationId },
         },
-      });
-
-      // Create Teacher Linked to Profile
-      return await tx.teacher.create({
-        data: {
-          teacherId,
-          staffNumber: data.staffNumber,
-          schoolId: data.schoolId,
-          profileId: newProfile.id,
-          departmentId: data.departmentId,
-          houseId: data.houseId || null,
-          qualification: data.qualification,
-          specialization: data.specialization,
-          experience: data.experience,
-          employmentType: data.employmentType,
-          hireDate: formatDate(data.hireDate),
-          contractEndDate: data.contractEndDate
-            ? formatDate(data.contractEndDate)
-            : null,
-          monthlySalary: data.monthlySalary,
-          isActive: data.isActive,
-        },
-      });
+      },
     });
 
-    return NextResponse.json(teacher);
+    if (existingUser?.userProfile) {
+      const linkedTeacher = await prisma.teacher.findFirst({
+        where: {
+          schoolId: school.id,
+          profileId: existingUser.userProfile.id,
+        },
+      });
+      if (linkedTeacher) {
+        return NextResponse.json(
+          { error: "This user is already a teacher in this school" },
+          { status: 409 },
+        );
+      }
+    }
+
+    if (existingUser) {
+      // Determine their current role in this school (if any)
+      const isMember = existingUser.members?.some(
+        (m) => m.organizationId === school.organizationId,
+      );
+
+      // If NOT forcing, return a confirmation prompt to the admin
+      if (!data.force) {
+        // Look up their profile to show a name
+        const profileName = existingUser.userProfile
+          ? `${existingUser.userProfile.firstName} ${existingUser.userProfile.lastName}`.trim()
+          : existingUser.name || existingUser.email;
+
+        return NextResponse.json({
+          needsConfirmation: true,
+          existingUser: {
+            id: existingUser.id,
+            name: profileName,
+            email: existingUser.email,
+            isMember,
+          },
+        });
+      }
+
+      // Admin confirmed — proceed with adding as teacher
+      try {
+        if (!isMember) {
+          await auth.api.addMember({
+            body: {
+              organizationId: school.organizationId,
+              userId: existingUser.id,
+              role: "member",
+            },
+            headers: req.headers,
+          });
+        }
+
+        let profileId = existingUser.userProfile?.id;
+
+        if (!profileId) {
+          // Fallback: create a basic profile if missing
+          const nameParts = existingUser.name.trim().split(/\s+/);
+          const firstName = nameParts[0] || "User";
+          const lastName =
+            nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Profile";
+
+          const newProfile = await prisma.userProfile.create({
+            data: {
+              userId: existingUser.id,
+              firstName,
+              lastName,
+              gender: Gender.OTHER,
+              dateOfBirth: new Date("2000-01-01"),
+              isActive: true,
+            },
+          });
+          profileId = newProfile.id;
+        }
+
+        const teacher = await prisma.teacher.create({
+          data: {
+            teacherId,
+            schoolId: school.id,
+            profileId: profileId,
+            invitationEmail: null, // Fully linked immediately
+            staffNumber: data.staffNumber ?? null,
+            departmentId: data.departmentId,
+            houseId: data.houseId ?? null,
+            qualification: data.qualification ?? null,
+            specialization: data.specialization ?? null,
+            experience: data.experience ?? null,
+            employmentType: data.employmentType,
+            hireDate: formatDate(data.hireDate),
+            contractEndDate: data.contractEndDate
+              ? formatDate(data.contractEndDate)
+              : null,
+            monthlySalary: data.monthlySalary ?? null,
+            isActive: data.isActive,
+          },
+        });
+
+        return NextResponse.json({
+          teacher,
+          invited: false,
+          isExistingUser: true,
+        });
+      } catch (addError) {
+        console.error("Error adding existing user to org:", addError);
+        return NextResponse.json(
+          { error: "Failed to add existing user to school" },
+          { status: 500 },
+        );
+      }
+    }
+
+    // New User: Send BetterAuth org invitation with role "member"
+    const inviteResponse = await auth.api.createInvitation({
+      body: {
+        email: data.email,
+        role: "member",
+        organizationId: school.organizationId,
+      },
+      headers: req.headers,
+    });
+
+    if (!inviteResponse) {
+      return NextResponse.json(
+        { error: "Failed to create invitation" },
+        { status: 500 },
+      );
+    }
+
+    // Create pending Teacher record (profileId stays null until teacher accepts invite)
+    const teacher = await prisma.teacher.create({
+      data: {
+        teacherId,
+        schoolId: school.id,
+        profileId: null,
+        invitationEmail: data.email,
+        staffNumber: data.staffNumber ?? null,
+        departmentId: data.departmentId,
+        houseId: data.houseId ?? null,
+        qualification: data.qualification ?? null,
+        specialization: data.specialization ?? null,
+        experience: data.experience ?? null,
+        employmentType: data.employmentType,
+        hireDate: formatDate(data.hireDate),
+        contractEndDate: data.contractEndDate
+          ? formatDate(data.contractEndDate)
+          : null,
+        monthlySalary: data.monthlySalary ?? null,
+        isActive: data.isActive,
+      },
+    });
+
+    return NextResponse.json({ teacher, invited: true, isNewUser: true });
   } catch (error) {
-    console.error("Error creating teacher:", error);
+    console.error("Error inviting teacher:", error);
     if (error instanceof Error && error.message.includes("already a teacher")) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
