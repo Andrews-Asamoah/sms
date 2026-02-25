@@ -118,6 +118,11 @@ export const schoolNavSections: NavSection[] = [
             permission: "canManageGrading",
           },
           {
+            title: "Assessment Templates",
+            url: "/admin/academics/grading/assessment-templates",
+            permission: "canManageGrading",
+          },
+          {
             title: "Report Cards",
             url: "/admin/reports",
             permission: "canViewReports",

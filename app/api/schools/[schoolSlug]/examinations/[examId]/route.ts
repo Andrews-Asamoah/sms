@@ -7,8 +7,7 @@ import { z } from "zod";
 const updateExamSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
   gradingSystemId: z.string().min(1, "Grading system is required").optional(),
-  classLevel: z.string().optional(),
-  subjectCode: z.string().optional(),
+  classId: z.string().nullable().optional(),
   termNumber: z.coerce.number().int().optional(),
   description: z.string().optional(),
   isActive: z.boolean().optional(),
@@ -35,8 +34,7 @@ export async function PATCH(
     const {
       name,
       gradingSystemId,
-      classLevel,
-      subjectCode,
+      classId,
       termNumber,
       description,
       isActive,
@@ -61,6 +59,15 @@ export async function PATCH(
       }
     }
 
+    if (classId) {
+      const cls = await prisma.class.findUnique({
+        where: { id: classId },
+      });
+      if (!cls || cls.schoolId !== school.id) {
+        return new NextResponse("Invalid class", { status: 400 });
+      }
+    }
+
     const exam = await prisma.assessmentTemplate.update({
       where: {
         id: examId,
@@ -69,11 +76,14 @@ export async function PATCH(
       data: {
         name,
         gradingSystemId,
-        classLevel,
-        subjectCode,
+        classId: classId !== undefined ? classId : undefined,
         termNumber,
         description,
         isActive,
+      },
+      include: {
+        gradingSystem: true,
+        class: true,
       },
     });
 

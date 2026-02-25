@@ -38,7 +38,7 @@ export default async function SubjectsPage(props: SubjectsPageProps) {
   const subjects = await prisma.subject.findMany({
     where: { schoolId: school.id },
     include: {
-      department: {
+      departments: {
         select: {
           id: true,
           name: true,

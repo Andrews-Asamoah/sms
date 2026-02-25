@@ -13,6 +13,18 @@ const createGradingSystemSchema = z.object({
   description: z.string().optional(),
   isSchoolDefault: z.boolean().default(false),
   isActive: z.boolean().default(true),
+  gradeScales: z
+    .array(
+      z.object({
+        grade: z.string().min(1),
+        description: z.string().min(1),
+        minScore: z.number().min(0).max(100),
+        maxScore: z.number().min(0).max(100),
+        gradePoint: z.number().min(0),
+        displayOrder: z.number(),
+      }),
+    )
+    .optional(),
 });
 
 export async function GET(
@@ -40,6 +52,9 @@ export async function GET(
     const gradingSystems = await prisma.gradingSystem.findMany({
       where: { schoolId: school.id },
       include: {
+        gradeScales: {
+          orderBy: { displayOrder: "asc" },
+        },
         _count: {
           select: {
             gradeScales: true,
@@ -75,8 +90,14 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { name, code, description, isSchoolDefault, isActive } =
-      createGradingSystemSchema.parse(body);
+    const {
+      name,
+      code,
+      description,
+      isSchoolDefault,
+      isActive,
+      gradeScales = [],
+    } = createGradingSystemSchema.parse(body);
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
@@ -103,26 +124,45 @@ export async function POST(
       });
     }
 
-    // If setting as default, unset others?
-    // The schema allows multiple defaults? No logic in schema, but usually one default.
-    // For now, let's just create it. Logic for ensuring single default can be added if needed.
+    const result = await prisma.$transaction(async (tx) => {
+      // If setting as default, unset others for this school
+      if (isSchoolDefault) {
+        await tx.gradingSystem.updateMany({
+          where: { schoolId: school.id, isSchoolDefault: true },
+          data: { isSchoolDefault: false },
+        });
+      }
 
-    const gradingSystem = await prisma.gradingSystem.create({
-      data: {
-        name,
-        code,
-        description,
-        isSchoolDefault,
-        isActive,
-        schoolId: school.id,
-        createdById: session.user.id,
-      },
+      return await tx.gradingSystem.create({
+        data: {
+          name,
+          code,
+          description,
+          isSchoolDefault,
+          isActive,
+          schoolId: school.id,
+          createdById: session.user.id,
+          gradeScales: {
+            create: gradeScales.map((gs) => ({
+              grade: gs.grade,
+              description: gs.description,
+              minScore: gs.minScore,
+              maxScore: gs.maxScore,
+              gradePoint: gs.gradePoint,
+              displayOrder: gs.displayOrder,
+            })),
+          },
+        },
+        include: {
+          gradeScales: true,
+        },
+      });
     });
 
-    return NextResponse.json(gradingSystem);
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return new NextResponse("Invalid request data", { status: 400 });
+      return new NextResponse(JSON.stringify(error.flatten()), { status: 400 });
     }
     console.error("[GRADING_SYSTEMS_POST]", error);
     return new NextResponse("Internal Error", { status: 500 });

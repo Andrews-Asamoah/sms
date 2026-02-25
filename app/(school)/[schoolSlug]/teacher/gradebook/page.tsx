@@ -59,11 +59,7 @@ export default async function TeacherGradebookPage({
         ? {
             subjects: {
               some: {
-                subject: {
-                  teachers: {
-                    some: { teacherId: teacherId },
-                  },
-                },
+                teacherId: teacherId,
               },
             },
           }
@@ -78,13 +74,8 @@ export default async function TeacherGradebookPage({
       academicYear: true,
       subjects: {
         include: {
-          subject: {
-            include: {
-              teachers: {
-                select: { teacherId: true },
-              },
-            },
-          },
+          subject: true,
+          teacher: true,
         },
       },
     },
@@ -104,9 +95,7 @@ export default async function TeacherGradebookPage({
         {classes.map((cls) => {
           // Calculate how many subjects this teacher teaches in this class
           const mySubjectsCount = teacherId
-            ? cls.subjects.filter((cs) =>
-                cs.subject.teachers.some((t) => t.teacherId === teacherId),
-              ).length
+            ? cls.subjects.filter((cs) => cs.teacherId === teacherId).length
             : cls.subjects.length;
 
           return (
@@ -141,7 +130,7 @@ export default async function TeacherGradebookPage({
               <CardFooter>
                 <Button className="w-full" asChild>
                   <Link
-                    href={`/${schoolSlug}/teacher/classes/${cls.id}/gradebook`}
+                    href={`/${schoolSlug}/teacher/classes/${cls.slug || cls.id}/gradebook`}
                   >
                     Open Gradebook
                     <ArrowRight className="ml-2 h-4 w-4" />

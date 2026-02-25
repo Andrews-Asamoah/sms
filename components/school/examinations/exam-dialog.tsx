@@ -17,6 +17,7 @@ interface ExamDialogProps {
   schoolSlug: string;
   exam?: any;
   gradingSystems: Array<{ id: string; name: string }>;
+  classes: Array<{ id: string; name: string }>;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   children?: React.ReactNode;
@@ -26,6 +27,7 @@ export function ExamDialog({
   schoolSlug,
   exam,
   gradingSystems,
+  classes,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
   children,
@@ -60,6 +62,7 @@ export function ExamDialog({
           schoolSlug={schoolSlug}
           exam={exam}
           gradingSystems={gradingSystems}
+          classes={classes}
           onSuccess={() => onOpenChange(false)}
         />
       </DialogContent>

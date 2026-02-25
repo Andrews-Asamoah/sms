@@ -75,7 +75,19 @@ export default async function StudentDetailPage({
     include: {
       profile: true,
       class: {
-        include: { academicYear: true },
+        include: {
+          academicYear: true,
+          subjects: {
+            include: {
+              subject: true,
+              teacher: {
+                include: {
+                  profile: true,
+                },
+              },
+            },
+          },
+        },
       },
       department: true,
       house: true,
@@ -482,8 +494,57 @@ export default async function StudentDetailPage({
           </Card>
         </TabsContent>
 
-        {/* Academic Tab */}
-        <TabsContent value="academic">
+        <TabsContent value="academic" className="space-y-4">
+          <Card className="backdrop-blur-sm bg-card/50 border-border/50">
+            <CardHeader>
+              <CardTitle>Current Class Subjects</CardTitle>
+              <CardDescription>
+                Subjects assigned to {student.class?.name || "current class"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!student.class?.subjects ||
+              student.class.subjects.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  No subjects assigned to this class
+                </p>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {student.class.subjects.map((cs) => (
+                    <div
+                      key={cs.id}
+                      className="p-4 rounded-lg border bg-background/50 flex justify-between items-center"
+                    >
+                      <div>
+                        <p className="font-semibold">{cs.subject.name}</p>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {cs.subject.code}
+                        </p>
+                      </div>
+                      <div className="text-right text-sm">
+                        {cs.teacher ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-muted-foreground text-xs italic">
+                              Teacher
+                            </span>
+                            <span>
+                              {cs.teacher.profile?.firstName}{" "}
+                              {cs.teacher.profile?.lastName}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs italic">
+                            No teacher assigned
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="backdrop-blur-sm bg-card/50 border-border/50">
             <CardHeader>
               <CardTitle>Academic History</CardTitle>

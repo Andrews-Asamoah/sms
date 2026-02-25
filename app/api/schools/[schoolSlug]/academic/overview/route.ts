@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         subjects: {
           where: { isActive: true },
           include: {
-            department: true,
+            departments: true,
             teachers: {
               include: {
                 teacher: {

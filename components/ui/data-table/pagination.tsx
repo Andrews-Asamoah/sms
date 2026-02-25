@@ -25,37 +25,45 @@ export function DataTablePagination<TData>({
   table,
 }: DataTablePaginationProps<TData>) {
   return (
-    <div className="flex items-center justify-between px-2 pt-3">
-      <div className="flex-1 text-sm text-muted-foreground">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 pt-4">
+      <div className="flex-1 text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
         {table.getFilteredSelectedRowModel().rows.length} of{" "}
-        {table.getFilteredRowModel().rows.length} row(s) selected.
+        {table.getFilteredRowModel().rows.length}{" "}
+        <span className="hidden xs:inline">row(s) selected.</span>
+        <span className="xs:hidden">selected.</span>
       </div>
-      <div className="flex items-center space-x-6 lg:space-x-8">
+      <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 lg:gap-8">
         <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium">Rows per page</p>
+          <p className="text-xs sm:text-sm font-medium hidden xs:block">
+            Rows per page
+          </p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
               table.setPageSize(Number(value));
             }}
           >
-            <SelectTrigger className="h-8 w-[70px]">
+            <SelectTrigger className="h-8 w-[65px] sm:w-[70px] text-xs sm:text-sm">
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
             <SelectContent side="top">
               {[10, 20, 30, 40, 50].map((pageSize) => (
-                <SelectItem key={pageSize} value={`${pageSize}`}>
+                <SelectItem
+                  key={pageSize}
+                  value={`${pageSize}`}
+                  className="text-xs sm:text-sm"
+                >
                   {pageSize}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+        <div className="flex min-w-[80px] sm:w-[100px] items-center justify-center text-xs sm:text-sm font-medium">
           Page {table.getState().pagination.pageIndex + 1} of{" "}
           {table.getPageCount()}
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1 sm:space-x-2">
           <Button
             variant="outline"
             className="hidden h-8 w-8 p-0 lg:flex"

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { useTheme as useNextTheme } from "next-themes";
 import { ThemeName, themes } from "./colors";
 
 interface ThemeContextType {
@@ -29,6 +30,7 @@ export function ThemeProvider({
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<ThemeName>(defaultTheme);
   const [mounted, setMounted] = useState(false);
+  const { resolvedTheme } = useNextTheme();
 
   useEffect(() => {
     setMounted(true);
@@ -98,7 +100,7 @@ export function ThemeProvider({
     );
     root.style.setProperty("--sidebar-border", themeColors.sidebarBorder);
     root.style.setProperty("--sidebar-ring", themeColors.sidebarRing);
-  }, [theme, mounted]);
+  }, [theme, mounted, resolvedTheme]);
 
   const setTheme = (newTheme: ThemeName) => {
     setThemeState(newTheme);

@@ -90,7 +90,21 @@ export async function getRoleLayoutData(
 
   return {
     session,
-    school,
+    school: {
+      id: school.id,
+      name: school.name,
+      logo: school.logo,
+      subdomain: school.subdomain,
+      subscription: school.subscription
+        ? {
+            planName: school.subscription.planName,
+            status: school.subscription.status,
+            amount: school.subscription.amount
+              ? Number(school.subscription.amount)
+              : null,
+          }
+        : null,
+    },
     schoolRole,
     academicYear: academicYear?.name || "No Active Year",
     currentTerm: academicYear?.terms[0]?.name || null,

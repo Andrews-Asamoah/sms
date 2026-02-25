@@ -69,7 +69,7 @@ export default async function SubjectDetailPage(props: SubjectDetailPageProps) {
           },
         },
       },
-      department: true,
+      departments: true,
       teachers: {
         include: {
           teacher: {
@@ -149,7 +149,9 @@ export default async function SubjectDetailPage(props: SubjectDetailPageProps) {
               {subject.name}
             </h1>
             <p className="text-muted-foreground mt-1">
-              Subject Code: {subject.code} • {subject.department.name}
+              Subject Code: {subject.code} •{" "}
+              {subject.departments.map((d) => d.name).join(", ") ||
+                "No Department"}
             </p>
           </div>
           <SubjectDialog
@@ -241,7 +243,8 @@ export default async function SubjectDetailPage(props: SubjectDetailPageProps) {
                   Department
                 </p>
                 <p className="text-lg font-semibold">
-                  {subject.department.name}
+                  {subject.departments.map((d) => d.name).join(", ") ||
+                    "No Department"}
                 </p>
               </div>
               <div className="space-y-1">

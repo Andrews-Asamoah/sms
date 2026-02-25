@@ -14,6 +14,18 @@ const updateGradingSystemSchema = z.object({
   description: z.string().optional(),
   isSchoolDefault: z.boolean().optional(),
   isActive: z.boolean().optional(),
+  gradeScales: z
+    .array(
+      z.object({
+        grade: z.string().min(1),
+        description: z.string().min(1),
+        minScore: z.number().min(0).max(100),
+        maxScore: z.number().min(0).max(100),
+        gradePoint: z.number().min(0),
+        displayOrder: z.number(),
+      }),
+    )
+    .optional(),
 });
 
 export async function PATCH(
@@ -34,8 +46,14 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, code, description, isSchoolDefault, isActive } =
-      updateGradingSystemSchema.parse(body);
+    const {
+      name,
+      code,
+      description,
+      isSchoolDefault,
+      isActive,
+      gradeScales = [],
+    } = updateGradingSystemSchema.parse(body);
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
@@ -63,24 +81,64 @@ export async function PATCH(
       }
     }
 
-    const gradingSystem = await prisma.gradingSystem.update({
-      where: {
-        id: gradingId,
-        schoolId: school.id,
-      },
-      data: {
-        name,
-        code,
-        description,
-        isSchoolDefault,
-        isActive,
-      },
+    const result = await prisma.$transaction(async (tx) => {
+      // If setting as default, unset others for this school
+      if (isSchoolDefault === true) {
+        await tx.gradingSystem.updateMany({
+          where: {
+            schoolId: school.id,
+            isSchoolDefault: true,
+            id: { not: gradingId },
+          },
+          data: { isSchoolDefault: false },
+        });
+      }
+
+      // Update basic fields
+      const updatedSystem = await tx.gradingSystem.update({
+        where: {
+          id: gradingId,
+          schoolId: school.id,
+        },
+        data: {
+          name,
+          code,
+          description,
+          isSchoolDefault,
+          isActive,
+        },
+      });
+
+      // Update grade scales if provided
+      if (body.gradeScales) {
+        // Delete existing scales
+        await tx.gradeScale.deleteMany({
+          where: { gradingSystemId: gradingId },
+        });
+
+        // Create new scales
+        if (gradeScales.length > 0) {
+          await tx.gradeScale.createMany({
+            data: gradeScales.map((gs) => ({
+              gradingSystemId: gradingId,
+              grade: gs.grade,
+              description: gs.description,
+              minScore: gs.minScore,
+              maxScore: gs.maxScore,
+              gradePoint: gs.gradePoint,
+              displayOrder: gs.displayOrder,
+            })),
+          });
+        }
+      }
+
+      return updatedSystem;
     });
 
-    return NextResponse.json(gradingSystem);
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return new NextResponse("Invalid request data", { status: 400 });
+      return new NextResponse(JSON.stringify(error.flatten()), { status: 400 });
     }
     console.error("[GRADING_SYSTEM_PATCH]", error);
     return new NextResponse("Internal Error", { status: 500 });

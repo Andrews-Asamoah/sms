@@ -4,6 +4,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { slugify } from "@/lib/utils";
 
 // ============================================================================
 // VALIDATION SCHEMA
@@ -25,6 +26,7 @@ const updateClassSchema = z.object({
   section: z.string().trim().nullable().optional(),
   capacity: z.number().int().positive().max(500).nullable().optional(),
   academicYearId: z.string().min(1).optional(),
+  departmentId: z.string().min(1).nullable().optional(),
   classTeacherId: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
   schoolId: z.string().min(1, "School ID is required"),
@@ -193,7 +195,10 @@ export async function PATCH(
     const updatedClass = await prisma.class.update({
       where: { id: classId },
       data: {
-        ...(validatedData.name && { name: validatedData.name }),
+        ...(validatedData.name && {
+          name: validatedData.name,
+          slug: slugify(validatedData.name),
+        }),
         ...(validatedData.level && { level: validatedData.level }),
         ...(validatedData.section !== undefined && {
           section: validatedData.section,
@@ -204,6 +209,9 @@ export async function PATCH(
         ...(validatedData.academicYearId && {
           academicYearId: validatedData.academicYearId,
         }),
+        ...(validatedData.departmentId !== undefined && {
+          departmentId: validatedData.departmentId,
+        }),
         ...(validatedData.classTeacherId !== undefined && {
           classTeacherId: validatedData.classTeacherId,
         }),
@@ -213,6 +221,7 @@ export async function PATCH(
       },
       include: {
         academicYear: true,
+        department: true,
         classTeacher: {
           include: {
             profile: true,

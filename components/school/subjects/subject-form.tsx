@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -27,7 +28,7 @@ const formSchema = z.object({
     .min(1, "Code is required")
     .max(10, "Code must be 10 characters or less"),
   description: z.string().optional(),
-  departmentId: z.string().min(1, "Department is required"),
+  departmentIds: z.array(z.string()).min(1, "Select at least one department"),
   creditHours: z.coerce.number().int().min(0),
   isActive: z.boolean(),
 });
@@ -60,7 +61,9 @@ export function SubjectForm({
       name: subject?.name || "",
       code: subject?.code || "",
       description: subject?.description || "",
-      departmentId: subject?.departmentId || "",
+      departmentIds:
+        subject?.departments?.map((d: any) => d.id) ||
+        (subject?.departmentId ? [subject.departmentId] : []),
       creditHours: subject?.creditHours ?? 1,
       isActive: subject?.isActive ?? true,
     },
@@ -137,24 +140,39 @@ export function SubjectForm({
       </div>
 
       <FieldGroup>
-        <FieldLabel htmlFor="departmentId">Department</FieldLabel>
-        <Select
-          value={watch("departmentId")}
-          onValueChange={(value) => setValue("departmentId", value)}
-        >
-          <SelectTrigger id="departmentId">
-            <SelectValue placeholder="Select a department" />
-          </SelectTrigger>
-          <SelectContent>
-            {departments.map((dept) => (
-              <SelectItem key={dept.id} value={dept.id}>
+        <FieldLabel>Departments</FieldLabel>
+        <div className="grid grid-cols-2 gap-4 rounded-lg border p-4 bg-muted/30">
+          {departments.map((dept) => (
+            <div
+              key={dept.id}
+              className="flex flex-row items-start space-x-3 space-y-0"
+            >
+              <Checkbox
+                id={`dept-${dept.id}`}
+                checked={watch("departmentIds")?.includes(dept.id)}
+                onCheckedChange={(checked) => {
+                  const currentDepts = watch("departmentIds") || [];
+                  if (checked) {
+                    setValue("departmentIds", [...currentDepts, dept.id]);
+                  } else {
+                    setValue(
+                      "departmentIds",
+                      currentDepts.filter((id) => id !== dept.id),
+                    );
+                  }
+                }}
+              />
+              <Label
+                htmlFor={`dept-${dept.id}`}
+                className="text-sm font-normal cursor-pointer text-muted-foreground"
+              >
                 {dept.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.departmentId && (
-          <FieldError>{errors.departmentId.message}</FieldError>
+              </Label>
+            </div>
+          ))}
+        </div>
+        {errors.departmentIds && (
+          <FieldError>{errors.departmentIds.message}</FieldError>
         )}
       </FieldGroup>
 

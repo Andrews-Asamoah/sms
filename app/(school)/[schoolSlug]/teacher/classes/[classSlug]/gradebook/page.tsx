@@ -14,7 +14,7 @@ import { MarksEntrySheetProps } from "./types";
 interface GradebookPageProps {
   params: Promise<{
     schoolSlug: string;
-    classId: string;
+    classSlug: string;
   }>;
   searchParams: Promise<{
     subjectId?: string;
@@ -26,7 +26,7 @@ export default async function GradebookPage({
   params,
   searchParams,
 }: GradebookPageProps) {
-  const { schoolSlug, classId } = await params;
+  const { schoolSlug, classSlug } = await params;
   const { subjectId, termId } = await searchParams;
 
   const session = await requireSchoolAccess(schoolSlug);
@@ -40,8 +40,16 @@ export default async function GradebookPage({
   }
 
   // Fetch Class Details
-  const classData = await prisma.class.findUnique({
-    where: { id: classId },
+  const classData = await prisma.class.findFirst({
+    where: {
+      OR: [{ slug: classSlug }, { id: classSlug }],
+      schoolId: (
+        await prisma.school.findUnique({
+          where: { subdomain: schoolSlug },
+          select: { id: true },
+        })
+      )?.id,
+    },
     select: {
       id: true,
       name: true,
@@ -74,16 +82,9 @@ export default async function GradebookPage({
   // Fetch Assigned Subjects for this Class (filtered by teacher if applicable)
   const assignedSubjects = await prisma.classSubject.findMany({
     where: {
-      classId: classId,
-      // If teacher, check if they are assigned to this subject
-      // Logic: SubjectTeacher table links Subject and Teacher
-      subject: teacherId
-        ? {
-            teachers: {
-              some: { teacherId: teacherId },
-            },
-          }
-        : undefined,
+      classId: classData.id,
+      // If teacher, check if they are assigned to this subject via ClassSubject
+      ...(teacherId ? { teacherId: teacherId } : {}),
     },
     include: {
       subject: true,
@@ -100,6 +101,22 @@ export default async function GradebookPage({
 
   const activeTerm = terms.find((t) => t.isCurrent) || terms[0];
   const selectedTermId = termId || activeTerm?.id;
+
+  // Debug role access
+  console.log(`[Gradebook] Access check for ${schoolSlug}/${classSlug}`);
+  console.log(
+    `[Gradebook] User: ${session.user.email}, Role: ${role?.effectiveRole}`,
+  );
+  console.log(`[Gradebook] Class Found: ${classData?.name} (${classData?.id})`);
+  console.log(`[Gradebook] Subjects Found: ${assignedSubjects.length}`);
+
+  if (!role) {
+    console.log(
+      "[Gradebook] ❌ No role found for this subdomain. Profile Inspect:",
+    );
+    console.dir(session.profile, { depth: null });
+    console.log("[Gradebook] Memberships Count:", session.memberships.length);
+  }
 
   // Determine selected subject
   // If subjectId provided, check it is in assignedSubjects
@@ -143,7 +160,7 @@ export default async function GradebookPage({
   if (selectedSubject && selectedTermId) {
     const result = await getMarksData(
       schoolSlug,
-      classId,
+      classData.id,
       selectedSubject.id,
       selectedTermId,
     );
@@ -221,9 +238,17 @@ export default async function GradebookPage({
 
         <GradebookToolbar
           schoolSlug={schoolSlug}
-          classId={classId}
-          subjects={assignedSubjects.map((s) => s.subject)}
-          terms={terms}
+          classId={classData.id}
+          subjects={assignedSubjects.map((s) => ({
+            id: s.subject.id,
+            name: s.subject.name,
+            code: s.subject.code,
+          }))}
+          terms={terms.map((t) => ({
+            id: t.id,
+            name: t.name,
+            isCurrent: t.isCurrent,
+          }))}
           selectedSubjectId={selectedSubject?.id}
           selectedTermId={selectedTermId}
         />
@@ -252,7 +277,7 @@ export default async function GradebookPage({
             template={marksData.template}
             existingScores={marksData.existingScores}
             schoolSlug={schoolSlug}
-            classId={classId}
+            classId={classData.id}
             subjectId={selectedSubject!.id}
             termId={selectedTermId!}
           />

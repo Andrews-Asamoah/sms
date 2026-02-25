@@ -32,6 +32,7 @@ import { DeleteClassButton } from "./delete-class-button";
 export type ClassItem = {
   id: string;
   name: string;
+  slug: string | null;
   level: string;
   section?: string | null;
   isActive: boolean;
@@ -145,7 +146,9 @@ export const columns = (schoolSlug: string): ColumnDef<ClassItem>[] => [
               Copy ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <Link href={`/${schoolSlug}/admin/classes/${classItem.id}`}>
+            <Link
+              href={`/${schoolSlug}/admin/classes/${classItem.slug || classItem.id}`}
+            >
               <DropdownMenuItem>
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </DropdownMenuItem>

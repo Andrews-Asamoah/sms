@@ -1,4 +1,3 @@
-
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
@@ -7,16 +6,21 @@ import { z } from "zod";
 
 const createSubjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  code: z.string().min(1, "Code is required").max(10, "Code must be 10 characters or less"),
+  code: z
+    .string()
+    .min(1, "Code is required")
+    .max(10, "Code must be 10 characters or less"),
   description: z.string().optional(),
-  departmentId: z.string().min(1, "Department is required"),
+  departmentIds: z
+    .array(z.string())
+    .min(1, "At least one department is required"),
   creditHours: z.number().int().min(0).default(1),
   isActive: z.boolean().default(true),
 });
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ schoolSlug: string }> }
+  { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   try {
     const { schoolSlug } = await params;
@@ -33,17 +37,17 @@ export async function GET(
     });
 
     if (!school) {
-        return new NextResponse("School not found", { status: 404 });
+      return new NextResponse("School not found", { status: 404 });
     }
 
     const subjects = await prisma.subject.findMany({
       where: { schoolId: school.id },
       include: {
-        department: {
-            select: {
-                id: true,
-                name: true,
-            }
+        departments: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
         _count: {
           select: {
@@ -64,7 +68,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ schoolSlug: string }> }
+  { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   try {
     const { schoolSlug } = await params;
@@ -80,15 +84,16 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { name, code, description, departmentId, creditHours, isActive } = createSubjectSchema.parse(body);
+    const { name, code, description, departmentIds, creditHours, isActive } =
+      createSubjectSchema.parse(body);
 
     const school = await prisma.school.findUnique({
-        where: { subdomain: schoolSlug },
-        select: { id: true },
+      where: { subdomain: schoolSlug },
+      select: { id: true },
     });
 
     if (!school) {
-        return new NextResponse("School not found", { status: 404 });
+      return new NextResponse("School not found", { status: 404 });
     }
 
     // Check if subject code already exists in this school
@@ -105,13 +110,18 @@ export async function POST(
       return new NextResponse("Subject code already exists", { status: 409 });
     }
 
-    // Verify department belongs to school
-    const department = await prisma.department.findUnique({
-        where: { id: departmentId },
+    // Verify departments belong to school
+    const departments = await prisma.department.findMany({
+      where: {
+        id: { in: departmentIds },
+        schoolId: school.id,
+      },
     });
 
-    if (!department || department.schoolId !== school.id) {
-        return new NextResponse("Invalid department", { status: 400 });
+    if (departments.length !== departmentIds.length) {
+      return new NextResponse("One or more departments are invalid", {
+        status: 400,
+      });
     }
 
     const subject = await prisma.subject.create({
@@ -119,10 +129,15 @@ export async function POST(
         name,
         code,
         description,
-        departmentId,
         creditHours,
         isActive,
         schoolId: school.id,
+        departments: {
+          connect: departmentIds.map((id) => ({ id })),
+        },
+      },
+      include: {
+        departments: true,
       },
     });
 

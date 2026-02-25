@@ -43,6 +43,7 @@ interface ClassFormProps {
   organizationId: string; // Added organizationId
   academicYears: AcademicYear[];
   teachers: Teacher[];
+  departments: Array<{ id: string; name: string }>;
   initialData?: {
     id: string;
     name: string;
@@ -51,6 +52,7 @@ interface ClassFormProps {
     capacity: number | null;
     academicYearId: string;
     classTeacherId: string | null;
+    departmentId: string | null;
     isActive: boolean;
   };
 }
@@ -62,6 +64,7 @@ interface FormData {
   capacity: string;
   academicYearId: string;
   classTeacherId: string;
+  departmentId: string;
   isActive: boolean;
 }
 
@@ -79,6 +82,7 @@ export function ClassForm({
   organizationId,
   academicYears,
   teachers,
+  departments,
   initialData,
 }: ClassFormProps) {
   const router = useRouter();
@@ -96,6 +100,7 @@ export function ClassForm({
       academicYears.find((ay) => ay.isCurrent)?.id ||
       "",
     classTeacherId: initialData?.classTeacherId || "",
+    departmentId: initialData?.departmentId || "",
     isActive: initialData?.isActive ?? true,
   });
 
@@ -175,6 +180,7 @@ export function ClassForm({
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         academicYearId: formData.academicYearId,
         classTeacherId: formData.classTeacherId || null,
+        departmentId: formData.departmentId || null,
         isActive: formData.isActive,
         schoolId,
         organizationId, // Include organizationId in payload
@@ -386,6 +392,35 @@ export function ClassForm({
           </FieldGroup>
           <p className="text-sm text-muted-foreground mt-1.5">
             Assign a class teacher (can be changed later)
+          </p>
+        </Field>
+
+        {/* Department */}
+        <Field>
+          <FieldLabel htmlFor="departmentId">Department (Optional)</FieldLabel>
+          <FieldGroup>
+            <Select
+              value={formData.departmentId}
+              onValueChange={(value) =>
+                handleChange("departmentId", value === "none" ? "" : value)
+              }
+              disabled={isSubmitting}
+            >
+              <SelectTrigger id="departmentId" className="bg-background/50">
+                <SelectValue placeholder="Select department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldGroup>
+          <p className="text-sm text-muted-foreground mt-1.5">
+            Link this class to a department
           </p>
         </Field>
       </div>

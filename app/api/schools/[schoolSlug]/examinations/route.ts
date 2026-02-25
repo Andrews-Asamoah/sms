@@ -7,8 +7,7 @@ import { z } from "zod";
 const createExamSchema = z.object({
   name: z.string().min(1, "Name is required"),
   gradingSystemId: z.string().min(1, "Grading system is required"),
-  classLevel: z.string().optional(),
-  subjectCode: z.string().optional(),
+  classId: z.string().nullable().optional(),
   termNumber: z.coerce.number().int().optional(),
   description: z.string().optional(),
   isActive: z.boolean().default(true),
@@ -40,6 +39,12 @@ export async function GET(
       where: { schoolId: school.id },
       include: {
         gradingSystem: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        class: {
           select: {
             id: true,
             name: true,
@@ -83,8 +88,7 @@ export async function POST(
     const {
       name,
       gradingSystemId,
-      classLevel,
-      subjectCode,
+      classId,
       termNumber,
       description,
       isActive,
@@ -108,16 +112,29 @@ export async function POST(
       return new NextResponse("Invalid grading system", { status: 400 });
     }
 
+    // Verify class if provided
+    if (classId) {
+      const cls = await prisma.class.findUnique({
+        where: { id: classId },
+      });
+      if (!cls || cls.schoolId !== school.id) {
+        return new NextResponse("Invalid class", { status: 400 });
+      }
+    }
+
     const exam = await prisma.assessmentTemplate.create({
       data: {
         name,
         gradingSystemId,
-        classLevel,
-        subjectCode,
+        classId: classId || null,
         termNumber,
         description,
         isActive,
         schoolId: school.id,
+      },
+      include: {
+        gradingSystem: true,
+        class: true,
       },
     });
 

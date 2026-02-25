@@ -4,6 +4,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
+import { slugify } from "@/lib/utils";
 
 // ============================================================================
 // VALIDATION SCHEMA
@@ -24,6 +25,7 @@ const createClassSchema = z.object({
   capacity: z.number().int().positive().max(500).nullable().optional(),
   classTeacherId: z.string().min(1).nullable().optional(),
   academicYearId: z.string().min(1, "Academic year is required"),
+  departmentId: z.string().min(1).nullable().optional(),
   schoolId: z.string().min(1, "School ID is required"),
   organizationId: z.string().min(1, "Organization ID is required"),
   isActive: z.boolean().default(true).optional(),
@@ -175,11 +177,13 @@ export async function POST(
     const newClass = await prisma.class.create({
       data: {
         name: validatedData.name,
+        slug: slugify(validatedData.name),
         level: validatedData.level,
         section: validatedData.section || null,
         capacity: validatedData.capacity || null,
         classTeacherId: validatedData.classTeacherId || null,
         academicYearId: validatedData.academicYearId,
+        departmentId: validatedData.departmentId || null,
         schoolId: school.id,
         isActive: validatedData.isActive ?? true,
       },
@@ -201,12 +205,10 @@ export async function POST(
         entityType: "Class",
         entityId: newClass.id,
         newValues: {
-          name: newClass.name,
-          level: newClass.level,
-          section: newClass.section,
           capacity: newClass.capacity,
           academicYearId: newClass.academicYearId,
           classTeacherId: newClass.classTeacherId,
+          departmentId: newClass.departmentId,
           schoolId: newClass.schoolId,
         },
       },
@@ -274,6 +276,7 @@ export async function GET(
           },
         },
         academicYear: true,
+        department: true,
         _count: {
           select: {
             students: true,

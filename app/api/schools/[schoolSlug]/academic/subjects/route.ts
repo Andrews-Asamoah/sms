@@ -48,7 +48,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const subjects = await prisma.subject.findMany({
       where: { schoolId: school.id },
       include: {
-        department: true,
+        departments: true,
         teachers: {
           include: {
             teacher: {

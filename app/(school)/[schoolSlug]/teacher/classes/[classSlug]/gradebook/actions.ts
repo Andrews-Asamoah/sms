@@ -119,8 +119,7 @@ export async function getMarksData(
       where: {
         school: { subdomain: schoolSlug },
         isActive: true,
-        classLevel: classData.level,
-        subjectCode: subjectData.code,
+        classId: classId,
       },
       include: {
         components: { orderBy: { displayOrder: "asc" } },
@@ -132,34 +131,13 @@ export async function getMarksData(
       },
     });
 
-    // Fallback 1: Match Class Level only (generic template for all subjects in that class)
+    // Fallback: Global School-wide template (neither class nor subject restricted)
     if (!template) {
       template = await prisma.assessmentTemplate.findFirst({
         where: {
           school: { subdomain: schoolSlug },
           isActive: true,
-          classLevel: classData.level,
-          subjectCode: null,
-        },
-        include: {
-          components: { orderBy: { displayOrder: "asc" } },
-          gradingSystem: {
-            include: {
-              gradeScales: { orderBy: { minScore: "desc" } },
-            },
-          },
-        },
-      });
-    }
-
-    // Fallback 2: Match Subject only (generic template for that subject across classes)
-    if (!template) {
-      template = await prisma.assessmentTemplate.findFirst({
-        where: {
-          school: { subdomain: schoolSlug },
-          isActive: true,
-          classLevel: null,
-          subjectCode: subjectData.code,
+          classId: null,
         },
         include: {
           components: { orderBy: { displayOrder: "asc" } },
@@ -183,12 +161,26 @@ export async function getMarksData(
     // TODO: Filter by academic year? Assuming classId implies specific academic year instance
     const students = await prisma.student.findMany({
       where: {
-        enrollments: {
-          some: {
-            classId: classId,
-            status: "ACTIVE",
+        schoolId: (
+          await prisma.school.findUnique({
+            where: { subdomain: schoolSlug },
+            select: { id: true },
+          })
+        )?.id,
+        status: "ACTIVE",
+        OR: [
+          {
+            enrollments: {
+              some: {
+                classId: classId,
+                status: "ACTIVE",
+              },
+            },
           },
-        },
+          {
+            classId: classId,
+          },
+        ],
       },
       include: {
         profile: {
@@ -213,24 +205,70 @@ export async function getMarksData(
     });
 
     // 4. Get Existing Scores
-    const existingScores = await prisma.assessmentScore.findMany({
-      where: {
-        subjectId,
-        termId,
-        studentId: { in: students.map((s) => s.id) },
-        templateId: template.id,
-      },
-      include: {
-        componentScores: true,
-      },
-    });
+    const [existingScores, school] = await Promise.all([
+      prisma.assessmentScore.findMany({
+        where: {
+          subjectId,
+          termId,
+          studentId: { in: students.map((s) => s.id) },
+          templateId: template.id,
+        },
+        include: {
+          componentScores: true,
+        },
+      }),
+      prisma.school.findUnique({
+        where: { subdomain: schoolSlug },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!school) return { success: false, error: "School not found" };
 
     return {
       success: true,
       data: {
-        students,
-        template,
-        existingScores,
+        students: students.map((s) => ({
+          id: s.id,
+          admissionNumber: s.admissionNumber,
+          profile: {
+            firstName: s.profile.firstName,
+            lastName: s.profile.lastName,
+            otherNames: s.profile.otherNames,
+            user: {
+              email: s.profile.user.email,
+              image: s.profile.user.image,
+            },
+          },
+        })),
+        template: {
+          id: template.id,
+          name: template.name,
+          components: template.components.map((c) => ({
+            id: c.id,
+            name: c.name,
+            maxMarks: Number(c.maxMarks),
+            weight: Number(c.weight),
+            displayOrder: c.displayOrder,
+          })),
+          gradingSystem: {
+            gradeScales: template.gradingSystem.gradeScales.map((gs) => ({
+              id: gs.id,
+              grade: gs.grade,
+              minScore: Number(gs.minScore),
+              maxScore: Number(gs.maxScore),
+              gradePoint: Number(gs.gradePoint),
+              description: gs.description,
+            })),
+          },
+        },
+        existingScores: existingScores.map((es) => ({
+          studentId: es.studentId,
+          componentScores: es.componentScores.map((cs) => ({
+            componentId: cs.componentId,
+            marksObtained: Number(cs.marksObtained),
+          })),
+        })),
         className: classData.name,
         subjectName: subjectData.name,
       },
@@ -389,7 +427,14 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
       }
     });
 
-    revalidatePath(`/${schoolSlug}/teacher/classes/${classId}/gradebook`);
+    const clsFlat = await prisma.class.findUnique({
+      where: { id: classId },
+      select: { slug: true },
+    });
+
+    revalidatePath(
+      `/${schoolSlug}/teacher/classes/${clsFlat?.slug || classId}/gradebook`,
+    );
 
     return { success: true, message: "Marks saved successfully" };
   } catch (error) {

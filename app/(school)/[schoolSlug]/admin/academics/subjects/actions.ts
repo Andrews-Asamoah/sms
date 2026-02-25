@@ -19,7 +19,9 @@ const subjectSchema = z.object({
     .max(10, "Code must be at most 10 characters")
     .regex(/^[A-Z0-9-]+$/, "Code must be uppercase alphanumeric with hyphens"),
   description: z.string().optional(),
-  departmentId: z.string().min(1, "Department is required"),
+  departmentIds: z
+    .array(z.string())
+    .min(1, "At least one department is required"),
   creditHours: z.number().int().min(1).max(10),
   isActive: z.boolean().default(true),
 });
@@ -83,12 +85,14 @@ export async function createSubject(
         name: validated.name,
         code: validated.code,
         description: validated.description || null,
-        departmentId: validated.departmentId,
+        departments: {
+          connect: validated.departmentIds.map((id) => ({ id })),
+        },
         creditHours: validated.creditHours,
         isActive: validated.isActive,
       },
       include: {
-        department: true,
+        departments: true,
       },
     });
 
@@ -102,7 +106,7 @@ export async function createSubject(
         newValues: {
           name: subject.name,
           code: subject.code,
-          departmentId: subject.departmentId,
+          departmentIds: validated.departmentIds,
         },
       },
     });
@@ -193,12 +197,14 @@ export async function updateSubject(
         name: validated.name,
         code: validated.code,
         description: validated.description || null,
-        departmentId: validated.departmentId,
+        departments: {
+          set: validated.departmentIds.map((id) => ({ id })),
+        },
         creditHours: validated.creditHours,
         isActive: validated.isActive,
       },
       include: {
-        department: true,
+        departments: true,
       },
     });
 
@@ -212,12 +218,11 @@ export async function updateSubject(
         oldValues: {
           name: existingSubject.name,
           code: existingSubject.code,
-          departmentId: existingSubject.departmentId,
         },
         newValues: {
           name: subject.name,
           code: subject.code,
-          departmentId: subject.departmentId,
+          departmentIds: validated.departmentIds,
         },
       },
     });

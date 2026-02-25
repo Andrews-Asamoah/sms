@@ -59,6 +59,12 @@ export default async function ExamsPage(props: ExamsPageProps) {
     orderBy: { name: "asc" },
   });
 
+  const classes = await prisma.class.findMany({
+    where: { schoolId: school.id, isActive: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
   return (
     <div className="min-h-screen bg-muted/30">
       <div className="space-y-6 p-6 max-w-7xl mx-auto">
@@ -72,7 +78,11 @@ export default async function ExamsPage(props: ExamsPageProps) {
               Manage examination templates and assessment types
             </p>
           </div>
-          <ExamDialog schoolSlug={schoolSlug} gradingSystems={gradingSystems} />
+          <ExamDialog
+            schoolSlug={schoolSlug}
+            gradingSystems={gradingSystems}
+            classes={classes}
+          />
         </div>
 
         <div className="bg-background rounded-lg border shadow-sm p-4">
@@ -80,6 +90,7 @@ export default async function ExamsPage(props: ExamsPageProps) {
             data={exams}
             schoolSlug={schoolSlug}
             gradingSystems={gradingSystems}
+            classes={classes}
           />
         </div>
       </div>

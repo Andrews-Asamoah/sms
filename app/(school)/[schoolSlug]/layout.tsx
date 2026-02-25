@@ -1,5 +1,6 @@
 // app/(school)/[schoolSlug]/layout.tsx - BASE LAYOUT (MINIMAL)
 import { redirect, notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { getSession } from "@/lib/auth/session";
 import { hasSchoolAccess } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
@@ -29,7 +30,14 @@ export default async function SchoolLayout({
   const hasAccess = hasSchoolAccess(session, schoolSlug);
 
   if (!hasAccess) {
-    redirect(`/${schoolSlug}/unauthorized`);
+    // Prevent infinite redirect loop if we're already on the unauthorized page
+    const headerList = await headers();
+    const pathname = headerList.get("x-pathname") || "";
+    const isUnauthorizedPage = pathname === `/${schoolSlug}/unauthorized`;
+
+    if (!isUnauthorizedPage) {
+      redirect(`/${schoolSlug}/unauthorized`);
+    }
   }
 
   // Verify school exists

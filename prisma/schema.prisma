@@ -364,6 +364,7 @@ model Teacher {
   housesAsHouseTeacher  House[]          @relation("HouseTeacher")
   remarks               Remark[]
   subjects              SubjectTeacher[]
+  classSubjects         ClassSubject[]
 
   @@unique([teacherId, schoolId])
   @@unique([staffNumber, schoolId])
@@ -556,8 +557,9 @@ model Department {
   school               School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   headOfDept           Teacher?  @relation("DepartmentHead", fields: [headOfDeptId], references: [id])
   students             Student[]
-  subjects             Subject[]
+  subjects             Subject[] @relation("DepartmentSubjects")
   teachersInDepartment Teacher[] @relation("TeacherDepartment")
+  classes              Class[]
 
   @@unique([code, schoolId])
   @@index([headOfDeptId])
@@ -571,6 +573,7 @@ model Class {
   academicYearId String
 
   name     String
+  slug     String?
   level    String
   section  String?
   capacity Int?
@@ -586,8 +589,12 @@ model Class {
   subjects     ClassSubject[]
   enrollments  Enrollment[]
   students     Student[]
+  departmentId String?
+  department   Department?   @relation(fields: [departmentId], references: [id])
+  assessmentTemplates AssessmentTemplate[]
 
   @@unique([name, academicYearId, schoolId])
+  @@unique([slug, academicYearId, schoolId])
   @@index([schoolId, isActive])
   @@index([academicYearId])
   @@index([classTeacherId])
@@ -597,7 +604,6 @@ model Class {
 model Subject {
   id           String   @id @default(cuid())
   schoolId     String
-  departmentId String
   name         String
   code         String
   description  String?
@@ -607,14 +613,13 @@ model Subject {
   updatedAt    DateTime @updatedAt
 
   school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  department       Department        @relation(fields: [departmentId], references: [id])
+  departments      Department[]      @relation("DepartmentSubjects")
   assessmentScores AssessmentScore[]
   classSubjects    ClassSubject[]
   teachers         SubjectTeacher[]
 
   @@unique([code, schoolId])
   @@index([schoolId, isActive])
-  @@index([departmentId])
   @@map("subjects")
 }
 
@@ -623,14 +628,17 @@ model ClassSubject {
   classId      String
   subjectId    String
   isCompulsory Boolean  @default(true)
+  teacherId    String?
   createdAt    DateTime @default(now())
 
   class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
   subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher Teacher? @relation(fields: [teacherId], references: [id])
 
   @@unique([classId, subjectId])
   @@index([classId])
   @@index([subjectId])
+  @@index([teacherId])
   @@map("class_subjects")
 }
 
@@ -754,8 +762,6 @@ model AssessmentTemplate {
   gradingSystemId String
   name            String
   description     String?
-  classLevel      String?
-  subjectCode     String?
   termNumber      Int?
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
@@ -763,12 +769,15 @@ model AssessmentTemplate {
 
   school           School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   gradingSystem    GradingSystem         @relation(fields: [gradingSystemId], references: [id])
+  classId          String?
+  classLevel       String?
+  subjectCode      String?
+  class            Class?                @relation(fields: [classId], references: [id])
   components       AssessmentComponent[]
   assessmentScores AssessmentScore[]
 
   @@index([schoolId, isActive])
   @@index([gradingSystemId])
-  @@index([classLevel, subjectCode])
   @@map("assessment_templates")
 }
 

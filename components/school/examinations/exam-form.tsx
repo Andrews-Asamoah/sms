@@ -23,8 +23,7 @@ import { Label } from "@/components/ui/label";
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   gradingSystemId: z.string().min(1, "Grading system is required"),
-  classLevel: z.string().optional(),
-  subjectCode: z.string().optional(),
+  classId: z.string().nullable().optional(),
   termNumber: z.coerce.number().int().optional(),
   description: z.string().optional(),
   isActive: z.boolean(),
@@ -35,6 +34,7 @@ interface ExamFormProps {
   exam?: any;
   onSuccess?: () => void;
   gradingSystems: Array<{ id: string; name: string }>;
+  classes: Array<{ id: string; name: string }>;
 }
 
 export function ExamForm({
@@ -42,6 +42,7 @@ export function ExamForm({
   exam,
   onSuccess,
   gradingSystems,
+  classes,
 }: ExamFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -57,8 +58,7 @@ export function ExamForm({
     defaultValues: {
       name: exam?.name || "",
       gradingSystemId: exam?.gradingSystemId || "",
-      classLevel: exam?.classLevel || "",
-      subjectCode: exam?.subjectCode || "",
+      classId: exam?.classId || "",
       termNumber: exam?.termNumber || undefined,
       description: exam?.description || "",
       isActive: exam?.isActive ?? true,
@@ -136,31 +136,28 @@ export function ExamForm({
         )}
       </FieldGroup>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <FieldGroup>
-          <FieldLabel htmlFor="classLevel">Class Level</FieldLabel>
-          <Input
-            id="classLevel"
-            placeholder="e.g. JSS1"
-            {...register("classLevel")}
-          />
-          <p className="text-sm text-muted-foreground">Optional</p>
-          {errors.classLevel && (
-            <FieldError>{errors.classLevel.message}</FieldError>
-          )}
-        </FieldGroup>
-
-        <FieldGroup>
-          <FieldLabel htmlFor="subjectCode">Subject Code</FieldLabel>
-          <Input
-            id="subjectCode"
-            placeholder="e.g. MAT"
-            {...register("subjectCode")}
-          />
-          <p className="text-sm text-muted-foreground">Optional</p>
-          {errors.subjectCode && (
-            <FieldError>{errors.subjectCode.message}</FieldError>
-          )}
+          <FieldLabel htmlFor="classId">Target Class (Optional)</FieldLabel>
+          <Select
+            value={watch("classId") || "none"}
+            onValueChange={(value) =>
+              setValue("classId", value === "none" ? null : value)
+            }
+          >
+            <SelectTrigger id="classId">
+              <SelectValue placeholder="All Classes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">All Classes</SelectItem>
+              {classes.map((cls) => (
+                <SelectItem key={cls.id} value={cls.id}>
+                  {cls.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.classId && <FieldError>{errors.classId.message}</FieldError>}
         </FieldGroup>
 
         <FieldGroup>

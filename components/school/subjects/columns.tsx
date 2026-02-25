@@ -32,13 +32,12 @@ export type Subject = {
   name: string;
   code: string;
   description?: string | null;
-  departmentId: string;
   creditHours: number;
   isActive: boolean;
-  department: {
+  departments: Array<{
     id: string;
     name: string;
-  };
+  }>;
   _count: {
     teachers: number;
     classSubjects: number;
@@ -76,11 +75,20 @@ export const columns = (
     cell: ({ row }) => <Badge variant="outline">{row.getValue("code")}</Badge>,
   },
   {
-    accessorKey: "department",
-    header: "Department",
+    accessorKey: "departments",
+    header: "Departments",
     cell: ({ row }) => {
-      const dept = row.original.department;
-      return dept ? dept.name : "N/A";
+      const depts = row.original.departments;
+      if (!depts || depts.length === 0) return "N/A";
+      return (
+        <div className="flex flex-wrap gap-1">
+          {depts.map((d) => (
+            <Badge key={d.id} variant="secondary" className="font-normal">
+              {d.name}
+            </Badge>
+          ))}
+        </div>
+      );
     },
   },
   {
@@ -94,7 +102,13 @@ export const columns = (
     cell: ({ row }) => {
       const isActive = row.getValue("isActive");
       return (
-        <Badge variant={isActive ? "default" : "secondary"}>
+        <Badge
+          className={
+            isActive
+              ? "bg-emerald-500 hover:bg-emerald-600 text-white border-0"
+              : "bg-rose-500 hover:bg-rose-600 text-white border-0"
+          }
+        >
           {isActive ? "Active" : "Inactive"}
         </Badge>
       );

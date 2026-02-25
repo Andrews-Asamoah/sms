@@ -43,6 +43,11 @@ export default async function NewClassPage({ params }: NewClassPageProps) {
       academicYears: {
         orderBy: { startDate: "desc" },
       },
+      departments: {
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      },
       teachers: {
         where: { isActive: true },
         include: {
@@ -105,6 +110,7 @@ export default async function NewClassPage({ params }: NewClassPageProps) {
             teachers={school.teachers
               .filter((t) => t.profile !== null)
               .map((t) => ({ ...t, profile: t.profile! }))}
+            departments={school.departments}
           />
         </CardContent>
       </Card>

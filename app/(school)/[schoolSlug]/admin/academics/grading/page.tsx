@@ -34,9 +34,12 @@ export default async function GradingPage(props: GradingPageProps) {
     redirect("/");
   }
 
-  const gradingSystems = await prisma.gradingSystem.findMany({
+  const gradingSystemsRaw = await prisma.gradingSystem.findMany({
     where: { schoolId: school.id },
     include: {
+      gradeScales: {
+        orderBy: { displayOrder: "asc" },
+      },
       _count: {
         select: {
           gradeScales: true,
@@ -46,6 +49,17 @@ export default async function GradingPage(props: GradingPageProps) {
     },
     orderBy: { name: "asc" },
   });
+
+  // Convert Decimal to Number for serialization to Client Component
+  const gradingSystems = gradingSystemsRaw.map((gs) => ({
+    ...gs,
+    gradeScales: gs.gradeScales.map((scale) => ({
+      ...scale,
+      minScore: Number(scale.minScore),
+      maxScore: Number(scale.maxScore),
+      gradePoint: Number(scale.gradePoint),
+    })),
+  }));
 
   return (
     <div className="min-h-screen bg-muted/30">

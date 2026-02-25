@@ -43,22 +43,27 @@ export function GradingSystemDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {gradingSystem ? "Edit Grading System" : "Add Grading System"}
-          </DialogTitle>
-          <DialogDescription>
-            {gradingSystem
-              ? "Make changes to the grading system details below."
-              : "Create a new grading system for assessments."}
-          </DialogDescription>
-        </DialogHeader>
-        <GradingSystemForm
-          schoolSlug={schoolSlug}
-          gradingSystem={gradingSystem}
-          onSuccess={() => onOpenChange(false)}
-        />
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border-primary/20">
+        <div className="p-6 border-b bg-muted/30 sticky top-0 z-20">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <span className="h-8 w-2 bg-primary rounded-full" />
+              {gradingSystem ? "Edit Grading System" : "Add Grading System"}
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              {gradingSystem
+                ? "Make changes to the grading system details below."
+                : "Create a new grading system for assessments."}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+        <div className="overflow-y-auto p-6 md:p-8 flex-1">
+          <GradingSystemForm
+            schoolSlug={schoolSlug}
+            gradingSystem={gradingSystem}
+            onSuccess={() => onOpenChange(false)}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

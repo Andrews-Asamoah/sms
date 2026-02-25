@@ -31,8 +31,7 @@ export type Exam = {
   id: string;
   name: string;
   gradingSystemId: string;
-  classLevel?: string | null;
-  subjectCode?: string | null;
+  classId?: string | null;
   termNumber?: number | null;
   description?: string | null;
   isActive: boolean;
@@ -40,6 +39,10 @@ export type Exam = {
     id: string;
     name: string;
   };
+  class?: {
+    id: string;
+    name: string;
+  } | null;
   _count: {
     assessmentScores: number;
     components: number;
@@ -49,6 +52,7 @@ export type Exam = {
 export const columns = (
   schoolSlug: string,
   gradingSystems: Array<{ id: string; name: string }>,
+  classes: Array<{ id: string; name: string }>,
 ): ColumnDef<Exam>[] => [
   {
     accessorKey: "name",
@@ -74,17 +78,19 @@ export const columns = (
   },
   {
     accessorKey: "details",
-    header: "Details",
+    header: "Target",
     cell: ({ row }) => {
       const exam = row.original;
       return (
         <div className="flex flex-col text-xs text-muted-foreground">
-          {exam.classLevel && <span>Level: {exam.classLevel}</span>}
-          {exam.subjectCode && <span>Subject: {exam.subjectCode}</span>}
-          {exam.termNumber && <span>Term: {exam.termNumber}</span>}
-          {!exam.classLevel && !exam.subjectCode && !exam.termNumber && (
-            <span>-</span>
+          {exam.class ? (
+            <span className="font-medium text-foreground">
+              Class: {exam.class.name}
+            </span>
+          ) : (
+            <span>All Classes</span>
           )}
+          {exam.termNumber && <span>Term: {exam.termNumber}</span>}
         </div>
       );
     },
@@ -152,6 +158,7 @@ export const columns = (
             exam={exam}
             schoolSlug={schoolSlug}
             gradingSystems={gradingSystems}
+            classes={classes}
           >
             <span className="hidden" />
           </ExamDialog>

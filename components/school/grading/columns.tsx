@@ -34,6 +34,13 @@ export type GradingSystem = {
   description?: string | null;
   isSchoolDefault: boolean;
   isActive: boolean;
+  gradeScales: {
+    grade: string;
+    description: string;
+    minScore: any;
+    maxScore: any;
+    gradePoint: any;
+  }[];
   _count: {
     gradeScales: number;
     assessmentTemplates: number;
