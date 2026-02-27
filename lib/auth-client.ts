@@ -2,18 +2,26 @@
 "use client";
 
 import { createAuthClient } from "better-auth/react";
-import { adminClient, organizationClient } from "better-auth/client/plugins";
+import {
+  adminClient,
+  organizationClient,
+  inferAdditionalFields,
+} from "better-auth/client/plugins";
 import {
   ac,
   superAdmin,
   owner,
   admin as adminRole,
   teacher,
+  headteacher,
   accountant,
   student,
   guardian,
+  staff,
+  member as memberRole,
   user as userRole,
 } from "@/lib/auth/permissions";
+import type { auth as AuthServer } from "@/lib/auth";
 
 // ============================================================================
 // CLIENT CONFIGURATION
@@ -32,13 +40,30 @@ export const authClient = createAuthClient({
         owner,
         admin: adminRole,
         teacher,
+        headteacher,
         accountant,
         student,
         guardian,
+        staff,
+        member: memberRole,
         user: userRole,
       },
     }),
-    organizationClient(),
+    organizationClient({
+      ac,
+      roles: {
+        owner,
+        admin: adminRole,
+        member: memberRole,
+        teacher,
+        headteacher,
+        accountant,
+        staff,
+        guardian,
+        student,
+      },
+    }),
+    inferAdditionalFields<typeof AuthServer>(),
   ],
 });
 

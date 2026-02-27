@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { format } from "date-fns";
+import { RecordPaymentDialog } from "./record-payment-dialog";
+import { DashboardPageHeader } from "@/components/layout/page-header";
 
 type Payment = {
   id: string;
@@ -19,11 +21,11 @@ type Payment = {
     profile: {
       firstName: string;
       lastName: string;
-      otherNames?: string;
     };
   };
-  recordedBy: {
-    name: string;
+  bill?: {
+    billNumber: string;
+    feeStructure?: { name: string };
   };
 };
 
@@ -31,23 +33,26 @@ export default function PaymentsPage() {
   const params = useParams();
   const schoolSlug = params.schoolSlug as string;
   const [data, setData] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isRecordOpen, setIsRecordOpen] = useState(false);
+
+  const fetchPayments = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/schools/${schoolSlug}/finance/payments`);
+      if (res.ok) {
+        const json = await res.json();
+        setData(json || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Fetch Payments
-    // We need an API for this: api/schools/[schoolSlug]/finance/payments
-    // I'll create the API next.
-    const fetchData = async () => {
-      try {
-        const res = await fetch(`/api/schools/${schoolSlug}/finance/payments`);
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    fetchData();
+    fetchPayments();
   }, [schoolSlug]);
 
   const columns: ColumnDef<Payment>[] = [
@@ -59,16 +64,25 @@ export default function PaymentsPage() {
       accessorKey: "student",
       header: "Student",
       cell: ({ row }) => {
-        const p = row.original.student.profile;
-        return `${p.firstName} ${p.lastName}`; // Simplified
+        const p = row.original.student?.profile;
+        if (!p) return "-";
+        return `${p.firstName} ${p.lastName}`;
       },
+    },
+    {
+      accessorKey: "bill",
+      header: "For",
+      cell: ({ row }) =>
+        row.original.bill?.feeStructure?.name ||
+        row.original.bill?.billNumber ||
+        "N/A",
     },
     {
       accessorKey: "amount",
       header: "Amount",
       cell: ({ row }) => (
-        <span className="font-bold">
-          GHS {Number(row.original.amount).toFixed(2)}
+        <span className="font-bold text-green-700">
+          + GHS {Number(row.original.amount).toFixed(2)}
         </span>
       ),
     },
@@ -86,28 +100,31 @@ export default function PaymentsPage() {
       header: "Date",
       cell: ({ row }) => format(new Date(row.original.paymentDate), "PPP"),
     },
-    {
-      header: "Recorded By",
-      accessorFn: (row) => row.recordedBy.name,
-    },
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Payments</h1>
-          <p className="text-muted-foreground">
-            Transaction history and revenue records
-          </p>
-        </div>
-        <Button>
+    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
+      <DashboardPageHeader
+        title="Payments"
+        description="Transaction history and incoming revenue records."
+      >
+        <Button onClick={() => setIsRecordOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Record Payment
         </Button>
+      </DashboardPageHeader>
+
+      <div className="bg-background rounded-md border shadow-sm p-4">
+        <DataTable columns={columns} data={data} searchKey="paymentNumber" />
       </div>
 
-      <DataTable columns={columns} data={data} searchKey="paymentNumber" />
+      {isRecordOpen && (
+        <RecordPaymentDialog
+          open={isRecordOpen}
+          onOpenChange={setIsRecordOpen}
+          onSuccess={fetchPayments}
+        />
+      )}
     </div>
   );
 }

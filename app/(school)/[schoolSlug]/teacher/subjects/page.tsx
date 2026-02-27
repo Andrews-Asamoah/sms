@@ -110,7 +110,7 @@ export default async function TeacherSubjectsPage({
                   <span>{cs.class._count.students} Students</span>
                 </div>
               </div>
-              <div className="pt-2 flex gap-2">
+              <div className="pt-2 flex flex-col gap-2">
                 <Button
                   variant="secondary"
                   size="sm"

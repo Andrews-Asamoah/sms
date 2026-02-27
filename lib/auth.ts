@@ -10,10 +10,12 @@ import {
   owner,
   admin as adminRole,
   teacher,
+  headteacher,
   accountant,
   student,
   guardian,
   staff,
+  member as memberRole,
   user as userRole,
 } from "@/lib/auth/permissions";
 import {
@@ -105,6 +107,22 @@ export const auth = betterAuth({
     // ORGANIZATION PLUGIN
     // ------------------------------------------------------------------------
     organization({
+      // ======================================================================
+      // CUSTOM ROLES — stored directly in members.role column
+      // ======================================================================
+      ac,
+      roles: {
+        owner,
+        admin: adminRole,
+        member: memberRole,
+        teacher,
+        headteacher,
+        accountant,
+        staff,
+        guardian,
+        student,
+      },
+
       // ======================================================================
       // PERMISSION: Who can create organizations?
       // ======================================================================
@@ -647,11 +665,13 @@ export const auth = betterAuth({
         superAdmin,
         owner,
         admin: adminRole,
+        headteacher,
         teacher,
         accountant,
         student,
         guardian,
         staff,
+        member: memberRole,
         user: userRole,
       },
 
@@ -708,6 +728,19 @@ export const auth = betterAuth({
     cookieCache: {
       enabled: true,
       maxAge: 60 * 5, // 5 minutes
+    },
+  },
+
+  // ==========================================================================
+  // USER ADDITIONAL FIELDS
+  // ==========================================================================
+  user: {
+    additionalFields: {
+      onboardingCompleted: {
+        type: "boolean" as const,
+        defaultValue: false,
+        input: true, // allow updating via updateUser()
+      },
     },
   },
 });

@@ -95,8 +95,8 @@ function calculateDaysRemaining(expiresAt: Date, currentTime: number): number {
   return Math.max(
     0,
     Math.ceil(
-      (new Date(expiresAt).getTime() - currentTime) / (1000 * 60 * 60 * 24)
-    )
+      (new Date(expiresAt).getTime() - currentTime) / (1000 * 60 * 60 * 24),
+    ),
   );
 }
 
@@ -160,7 +160,7 @@ export function SchoolOverview({
                   {" "}
                   Trial ends on{" "}
                   {new Date(
-                    school.subscription.trialEndsAt
+                    school.subscription.trialEndsAt,
                   ).toLocaleDateString()}
                   .
                 </>
@@ -239,10 +239,7 @@ export function SchoolOverview({
                   </Link>
                 </Button>
                 <Button asChild size="sm">
-                  <Link
-                    href={`/${school.subdomain}/admin/dashboard`}
-                    target="_blank"
-                  >
+                  <Link href={`/${school.subdomain}/admin`} target="_blank">
                     <ExternalLink className="mr-2 h-4 w-4" />
                     Open Portal
                   </Link>
@@ -420,12 +417,12 @@ export function SchoolOverview({
                       </dt>
                       <dd className="text-sm text-right">
                         {new Date(
-                          school.subscription.currentPeriodStart
+                          school.subscription.currentPeriodStart,
                         ).toLocaleDateString()}{" "}
                         <br />
                         to{" "}
                         {new Date(
-                          school.subscription.currentPeriodEnd
+                          school.subscription.currentPeriodEnd,
                         ).toLocaleDateString()}
                       </dd>
                     </div>
@@ -469,11 +466,11 @@ export function SchoolOverview({
                 <p className="text-xs text-muted-foreground">
                   Academic year:{" "}
                   {new Date(
-                    school.academicYears[0].startDate
+                    school.academicYears[0].startDate,
                   ).toLocaleDateString()}{" "}
                   -{" "}
                   {new Date(
-                    school.academicYears[0].endDate
+                    school.academicYears[0].endDate,
                   ).toLocaleDateString()}
                 </p>
               </div>

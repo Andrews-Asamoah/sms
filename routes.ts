@@ -2,7 +2,7 @@
  * The default redirect path after logging in
  * @type {string}
  */
-export const DEFAULT_LOGIN_REDIRECT = "/dashboard";
+export const DEFAULT_LOGIN_REDIRECT = "/";
 
 /**
  * An array of routes that are accessible to the public
@@ -58,7 +58,7 @@ export const teacherRoutes = [
 
 /**
  * An array of routes that are used for authentication
- * These routes will redirect logged in users to /dashboard
+ * These routes will redirect logged in users to the home page
  * @type {string[]}
  */
 export const authRoutes = [

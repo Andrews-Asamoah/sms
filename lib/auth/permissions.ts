@@ -56,6 +56,20 @@ export const statement = {
   library: ["create", "update", "delete", "view"],
   inventory: ["create", "update", "delete", "view"],
   transport: ["create", "update", "delete", "view"],
+
+  // User & Session (for Better Auth admin plugin)
+  user: [
+    "create",
+    "list",
+    "set-role",
+    "ban",
+    "impersonate",
+    "delete",
+    "set-password",
+    "get",
+    "update",
+  ],
+  session: ["list", "revoke", "delete"],
 } as const;
 
 export const ac = createAccessControl(statement);
@@ -142,7 +156,41 @@ export const admin = ac.newRole({
   user: ["list", "ban", "set-role"],
   session: ["list", "revoke"],
 
-  // Organization permissions (admins can invite)
+  // Organization permissions
+  organization: ["view", "invite"],
+
+  school: ["view", "update"],
+  student: ["create", "update", "delete", "view", "enroll"],
+  teacher: ["create", "update", "delete", "view", "assign"],
+  staff: ["create", "update", "delete", "view"],
+  parent: ["create", "update", "delete", "view"],
+  class: ["create", "update", "delete", "view", "manage"],
+  subject: ["create", "update", "delete", "view"],
+  department: ["create", "update", "delete", "view"],
+  house: ["create", "update", "delete", "view"],
+  finance: ["view"],
+  bill: ["view"],
+  payment: ["view"],
+  assessment: ["create", "update", "delete", "view", "grade"],
+  attendance: ["create", "update", "delete", "view", "approve"],
+  report: ["create", "view", "download", "approve"],
+  document: ["create", "update", "delete", "view", "upload"],
+  announcement: ["create", "update", "delete", "view"],
+  setting: ["view"],
+  analytics: ["view"],
+  timetable: ["create", "update", "delete", "view"],
+  hostel: ["create", "update", "delete", "view"],
+  library: ["create", "update", "delete", "view"],
+  inventory: ["create", "update", "delete", "view"],
+  transport: ["create", "update", "delete", "view"],
+  communication: ["view", "send"],
+});
+
+export const headteacher = ac.newRole({
+  user: ["list", "ban", "set-role"],
+  session: ["list", "revoke"],
+
+  // Organization permissions
   organization: ["view", "invite"],
 
   school: ["view", "update"],
@@ -259,6 +307,14 @@ export const user = ac.newRole({
   school: ["view"],
 });
 
+export const member = ac.newRole({
+  school: ["view"],
+  document: ["view"],
+  timetable: ["view"],
+  library: ["view"],
+  communication: ["view"],
+});
+
 // ============================================================================
 // UTILITIES (Keep your existing utilities)
 // ============================================================================
@@ -267,11 +323,13 @@ export const ROLES = [
   "superAdmin",
   "owner",
   "admin",
+  "headteacher",
   "teacher",
   "accountant",
   "student",
   "guardian",
   "staff",
+  "member",
   "user",
 ] as const;
 
@@ -291,11 +349,13 @@ export function getRoleDisplayName(role: RoleName): string {
     superAdmin: "Super Administrator",
     owner: "School Owner",
     admin: "Administrator",
+    headteacher: "Head Teacher",
     teacher: "Teacher",
     accountant: "Accountant",
     student: "Student",
     guardian: "Parent/Guardian",
     staff: "Staff",
+    member: "Member",
     user: "User",
   };
   return displayNames[role];
@@ -306,11 +366,13 @@ export function getRoleDescription(role: RoleName): string {
     superAdmin: "Full platform access and school creation",
     owner: "Full access to their school",
     admin: "Day-to-day school operations management",
+    headteacher: "Full school academic and administrative management",
     teacher: "Classroom management and student assessment",
     accountant: "Financial management and reporting",
     student: "View own academic information",
     guardian: "View children's information and make payments",
     staff: "Department-specific access",
+    member: "Organization member",
     user: "Basic authenticated user",
   };
   return descriptions[role];

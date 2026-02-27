@@ -107,7 +107,7 @@ export function RoleSwitcher({
     if (!config) return;
 
     // Navigate to the appropriate dashboard for the selected role
-    router.push(`/${schoolSlug}/${config.route}/dashboard`);
+    router.push(`/${schoolSlug}/${config.route}`);
   };
 
   const SwitcherButton = (

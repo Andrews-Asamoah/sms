@@ -17,7 +17,7 @@ export function SiteHeaderSystem({
   return (
     <BaseHeader
       rootLabel="System Admin"
-      rootHref="/dashboard"
+      rootHref="/"
       rightContent={
         <div className="flex items-center gap-2">
           <Badge

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 import {
   GraduationCap,
   Users,
@@ -27,6 +28,7 @@ import { Card, CardContent } from "@/components/ui/card";
 // ============================================================================
 
 interface OnboardingWizardProps {
+  userId: string;
   user: {
     name: string;
     email: string;
@@ -186,11 +188,13 @@ const ROLE_INFO: Record<
 // ============================================================================
 
 export function OnboardingWizard({
+  userId,
   user,
   hasSchoolAccess,
   primarySchool,
 }: OnboardingWizardProps) {
   const [step, setStep] = useState(0);
+  const [completing, setCompleting] = useState(false);
   const router = useRouter();
 
   const firstName = user.name?.split(" ")[0] || "there";
@@ -211,10 +215,23 @@ export function OnboardingWizard({
     }
   };
 
-  const handleGoToDashboard = () => {
+  /** Mark onboarding complete in DB then navigate to dashboard */
+  const handleGoToDashboard = async () => {
+    setCompleting(true);
+    try {
+      await authClient.updateUser({ onboardingCompleted: true } as Parameters<
+        typeof authClient.updateUser
+      >[0]);
+    } catch {
+      // Non-fatal: even if the update fails, navigate the user forward.
+      // On the next login they will be redirected to the dashboard anyway
+      // once the field is eventually set.
+      console.warn("[Onboarding] Failed to mark onboarding complete");
+    }
+
     if (primarySchool) {
       const roleRoute = roleKey === "guardian" ? "parent" : roleKey;
-      router.push(`/${primarySchool.subdomain}/${roleRoute}/dashboard`);
+      router.push(`/${primarySchool.subdomain}/${roleRoute}`);
     } else {
       router.push("/auth/login");
     }
@@ -474,10 +491,11 @@ export function OnboardingWizard({
 
               <Button
                 onClick={handleGoToDashboard}
+                disabled={completing}
                 size="lg"
                 className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-xl shadow-emerald-500/20 px-10 h-13 text-base"
               >
-                Go to Dashboard
+                {completing ? "Setting up..." : "Go to Dashboard"}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </div>
@@ -510,9 +528,10 @@ export function OnboardingWizard({
             ) : hasSchoolAccess ? (
               <Button
                 onClick={handleGoToDashboard}
+                disabled={completing}
                 className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
               >
-                Go to Dashboard
+                {completing ? "Setting up..." : "Go to Dashboard"}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (

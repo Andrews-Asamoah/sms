@@ -141,7 +141,9 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
 }
 
 /**
- * Map Better Auth organization role to effective role
+ * Map Better Auth organization role to effective role.
+ * Handles both the built-in roles (owner, admin, member) and
+ * our custom roles (teacher, accountant, etc.) stored in Member.role.
  */
 function mapOrgRoleToEffective(orgRole: OrganizationRole): EffectiveRole {
   switch (orgRole) {
@@ -149,8 +151,19 @@ function mapOrgRoleToEffective(orgRole: OrganizationRole): EffectiveRole {
       return "owner";
     case "admin":
       return "admin";
+    case "headteacher":
+      return "headteacher";
+    case "teacher":
+      return "teacher";
+    case "accountant":
+      return "accountant";
+    case "staff":
+      return "staff";
+    case "guardian":
+      return "guardian";
+    case "student":
+      return "student";
     case "member":
-      return "member";
     default:
       return "member";
   }

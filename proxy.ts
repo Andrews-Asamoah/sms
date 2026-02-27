@@ -112,9 +112,9 @@ export async function proxy(request: NextRequest) {
   // 4. Handle subdomain-based routing (optional)
   const subdomain = getSubdomain(request);
   if (subdomain && pathname === "/") {
-    // Redirect root of subdomain to its dashboard
-    const dashboardUrl = new URL(`/${subdomain}/dashboard`, request.url);
-    return NextResponse.redirect(dashboardUrl);
+    // Redirect root of subdomain to its role-based root
+    const rootUrl = new URL(`/${subdomain}`, request.url);
+    return NextResponse.redirect(rootUrl);
   }
 
   // ============================================================================

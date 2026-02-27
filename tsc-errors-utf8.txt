@@ -1,0 +1,1 @@
+﻿app/(school)/[schoolSlug]/accountant/fees/structure/fee-structure-client.tsx(11,42): error TS2307: Cannot find module './create-fee-structure-dialog' or its corresponding type declarations.

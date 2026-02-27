@@ -23,7 +23,7 @@ export default async function SchoolLayout({
   const session = await getSession();
 
   if (!session) {
-    redirect(`/auth/login?callbackUrl=/${schoolSlug}/admin/dashboard`);
+    redirect(`/auth/login?callbackUrl=/${schoolSlug}/admin`);
   }
 
   // Check school access

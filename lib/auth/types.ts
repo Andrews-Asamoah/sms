@@ -141,10 +141,21 @@ export interface ExtendedSession {
 
 export type SystemRole = "superAdmin" | "user";
 
-export type OrganizationRole = "owner" | "admin" | "member";
+export type OrganizationRole =
+  | "owner"
+  | "admin"
+  | "member"
+  | "teacher"
+  | "headteacher"
+  | "accountant"
+  | "staff"
+  | "guardian"
+  | "student";
 
 export type ProfileRoleType =
+  | "admin"
   | "teacher"
+  | "headteacher"
   | "student"
   | "guardian"
   | "accountant"
@@ -153,6 +164,7 @@ export type ProfileRoleType =
 export type EffectiveRole =
   | "owner"
   | "admin"
+  | "headteacher"
   | "teacher"
   | "accountant"
   | "staff"
@@ -298,6 +310,7 @@ export interface AuditLogData {
 export const ROLE_PRIORITY: Record<EffectiveRole, number> = {
   owner: 100,
   admin: 90,
+  headteacher: 85,
   accountant: 70,
   teacher: 60,
   staff: 50,

@@ -14,6 +14,7 @@ import { ChevronRight } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { NotificationBell } from "@/components/shared/notification-bell";
 import { cn } from "@/lib/utils";
 
 interface BaseHeaderProps {
@@ -120,6 +121,7 @@ export function BaseHeader({
         {/* Right section - Custom content and theme toggle */}
         <div className="flex items-center gap-2 lg:gap-3 shrink-0">
           {rightContent}
+          <NotificationBell />
           {showThemeToggle && (
             <>
               {rightContent && (

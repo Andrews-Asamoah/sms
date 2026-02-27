@@ -42,7 +42,7 @@ import { toast } from "sonner";
 
 // ─── Invite Mode Schema (new teacher — email only, no bio) ───────────────────
 const teacherInviteSchema = z.object({
-  email: z.string().email("Valid email is required"),
+  email: z.email("Valid email is required"),
   staffNumber: z.string().optional().nullable(),
   departmentId: z.string().min(1, "Department is required"),
   houseId: z.string().optional().nullable(),

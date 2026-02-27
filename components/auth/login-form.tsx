@@ -23,6 +23,7 @@ import {
   AlertCircle,
   Loader2,
   ArrowRight,
+  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
@@ -45,6 +46,7 @@ export function LoginForm() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const {
     register,
@@ -75,9 +77,10 @@ export function LoginForm() {
       }
 
       console.log("✅ [Login] Success!");
+      setIsSuccess(true);
 
-      // Give Better Auth time to establish session
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Give Better Auth time to establish session and show success state
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       // Always redirect to /auth/callback
       // The callback page will handle role-based routing
@@ -172,14 +175,21 @@ export function LoginForm() {
 
         <Button
           type="submit"
-          className="w-full shadow-lg hover:shadow-xl transition-all duration-200"
+          className={`w-full shadow-lg hover:shadow-xl transition-all duration-500 ${
+            isSuccess ? "bg-green-600 hover:bg-green-600 text-white" : ""
+          }`}
           size="lg"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isSuccess}
         >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               Signing in...
+            </>
+          ) : isSuccess ? (
+            <>
+              <CheckCircle2 className="mr-2 h-5 w-5 animate-in zoom-in duration-300" />
+              Success! Preparing Dashboard...
             </>
           ) : (
             <>

@@ -13,7 +13,7 @@ export async function getRoleLayoutData(
 
   if (!session) {
     redirect(
-      `/auth/login?callbackUrl=/${schoolSlug}/${typeof requiredRole === "string" ? requiredRole : requiredRole[0]}/dashboard`,
+      `/auth/login?callbackUrl=/${schoolSlug}/${typeof requiredRole === "string" ? requiredRole : requiredRole[0]}`,
     );
   }
 
@@ -40,7 +40,7 @@ export async function getRoleLayoutData(
       schoolRole.effectiveRole === "member"
         ? "teacher"
         : schoolRole.effectiveRole;
-    redirect(`/${schoolSlug}/${roleRoute}/dashboard`);
+    redirect(`/${schoolSlug}/${roleRoute}`);
   }
 
   // Get school details

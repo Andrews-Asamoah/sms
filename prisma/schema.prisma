@@ -39,6 +39,8 @@ model user {
   banned        Boolean   @default(false)
   banReason     String?
   banExpires    DateTime?
+  // Tracks whether user has completed the onboarding wizard (shown once only)
+  onboardingCompleted Boolean @default(false)
 
   // Relations
   accounts           account[]
@@ -52,6 +54,8 @@ model user {
   gradingSystems     GradingSystem[]
   paymentsRecorded   Payment[]           @relation("PaymentRecordedBy")
   transcriptRequests TranscriptRequest[]
+  notifications      Notification[]
+  announcementsSent  Announcement[]      @relation("AnnouncementsSent")
   userProfile        UserProfile?
 
   @@index([banned])
@@ -236,6 +240,10 @@ model School {
   subscription                Subscription?
   teachers                    Teacher[]
   transactions                Transaction[]
+  reportCardTemplates         ReportCardTemplate[]
+  reportCardSets              ReportCardSet[]
+  notifications               Notification[]
+  announcements               Announcement[]
 
   @@index([code])
   @@index([subdomain])
@@ -323,6 +331,7 @@ model Student {
   payments         Payment[]
   remarks          Remark[]
   transcripts      TranscriptRequest[]
+  reportCards      ReportCard[]
 
   @@unique([studentId, schoolId])
   @@unique([admissionNumber, schoolId])
@@ -512,6 +521,7 @@ model AcademicYear {
   classes     Class[]
   enrollments Enrollment[]
   terms       Term[]
+  reportCardSets ReportCardSet[]
 
   @@unique([name, schoolId])
   @@index([schoolId, isCurrent])
@@ -535,6 +545,7 @@ model Term {
   bills            Bill[]
   enrollments      Enrollment[]
   remarks          Remark[]
+  reportCardSets   ReportCardSet[]
 
   @@unique([academicYearId, termNumber])
   @@index([academicYearId])
@@ -592,6 +603,7 @@ model Class {
   departmentId String?
   department   Department?   @relation(fields: [departmentId], references: [id])
   assessmentTemplates AssessmentTemplate[]
+  reportCardSets      ReportCardSet[]
 
   @@unique([name, academicYearId, schoolId])
   @@unique([slug, academicYearId, schoolId])
@@ -894,6 +906,113 @@ model TranscriptRequest {
   @@index([requestedAt])
   @@index([processedById])
   @@map("transcript_requests")
+}
+
+// ============================================================================
+// REPORT CARDS & NOTIFICATIONS
+// ============================================================================
+
+model ReportCardTemplate {
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  description String?
+  layout      Json     // For storing configuration of sections, titles, etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  sets   ReportCardSet[]
+
+  @@index([schoolId])
+  @@map("report_card_templates")
+}
+
+model ReportCardSet {
+  id             String           @id @default(cuid())
+  schoolId       String
+  templateId     String
+  academicYearId String
+  termId         String
+  classId        String
+  name           String           // e.g. "Primary 1 - Term 1 - 2025"
+  status         ReportCardStatus @default(DRAFT)
+  publishAt      DateTime?
+  publishedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  school       School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  template     ReportCardTemplate @relation(fields: [templateId], references: [id])
+  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id])
+  term         Term               @relation(fields: [termId], references: [id])
+  class        Class              @relation(fields: [classId], references: [id])
+  reportCards  ReportCard[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([termId])
+  @@index([classId])
+  @@map("report_card_sets")
+}
+
+model ReportCard {
+  id          String    @id @default(cuid())
+  setId       String
+  studentId   String
+  data        Json      // Snapshot of all required data: subjects, marks, positions, attendance, remarks
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  set     ReportCardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  student Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([setId, studentId])
+  @@index([setId])
+  @@index([studentId])
+  @@map("report_cards")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  schoolId  String
+  userId    String           // Recipient
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  link      String?          // Redirect link
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   user   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([userId])
+  @@index([type])
+  @@map("notifications")
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  schoolId  String
+  authorId  String
+  title     String
+  content   String
+  target    String    @default("ALL") // ALL, TEACHER, STUDENT, STAFF
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  author user   @relation("AnnouncementsSent", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([authorId])
+  @@map("announcements")
 }
 
 // ============================================================================
@@ -1570,4 +1689,20 @@ enum EntityType {
   BILL
   PAYMENT
   OTHER
+}
+
+enum ReportCardStatus {
+  DRAFT
+  GENERATING
+  GENERATED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum NotificationType {
+  RESULT_PUBLISHED
+  FEE_REMINDER
+  ATTENDANCE_ALERT
+  GENERAL
+  ANNOUNCEMENT
 }

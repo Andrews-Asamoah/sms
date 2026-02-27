@@ -120,7 +120,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
       return NextResponse.json({
         message: "You are already a member of this organization",
-        redirectUrl: `/${invitation.organization.school?.subdomain}/admin/dashboard`,
+        redirectUrl: `/${invitation.organization.school?.subdomain}/admin`,
       });
     }
 
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const redirectUrl = `/${invitation.organization.school.subdomain}/admin/dashboard`;
+    const redirectUrl = `/${invitation.organization.school.subdomain}/admin`;
 
     console.log(
       `✅ [Accept Invitation] Complete! Redirecting to: ${redirectUrl}`,

@@ -19,7 +19,7 @@ export const systemNavSections: NavSection[] = [
   {
     title: "Overview",
     items: [
-      { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { title: "Analytics", url: "/analytics", icon: BarChart3 },
     ],
   },

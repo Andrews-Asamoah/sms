@@ -208,3 +208,41 @@ export async function POST(
     );
   }
 }
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ schoolSlug: string }> },
+) {
+  try {
+    const { schoolSlug } = await params;
+    const { searchParams } = new URL(request.url);
+    const academicYearId = searchParams.get("academicYearId");
+
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { id: true },
+    });
+
+    if (!school) {
+      return NextResponse.json({ error: "School not found" }, { status: 404 });
+    }
+
+    const terms = await prisma.term.findMany({
+      where: {
+        AND: [
+          { academicYear: { schoolId: school.id } },
+          academicYearId ? { academicYearId: academicYearId } : {},
+        ],
+      },
+      orderBy: { termNumber: "asc" },
+    });
+
+    return NextResponse.json(terms);
+  } catch (error) {
+    console.error("[TERMS_GET]", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}

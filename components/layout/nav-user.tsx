@@ -37,7 +37,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { signOut } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 
 interface NavUserProps {
@@ -51,6 +51,7 @@ interface NavUserProps {
 export default function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar();
   const router = useRouter();
+  const { schoolSlug } = useParams();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
@@ -151,7 +152,10 @@ export default function NavUser({ user }: NavUserProps) {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/notifications" className="cursor-pointer">
+                  <Link
+                    href={`/${schoolSlug}/notifications`}
+                    className="cursor-pointer"
+                  >
                     <Bell className="h-4 w-4" />
                     Notifications
                   </Link>

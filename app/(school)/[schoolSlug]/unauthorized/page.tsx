@@ -35,7 +35,7 @@ export default function UnauthorizedPage() {
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="gap-2">
-            <Link href="/dashboard">
+            <Link href="/">
               <ArrowLeft className="size-4" />
               System Dashboard
             </Link>

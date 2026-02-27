@@ -1,5 +1,5 @@
 // ============================================================
-// app/onboarding/page.tsx - Onboarding Page
+// app/onboarding/page.tsx - Onboarding Page (shows only once)
 // ============================================================
 
 import { getSession } from "@/lib/auth/session";
@@ -22,14 +22,32 @@ export default async function OnboardingPage() {
     redirect("/auth/login");
   }
 
-  // Check if the user has school access
+  // ── One-time onboarding gate ──────────────────────────────────────────────
+  // If the user has already completed onboarding, send them straight to their
+  // dashboard so they never see this page again on return visits.
+  const userRecord = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { onboardingCompleted: true },
+  });
+
   const primarySchool = getPrimarySchool(session);
 
+  if (userRecord?.onboardingCompleted) {
+    if (primarySchool) {
+      const roleRoute =
+        primarySchool.effectiveRole === "guardian"
+          ? "parent"
+          : primarySchool.effectiveRole;
+      redirect(`/${primarySchool.subdomain}/${roleRoute}`);
+    }
+    redirect("/auth/login");
+  }
+
+  // ── Gather school data for the wizard ────────────────────────────────────
   let schoolData: { name: string; subdomain: string; role: string } | null =
     null;
 
   if (primarySchool) {
-    // Fetch school name for display
     const school = await prisma.school.findUnique({
       where: { subdomain: primarySchool.subdomain },
       select: { name: true, subdomain: true },
@@ -46,6 +64,7 @@ export default async function OnboardingPage() {
 
   return (
     <OnboardingWizard
+      userId={session.user.id}
       user={{
         name: session.user.name,
         email: session.user.email,

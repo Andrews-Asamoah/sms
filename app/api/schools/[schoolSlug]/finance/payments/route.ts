@@ -21,32 +21,42 @@ export async function GET(
   if (!school)
     return NextResponse.json({ error: "School not found" }, { status: 404 });
 
-  const payments = await prisma.payment.findMany({
-    where: { schoolId: school.id },
-    include: {
-      student: {
-        include: { profile: true },
+  try {
+    const payments = await prisma.payment.findMany({
+      where: { schoolId: school.id },
+      include: {
+        student: {
+          select: { profile: true, class: { select: { name: true } } },
+        },
+        bill: {
+          select: {
+            billNumber: true,
+            feeStructure: { select: { name: true } },
+          },
+        },
       },
-      recordedBy: {
-        select: { name: true },
-      },
-    },
-    orderBy: { paymentDate: "desc" },
-    take: 100, // Limit for performance
-  });
-
-  return NextResponse.json(payments);
+      orderBy: { createdAt: "desc" },
+    });
+    return NextResponse.json(payments);
+  } catch (error) {
+    console.error("Fetch Payments Error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch payments" },
+      { status: 500 },
+    );
+  }
 }
 
-// POST to record payment
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   const { schoolSlug } = await params;
   const session = await getSession();
-  if (!session || !hasSchoolAccess(session, schoolSlug))
+
+  if (!session || !hasSchoolAccess(session, schoolSlug)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
@@ -55,75 +65,74 @@ export async function POST(
     return NextResponse.json({ error: "School not found" }, { status: 404 });
 
   const body = await request.json();
-  const { studentId, amount, paymentMethod, referenceNumber, notes } = body;
+  const { billId, amount, paymentMethod, referenceNumber, notes, paymentDate } =
+    body;
+
+  if (!billId || !amount || parseFloat(amount) <= 0) {
+    return NextResponse.json(
+      { error: "Bill ID and a valid positive amount are required." },
+      { status: 400 },
+    );
+  }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Create Payment Record
+      // 1. Find the target Bill
+      const bill = await tx.bill.findUnique({
+        where: { id: billId, schoolId: school.id },
+      });
+
+      if (!bill) {
+        throw new Error("Bill not found.");
+      }
+
+      if (bill.status === "PAID" || Number(bill.balanceAmount) <= 0) {
+        throw new Error("This bill is already fully paid.");
+      }
+
+      const payAmount = parseFloat(amount);
+      if (payAmount > Number(bill.balanceAmount)) {
+        throw new Error(
+          `Payment amount cannot exceed the balance of $${bill.balanceAmount}.`,
+        );
+      }
+
+      // 2. Create the Payment Record
       const payment = await tx.payment.create({
         data: {
           schoolId: school.id,
-          studentId,
-          paymentNumber: `RCPT-${Date.now()}`,
-          amount,
-          paymentMethod,
-          paymentDate: new Date(),
-          referenceNumber,
-          notes,
+          studentId: bill.studentId,
+          billId: bill.id,
+          paymentNumber: `RCPT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          amount: payAmount,
+          paymentMethod: paymentMethod || "CASH",
+          paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+          referenceNumber: referenceNumber || null,
+          notes: notes || null,
           status: "COMPLETED",
-          recordedById: session.user.id,
+          // recordedById: session.user.id // Would add if tracking cashier exactly.
         },
       });
 
-      // 2. Create Credit Transaction (Cash/Bank increase)
-      // Need Chart of Accounts for this. Skipping for now to keep simple.
-      // Just recording the Transaction log.
-      await tx.transaction
-        .create({
-          data: {
-            schoolId: school.id,
-            transactionNumber: `TXN-${Date.now()}`,
-            transactionDate: new Date(),
-            description: `Fee Payment from Student`,
-            amount: amount,
-            transactionType: "INCOME",
-            category: "SCHOOL_FEES",
-            // Ideally we link to Chart Accounts here.
-            // Using PLACEHOLDER IDs or skipping strict accounting for MVP if ChartAccount not seeded.
-            // IMPORTANT: Schema requires debitAccountId and creditAccountId.
-            // We need to fetch default accounts.
-            // PROVISIONAL: We will just skip Transaction creation if we don't have accounts,
-            // OR we rely on a separate accounting module to sync.
-            // Schema says: debitAccountId String, creditAccountId String.
-            // Cannot skip.
-            // For MVP, we might need to find ANY assets account.
-            // Let's Find specific accounts or fail gracefully (except it's a transaction, so we must be careful).
+      // 3. Update the Bill
+      const newPaidAmount = Number(bill.paidAmount) + payAmount;
+      const newBalanceAmount = Number(bill.balanceAmount) - payAmount;
+      const newStatus = newBalanceAmount === 0 ? "PAID" : "PARTIALLY_PAID";
 
-            // Workaround: We'll create the Payment independently of the Double Entry Transaction for now
-            // unless we're sure Account seeds exist.
-            // However, Payment relates to Transaction (optional).
-
-            // Let's just update Student Balance.
-            debitAccountId: "placeholder", // WILL FAIL
-            creditAccountId: "placeholder", // WILL FAIL
-          },
-        })
-        .catch((err) => {
-          // Swallow validation error for now if accounts don't exist,
-          // BUT this is bad practice.
-          // Better: Just update student balance.
-          console.warn(
-            "Skipping Auto-Transaction due to missing Chart of Accounts",
-          );
-        });
-      // Actually, the above Catch won't work inside a $transaction if we awaited it.
-      // We will OMIT the `transaction` creation in this MVP step to avoid errors.
-
-      // 3. Update Student Balance (Decrement outstanding)
-      await tx.student.update({
-        where: { id: studentId },
+      await tx.bill.update({
+        where: { id: bill.id },
         data: {
-          outstandingBalance: { decrement: amount },
+          paidAmount: newPaidAmount,
+          balanceAmount: newBalanceAmount,
+          status: newStatus,
+        },
+      });
+
+      // 4. Update the Student's aggregate outstanding balance
+      await tx.student.update({
+        where: { id: bill.studentId },
+        data: {
+          outstandingBalance: { decrement: payAmount },
         },
       });
 
@@ -132,9 +141,12 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Record Payment Error", error);
+    console.error("Process Payment Error:", error);
     return NextResponse.json(
-      { error: "Failed to record payment" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to process payment.",
+      },
       { status: 500 },
     );
   }

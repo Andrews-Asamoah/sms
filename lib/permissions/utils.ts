@@ -83,6 +83,7 @@ function getPermissionsByRole(role: string): NavPermissions {
   switch (role) {
     case "owner":
     case "admin":
+    case "headteacher":
       return {
         canViewDashboard: true,
         canViewAnalytics: true,

@@ -132,7 +132,9 @@ export function TeacherClassesClient({
                 <span>{cls.academicYear}</span>
               </div>
             </CardContent>
-            <CardFooter className="bg-muted/50 p-3 grid grid-cols-3 gap-2">
+            <CardFooter
+              className={`bg-muted/50 p-3 grid gap-2 ${cls.isClassTeacher ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-3"}`}
+            >
               <Button
                 variant="ghost"
                 size="sm"
@@ -172,6 +174,21 @@ export function TeacherClassesClient({
                   Gradebook
                 </Link>
               </Button>
+              {cls.isClassTeacher && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs gap-1 font-semibold text-emerald-600"
+                  asChild
+                >
+                  <Link
+                    href={`/${schoolSlug}/teacher/classes/${cls.slug || cls.id}/fees`}
+                  >
+                    <ClipboardCheck className="h-3 w-3" />
+                    Fees Status
+                  </Link>
+                </Button>
+              )}
             </CardFooter>
           </Card>
         ))}

@@ -72,13 +72,25 @@ export function BaseSidebar({
         />
       </SidebarHeader>
       <SidebarContent>
-        {navSections.map((section, index) => (
-          <NavCollapsible
-            key={section.title || `section-${index}`}
-            title={section.title}
-            items={section.items}
-          />
-        ))}
+        {(() => {
+          const allSidebarUrls = navSections
+            .flatMap((section) =>
+              section.items.flatMap((item) => [
+                item.url,
+                ...(item.items?.map((sub) => sub.url) || []),
+              ]),
+            )
+            .filter((url) => url && url !== "#");
+
+          return navSections.map((section, index) => (
+            <NavCollapsible
+              key={section.title || `section-${index}`}
+              title={section.title}
+              items={section.items}
+              allSidebarUrls={allSidebarUrls}
+            />
+          ));
+        })()}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

@@ -6,9 +6,25 @@ import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
+// All roles that can be assigned via invitation
+// These map directly to Member.role in the DB via Better Auth custom roles
+const ALL_ORG_ROLES = [
+  "OWNER",
+  "ADMIN",
+  "MEMBER",
+  "TEACHER",
+  "HEADTEACHER",
+  "ACCOUNTANT",
+  "STAFF",
+  "GUARDIAN",
+] as const;
+
+type OrgRole = (typeof ALL_ORG_ROLES)[number];
+type OrgRoleLower = Lowercase<OrgRole>;
+
 const inviteAdminSchema = z.object({
   email: z.string().email("Invalid email address"),
-  role: z.enum(["OWNER", "ADMIN", "MEMBER"]),
+  role: z.enum(ALL_ORG_ROLES),
   firstName: z.string().min(2).optional(),
   lastName: z.string().min(2).optional(),
   phone: z.string().optional(),
@@ -185,7 +201,7 @@ export async function POST(
           body: {
             organizationId: school.organizationId,
             userId: existingUser.id,
-            role: data.role.toLowerCase() as "owner" | "admin" | "member",
+            role: data.role.toLowerCase() as OrgRoleLower,
           },
           headers: requestHeaders,
         });
@@ -249,7 +265,7 @@ export async function POST(
         body: {
           organizationId: school.organizationId,
           email: data.email,
-          role: data.role.toLowerCase() as "owner" | "admin" | "member",
+          role: data.role.toLowerCase() as OrgRoleLower,
         },
         headers: requestHeaders,
       });

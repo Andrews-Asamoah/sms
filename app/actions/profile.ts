@@ -182,7 +182,7 @@ export async function updateUserProfile(data: UpdateProfileInput) {
     }
 
     revalidatePath("/account");
-    revalidatePath("/dashboard");
+    revalidatePath("/");
 
     return { success: true };
   } catch (error) {

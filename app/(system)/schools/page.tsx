@@ -349,7 +349,7 @@ export default async function SchoolsPage() {
                           className="shrink-0 hover:bg-primary/10 hover:border-primary/30"
                         >
                           <Link
-                            href={`/${school.subdomain}/admin/dashboard`}
+                            href={`/${school.subdomain}/admin`}
                             target="_blank"
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
@@ -477,7 +477,7 @@ export default async function SchoolsPage() {
                                 className="hover:bg-primary/10"
                               >
                                 <Link
-                                  href={`/${school.subdomain}/admin/dashboard`}
+                                  href={`/${school.subdomain}/admin`}
                                   target="_blank"
                                 >
                                   <ExternalLink className="h-4 w-4" />

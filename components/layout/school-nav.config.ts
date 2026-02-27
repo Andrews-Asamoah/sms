@@ -15,6 +15,7 @@ import {
   BadgeDollarSign,
   GraduationCap,
   Calendar,
+  Bell,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 import type { NavPermissions } from "@/lib/auth/types";
@@ -28,15 +29,9 @@ export const schoolNavSections: NavSection[] = [
     items: [
       {
         title: "Dashboard",
-        url: "/admin/dashboard",
+        url: "/admin",
         icon: LayoutDashboard,
         permission: "canViewDashboard",
-      },
-      {
-        title: "Analytics",
-        url: "/admin/analytics",
-        icon: BarChart3,
-        permission: "canViewAnalytics",
       },
     ],
   },
@@ -76,6 +71,12 @@ export const schoolNavSections: NavSection[] = [
     title: "Academics",
     items: [
       {
+        title: "Academics Hub",
+        url: "/admin/academics",
+        icon: LayoutDashboard,
+        permission: "canViewDashboard",
+      },
+      {
         title: "Academic Setup",
         url: "#",
         icon: BookOpen,
@@ -96,11 +97,6 @@ export const schoolNavSections: NavSection[] = [
             permission: "canManageClasses",
           },
           {
-            title: "Examinations",
-            url: "/admin/academics/examinations",
-            permission: "canManageTeachers",
-          },
-          {
             title: "Timetable",
             url: "/admin/timetable",
             permission: "canViewTimetable",
@@ -108,10 +104,15 @@ export const schoolNavSections: NavSection[] = [
         ],
       },
       {
-        title: "Assessment",
+        title: "Assessment setup",
         url: "#",
         icon: Award,
         items: [
+          {
+            title: "Examinations",
+            url: "/admin/academics/examinations",
+            permission: "canManageTeachers",
+          },
           {
             title: "Grading Systems",
             url: "/admin/academics/grading",
@@ -121,11 +122,6 @@ export const schoolNavSections: NavSection[] = [
             title: "Assessment Templates",
             url: "/admin/academics/grading/assessment-templates",
             permission: "canManageGrading",
-          },
-          {
-            title: "Report Cards",
-            url: "/admin/reports",
-            permission: "canViewReports",
           },
         ],
       },
@@ -164,6 +160,7 @@ export const schoolNavSections: NavSection[] = [
         items: [
           { title: "Overview", url: "/admin/finance" },
           { title: "Fee Management", url: "/admin/finance/fees" },
+          { title: "Invoices", url: "/admin/finance/invoices" },
           { title: "Payments", url: "/admin/finance/payments" },
           { title: "Outstanding", url: "/admin/finance/outstanding" },
           { title: "Reports", url: "/admin/finance/reports" },
@@ -172,12 +169,39 @@ export const schoolNavSections: NavSection[] = [
     ],
   },
   {
+    title: "Reporting",
+    items: [
+      {
+        title: "Reports Hub",
+        url: "/admin/reports",
+        icon: BarChart3,
+        permission: "canViewReports",
+      },
+      {
+        title: "Report Cards",
+        url: "#",
+        icon: FileText,
+        permission: "canViewReports",
+        items: [
+          {
+            title: "Reports Overview",
+            url: "/admin/reports/report-cards",
+          },
+          {
+            title: "Manage Templates",
+            url: "/admin/reports/report-cards/templates",
+          },
+        ],
+      },
+    ],
+  },
+  {
     title: "Teacher Area",
     items: [
       {
-        title: "My Gradebooks",
-        url: "/teacher/gradebook",
-        icon: GraduationCap,
+        title: "My Dashboard",
+        url: "/teacher",
+        icon: LayoutDashboard,
       },
       {
         title: "My Classes",
@@ -201,9 +225,13 @@ export const schoolNavSections: NavSection[] = [
     items: [
       {
         title: "Announcements",
-        url: "/admin/communications",
+        url: "/announcements",
         icon: MessageSquare,
-        permission: "canManageAnnouncements",
+      },
+      {
+        title: "Notifications",
+        url: "/notifications",
+        icon: Bell,
       },
       {
         title: "Documents",
@@ -240,6 +268,36 @@ export const schoolNavSections: NavSection[] = [
       },
     ],
   },
+  {
+    title: "Student Area",
+    items: [
+      {
+        title: "My Dashboard",
+        url: "/student",
+        icon: LayoutDashboard,
+      },
+      {
+        title: "My Fees & Bills",
+        url: "/student/fees",
+        icon: DollarSign,
+      },
+    ],
+  },
+  {
+    title: "Guardian Area",
+    items: [
+      {
+        title: "Dashboard",
+        url: "/guardian",
+        icon: LayoutDashboard,
+      },
+      {
+        title: "Ward's Fees",
+        url: "/guardian/fees",
+        icon: DollarSign,
+      },
+    ],
+  },
 ];
 
 // ============================================================================
@@ -253,6 +311,7 @@ const ROLE_NAV_SECTIONS: Record<string, string[]> = {
     "User Management",
     "Academics",
     "Operations",
+    "Reporting",
     "Communication",
     "System",
   ],
@@ -261,14 +320,15 @@ const ROLE_NAV_SECTIONS: Record<string, string[]> = {
     "User Management",
     "Academics",
     "Operations",
+    "Reporting",
     "Communication",
     "System",
   ],
   teacher: ["Teacher Area", "Communication"],
   accountant: ["Operations"],
   staff: ["Communication"],
-  student: [],
-  guardian: [],
+  student: ["Student Area", "Communication"],
+  guardian: ["Guardian Area", "Communication"],
   member: ["Teacher Area"],
 };
 
@@ -316,8 +376,8 @@ export function filterNavByPermissions(
 
 /**
  * Prefix all navigation URLs with the school slug.
- * Result: /{schoolSlug}/admin/dashboard, /{schoolSlug}/teacher/gradebook, etc.
- * Also handles per-role URL rewrites (e.g., accountant gets /accountant/finance).
+ * Result: /{schoolSlug}/admin, /{schoolSlug}/teacher/gradebook, etc.
+ * Also handles per-role URL rewrites.
  */
 export function getPrefixedNavSections(
   schoolSlug: string,
@@ -325,6 +385,11 @@ export function getPrefixedNavSections(
   currentRole?: string,
 ): NavSection[] {
   const safeSlug = schoolSlug.replace(/^\/+/, "");
+  // Default non-admin roles to their own prefix. For owner/admin, keep default or use admin prefix
+  const rolePrefix =
+    currentRole && !["owner", "admin"].includes(currentRole)
+      ? currentRole
+      : "admin";
 
   return sections.map((section) => ({
     ...section,
@@ -334,6 +399,11 @@ export function getPrefixedNavSections(
       // Rewrite finance base path for accountant role
       if (currentRole === "accountant" && url.includes("/admin/finance")) {
         url = url.replace("/admin/finance", "/accountant/finance");
+      }
+
+      // Rewrite announcements and notifications to use the role prefix
+      if (url === "/announcements" || url === "/notifications") {
+        url = `/${rolePrefix}${url}`;
       }
 
       return {
@@ -346,6 +416,10 @@ export function getPrefixedNavSections(
             subUrl.includes("/admin/finance")
           ) {
             subUrl = subUrl.replace("/admin/finance", "/accountant/finance");
+          }
+          // Rewrite announcements and notifications to use the role prefix
+          if (subUrl === "/announcements" || subUrl === "/notifications") {
+            subUrl = `/${rolePrefix}${subUrl}`;
           }
           return {
             ...subItem,

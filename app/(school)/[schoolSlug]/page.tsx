@@ -11,5 +11,5 @@ export default async function SchoolIndexPage({ params }: SchoolIndexProps) {
   console.log(`[School Index] Redirecting ${schoolSlug} to admin dashboard`);
 
   // Redirect to admin dashboard by default
-  redirect(`/${schoolSlug}/admin/dashboard`);
+  redirect(`/${schoolSlug}/admin`);
 }

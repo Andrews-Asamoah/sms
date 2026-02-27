@@ -35,29 +35,52 @@ interface NavCollapsibleProps {
       badge?: string;
     }[];
   }[];
+  allSidebarUrls?: string[];
 }
 
-export default function NavCollapsible({ title, items }: NavCollapsibleProps) {
+export default function NavCollapsible({
+  title,
+  items,
+  allSidebarUrls = [],
+}: NavCollapsibleProps) {
   const pathname = usePathname();
   const [openItem, setOpenItem] = useState<string | null>(null);
 
   const isUrlActive = useCallback(
     (url: string) => {
+      // 1. Exact match is always true
       if (pathname === url) return true;
+      if (url === "#" || !url) return false;
 
-      const allUrls = items.flatMap((item) =>
-        item.items ? item.items.map((subItem) => subItem.url) : []
+      // 2. Determine the comparison set (prefer global URLs if provided)
+      const comparisonUrls =
+        allSidebarUrls.length > 0
+          ? allSidebarUrls
+          : [
+              ...items.map((i) => i.url),
+              ...items.flatMap((i) => i.items?.map((s) => s.url) || []),
+            ];
+
+      // 3. If any other URL is an exact match for the pathname, this one (which isn't) shouldn't be active
+      const hasExactMatchElsewhere = comparisonUrls.some(
+        (u) => u !== url && pathname === u,
       );
+      if (hasExactMatchElsewhere) return false;
 
-      const isParentUrl = allUrls.some(
-        (otherUrl) => otherUrl !== url && otherUrl.startsWith(url + "/")
+      // 4. If any other URL is a BETTER prefix match (longer) than this one, this one shouldn't be active
+      const hasBetterPrefixMatch = comparisonUrls.some(
+        (u) =>
+          u !== url &&
+          u !== "#" &&
+          pathname.startsWith(u + "/") &&
+          u.length > url.length,
       );
+      if (hasBetterPrefixMatch) return false;
 
-      if (isParentUrl) return false;
-
+      // 5. Basic prefix matching for sub-pages (e.g., student detail)
       return pathname.startsWith(url + "/");
     },
-    [pathname, items]
+    [pathname, items, allSidebarUrls],
   );
 
   const activeParentTitle = useMemo(() => {
@@ -84,7 +107,7 @@ export default function NavCollapsible({ title, items }: NavCollapsibleProps) {
       <SidebarMenu>
         {items.map((item) => {
           const isParentActive = item.items?.some((subItem) =>
-            isUrlActive(subItem.url)
+            isUrlActive(subItem.url),
           );
           const isOpen = openItem === item.title;
 
@@ -102,7 +125,7 @@ export default function NavCollapsible({ title, items }: NavCollapsibleProps) {
                       className={cn(
                         "w-full transition-colors",
                         isParentActive &&
-                          "bg-sidebar-accent text-sidebar-accent-foreground"
+                          "bg-sidebar-accent text-sidebar-accent-foreground",
                       )}
                     >
                       {item.icon && <item.icon className="h-4 w-4" />}
@@ -118,7 +141,7 @@ export default function NavCollapsible({ title, items }: NavCollapsibleProps) {
                       <ChevronRight
                         className={cn(
                           "ml-auto h-4 w-4 transition-transform duration-200",
-                          isOpen && "rotate-90"
+                          isOpen && "rotate-90",
                         )}
                       />
                     </SidebarMenuButton>
@@ -134,7 +157,7 @@ export default function NavCollapsible({ title, items }: NavCollapsibleProps) {
                               className={cn(
                                 "w-full transition-colors",
                                 isActive &&
-                                  "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                  "bg-sidebar-accent text-sidebar-accent-foreground font-medium",
                               )}
                             >
                               <Link href={subItem.url}>

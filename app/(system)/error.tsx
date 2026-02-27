@@ -63,7 +63,7 @@ export default function SystemError({
             Try Again
           </Button>
           <Button asChild variant="outline" size="lg" className="gap-2">
-            <Link href="/dashboard">
+            <Link href="/">
               <Home className="size-4" />
               Admin Dashboard
             </Link>

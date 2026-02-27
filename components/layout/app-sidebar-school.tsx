@@ -66,7 +66,7 @@ export function AppSidebarSchool({
       logoName={schoolName}
       logoImage={schoolLogo}
       logoPlan={schoolPlan}
-      logoHref={`/${schoolSlug}/dashboard`}
+      logoHref={`/${schoolSlug}`}
       navSections={prefixedNavSections}
       user={user}
       {...props}

@@ -8,10 +8,10 @@ export function getDefaultRoute(session: ExtendedSession): string {
   console.log(`[Route Resolver] System Role: ${session.user.role}`);
   console.log(`[Route Resolver] Is Super Admin: ${session.isSuperAdmin}`);
 
-  // ✅ CORRECT: Super Admin goes to /dashboard (system dashboard)
+  // ✅ CORRECT: Super Admin goes to / (system dashboard)
   if (session.isSuperAdmin) {
-    console.log("[Route Resolver] ✅ Super Admin → /dashboard");
-    return "/dashboard";
+    console.log("[Route Resolver] ✅ Super Admin → /");
+    return "/";
   }
 
   const primarySchool = getPrimarySchool(session);
@@ -29,38 +29,28 @@ export function getDefaultRoute(session: ExtendedSession): string {
   switch (effectiveRole) {
     case "owner":
     case "admin":
-      console.log(
-        `[Route Resolver] ✅ Admin/Owner → /${subdomain}/admin/dashboard`
-      );
-      return `/${subdomain}/admin/dashboard`;
+      console.log(`[Route Resolver] ✅ Admin/Owner → /${subdomain}/admin`);
+      return `/${subdomain}/admin`;
 
     case "teacher":
-      console.log(
-        `[Route Resolver] ✅ Teacher → /${subdomain}/teacher/dashboard`
-      );
-      return `/${subdomain}/teacher/dashboard`;
+      console.log(`[Route Resolver] ✅ Teacher → /${subdomain}/teacher`);
+      return `/${subdomain}/teacher`;
 
     case "accountant":
-      console.log(
-        `[Route Resolver] ✅ Accountant → /${subdomain}/accountant/dashboard`
-      );
-      return `/${subdomain}/accountant/dashboard`;
+      console.log(`[Route Resolver] ✅ Accountant → /${subdomain}/accountant`);
+      return `/${subdomain}/accountant`;
 
     case "staff":
-      console.log(`[Route Resolver] ✅ Staff → /${subdomain}/staff/dashboard`);
-      return `/${subdomain}/staff/dashboard`;
+      console.log(`[Route Resolver] ✅ Staff → /${subdomain}/staff`);
+      return `/${subdomain}/staff`;
 
     case "student":
-      console.log(
-        `[Route Resolver] ✅ Student → /${subdomain}/student/dashboard`
-      );
-      return `/${subdomain}/student/dashboard`;
+      console.log(`[Route Resolver] ✅ Student → /${subdomain}/student`);
+      return `/${subdomain}/student`;
 
     case "guardian":
-      console.log(
-        `[Route Resolver] ✅ Guardian → /${subdomain}/parent/dashboard`
-      );
-      return `/${subdomain}/parent/dashboard`;
+      console.log(`[Route Resolver] ✅ Guardian → /${subdomain}/parent`);
+      return `/${subdomain}/parent`;
 
     default:
       console.log("[Route Resolver] ⚠️ Unknown role → /onboarding");
@@ -70,7 +60,7 @@ export function getDefaultRoute(session: ExtendedSession): string {
 
 export function canAccessRoute(
   session: ExtendedSession,
-  path: string
+  path: string,
 ): boolean {
   if (session.isSuperAdmin) return true;
 
@@ -99,13 +89,17 @@ export function canAccessRoute(
   if (!requiredRoles) return false;
 
   return requiredRoles.some((role) =>
-    hasRoleInSchool(session, subdomain, role as EffectiveRole | ProfileRoleType)
+    hasRoleInSchool(
+      session,
+      subdomain,
+      role as EffectiveRole | ProfileRoleType,
+    ),
   );
 }
 
 export function getAccessibleRoutes(
   session: ExtendedSession,
-  subdomain: string
+  subdomain: string,
 ): string[] {
   const routes: string[] = [];
 

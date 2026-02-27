@@ -14,8 +14,27 @@ export interface ApiResult<T = unknown> {
   error?: AuthError;
 }
 
-type MemberRoleInput = "OWNER" | "ADMIN" | "MEMBER";
-type MemberRoleLowercase = "owner" | "admin" | "member";
+type MemberRoleInput =
+  | "OWNER"
+  | "ADMIN"
+  | "MEMBER"
+  | "TEACHER"
+  | "HEADTEACHER"
+  | "ACCOUNTANT"
+  | "STAFF"
+  | "GUARDIAN"
+  | "STUDENT";
+
+type MemberRoleLowercase =
+  | "owner"
+  | "admin"
+  | "member"
+  | "teacher"
+  | "headteacher"
+  | "accountant"
+  | "staff"
+  | "guardian"
+  | "student";
 
 // ============================================================================
 // ORGANIZATION OPERATIONS
