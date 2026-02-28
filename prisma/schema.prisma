@@ -26,36 +26,38 @@ datasource db {
 // ============================================================
 
 model user {
-  id            String    @id
-  name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id
+  name                String
+  email               String    @unique
+  emailVerified       Boolean   @default(false)
+  image               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
   // Global role field — intentionally kept for superAdmin to manage all orgs.
   // All other role-based access is handled via Better Auth organization member roles.
-  role          String    @default("user")
-  banned        Boolean   @default(false)
-  banReason     String?
-  banExpires    DateTime?
+  role                String    @default("user")
+  banned              Boolean   @default(false)
+  banReason           String?
+  banExpires          DateTime?
   // Tracks whether user has completed the onboarding wizard (shown once only)
-  onboardingCompleted Boolean @default(false)
+  onboardingCompleted Boolean   @default(false)
 
   // Relations
   accounts           account[]
   sessions           session[]
   invitations        invitation[]
   members            member[]
-  attendancesMarked  Attendance[]        @relation("AttendanceMarkedBy")
+  attendancesMarked  Attendance[]           @relation("AttendanceMarkedBy")
   auditLogs          AuditLog[]
   componentScores    ComponentScore[]
   documents          Document[]
   gradingSystems     GradingSystem[]
-  paymentsRecorded   Payment[]           @relation("PaymentRecordedBy")
+  paymentsRecorded   Payment[]              @relation("PaymentRecordedBy")
   transcriptRequests TranscriptRequest[]
   notifications      Notification[]
-  announcementsSent  Announcement[]      @relation("AnnouncementsSent")
+  announcementsSent  Announcement[]         @relation("AnnouncementsSent")
+  expensesRecorded   Expense[]              @relation("ExpenseRecordedBy")
+  inventoryPerformed InventoryTransaction[] @relation("InventoryPerformedBy")
   userProfile        UserProfile?
 
   @@index([banned])
@@ -244,6 +246,9 @@ model School {
   reportCardSets              ReportCardSet[]
   notifications               Notification[]
   announcements               Announcement[]
+  expenses                    Expense[]
+  inventoryItems              InventoryItem[]
+  inventoryTransactions       InventoryTransaction[]
 
   @@index([code])
   @@index([subdomain])
@@ -516,11 +521,11 @@ model AcademicYear {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school      School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  bills       Bill[]
-  classes     Class[]
-  enrollments Enrollment[]
-  terms       Term[]
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  bills          Bill[]
+  classes        Class[]
+  enrollments    Enrollment[]
+  terms          Term[]
   reportCardSets ReportCardSet[]
 
   @@unique([name, schoolId])
@@ -594,14 +599,14 @@ model Class {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  school       School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear   @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  classTeacher Teacher?       @relation(fields: [classTeacherId], references: [id])
-  subjects     ClassSubject[]
-  enrollments  Enrollment[]
-  students     Student[]
-  departmentId String?
-  department   Department?   @relation(fields: [departmentId], references: [id])
+  school              School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear        AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classTeacher        Teacher?             @relation(fields: [classTeacherId], references: [id])
+  subjects            ClassSubject[]
+  enrollments         Enrollment[]
+  students            Student[]
+  departmentId        String?
+  department          Department?          @relation(fields: [departmentId], references: [id])
   assessmentTemplates AssessmentTemplate[]
   reportCardSets      ReportCardSet[]
 
@@ -614,15 +619,15 @@ model Class {
 }
 
 model Subject {
-  id           String   @id @default(cuid())
-  schoolId     String
-  name         String
-  code         String
-  description  String?
-  creditHours  Int      @default(1)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  code        String
+  description String?
+  creditHours Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   departments      Department[]      @relation("DepartmentSubjects")
@@ -643,8 +648,8 @@ model ClassSubject {
   teacherId    String?
   createdAt    DateTime @default(now())
 
-  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
-  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  class   Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   teacher Teacher? @relation(fields: [teacherId], references: [id])
 
   @@unique([classId, subjectId])
@@ -713,7 +718,7 @@ model Attendance {
   updatedAt  DateTime @updatedAt
 
   student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  markedBy user?    @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: SetNull)
+  markedBy user?   @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: SetNull)
 
   @@unique([studentId, date])
   @@index([studentId])
@@ -917,7 +922,7 @@ model ReportCardTemplate {
   schoolId    String
   name        String
   description String?
-  layout      Json     // For storing configuration of sections, titles, etc.
+  layout      Json // For storing configuration of sections, titles, etc.
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -936,7 +941,7 @@ model ReportCardSet {
   academicYearId String
   termId         String
   classId        String
-  name           String           // e.g. "Primary 1 - Term 1 - 2025"
+  name           String // e.g. "Primary 1 - Term 1 - 2025"
   status         ReportCardStatus @default(DRAFT)
   publishAt      DateTime?
   publishedAt    DateTime?
@@ -961,7 +966,7 @@ model ReportCard {
   id          String    @id @default(cuid())
   setId       String
   studentId   String
-  data        Json      // Snapshot of all required data: subjects, marks, positions, attendance, remarks
+  data        Json // Snapshot of all required data: subjects, marks, positions, attendance, remarks
   publishedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -978,12 +983,12 @@ model ReportCard {
 model Notification {
   id        String           @id @default(cuid())
   schoolId  String
-  userId    String           // Recipient
+  userId    String // Recipient
   type      NotificationType
   title     String
   message   String
   isRead    Boolean          @default(false)
-  link      String?          // Redirect link
+  link      String? // Redirect link
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
@@ -997,7 +1002,7 @@ model Notification {
 }
 
 model Announcement {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   schoolId  String
   authorId  String
   title     String
@@ -1269,11 +1274,85 @@ model CustomTransactionCategory {
 
   school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+  expenses     Expense[]
 
   @@unique([code, schoolId])
   @@index([schoolId, isActive])
   @@index([categoryType])
   @@map("custom_transaction_categories")
+}
+
+model Expense {
+  id               String               @id @default(cuid())
+  schoolId         String
+  date             DateTime             @db.Date
+  amount           Decimal              @db.Decimal(15, 2)
+  category         TransactionCategory?
+  customCategoryId String?
+  description      String
+  payee            String?
+  paymentMethod    PaymentMethod        @default(CASH)
+  checkNumber      String?
+  voucherNumber    String? // POV
+  referenceNumber  String?
+  recordedById     String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  school         School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  customCategory CustomTransactionCategory? @relation(fields: [customCategoryId], references: [id])
+  recordedBy     user?                      @relation("ExpenseRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, date])
+  @@index([category])
+  @@index([recordedById])
+  @@map("expenses")
+}
+
+model InventoryItem {
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  description String?
+  category    String?
+  quantity    Int      @default(0)
+  unit        String?  @default("pcs")
+  minQuantity Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school       School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  transactions InventoryTransaction[]
+
+  @@unique([name, schoolId])
+  @@index([schoolId])
+  @@map("inventory_items")
+}
+
+model InventoryTransaction {
+  id            String                   @id @default(cuid())
+  schoolId      String
+  itemId        String
+  type          InventoryTransactionType
+  quantity      Int
+  date          DateTime                 @default(now())
+  description   String?
+  performedById String?
+  createdAt     DateTime                 @default(now())
+
+  school      School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  item        InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  performedBy user?         @relation("InventoryPerformedBy", fields: [performedById], references: [id], onDelete: SetNull)
+
+  @@index([itemId])
+  @@index([schoolId])
+  @@map("inventory_transactions")
+}
+
+enum InventoryTransactionType {
+  IN
+  OUT
+  ADJUSTMENT
 }
 
 // ============================================================================
@@ -1301,7 +1380,7 @@ model Document {
   student    Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacher    Teacher? @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   staff      Staff?   @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  uploadedBy user?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedBy user?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@index([uploadedById])
   @@index([schoolId])
@@ -1360,8 +1439,8 @@ model Subscription {
   currentPeriodEnd   DateTime?
 
   // Stripe Integration
-  stripeCustomerId      String?   @unique
-  stripeSubscriptionId  String?   @unique
+  stripeCustomerId      String? @unique
+  stripeSubscriptionId  String? @unique
   stripePaymentMethodId String?
 
   // Paystack Integration

@@ -50,6 +50,7 @@ interface BaseSidebarProps extends React.ComponentProps<typeof Sidebar> {
     avatar?: string;
     role?: string; // Optional role field
   };
+  headerContent?: React.ReactNode;
 }
 
 export function BaseSidebar({
@@ -59,6 +60,7 @@ export function BaseSidebar({
   logoHref,
   navSections,
   user,
+  headerContent,
   ...props
 }: BaseSidebarProps) {
   return (
@@ -70,6 +72,7 @@ export function BaseSidebar({
           plan={logoPlan}
           href={logoHref}
         />
+        {headerContent}
       </SidebarHeader>
       <SidebarContent>
         {(() => {

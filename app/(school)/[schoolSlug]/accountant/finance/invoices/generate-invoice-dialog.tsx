@@ -15,13 +15,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -58,13 +56,22 @@ export function GenerateInvoiceDialog({
   );
   const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
 
-  const form = useForm<FormValues>({
+  const {
+    handleSubmit,
+    formState: { errors },
+    reset,
+    watch,
+    setValue,
+  } = useForm<FormValues>({
     resolver: zodResolver(generateSchema),
     defaultValues: {
       feeStructureId: "",
       targetClasses: [],
     },
   });
+
+  const feeStructureId = watch("feeStructureId");
+  const targetClasses = watch("targetClasses");
 
   useEffect(() => {
     if (!open) return;
@@ -102,7 +109,7 @@ export function GenerateInvoiceDialog({
 
       const { createdBillsCount } = await res.json();
       toast.success(`Successfully generated ${createdBillsCount} invoices`);
-      form.reset();
+      reset();
       onSuccess();
       onOpenChange(false);
     } catch (error) {
@@ -123,90 +130,70 @@ export function GenerateInvoiceDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="feeStructureId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Select Fee Structure</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a tuition template" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {structures.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <FieldGroup>
+            <Field data-invalid={!!errors.feeStructureId}>
+              <FieldLabel>Select Fee Structure</FieldLabel>
+              <Select
+                onValueChange={(val) => setValue("feeStructureId", val)}
+                defaultValue={feeStructureId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a tuition template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {structures.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError errors={[errors.feeStructureId]} />
+            </Field>
 
-            <FormField
-              control={form.control}
-              name="targetClasses"
-              render={() => (
-                <FormItem>
-                  <FormLabel>Target Classes</FormLabel>
-                  <div className="border rounded-md p-4">
-                    <ScrollArea className="h-48">
-                      <div className="space-y-4">
-                        {classes.length === 0 && (
-                          <p className="text-sm text-muted-foreground">
-                            Loading classes...
-                          </p>
-                        )}
-                        {classes.map((cls) => (
-                          <FormField
-                            key={cls.id}
-                            control={form.control}
-                            name="targetClasses"
-                            render={({ field }) => {
-                              return (
-                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={field.value?.includes(cls.id)}
-                                      onCheckedChange={(checked) => {
-                                        return checked
-                                          ? field.onChange([
-                                              ...field.value,
-                                              cls.id,
-                                            ])
-                                          : field.onChange(
-                                              field.value?.filter(
-                                                (val) => val !== cls.id,
-                                              ),
-                                            );
-                                      }}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="font-normal text-sm cursor-pointer hover:text-primary">
-                                    {cls.name}
-                                  </FormLabel>
-                                </FormItem>
-                              );
-                            }}
-                          />
-                        ))}
+            <Field data-invalid={!!errors.targetClasses}>
+              <FieldLabel>Target Classes</FieldLabel>
+              <div className="border rounded-md p-4">
+                <ScrollArea className="h-48">
+                  <div className="space-y-4">
+                    {classes.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        Loading classes...
+                      </p>
+                    )}
+                    {classes.map((cls) => (
+                      <div
+                        key={cls.id}
+                        className="flex flex-row items-center space-x-3 space-y-0"
+                      >
+                        <Checkbox
+                          id={`class-${cls.id}`}
+                          checked={targetClasses?.includes(cls.id)}
+                          onCheckedChange={(checked) => {
+                            const newClasses = checked
+                              ? [...targetClasses, cls.id]
+                              : targetClasses.filter(
+                                  (id: string) => id !== cls.id,
+                                );
+                            setValue("targetClasses", newClasses, {
+                              shouldValidate: true,
+                            });
+                          }}
+                        />
+                        <FieldLabel
+                          htmlFor={`class-${cls.id}`}
+                          className="font-normal text-sm cursor-pointer hover:text-primary"
+                        >
+                          {cls.name}
+                        </FieldLabel>
                       </div>
-                    </ScrollArea>
+                    ))}
                   </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                </ScrollArea>
+              </div>
+              <FieldError errors={[errors.targetClasses]} />
+            </Field>
 
             <div className="flex justify-end gap-2 pt-4">
               <Button
@@ -223,8 +210,8 @@ export function GenerateInvoiceDialog({
                 Generate Invoices
               </Button>
             </div>
-          </form>
-        </Form>
+          </FieldGroup>
+        </form>
       </DialogContent>
     </Dialog>
   );

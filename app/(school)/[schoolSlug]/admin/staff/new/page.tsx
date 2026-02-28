@@ -19,14 +19,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import {
   Card,
   CardContent,
@@ -58,7 +56,13 @@ export default function InviteStaffPage() {
   const schoolSlug = params.schoolSlug as string;
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<StaffInviteFormValues>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setValue,
+    watch,
+  } = useForm<StaffInviteFormValues>({
     resolver: zodResolver(staffInviteSchema),
     defaultValues: {
       email: "",
@@ -67,6 +71,8 @@ export default function InviteStaffPage() {
       lastName: "",
     },
   });
+
+  const role = watch("role");
 
   async function onSubmit(data: StaffInviteFormValues) {
     setIsSubmitting(true);
@@ -134,91 +140,72 @@ export default function InviteStaffPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email Address *</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="staff@example.com"
-                          className="pl-9"
-                          {...field}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormDescription>
-                      The invitation link will be sent to this email.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <FieldGroup>
+              <Field data-invalid={!!errors.email}>
+                <FieldLabel htmlFor="email">Email Address *</FieldLabel>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    placeholder="staff@example.com"
+                    className="pl-9"
+                    {...register("email")}
+                  />
+                </div>
+                <FieldDescription>
+                  The invitation link will be sent to this email.
+                </FieldDescription>
+                <FieldError errors={[errors.email]} />
+              </Field>
 
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>First Name (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. Jane" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <Field data-invalid={!!errors.firstName}>
+                  <FieldLabel htmlFor="firstName">
+                    First Name (Optional)
+                  </FieldLabel>
+                  <Input
+                    id="firstName"
+                    placeholder="e.g. Jane"
+                    {...register("firstName")}
+                  />
+                  <FieldError errors={[errors.firstName]} />
+                </Field>
 
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Last Name (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <Field data-invalid={!!errors.lastName}>
+                  <FieldLabel htmlFor="lastName">
+                    Last Name (Optional)
+                  </FieldLabel>
+                  <Input
+                    id="lastName"
+                    placeholder="e.g. Doe"
+                    {...register("lastName")}
+                  />
+                  <FieldError errors={[errors.lastName]} />
+                </Field>
               </div>
 
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>System Role *</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a role" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="STAFF">General Staff</SelectItem>
-                        <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
-                        <SelectItem value="ADMIN">Administrator</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Determines the permissions the user will have when they
-                      sign in.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <Field data-invalid={!!errors.role}>
+                <FieldLabel>System Role *</FieldLabel>
+                <Select
+                  onValueChange={(val) => setValue("role", val as any)}
+                  defaultValue={role}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="STAFF">General Staff</SelectItem>
+                    <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
+                    <SelectItem value="ADMIN">Administrator</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  Determines the permissions the user will have when they sign
+                  in.
+                </FieldDescription>
+                <FieldError errors={[errors.role]} />
+              </Field>
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? (
@@ -230,8 +217,8 @@ export default function InviteStaffPage() {
                   "Send Invitation"
                 )}
               </Button>
-            </form>
-          </Form>
+            </FieldGroup>
+          </form>
         </CardContent>
       </Card>
     </div>

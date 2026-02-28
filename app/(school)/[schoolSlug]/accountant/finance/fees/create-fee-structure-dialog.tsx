@@ -16,13 +16,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -58,7 +56,15 @@ export function CreateFeeStructureDialog({
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<FormValues>({
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    setValue,
+    watch,
+  } = useForm<FormValues>({
     resolver: zodResolver(feeStructureSchema),
     defaultValues: {
       name: "",
@@ -70,7 +76,7 @@ export function CreateFeeStructureDialog({
 
   const { fields, append, remove } = useFieldArray({
     name: "items",
-    control: form.control,
+    control,
   });
 
   const onSubmit = async (data: FormValues) => {
@@ -91,7 +97,7 @@ export function CreateFeeStructureDialog({
       }
 
       toast.success("Fee structure created successfully");
-      form.reset();
+      reset();
       onSuccess();
       onOpenChange(false);
     } catch (error) {
@@ -111,56 +117,42 @@ export function CreateFeeStructureDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <FieldGroup>
             <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Structure Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g. Grade 1 Tuition (Term 1)"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="classLevel"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Target Class Level (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Grade 1" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <Field data-invalid={!!errors.name}>
+                <FieldLabel htmlFor="name">Structure Name</FieldLabel>
+                <Input
+                  id="name"
+                  placeholder="e.g. Grade 1 Tuition (Term 1)"
+                  {...register("name")}
+                />
+                <FieldError errors={[errors.name]} />
+              </Field>
+              <Field data-invalid={!!errors.classLevel}>
+                <FieldLabel htmlFor="classLevel">
+                  Target Class Level (Optional)
+                </FieldLabel>
+                <Input
+                  id="classLevel"
+                  placeholder="e.g. Grade 1"
+                  {...register("classLevel")}
+                />
+                <FieldError errors={[errors.classLevel]} />
+              </Field>
             </div>
 
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description (Optional)</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Details about this fee structure"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <Field data-invalid={!!errors.description}>
+              <FieldLabel htmlFor="description">
+                Description (Optional)
+              </FieldLabel>
+              <Textarea
+                id="description"
+                placeholder="Details about this fee structure"
+                {...register("description")}
+              />
+              <FieldError errors={[errors.description]} />
+            </Field>
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -189,42 +181,31 @@ export function CreateFeeStructureDialog({
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.name`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Item Name</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="e.g. Development Fee"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.amount`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Amount (GHS)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="any"
-                                {...field}
-                                onChange={(e) =>
-                                  field.onChange(parseFloat(e.target.value))
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <Field data-invalid={!!errors.items?.[index]?.name}>
+                        <FieldLabel htmlFor={`items.${index}.name`}>
+                          Item Name
+                        </FieldLabel>
+                        <Input
+                          id={`items.${index}.name`}
+                          placeholder="e.g. Development Fee"
+                          {...register(`items.${index}.name` as const)}
+                        />
+                        <FieldError errors={[errors.items?.[index]?.name]} />
+                      </Field>
+                      <Field data-invalid={!!errors.items?.[index]?.amount}>
+                        <FieldLabel htmlFor={`items.${index}.amount`}>
+                          Amount (GHS)
+                        </FieldLabel>
+                        <Input
+                          id={`items.${index}.amount`}
+                          type="number"
+                          step="any"
+                          {...register(`items.${index}.amount` as const, {
+                            valueAsNumber: true,
+                          })}
+                        />
+                        <FieldError errors={[errors.items?.[index]?.amount]} />
+                      </Field>
                     </div>
                     <Button
                       type="button"
@@ -237,30 +218,26 @@ export function CreateFeeStructureDialog({
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <FormField
-                      control={form.control}
-                      name={`items.${index}.isOptional`}
-                      render={({ field }) => (
-                        <FormItem className="flex items-center gap-2 space-y-0">
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel className="!m-0 text-sm font-normal">
-                            Optional Item
-                          </FormLabel>
-                        </FormItem>
-                      )}
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id={`items.${index}.isOptional`}
+                      checked={watch(`items.${index}.isOptional`)}
+                      onCheckedChange={(checked) =>
+                        setValue(`items.${index}.isOptional`, checked)
+                      }
                     />
+                    <FieldLabel
+                      htmlFor={`items.${index}.isOptional`}
+                      className="!m-0 text-sm font-normal"
+                    >
+                      Optional Item
+                    </FieldLabel>
                   </div>
                 </div>
               ))}
-              {form.formState.errors.items?.root && (
+              {errors.items?.root && (
                 <p className="text-sm font-medium text-destructive">
-                  {form.formState.errors.items.root.message}
+                  {errors.items.root.message}
                 </p>
               )}
             </div>
@@ -280,8 +257,8 @@ export function CreateFeeStructureDialog({
                 Save Fee Structure
               </Button>
             </div>
-          </form>
-        </Form>
+          </FieldGroup>
+        </form>
       </DialogContent>
     </Dialog>
   );

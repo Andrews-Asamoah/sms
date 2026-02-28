@@ -128,6 +128,17 @@ export const schoolNavSections: NavSection[] = [
     ],
   },
   {
+    title: "Accountant Dashboard",
+    items: [
+      {
+        title: "Dashboard",
+        url: "/accountant",
+        icon: LayoutDashboard,
+        permission: "canViewDashboard",
+      },
+    ],
+  },
+  {
     title: "Operations",
     items: [
       {
@@ -162,9 +173,15 @@ export const schoolNavSections: NavSection[] = [
           { title: "Fee Management", url: "/admin/finance/fees" },
           { title: "Invoices", url: "/admin/finance/invoices" },
           { title: "Payments", url: "/admin/finance/payments" },
+          { title: "Expenses", url: "/admin/finance/expenses" },
           { title: "Outstanding", url: "/admin/finance/outstanding" },
           { title: "Reports", url: "/admin/finance/reports" },
         ],
+      },
+      {
+        title: "Inventory",
+        url: "/admin/inventory",
+        icon: Package,
       },
     ],
   },
@@ -335,7 +352,7 @@ const ROLE_NAV_SECTIONS: Record<string, string[]> = {
     "System",
   ],
   teacher: ["Teacher Area", "Communication"],
-  accountant: ["Operations"],
+  accountant: ["Operations", "Accountant Dashboard", "Main"],
   staff: ["Communication"],
   student: ["Student Area", "Communication"],
   guardian: ["Guardian Area", "Communication"],
@@ -406,9 +423,14 @@ export function getPrefixedNavSections(
     items: section.items.map((item) => {
       let url = item.url;
 
-      // Rewrite finance base path for accountant role
-      if (currentRole === "accountant" && url.includes("/admin/finance")) {
-        url = url.replace("/admin/finance", "/accountant/finance");
+      // Rewrite finance and inventory base path for accountant role
+      if (
+        currentRole === "accountant" &&
+        (url.includes("/admin/finance") ||
+          url.includes("/admin/inventory") ||
+          url.includes("/admin/academicYears"))
+      ) {
+        url = url.replace("/admin", "/accountant");
       }
 
       // Rewrite announcements and notifications to use the role prefix
@@ -423,9 +445,11 @@ export function getPrefixedNavSections(
           let subUrl = subItem.url;
           if (
             currentRole === "accountant" &&
-            subUrl.includes("/admin/finance")
+            (subUrl.includes("/admin/finance") ||
+              subUrl.includes("/admin/inventory") ||
+              subUrl.includes("/admin/academicYears"))
           ) {
-            subUrl = subUrl.replace("/admin/finance", "/accountant/finance");
+            subUrl = subUrl.replace("/admin", "/accountant");
           }
           // Rewrite announcements and notifications to use the role prefix
           if (subUrl === "/announcements" || subUrl === "/notifications") {

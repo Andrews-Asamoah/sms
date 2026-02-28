@@ -15,13 +15,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,7 +60,14 @@ export function RecordPaymentDialog({
   const [students, setStudents] = useState<any[]>([]);
   const [bills, setBills] = useState<any[]>([]);
 
-  const form = useForm<FormValues>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    watch,
+    setValue,
+  } = useForm<FormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
       studentId: preSelectedStudentId || "",
@@ -74,14 +79,14 @@ export function RecordPaymentDialog({
     },
   });
 
-  const selectedStudentId = form.watch("studentId");
-  const selectedBillId = form.watch("billId");
+  const studentId = watch("studentId");
+  const billId = watch("billId");
+  const paymentMethod = watch("paymentMethod");
 
   useEffect(() => {
     if (!open) return;
     const loadData = async () => {
       try {
-        // Load outstanding students
         const res = await fetch(
           `/api/schools/${schoolSlug}/finance/students/outstanding`,
         );
@@ -94,14 +99,14 @@ export function RecordPaymentDialog({
   }, [open, schoolSlug]);
 
   useEffect(() => {
-    if (!selectedStudentId) {
+    if (!studentId) {
       setBills([]);
       return;
     }
     const loadBills = async () => {
       try {
         const res = await fetch(
-          `/api/schools/${schoolSlug}/finance/invoices?studentId=${selectedStudentId}&status=PENDING`,
+          `/api/schools/${schoolSlug}/finance/invoices?studentId=${studentId}&status=PENDING`,
         );
         if (res.ok) {
           const fetchedBills = await res.json();
@@ -112,17 +117,16 @@ export function RecordPaymentDialog({
       }
     };
     loadBills();
-  }, [selectedStudentId, schoolSlug]);
+  }, [studentId, schoolSlug]);
 
   useEffect(() => {
-    // Auto-fill amount if bill selected
-    if (selectedBillId) {
-      const b = bills.find((x) => x.id === selectedBillId);
+    if (billId) {
+      const b = bills.find((x) => x.id === billId);
       if (b) {
-        form.setValue("amount", Number(b.balanceAmount));
+        setValue("amount", Number(b.balanceAmount));
       }
     }
-  }, [selectedBillId, bills, form]);
+  }, [billId, bills, setValue]);
 
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
@@ -139,7 +143,7 @@ export function RecordPaymentDialog({
       }
 
       toast.success("Payment recorded successfully");
-      form.reset();
+      reset();
       onSuccess();
       onOpenChange(false);
     } catch (error) {
@@ -159,152 +163,105 @@ export function RecordPaymentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="studentId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Select Student</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Search student with balance..." />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {students.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.profile.firstName} {s.profile.lastName} - GHS{" "}
-                          {Number(s.outstandingBalance).toFixed(2)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <FieldGroup>
+            <Field data-invalid={!!errors.studentId}>
+              <FieldLabel>Select Student</FieldLabel>
+              <Select
+                onValueChange={(val) => setValue("studentId", val)}
+                defaultValue={studentId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Search student with balance..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {students.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.profile.firstName} {s.profile.lastName} - GHS{" "}
+                      {Number(s.outstandingBalance).toFixed(2)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError errors={[errors.studentId]} />
+            </Field>
 
-            <FormField
-              control={form.control}
-              name="billId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Select Bill to Pay</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={!selectedStudentId || bills.length === 0}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select outstanding invoice" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {bills.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>
-                          {b.feeStructure?.name || b.billNumber} (Bal: GHS{" "}
-                          {Number(b.balanceAmount).toFixed(2)})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <Field data-invalid={!!errors.billId}>
+              <FieldLabel>Select Bill to Pay</FieldLabel>
+              <Select
+                onValueChange={(val) => setValue("billId", val)}
+                defaultValue={billId}
+                disabled={!studentId || bills.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select outstanding invoice" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bills.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.feeStructure?.name || b.billNumber} (Bal: GHS{" "}
+                      {Number(b.balanceAmount).toFixed(2)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError errors={[errors.billId]} />
+            </Field>
 
             <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="amount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Amount (GHS)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value))
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <Field data-invalid={!!errors.amount}>
+                <FieldLabel htmlFor="amount">Amount (GHS)</FieldLabel>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  {...register("amount", { valueAsNumber: true })}
+                />
+                <FieldError errors={[errors.amount]} />
+              </Field>
 
-              <FormField
-                control={form.control}
-                name="paymentMethod"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Method</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select method" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="CASH">Cash</SelectItem>
-                        <SelectItem value="BANK_TRANSFER">
-                          Bank Transfer
-                        </SelectItem>
-                        <SelectItem value="MOBILE_MONEY">
-                          Mobile Money
-                        </SelectItem>
-                        <SelectItem value="CHEQUE">Cheque</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <Field data-invalid={!!errors.paymentMethod}>
+                <FieldLabel>Method</FieldLabel>
+                <Select
+                  onValueChange={(val) => setValue("paymentMethod", val as any)}
+                  defaultValue={paymentMethod}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">Cash</SelectItem>
+                    <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                    <SelectItem value="MOBILE_MONEY"> Mobile Money</SelectItem>
+                    <SelectItem value="CHEQUE">Cheque</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldError errors={[errors.paymentMethod]} />
+              </Field>
             </div>
 
-            <FormField
-              control={form.control}
-              name="referenceNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ref Number (Momo/Bank Txn ID)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Optional" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <Field data-invalid={!!errors.referenceNumber}>
+              <FieldLabel htmlFor="referenceNumber">
+                Ref Number (Momo/Bank Txn ID)
+              </FieldLabel>
+              <Input
+                id="referenceNumber"
+                placeholder="Optional"
+                {...register("referenceNumber")}
+              />
+              <FieldError errors={[errors.referenceNumber]} />
+            </Field>
 
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes (Optional)</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Any receipt remarks..."
-                      rows={2}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <Field data-invalid={!!errors.notes}>
+              <FieldLabel htmlFor="notes">Notes (Optional)</FieldLabel>
+              <Textarea
+                id="notes"
+                placeholder="Any receipt remarks..."
+                rows={2}
+                {...register("notes")}
+              />
+              <FieldError errors={[errors.notes]} />
+            </Field>
 
             <div className="flex justify-end gap-2 pt-4">
               <Button
@@ -321,8 +278,8 @@ export function RecordPaymentDialog({
                 Record Payment
               </Button>
             </div>
-          </form>
-        </Form>
+          </FieldGroup>
+        </form>
       </DialogContent>
     </Dialog>
   );

@@ -54,31 +54,37 @@ export async function GET(
       },
     });
 
-    // 3. Total Expenses (Sum of Expense Transactions)
-    const totalExpenses = await prisma.transaction.aggregate({
+    // 3. Total Expenses (Sum of Expense Model)
+    const totalExpenses = await prisma.expense.aggregate({
       where: {
         schoolId: school.id,
-        transactionType: "EXPENSE",
       },
       _sum: {
         amount: true,
       },
     });
 
-    // 4. Recent Transactions (Last 5)
-    const recentTransactions = await prisma.transaction.findMany({
+    // 4. Recent Transactions (Last 5 from Expenses and Payments combined or just Expenses for now)
+    // For simplicity and matching the dashboard's expectation of "recentTransactions"
+    const recentExpenses = await prisma.expense.findMany({
       where: { schoolId: school.id },
-      orderBy: { transactionDate: "desc" },
+      orderBy: { date: "desc" },
       take: 5,
-      // Removed invalid include: category is an enum, not a relation
+      include: {
+        recordedBy: { select: { name: true } },
+      },
     });
 
     return NextResponse.json({
       currency: school.currency,
-      revenue: totalRevenue._sum.amount || 0,
-      outstanding: outstandingFees._sum.balanceAmount || 0,
-      expenses: totalExpenses._sum.amount || 0,
-      recentTransactions,
+      revenue: totalRevenue._sum.amount ? Number(totalRevenue._sum.amount) : 0,
+      outstanding: outstandingFees._sum.balanceAmount
+        ? Number(outstandingFees._sum.balanceAmount)
+        : 0,
+      expenses: totalExpenses._sum.amount
+        ? Number(totalExpenses._sum.amount)
+        : 0,
+      recentTransactions: recentExpenses,
     });
   } catch (error) {
     console.error("Finance Overview Error:", error);

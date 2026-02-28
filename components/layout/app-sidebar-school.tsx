@@ -9,6 +9,7 @@ import {
   filterNavByRole,
 } from "@/components/layout/school-nav.config";
 import { useMemo } from "react";
+import { WorkingYearSwitcher } from "./working-year-switcher";
 import type { NavPermissions } from "@/lib/auth/types";
 
 interface AppSidebarSchoolProps {
@@ -69,6 +70,9 @@ export function AppSidebarSchool({
       logoHref={`/${schoolSlug}`}
       navSections={prefixedNavSections}
       user={user}
+      headerContent={
+        currentActiveRole === "accountant" ? <WorkingYearSwitcher /> : null
+      }
       {...props}
     />
   );
