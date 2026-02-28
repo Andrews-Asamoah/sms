@@ -1,4 +1,4 @@
-// app/api/schools/[schoolSlug]/students/route.ts - FIXED DUPLICATE PROFILE
+// app/api/schools/[schoolSlug]/students/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -41,10 +41,13 @@ function generateStudentEmail(
   studentId: string,
   schoolSubdomain: string,
 ): string {
-  const cleanFirst = firstName.toLowerCase().replace(/[^a-z]/g, "");
+  const firstInitial = firstName
+    .charAt(0)
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
   const cleanLast = lastName.toLowerCase().replace(/[^a-z]/g, "");
-  const cleanStudentId = studentId.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return `${cleanFirst}.${cleanLast}.${cleanStudentId}@${schoolSubdomain}.edu`;
+  const shortId = studentId.replace(/\D/g, "").slice(-3) || "001";
+  return `${firstInitial}.${cleanLast}.${shortId}@${schoolSubdomain}.sms`;
 }
 
 function generateSecurePassword(): string {
@@ -139,7 +142,7 @@ export async function POST(
       body: {
         organizationId: school.organizationId,
         userId: userId,
-        role: "member",
+        role: "student",
       },
     });
 
@@ -242,6 +245,52 @@ export async function POST(
     const createdGuardians = [];
 
     for (const guardianData of guardians as GuardianData[]) {
+      // If no email is provided, we only create the guardian record and DB link (no user account)
+      if (!guardianData.email) {
+        console.log(
+          `📋 [Students] Guardian ${guardianData.firstName} has no email, skipping account creation.`,
+        );
+        const guardian = await prisma.guardian.create({
+          data: {
+            schoolId,
+            guardianId: crypto.randomUUID(),
+            firstName: guardianData.firstName,
+            lastName: guardianData.lastName,
+            otherNames: guardianData.otherNames || null,
+            email: null,
+            phone: guardianData.phone,
+            alternatePhone: guardianData.alternatePhone || null,
+            relationshipType: guardianData.relationshipType,
+            occupation: guardianData.occupation || null,
+            employer: guardianData.employer || null,
+            workPhone: guardianData.workPhone || null,
+            workAddress: guardianData.workAddress || null,
+            canLogin: false, // Cannot login without an account
+          },
+        });
+
+        // Link to student
+        await prisma.guardianStudent.create({
+          data: {
+            guardianId: guardian.id,
+            studentId: student.id,
+            isPrimary: guardianData.isPrimary || false,
+            canPickup: guardianData.canPickup || true,
+            receiveReports: guardianData.receiveReports || true,
+            receiveAlerts: guardianData.receiveAlerts || true,
+          },
+        });
+
+        createdGuardians.push({
+          id: guardian.id,
+          email: null,
+          name: `${guardianData.firstName} ${guardianData.lastName}`,
+          relationshipType: guardianData.relationshipType,
+        });
+
+        continue;
+      }
+
       const existingUser = await prisma.user.findUnique({
         where: { email: guardianData.email },
       });
@@ -307,7 +356,7 @@ export async function POST(
             body: {
               organizationId: school.organizationId,
               userId: existingUser.id,
-              role: "member",
+              role: "guardian",
             },
           });
           console.log(
@@ -356,7 +405,7 @@ export async function POST(
           body: {
             email: guardianData.email,
             organizationId: school.organizationId,
-            role: "member",
+            role: "guardian",
           },
           headers: await headers(),
         });

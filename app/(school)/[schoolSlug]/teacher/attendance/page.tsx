@@ -14,7 +14,10 @@ export default async function TeacherAttendancePage({
   const session = await requireSchoolAccess(schoolSlug);
   const schoolRole = getSchoolRole(session, schoolSlug);
 
-  if (schoolRole?.effectiveRole !== "teacher") {
+  if (
+    !["teacher", "admin", "owner"].includes(schoolRole?.effectiveRole || "") &&
+    !session.isSuperAdmin
+  ) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
 

@@ -59,8 +59,8 @@ export const schoolNavSections: NavSection[] = [
             permission: "canManageStaff",
           },
           {
-            title: "Parents",
-            url: "/admin/parents",
+            title: "Guardians",
+            url: "/admin/guardians",
             permission: "canManageParents",
           },
         ],
@@ -292,9 +292,19 @@ export const schoolNavSections: NavSection[] = [
         icon: LayoutDashboard,
       },
       {
+        title: "My Children",
+        url: "/guardian/children",
+        icon: Users,
+      },
+      {
         title: "Ward's Fees",
         url: "/guardian/fees",
         icon: DollarSign,
+      },
+      {
+        title: "Communications",
+        url: "/guardian/communications",
+        icon: MessageSquare,
       },
     ],
   },

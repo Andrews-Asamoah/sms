@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { ChevronRight } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { cn } from "@/lib/utils";
@@ -91,14 +91,11 @@ export function BaseHeader({
                 </BreadcrumbLink>
               </BreadcrumbItem>
               {breadcrumbs.map((crumb, index) => (
-                <>
-                  <BreadcrumbSeparator
-                    key={`sep-${crumb.href}`}
-                    className="hidden sm:block"
-                  >
+                <React.Fragment key={crumb.href}>
+                  <BreadcrumbSeparator className="hidden sm:block">
                     <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
                   </BreadcrumbSeparator>
-                  <BreadcrumbItem key={crumb.href} className="max-w-[180px]">
+                  <BreadcrumbItem className="max-w-[180px]">
                     {!crumb.isLast ? (
                       <BreadcrumbLink
                         href={crumb.href}
@@ -112,7 +109,7 @@ export function BaseHeader({
                       </BreadcrumbPage>
                     )}
                   </BreadcrumbItem>
-                </>
+                </React.Fragment>
               ))}
             </BreadcrumbList>
           </Breadcrumb>

@@ -145,12 +145,13 @@ async function createSuperAdmin(
 
     const result = await prisma.$transaction(
       async (tx) => {
-        // Update user to superAdmin role
+        // Update user to superAdmin role and bypass onboarding
         const user = await tx.user.update({
           where: { id: userId },
           data: {
             role: "superAdmin",
             emailVerified: true,
+            onboardingCompleted: true,
           },
         });
 

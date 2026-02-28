@@ -51,6 +51,7 @@ interface ProcessResult {
   admissionNumber: string;
   name: string;
   email: string;
+  password?: string;
   status: "success" | "error";
   message?: string;
 }
@@ -65,10 +66,13 @@ function generateStudentEmail(
   studentId: string,
   schoolSubdomain: string,
 ): string {
-  const cleanFirst = firstName.toLowerCase().replace(/[^a-z]/g, "");
+  const firstInitial = firstName
+    .charAt(0)
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
   const cleanLast = lastName.toLowerCase().replace(/[^a-z]/g, "");
-  const cleanStudentId = studentId.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return `${cleanFirst}.${cleanLast}.${cleanStudentId}@${schoolSubdomain}.edu`;
+  const shortId = studentId.replace(/\D/g, "").slice(-3) || "001";
+  return `${firstInitial}.${cleanLast}.${shortId}@${schoolSubdomain}.sms`;
 }
 
 function generateSecurePassword(): string {
@@ -113,63 +117,150 @@ function parseExcelFile(buffer: Buffer): StudentRow[] {
     unknown
   >[];
 
-  return rows.map((row) => ({
-    firstName: String(row["First Name"] || "").trim(),
-    lastName: String(row["Last Name"] || "").trim(),
-    otherNames: row["Other Names"] ? String(row["Other Names"]).trim() : null,
-    gender: String(row["Gender"] || "").toUpperCase() as Gender,
-    dateOfBirth: String(row["Date of Birth"] || ""),
-    nationality: row["Nationality"] ? String(row["Nationality"]).trim() : null,
-    phone: row["Phone"] ? String(row["Phone"]) : null,
-    alternatePhone: row["Alternate Phone"]
-      ? String(row["Alternate Phone"])
-      : null,
-    residentialAddress: row["Residential Address"]
-      ? String(row["Residential Address"]).trim()
-      : null,
-    postalAddress: row["Postal Address"]
-      ? String(row["Postal Address"]).trim()
-      : null,
-    city: row["City"] ? String(row["City"]).trim() : null,
-    region: row["Region"] ? String(row["Region"]).trim() : null,
-    country: row["Country"] ? String(row["Country"]).trim() : null,
-    admissionDate: String(row["Admission Date"] || ""),
-    className: row["Class Name"] ? String(row["Class Name"]).trim() : null,
-    departmentName: row["Department Name"]
-      ? String(row["Department Name"]).trim()
-      : null,
-    houseName: row["House Name"] ? String(row["House Name"]).trim() : null,
-    previousSchool: row["Previous School"]
-      ? String(row["Previous School"]).trim()
-      : null,
-    previousClass: row["Previous Class"]
-      ? String(row["Previous Class"]).trim()
-      : null,
-    bloodGroup: row["Blood Group"] ? String(row["Blood Group"]).trim() : null,
-    allergies: row["Allergies"] ? String(row["Allergies"]).trim() : null,
-    medicalConditions: row["Medical Conditions"]
-      ? String(row["Medical Conditions"]).trim()
-      : null,
-    emergencyContactName: row["Emergency Contact Name"]
-      ? String(row["Emergency Contact Name"]).trim()
-      : null,
-    emergencyContactPhone: row["Emergency Contact Phone"]
-      ? String(row["Emergency Contact Phone"])
-      : null,
-    emergencyRelationship: row["Emergency Relationship"]
-      ? String(row["Emergency Relationship"]).trim()
-      : null,
-    parentEmail: row["Parent Email"]
-      ? String(row["Parent Email"]).trim().toLowerCase()
-      : null,
-    parentName: row["Parent Name"] ? String(row["Parent Name"]).trim() : null,
-    parentPhone: row["Parent Phone"]
-      ? String(row["Parent Phone"]).trim()
-      : null,
-    parentRelationship: row["Parent Relationship"]
-      ? String(row["Parent Relationship"]).trim()
-      : null,
-  }));
+  const getVal = (row: Record<string, any>, ...keys: string[]) => {
+    for (const key of keys) {
+      if (row[key] !== undefined) return row[key];
+      // Try ultra-flexible match: lowercase and alphanumeric only
+      const normalizedReq = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const actualKey = Object.keys(row).find((k) => {
+        const normalizedActual = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+        return normalizedActual === normalizedReq;
+      });
+      if (actualKey) return row[actualKey];
+    }
+
+    // Log normalization debug info for first row if it fails to find any of the main keys
+    const isMainKey = keys.some((k) =>
+      [
+        "First Name",
+        "Last Name",
+        "Gender",
+        "Date of Birth",
+        "Admission Date",
+      ].includes(k),
+    );
+    if (isMainKey && rows.indexOf(row) === 0) {
+      console.warn(
+        `⚠️ [Bulk Upload Debug] Failed to find key: ${keys[0]}. Normalized keys in row:`,
+        Object.keys(row).map(
+          (k) => `${k} -> ${k.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
+        ),
+      );
+    }
+    return undefined;
+  };
+
+  if (rows.length > 0) {
+    console.log("🔍 [Bulk Upload Debug] First row keys:", Object.keys(rows[0]));
+  }
+
+  return rows.map((row, index) => {
+    const firstName = String(
+      getVal(row, "First Name", "FirstName") || "",
+    ).trim();
+    const lastName = String(getVal(row, "Last Name", "LastName") || "").trim();
+    const gender = String(getVal(row, "Gender") || "").toUpperCase() as Gender;
+    const dateOfBirth = String(
+      getVal(row, "Date of Birth", "DOB", "BirthDate") || "",
+    );
+    const admissionDate = String(
+      getVal(row, "Admission Date", "Date of Admission") || "",
+    );
+
+    if (index === 0) {
+      console.log(`🔍 [Bulk Upload Debug] Extracted for row ${index + 2}:`, {
+        firstName,
+        lastName,
+        gender,
+        dateOfBirth,
+        admissionDate,
+      });
+    }
+
+    return {
+      firstName,
+      lastName,
+      otherNames: getVal(row, "Other Names", "OtherNames")
+        ? String(getVal(row, "Other Names", "OtherNames")).trim()
+        : null,
+      gender,
+      dateOfBirth,
+      nationality: getVal(row, "Nationality")
+        ? String(getVal(row, "Nationality")).trim()
+        : null,
+      phone: getVal(row, "Phone") ? String(getVal(row, "Phone")) : null,
+      alternatePhone: getVal(row, "Alternate Phone", "Alt Phone")
+        ? String(getVal(row, "Alternate Phone", "Alt Phone"))
+        : null,
+      residentialAddress: getVal(row, "Residential Address")
+        ? String(getVal(row, "Residential Address")).trim()
+        : null,
+      postalAddress: getVal(row, "Postal Address")
+        ? String(getVal(row, "Postal Address")).trim()
+        : null,
+      city: getVal(row, "City") ? String(getVal(row, "City")).trim() : null,
+      region: getVal(row, "Region")
+        ? String(getVal(row, "Region")).trim()
+        : null,
+      country: getVal(row, "Country")
+        ? String(getVal(row, "Country")).trim()
+        : null,
+      admissionDate,
+      className: getVal(row, "Class Name", "Class")
+        ? String(getVal(row, "Class Name", "Class")).trim()
+        : null,
+      departmentName: getVal(row, "Department Name", "Department")
+        ? String(getVal(row, "Department Name", "Department")).trim()
+        : null,
+      houseName: getVal(row, "House Name", "House")
+        ? String(getVal(row, "House Name", "House")).trim()
+        : null,
+      previousSchool: getVal(row, "Previous School")
+        ? String(getVal(row, "Previous School")).trim()
+        : null,
+      previousClass: getVal(row, "Previous Class")
+        ? String(getVal(row, "Previous Class")).trim()
+        : null,
+      bloodGroup: getVal(row, "Blood Group")
+        ? String(getVal(row, "Blood Group")).trim()
+        : null,
+      allergies: getVal(row, "Allergies")
+        ? String(getVal(row, "Allergies")).trim()
+        : null,
+      medicalConditions: getVal(row, "Medical Conditions")
+        ? String(getVal(row, "Medical Conditions")).trim()
+        : null,
+      emergencyContactName: getVal(row, "Emergency Contact Name")
+        ? String(getVal(row, "Emergency Contact Name")).trim()
+        : null,
+      emergencyContactPhone: getVal(row, "Emergency Contact Phone")
+        ? String(getVal(row, "Emergency Contact Phone"))
+        : null,
+      emergencyRelationship: getVal(row, "Emergency Relationship")
+        ? String(getVal(row, "Emergency Relationship")).trim()
+        : null,
+      parentEmail: getVal(row, "Parent Email", "Guardian Email")
+        ? String(getVal(row, "Parent Email", "Guardian Email"))
+            .trim()
+            .toLowerCase()
+        : null,
+      parentName: getVal(row, "Parent Name", "Guardian Name")
+        ? String(getVal(row, "Parent Name", "Guardian Name")).trim()
+        : null,
+      parentPhone: getVal(row, "Parent Phone", "Guardian Phone")
+        ? String(getVal(row, "Parent Phone", "Guardian Phone")).trim()
+        : null,
+      parentRelationship: getVal(
+        row,
+        "Parent Relationship",
+        "Guardian Relationship",
+      )
+        ? String(
+            getVal(row, "Parent Relationship", "Guardian Relationship"),
+          ).trim()
+        : null,
+    };
+  });
 }
 
 // ============================================================================
@@ -283,14 +374,17 @@ export async function POST(
         // ====================================================================
         // Validate required fields
         // ====================================================================
-        if (
-          !row.firstName ||
-          !row.lastName ||
-          !row.gender ||
-          !row.dateOfBirth ||
-          !row.admissionDate
-        ) {
-          throw new Error("Missing required fields");
+        const missingFields = [];
+        if (!row.firstName) missingFields.push("First Name");
+        if (!row.lastName) missingFields.push("Last Name");
+        if (!row.gender) missingFields.push("Gender");
+        if (!row.dateOfBirth) missingFields.push("Date of Birth");
+        if (!row.admissionDate) missingFields.push("Admission Date");
+
+        if (missingFields.length > 0) {
+          throw new Error(
+            `Missing required fields: ${missingFields.join(", ")}`,
+          );
         }
 
         // ====================================================================
@@ -326,38 +420,115 @@ export async function POST(
           : null;
 
         // ====================================================================
-        // Create user via Better Auth
+        // Check for existing student ID or Admission Number
         // ====================================================================
-        const userResult = await auth.api.signUpEmail({
-          body: {
-            email: studentEmail,
-            password: temporaryPassword,
-            name: `${row.firstName} ${row.lastName}`,
+        const existingStudent = await prisma.student.findFirst({
+          where: {
+            schoolId,
+            OR: [{ studentId }, { admissionNumber }],
           },
         });
 
-        if (!userResult) {
-          throw new Error("Failed to create user account");
+        if (existingStudent) {
+          throw new Error(
+            `Student ID (${studentId}) or Admission Number (${admissionNumber}) already exists`,
+          );
         }
 
-        const userId = userResult.user.id;
+        // ====================================================================
+        // Check if user already exists
+        // ====================================================================
+        const existingUser = await prisma.user.findUnique({
+          where: { email: studentEmail },
+        });
+
+        let userId: string;
+
+        if (existingUser) {
+          // If user exists, check if they are already a member of this school
+          const existingMember = await prisma.member.findFirst({
+            where: {
+              organizationId: school.organizationId,
+              userId: existingUser.id,
+            },
+          });
+
+          if (existingMember) {
+            // Check if they are already a student
+            const studentExists = await prisma.student.findFirst({
+              where: {
+                schoolId,
+                profile: { userId: existingUser.id },
+              },
+            });
+
+            if (studentExists) {
+              throw new Error(
+                `Student with email ${studentEmail} already exists in this school`,
+              );
+            }
+          }
+          userId = existingUser.id;
+        } else {
+          // Create user via Better Auth
+          const userResult = await auth.api.signUpEmail({
+            body: {
+              email: studentEmail,
+              password: temporaryPassword,
+              name: `${row.firstName} ${row.lastName}`,
+            },
+          });
+
+          if (!userResult) {
+            throw new Error("Failed to create user account");
+          }
+          userId = userResult.user.id;
+        }
 
         // ====================================================================
-        // Add to organization with "student" role
+        // Add to organization if not already a member
         // ====================================================================
-        await auth.api.addMember({
-          body: {
+        const member = await prisma.member.findFirst({
+          where: {
             organizationId: school.organizationId,
             userId: userId,
-            role: "member",
           },
         });
 
+        if (!member) {
+          await auth.api.addMember({
+            body: {
+              organizationId: school.organizationId,
+              userId: userId,
+              role: "student",
+            },
+          });
+        }
+
         // ====================================================================
-        // Create UserProfile
+        // Create or Update UserProfile
         // ====================================================================
-        const userProfile = await prisma.userProfile.create({
-          data: {
+        const userProfile = await prisma.userProfile.upsert({
+          where: { userId },
+          update: {
+            firstName: row.firstName,
+            lastName: row.lastName,
+            otherNames: row.otherNames,
+            gender: row.gender,
+            dateOfBirth: new Date(row.dateOfBirth),
+            nationality: row.nationality,
+            phone: row.phone,
+            alternatePhone: row.alternatePhone,
+            residentialAddress: row.residentialAddress,
+            postalAddress: row.postalAddress,
+            city: row.city,
+            region: row.region,
+            country: row.country,
+            emergencyContactName: row.emergencyContactName,
+            emergencyContactPhone: row.emergencyContactPhone,
+            emergencyRelationship: row.emergencyRelationship,
+          },
+          create: {
             userId,
             firstName: row.firstName,
             lastName: row.lastName,
@@ -379,39 +550,83 @@ export async function POST(
         });
 
         // ====================================================================
-        // Create Student record
+        // Create or Update Student record
         // ====================================================================
-        const student = await prisma.student.create({
-          data: {
+        let student = await prisma.student.findFirst({
+          where: {
             schoolId,
             profileId: userProfile.id,
-            studentId,
-            admissionNumber,
-            admissionDate: new Date(row.admissionDate),
-            classId: classRecord?.id || null,
-            departmentId: department?.id || null,
-            houseId: house?.id || null,
-            previousSchool: row.previousSchool,
-            previousClass: row.previousClass,
-            bloodGroup: row.bloodGroup,
-            allergies: row.allergies,
-            medicalConditions: row.medicalConditions,
-            status: "ACTIVE",
           },
         });
+
+        if (!student) {
+          student = await prisma.student.create({
+            data: {
+              schoolId,
+              profileId: userProfile.id,
+              studentId,
+              admissionNumber,
+              admissionDate: new Date(row.admissionDate),
+              classId: classRecord?.id || null,
+              departmentId: department?.id || null,
+              houseId: house?.id || null,
+              previousSchool: row.previousSchool,
+              previousClass: row.previousClass,
+              bloodGroup: row.bloodGroup,
+              allergies: row.allergies,
+              medicalConditions: row.medicalConditions,
+              status: "ACTIVE",
+            },
+          });
+          console.log(
+            `✅ [Bulk Upload] Row ${rowNumber}: Created new student ${studentId}`,
+          );
+        } else {
+          // Update existing student record
+          student = await prisma.student.update({
+            where: { id: student.id },
+            data: {
+              classId: classRecord?.id || student.classId,
+              departmentId: department?.id || student.departmentId,
+              houseId: house?.id || student.houseId,
+              previousSchool: row.previousSchool || student.previousSchool,
+              previousClass: row.previousClass || student.previousClass,
+              bloodGroup: row.bloodGroup || student.bloodGroup,
+              allergies: row.allergies || student.allergies,
+              medicalConditions:
+                row.medicalConditions || student.medicalConditions,
+            },
+          });
+          console.log(
+            `✅ [Bulk Upload] Row ${rowNumber}: Updated existing student ${student.studentId}`,
+          );
+        }
 
         // ====================================================================
         // Process parent/guardian if email provided
         // ====================================================================
+        // ====================================================================
+        // Process parent/guardian if email provided
+        // ====================================================================
         if (row.parentEmail && row.parentName) {
+          // 1. Check if user already exists
           const existingUser = await prisma.user.findUnique({
             where: { email: row.parentEmail },
+            include: { userProfile: true },
           });
 
           let guardian;
 
+          // 2. Check if guardian record already exists in this school
+          guardian = await prisma.guardian.findFirst({
+            where: {
+              schoolId,
+              email: row.parentEmail,
+            },
+          });
+
           if (existingUser) {
-            // Guardian exists - add to organization if needed
+            // Ensure organization membership
             const existingMembership = await prisma.member.findFirst({
               where: {
                 userId: existingUser.id,
@@ -424,28 +639,16 @@ export async function POST(
                 body: {
                   organizationId: school.organizationId,
                   userId: existingUser.id,
-                  role: "member",
+                  role: "guardian",
                 },
               });
             }
-
-            // Find or create guardian record
-            guardian = await prisma.guardian.findFirst({
-              where: {
-                schoolId,
-                email: row.parentEmail,
-              },
-            });
 
             if (!guardian) {
               const nameParts = row.parentName.trim().split(/\s+/);
               const firstName = nameParts[0] || "Parent";
               const lastName =
                 nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
-
-              const userProfile = await prisma.userProfile.findUnique({
-                where: { userId: existingUser.id },
-              });
 
               guardian = await prisma.guardian.create({
                 data: {
@@ -458,61 +661,61 @@ export async function POST(
                   relationshipType: parseGuardianRelationship(
                     row.parentRelationship,
                   ),
-                  profileId: userProfile?.id,
+                  profileId: existingUser.userProfile?.id,
                   canLogin: true,
                 },
               });
             }
           } else {
-            // New guardian - create record first, then send invitation
-            const nameParts = row.parentName.trim().split(/\s+/);
-            const firstName = nameParts[0] || "Parent";
-            const lastName =
-              nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+            // No user account yet
+            if (!guardian) {
+              const nameParts = row.parentName.trim().split(/\s+/);
+              const firstName = nameParts[0] || "Parent";
+              const lastName =
+                nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-            guardian = await prisma.guardian.create({
-              data: {
-                schoolId,
-                guardianId: crypto.randomUUID(),
-                firstName,
-                lastName,
-                email: row.parentEmail,
-                phone: row.parentPhone || "",
-                relationshipType: parseGuardianRelationship(
-                  row.parentRelationship,
-                ),
-                canLogin: true,
-              },
-            });
+              guardian = await prisma.guardian.create({
+                data: {
+                  schoolId,
+                  guardianId: crypto.randomUUID(),
+                  firstName,
+                  lastName,
+                  email: row.parentEmail,
+                  phone: row.parentPhone || "",
+                  relationshipType: parseGuardianRelationship(
+                    row.parentRelationship,
+                  ),
+                  canLogin: true,
+                },
+              });
+            }
 
-            // Link to student BEFORE invitation
-            await prisma.guardianStudent.create({
-              data: {
-                guardianId: guardian.id,
-                studentId: student.id,
-                isPrimary: true,
-                canPickup: true,
-                receiveReports: true,
-                receiveAlerts: true,
-              },
-            });
-
-            // Send invitation (only once per unique email)
-            // ✅ FIXED: Added headers parameter
+            // Send invitation if not already sent in this batch
             if (!guardianInvitations.has(row.parentEmail)) {
-              await auth.api.createInvitation({
-                body: {
+              // We should probably check if an invitation already exists in the DB too
+              const existingInvite = await prisma.invitation.findFirst({
+                where: {
                   email: row.parentEmail,
                   organizationId: school.organizationId,
-                  role: "member",
+                  status: "pending",
                 },
-                headers: await headers(), // ✅ ADDED THIS
               });
+
+              if (!existingInvite) {
+                await auth.api.createInvitation({
+                  body: {
+                    email: row.parentEmail,
+                    organizationId: school.organizationId,
+                    role: "guardian",
+                  },
+                  headers: await headers(),
+                });
+              }
               guardianInvitations.add(row.parentEmail);
             }
           }
 
-          // Link guardian to student if not already linked
+          // 3. Link guardian to student
           const existingLink = await prisma.guardianStudent.findUnique({
             where: {
               guardianId_studentId: {
@@ -542,11 +745,19 @@ export async function POST(
           admissionNumber,
           name: `${row.firstName} ${row.lastName}`,
           email: studentEmail,
+          password: temporaryPassword,
           status: "success",
         });
 
         console.log(`✅ [Bulk Upload] Row ${rowNumber}: Created ${studentId}`);
-      } catch (error) {
+      } catch (error: any) {
+        console.error(`❌ [Bulk Upload] Row ${rowNumber} failed:`, error);
+        if (error.code === "P2002") {
+          console.error(
+            "🔍 [Bulk Upload Debug] Unique constraint violation meta:",
+            error.meta,
+          );
+        }
         results.push({
           row: rowNumber,
           studentId: "",
@@ -559,8 +770,6 @@ export async function POST(
           status: "error",
           message: error instanceof Error ? error.message : "Unknown error",
         });
-
-        console.error(`❌ [Bulk Upload] Row ${rowNumber} failed:`, error);
       }
     }
 

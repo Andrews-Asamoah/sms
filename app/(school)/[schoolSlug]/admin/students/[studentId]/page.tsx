@@ -27,6 +27,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddGuardianDialog } from "@/components/school/students/add-guardian-dialog";
+import { ResetPasswordDialog } from "@/components/school/students/reset-password-dialog";
 import { Decimal } from "@/lib/generated/prisma/runtime/client";
 
 // Helper function to safely convert Decimal to string
@@ -137,12 +138,19 @@ export default async function StudentDetailPage({
             </p>
           </div>
         </div>
-        <Link href={`/${schoolSlug}/admin/students/${studentId}/edit`}>
-          <Button>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit Student
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <ResetPasswordDialog
+            studentId={student.id}
+            studentName={`${student.profile.firstName} ${student.profile.lastName}`}
+            schoolSlug={schoolSlug}
+          />
+          <Link href={`/${schoolSlug}/admin/students/${studentId}/edit`}>
+            <Button>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit Student
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Student Header Card */}

@@ -4,7 +4,9 @@ import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { DashboardPageHeader } from "@/components/layout/page-header";
 import { ParentsClient } from "./parents-client";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "Parents & Guardians Directory",
@@ -78,7 +80,14 @@ export default async function AdminParentsPage({ params }: ParentsPageProps) {
       <DashboardPageHeader
         title="Parents & Guardians"
         description="A complete directory of all parents, showing their contact information and linked students."
-      />
+      >
+        <Link href={`/${schoolSlug}/admin/parents/new`}>
+          <Button size="lg">
+            <Plus className="mr-2 h-5 w-5" />
+            New Parent
+          </Button>
+        </Link>
+      </DashboardPageHeader>
       <Suspense
         fallback={
           <div className="flex h-64 items-center justify-center">

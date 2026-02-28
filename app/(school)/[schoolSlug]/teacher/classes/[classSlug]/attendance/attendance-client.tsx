@@ -56,6 +56,7 @@ interface Student {
 interface AttendanceClientProps {
   schoolSlug: string;
   classSlug: string;
+  classId: string;
   students: Student[];
   initialAttendance: Record<
     string,
@@ -75,6 +76,7 @@ const STATUS_COLORS: Record<AttendanceStatus, string> = {
 export function AttendanceClient({
   schoolSlug,
   classSlug,
+  classId,
   students,
   initialAttendance,
 }: AttendanceClientProps) {
@@ -86,7 +88,60 @@ export function AttendanceClient({
       students.map((s) => [s.id, initialAttendance[s.id]?.status || "PRESENT"]),
     ),
   );
+  const [markedDates, setMarkedDates] = useState<Date[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // Load marked dates on mount
+  useState(() => {
+    import("./actions").then((mod) => {
+      mod.getMarkedDates(schoolSlug, classId).then((res) => {
+        if (res.success && res.data) {
+          setMarkedDates(res.data.map((d) => new Date(d)));
+        }
+      });
+    });
+  });
+
+  // Load attendance when date changes
+  useState(() => {
+    // Skip initial load as it's passed via props
+    let isInitial = true;
+
+    // We'll use an effect for this instead of useState initializer hack
+  });
+
+  const { useEffect } = require("react");
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      setIsLoading(true);
+      try {
+        const { getAttendanceForDate } = await import("./actions");
+        const result = await getAttendanceForDate(schoolSlug, classId, date);
+        if (result.success && result.data) {
+          const newAttendance = Object.fromEntries(
+            students.map((s) => [s.id, "PRESENT" as AttendanceStatus]),
+          );
+          result.data.forEach((a) => {
+            newAttendance[a.studentId] = a.status as AttendanceStatus;
+          });
+          setAttendance(newAttendance);
+        } else {
+          // Reset to default if no attendance found or error
+          setAttendance(
+            Object.fromEntries(students.map((s) => [s.id, "PRESENT"])),
+          );
+        }
+      } catch (error) {
+        console.error("Failed to fetch attendance:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAttendance();
+  }, [date, schoolSlug, classId, students]);
 
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
     setAttendance((prev) => ({ ...prev, [studentId]: status }));
@@ -107,6 +162,7 @@ export function AttendanceClient({
         status: status as any, // Cast to match prisma enum
       }));
 
+      const { saveAttendanceBatch, getMarkedDates } = await import("./actions");
       const result = await saveAttendanceBatch(
         schoolSlug,
         classSlug,
@@ -118,6 +174,12 @@ export function AttendanceClient({
         toast.success("Attendance Saved", {
           description: `Attendance for ${format(date, "PPP")} has been recorded.`,
         });
+
+        // Refresh marked dates
+        const markedRes = await getMarkedDates(schoolSlug, classId);
+        if (markedRes.success && markedRes.data) {
+          setMarkedDates(markedRes.data.map((d) => new Date(d)));
+        }
       } else {
         toast.error("Error", {
           description: result.error || "Failed to save attendance.",
@@ -149,12 +211,28 @@ export function AttendanceClient({
                 selected={date}
                 onSelect={(d) => d && setDate(d)}
                 initialFocus
+                modifiers={{
+                  highlighted: markedDates,
+                }}
+                modifiersStyles={{
+                  highlighted: {
+                    backgroundColor: "#10b981", // green-500
+                    color: "white",
+                    borderRadius: "50%",
+                  },
+                }}
               />
             </PopoverContent>
           </Popover>
           <Badge variant="outline" className="h-9 px-3">
             {students.length} Students
           </Badge>
+          {isLoading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading attendance...
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -166,6 +244,7 @@ export function AttendanceClient({
             size="sm"
             onClick={() => handleMarkAll("PRESENT")}
             className="text-green-600"
+            disabled={isLoading || isPending}
           >
             Present
           </Button>
@@ -174,10 +253,15 @@ export function AttendanceClient({
             size="sm"
             onClick={() => handleMarkAll("ABSENT")}
             className="text-red-600"
+            disabled={isLoading || isPending}
           >
             Absent
           </Button>
-          <Button className="ml-4" onClick={handleSave} disabled={isPending}>
+          <Button
+            className="ml-4"
+            onClick={handleSave}
+            disabled={isPending || isLoading}
+          >
             {isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -188,7 +272,15 @@ export function AttendanceClient({
         </div>
       </div>
 
-      <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="rounded-xl border bg-card overflow-hidden relative">
+        {isLoading && (
+          <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm font-medium">Fetching Records...</p>
+            </div>
+          </div>
+        )}
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -201,7 +293,10 @@ export function AttendanceClient({
           </TableHeader>
           <TableBody>
             {students.map((student) => (
-              <TableRow key={student.id}>
+              <TableRow
+                key={student.id}
+                className={cn(isLoading && "opacity-50")}
+              >
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">

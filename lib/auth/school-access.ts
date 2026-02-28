@@ -318,17 +318,17 @@ export function getAllRolesInSchool(
   const access = getSchoolRole(session, subdomain);
   if (!access) return [];
 
-  const roles: string[] = [];
+  const roles = new Set<string>();
 
   // Add organization role
   if (access.organizationRole) {
-    roles.push(access.organizationRole.toLowerCase());
+    roles.add(access.organizationRole.toLowerCase());
   }
 
   // Add profile roles
-  roles.push(...access.profileRoles);
+  access.profileRoles.forEach((role) => roles.add(role.toLowerCase()));
 
-  return roles;
+  return Array.from(roles);
 }
 
 /**

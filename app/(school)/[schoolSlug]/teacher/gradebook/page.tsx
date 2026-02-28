@@ -35,18 +35,14 @@ export default async function TeacherGradebookPage({
   }
 
   // Get Teacher ID
-  let teacherId: string | undefined;
-
-  if (role?.effectiveRole === "teacher") {
-    const teacher = await prisma.teacher.findFirst({
-      where: {
-        school: { subdomain: schoolSlug },
-        profile: { userId: session.user.id },
-      },
-      select: { id: true },
-    });
-    teacherId = teacher?.id;
-  }
+  const teacher = await prisma.teacher.findFirst({
+    where: {
+      school: { subdomain: schoolSlug },
+      profile: { userId: session.user.id },
+    },
+    select: { id: true },
+  });
+  const teacherId = teacher?.id;
 
   // Get Classes where teacher teaches at least one subject
   // We also want to know WHICH subjects they teach in that class to display count

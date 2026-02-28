@@ -1,4 +1,4 @@
-// app/(school)/[schoolSlug]/parent/children/[studentId]/page.tsx
+// app/(school)/[schoolSlug]/guardian/children/[childId]/page.tsx
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { redirect, notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
@@ -23,10 +23,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Decimal } from "@/lib/generated/prisma/runtime/client";
 
-interface ChildDetailPageProps {
+interface GuardianChildDetailsPageProps {
   params: Promise<{
     schoolSlug: string;
-    studentId: string;
+    childId: string;
   }>;
 }
 
@@ -36,10 +36,10 @@ function decimalToNumber(value: Decimal | number): number {
   return parseFloat(value.toString());
 }
 
-export default async function ChildDetailPage({
+export default async function GuardianChildDetailsPage({
   params,
-}: ChildDetailPageProps) {
-  const { schoolSlug, studentId } = await params;
+}: GuardianChildDetailsPageProps) {
+  const { schoolSlug, childId } = await params;
   const session = await requireSchoolAccess(schoolSlug);
 
   const school = await prisma.school.findUnique({
@@ -67,7 +67,7 @@ export default async function ChildDetailPage({
   // Get student with full details
   const student = await prisma.student.findFirst({
     where: {
-      id: studentId,
+      id: childId,
       guardians: {
         some: {
           guardianId: guardian.id,
@@ -137,7 +137,7 @@ export default async function ChildDetailPage({
   return (
     <div className="space-y-6">
       {/* Back Button */}
-      <Link href={`/${schoolSlug}/parent/children`}>
+      <Link href={`/${schoolSlug}/guardian/children`}>
         <Button variant="ghost" size="sm">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Children
@@ -531,7 +531,7 @@ export default async function ChildDetailPage({
                   ))}
                 </div>
               )}
-              <Link href={`/${schoolSlug}/parent/bills`}>
+              <Link href={`/${schoolSlug}/guardian/fees`}>
                 <Button className="w-full mt-4" variant="outline">
                   View All Bills
                 </Button>

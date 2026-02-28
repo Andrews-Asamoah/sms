@@ -49,8 +49,8 @@ export function getDefaultRoute(session: ExtendedSession): string {
       return `/${subdomain}/student`;
 
     case "guardian":
-      console.log(`[Route Resolver] ✅ Guardian → /${subdomain}/parent`);
-      return `/${subdomain}/parent`;
+      console.log(`[Route Resolver] ✅ Guardian → /${subdomain}/guardian`);
+      return `/${subdomain}/guardian`;
 
     default:
       console.log("[Route Resolver] ⚠️ Unknown role → /onboarding");
@@ -82,7 +82,7 @@ export function canAccessRoute(
     student: ["student", "owner", "admin"],
     staff: ["staff", "owner", "admin"],
     accountant: ["accountant", "owner", "admin"],
-    parent: ["guardian", "owner", "admin"],
+    guardian: ["guardian", "owner", "admin"],
   };
 
   const requiredRoles = roleRequirements[routeRole];
@@ -110,7 +110,7 @@ export function getAccessibleRoutes(
       `/${subdomain}/student`,
       `/${subdomain}/staff`,
       `/${subdomain}/accountant`,
-      `/${subdomain}/parent`,
+      `/${subdomain}/guardian`,
     ];
   }
 
@@ -138,7 +138,7 @@ export function getAccessibleRoutes(
   }
 
   if (hasRoleInSchool(session, subdomain, "guardian")) {
-    routes.push(`/${subdomain}/parent`);
+    routes.push(`/${subdomain}/guardian`);
   }
 
   return routes;

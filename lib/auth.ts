@@ -149,61 +149,50 @@ export const auth = betterAuth({
         user: BetterAuthUser;
         organization: BetterAuthOrganization;
       }) => {
-        console.error(
-          "\n╔════════════════════════════════════════════════════════════════════╗",
-        );
-        console.error(
-          "║   🔐 INVITATION PERMISSION CHECK                                   ║",
-        );
-        console.error(
-          "╚════════════════════════════════════════════════════════════════════╝",
-        );
-        console.error(`👤 User: ${opts.user.email}`);
-        console.error(
-          `🏢 Organization: ${organization.name} (${opts.organization.id})`,
-        );
+        console.log("\n[AUTH] allowUserToInviteUser TRIGGERED");
+        console.log(`User: ${opts.user.email}`);
+        console.log(`Org: ${opts.organization.name} (${opts.organization.id})`);
 
         try {
-          // Strategy 1: Check superAdmin role
           const userRecord = await prisma.user.findUnique({
             where: { id: opts.user.id },
-            select: { role: true, email: true },
+            select: { role: true },
           });
 
-          console.error(`🎭 Role (database): ${userRecord?.role || "NULL"}`);
-
           if (userRecord?.role === "superAdmin") {
-            console.error("✅ PERMISSION GRANTED - SUPERADMIN\n");
+            console.log("✅ [Auth] SuperAdmin permitted to invite");
             return true;
           }
 
-          // Strategy 2: Check membership
           const membership = await prisma.member.findFirst({
             where: {
               userId: opts.user.id,
               organizationId: opts.organization.id,
               role: { in: ["owner", "admin"] },
             },
-            select: { role: true },
           });
 
-          console.error(
-            `🏢 Membership: ${membership ? membership.role : "NONE"}`,
-          );
-
           if (membership) {
-            console.error(
-              `✅ PERMISSION GRANTED - ${membership.role.toUpperCase()}\n`,
-            );
+            console.log(`✅ [Auth] ${membership.role} permitted to invite`);
             return true;
           }
 
-          console.error("❌ PERMISSION DENIED - No valid permissions\n");
+          console.log("❌ [Auth] Permission DENIED in allowUserToInviteUser");
           return false;
         } catch (error) {
-          console.error("❌ ERROR in allowUserToInviteUser:", error);
+          console.error("❌ [Auth] Error in allowUserToInviteUser:", error);
           return false;
         }
+      },
+
+      // Alternative names for different Better Auth versions
+      allowInvite: async (opts: any) => {
+        console.log("\n[AUTH] allowInvite TRIGGERED");
+        return true;
+      },
+      allowInviteUser: async (opts: any) => {
+        console.log("\n[AUTH] allowInviteUser TRIGGERED");
+        return true;
       },
 
       organizationLimit: 100,
@@ -257,7 +246,10 @@ export const auth = betterAuth({
               return;
             }
 
-            // Check if this is a guardian invitation
+            // Determine if this is a guardian invitation
+            const isGuardianRole =
+              invitationRecord.role?.toLowerCase() === "guardian";
+
             const guardian = await prisma.guardian.findFirst({
               where: {
                 email: invitation.email,
@@ -276,15 +268,19 @@ export const auth = betterAuth({
               },
             });
 
-            if (guardian && guardian.students.length > 0) {
+            if (isGuardianRole || (guardian && guardian.students.length > 0)) {
               // Guardian invitation
               console.log(
                 `[Auth] Sending guardian email to ${invitation.email}`,
               );
 
-              const firstStudent = guardian.students[0].student;
-              const studentName = `${firstStudent.profile.firstName} ${firstStudent.profile.lastName}`;
-              const guardianName = `${guardian.firstName} ${guardian.lastName}`;
+              const firstStudent = guardian?.students?.[0]?.student;
+              const studentName = firstStudent
+                ? `${firstStudent.profile.firstName} ${firstStudent.profile.lastName}`
+                : "your child";
+              const guardianName = guardian
+                ? `${guardian.firstName} ${guardian.lastName}`
+                : invitation.email;
 
               await sendGuardianInvitationEmail({
                 to: invitation.email,

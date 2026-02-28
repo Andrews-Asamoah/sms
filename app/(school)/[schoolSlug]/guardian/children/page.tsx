@@ -1,4 +1,4 @@
-// app/(school)/[schoolSlug]/parent/children/page.tsx
+// app/(school)/[schoolSlug]/guardian/children/page.tsx
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
@@ -10,25 +10,28 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Users,
+  BookOpen,
+  Clock,
+  ArrowRight,
   GraduationCap,
   Calendar,
   MapPin,
   Phone,
   FileText,
-  ArrowRight,
 } from "lucide-react";
 
-interface ChildrenListPageProps {
+interface GuardianChildrenPageProps {
   params: Promise<{ schoolSlug: string }>;
 }
 
-export default async function ChildrenListPage({
+export default async function GuardianChildrenPage({
   params,
-}: ChildrenListPageProps) {
+}: GuardianChildrenPageProps) {
   const { schoolSlug } = await params;
   const session = await requireSchoolAccess(schoolSlug);
 
@@ -219,7 +222,7 @@ export default async function ChildrenListPage({
 
                 {/* View Details Button */}
                 <Link
-                  href={`/${schoolSlug}/parent/children/${student.id}`}
+                  href={`/${schoolSlug}/guardian/children/${student.id}`}
                   className="block"
                 >
                   <Button className="w-full" variant="outline">

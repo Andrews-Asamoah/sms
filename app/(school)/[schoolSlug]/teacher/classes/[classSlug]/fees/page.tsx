@@ -33,17 +33,18 @@ export default async function ClassFeesPage({ params }: ClassFeesPageProps) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  // 2. Fetch teacher identity if role is teacher
-  let teacherId: string | undefined;
-  if (role.effectiveRole === "teacher") {
-    const teacher = await prisma.teacher.findFirst({
-      where: {
-        school: { subdomain: schoolSlug },
-        profile: { userId: session.user.id },
-      },
-    });
-    if (!teacher) redirect(`/${schoolSlug}/unauthorized`);
-    teacherId = teacher.id;
+  // 2. Fetch teacher identity
+  const teacher = await prisma.teacher.findFirst({
+    where: {
+      school: { subdomain: schoolSlug },
+      profile: { userId: session.user.id },
+    },
+  });
+  let teacherId = teacher?.id;
+
+  // If role is specifically teacher, ensure we found a record
+  if (role.effectiveRole === "teacher" && !teacherId) {
+    redirect(`/${schoolSlug}/unauthorized`);
   }
 
   // 3. Find Class and verify Teacher is the Class Teacher

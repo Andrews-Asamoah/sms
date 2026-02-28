@@ -46,7 +46,12 @@ const guardianSchema = z.object({
   firstName: z.string().min(2, "First name required"),
   lastName: z.string().min(2, "Last name required"),
   otherNames: z.string().optional().nullable(),
-  email: z.string().email("Valid email required"),
+  email: z
+    .string()
+    .email("Valid email required")
+    .or(z.literal(""))
+    .optional()
+    .nullable(),
   phone: z.string().min(10, "Phone number required"),
   alternatePhone: z.string().optional().nullable(),
   gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional().nullable(),
@@ -155,7 +160,7 @@ export function StudentForm({
     control,
   } = useForm<StudentFormValues>({
     resolver: zodResolver(studentFormSchema),
-    defaultValues: initialData || {
+    defaultValues: (initialData || {
       studentId: suggestedStudentId,
       admissionNumber: suggestedAdmissionNumber || "",
       nationality: "Ghanaian",
@@ -175,7 +180,7 @@ export function StudentForm({
           receiveAlerts: true,
         },
       ],
-    },
+    }) as any,
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -183,7 +188,7 @@ export function StudentForm({
     name: "guardians",
   });
 
-  async function onSubmit(data: StudentFormValues) {
+  async function onSubmit(data: any) {
     setIsSubmitting(true);
     try {
       const url = studentProfileId
@@ -696,13 +701,16 @@ export function StudentForm({
                     <FieldGroup>
                       <FieldLabel>
                         <Mail className="inline h-4 w-4 mr-1" />
-                        Email *
+                        Email
                       </FieldLabel>
                       <Input
                         type="email"
-                        placeholder="john.doe@email.com"
+                        placeholder="john.doe@email.com (Optional)"
                         {...register(`guardians.${index}.email`)}
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Needed for parent portal access
+                      </p>
                       {errors.guardians?.[index]?.email && (
                         <FieldError>
                           {errors.guardians[index]?.email?.message}

@@ -24,7 +24,7 @@ export default async function CallbackPage({
   await headers();
 
   // Give Better Auth time to fully establish session
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  // await new Promise((resolve) => setTimeout(resolve, 500));
 
   // Get session using consolidated session module
   const session = await getSession();

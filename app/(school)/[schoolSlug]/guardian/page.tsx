@@ -1,4 +1,4 @@
-// app/(school)/[schoolSlug]/parent/page.tsx
+// app/(school)/[schoolSlug]/guardian/page.tsx
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { Decimal } from "@/lib/generated/prisma/runtime/client";
 
-interface ParentDashboardProps {
+interface GuardianDashboardProps {
   params: Promise<{ schoolSlug: string }>;
 }
 
@@ -33,9 +33,9 @@ function decimalToNumber(value: Decimal | number): number {
   return parseFloat(value.toString());
 }
 
-export default async function ParentDashboard({
+export default async function GuardianDashboard({
   params,
-}: ParentDashboardProps) {
+}: GuardianDashboardProps) {
   const { schoolSlug } = await params;
   const session = await requireSchoolAccess(schoolSlug);
 
@@ -229,7 +229,9 @@ export default async function ParentDashboard({
                     {pendingBills > 0 && (
                       <Badge variant="destructive">{pendingBills} bills</Badge>
                     )}
-                    <Link href={`/${schoolSlug}/parent/children/${student.id}`}>
+                    <Link
+                      href={`/${schoolSlug}/guardian/children/${student.id}`}
+                    >
                       <Button variant="ghost" size="sm">
                         View
                         <ArrowRight className="ml-2 h-4 w-4" />
@@ -240,7 +242,7 @@ export default async function ParentDashboard({
               );
             })}
 
-            <Link href={`/${schoolSlug}/parent/children`}>
+            <Link href={`/${schoolSlug}/guardian/children`}>
               <Button className="w-full" variant="outline">
                 View All Children
               </Button>
@@ -299,7 +301,7 @@ export default async function ParentDashboard({
                   )}
                 </div>
 
-                <Link href={`/${schoolSlug}/parent/bills`}>
+                <Link href={`/${schoolSlug}/guardian/bills`}>
                   <Button className="w-full" variant="outline">
                     View All Bills
                   </Button>
@@ -318,7 +320,7 @@ export default async function ParentDashboard({
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
-            <Link href={`/${schoolSlug}/parent/bills`}>
+            <Link href={`/${schoolSlug}/guardian/bills`}>
               <Button
                 className="w-full h-auto flex-col gap-2 p-4"
                 variant="outline"
@@ -328,7 +330,7 @@ export default async function ParentDashboard({
               </Button>
             </Link>
 
-            <Link href={`/${schoolSlug}/parent/children`}>
+            <Link href={`/${schoolSlug}/guardian/children`}>
               <Button
                 className="w-full h-auto flex-col gap-2 p-4"
                 variant="outline"
@@ -338,7 +340,7 @@ export default async function ParentDashboard({
               </Button>
             </Link>
 
-            <Link href={`/${schoolSlug}/parent/communications`}>
+            <Link href={`/${schoolSlug}/guardian/communications`}>
               <Button
                 className="w-full h-auto flex-col gap-2 p-4"
                 variant="outline"

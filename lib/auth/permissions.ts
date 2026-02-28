@@ -19,6 +19,7 @@ export const statement = {
     "invite",
     "remove-member",
   ],
+  invitation: ["create", "view", "delete", "send"],
 
   // Core entities
   school: ["create", "update", "delete", "view", "manage"],
@@ -90,6 +91,7 @@ export const superAdmin = ac.newRole({
     "invite",
     "remove-member",
   ],
+  invitation: ["create", "view", "delete", "send"],
 
   school: ["create", "update", "delete", "view", "manage"],
   student: ["create", "update", "delete", "view", "enroll"],
@@ -124,6 +126,7 @@ export const owner = ac.newRole({
 
   // Organization permissions (owners can invite)
   organization: ["update", "view", "invite", "remove-member"],
+  invitation: ["create", "view", "delete", "send"],
 
   school: ["update", "view", "manage"],
   student: ["create", "update", "delete", "view", "enroll"],
@@ -158,6 +161,7 @@ export const admin = ac.newRole({
 
   // Organization permissions
   organization: ["view", "invite"],
+  invitation: ["create", "view"],
 
   school: ["view", "update"],
   student: ["create", "update", "delete", "view", "enroll"],

@@ -64,20 +64,16 @@ export default async function GradebookPage({
 
   // Fetch Teacher's Profile (if teacher)
   // If admin, show all subjects for that class
-  let teacherId: string | undefined;
-
-  if (role?.effectiveRole === "teacher") {
-    // We need to find the teacher record associated with this user
-    // Look up teacher by user ID and school subdomain
-    const teacher = await prisma.teacher.findFirst({
-      where: {
-        school: { subdomain: schoolSlug },
-        profile: { userId: session.user.id },
-      },
-      select: { id: true },
-    });
-    teacherId = teacher?.id;
-  }
+  // We need to find the teacher record associated with this user
+  // Look up teacher by user ID and school subdomain
+  const teacher = await prisma.teacher.findFirst({
+    where: {
+      school: { subdomain: schoolSlug },
+      profile: { userId: session.user.id },
+    },
+    select: { id: true },
+  });
+  const teacherId = teacher?.id;
 
   // Fetch Assigned Subjects for this Class (filtered by teacher if applicable)
   const assignedSubjects = await prisma.classSubject.findMany({

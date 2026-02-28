@@ -40,6 +40,8 @@ interface UploadResult {
   studentId: string;
   admissionNumber: string;
   name: string;
+  email?: string;
+  password?: string;
   status: "success" | "error";
   message?: string;
 }
@@ -275,6 +277,7 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
                   <TableHead>Student ID</TableHead>
                   <TableHead>Admission No.</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Credentials</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Message</TableHead>
                 </TableRow>
@@ -293,6 +296,20 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
                       {result.admissionNumber || "-"}
                     </TableCell>
                     <TableCell className="font-medium">{result.name}</TableCell>
+                    <TableCell>
+                      {result.status === "success" && result.password ? (
+                        <div className="flex flex-col space-y-1 text-xs">
+                          <span className="font-mono text-muted-foreground">
+                            {result.email}
+                          </span>
+                          <span className="font-mono font-medium">
+                            {result.password}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {result.status === "success" ? (
                         <Badge

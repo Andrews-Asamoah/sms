@@ -1,4 +1,4 @@
-// app/(school)/[schoolSlug]/parent/loading.tsx
+// app/(school)/[schoolSlug]/guardian/loading.tsx
 import { Loader2 } from "lucide-react";
 
 export default function ParentLoading() {

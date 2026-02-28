@@ -1,25 +1,27 @@
-// app/(school)/[schoolSlug]/parent/profile/page.tsx
+// app/(school)/[schoolSlug]/guardian/profile/page.tsx
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getCurrentUserProfile } from "@/app/actions/profile";
 import { ProfileForm } from "@/components/forms/profile-form";
 
-export default async function ParentProfilePage({
-  params,
-}: {
+interface GuardianProfilePageProps {
   params: Promise<{ schoolSlug: string }>;
-}) {
+}
+
+export default async function GuardianProfilePage({
+  params,
+}: GuardianProfilePageProps) {
   const { schoolSlug } = await params;
   const session = await getSession();
 
   if (!session) {
-    redirect(`/auth/login?callbackUrl=/${schoolSlug}/parent/profile`);
+    redirect(`/auth/login?callbackUrl=/${schoolSlug}/guardian/profile`);
   }
 
   const userData = await getCurrentUserProfile();
 
   if (!userData) {
-    redirect(`/auth/login?callbackUrl=/${schoolSlug}/parent/profile`);
+    redirect(`/auth/login?callbackUrl=/${schoolSlug}/guardian/profile`);
   }
 
   return (

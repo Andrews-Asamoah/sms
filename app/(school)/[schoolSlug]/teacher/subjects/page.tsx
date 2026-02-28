@@ -30,18 +30,14 @@ export default async function TeacherSubjectsPage({
   const role = getSchoolRole(session, schoolSlug);
 
   // 2. Get Teacher ID
-  let teacherId: string | undefined;
-
-  if (role?.effectiveRole === "teacher") {
-    const teacher = await prisma.teacher.findFirst({
-      where: {
-        school: { subdomain: schoolSlug },
-        profile: { userId: session.user.id },
-      },
-      select: { id: true },
-    });
-    teacherId = teacher?.id;
-  }
+  const teacher = await prisma.teacher.findFirst({
+    where: {
+      school: { subdomain: schoolSlug },
+      profile: { userId: session.user.id },
+    },
+    select: { id: true },
+  });
+  const teacherId = teacher?.id;
 
   // 3. Fetch School for ID
   const school = await prisma.school.findUnique({

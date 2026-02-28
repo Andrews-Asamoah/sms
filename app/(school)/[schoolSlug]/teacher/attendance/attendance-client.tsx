@@ -68,6 +68,7 @@ export function AttendanceClient({
   );
   const [date, setDate] = useState<Date>(new Date());
   const [students, setStudents] = useState<AttendanceStudent[]>([]);
+  const [markedDates, setMarkedDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -93,9 +94,28 @@ export function AttendanceClient({
     }
   };
 
+  const fetchMarkedDates = async () => {
+    if (!selectedClass) return;
+    try {
+      const res = await fetch(
+        `/api/schools/${schoolSlug}/attendance/marked-dates?classId=${selectedClass}`,
+      );
+      const data = await res.json();
+      if (data.dates) {
+        setMarkedDates(data.dates);
+      }
+    } catch (error) {
+      console.error("Failed to fetch marked dates:", error);
+    }
+  };
+
   useEffect(() => {
     fetchAttendance();
   }, [selectedClass, date]);
+
+  useEffect(() => {
+    fetchMarkedDates();
+  }, [selectedClass]);
 
   const updateStatus = (
     studentId: string,
@@ -126,6 +146,7 @@ export function AttendanceClient({
 
       if (res.ok) {
         toast.success("Attendance saved successfully");
+        fetchMarkedDates(); // Refresh markers
       } else {
         toast.error("Failed to save attendance");
       }
@@ -190,6 +211,18 @@ export function AttendanceClient({
                   onSelect={(d) => d && setDate(d)}
                   initialFocus
                   disabled={(d) => d > new Date()}
+                  modifiers={{
+                    marked: (d) =>
+                      markedDates.includes(format(d, "yyyy-MM-dd")),
+                  }}
+                  modifiersStyles={{
+                    marked: {
+                      fontWeight: "bold",
+                      backgroundColor: "rgba(34, 197, 94, 0.2)",
+                      color: "rgb(21, 128, 61)",
+                      borderRadius: "4px",
+                    },
+                  }}
                 />
               </PopoverContent>
             </Popover>

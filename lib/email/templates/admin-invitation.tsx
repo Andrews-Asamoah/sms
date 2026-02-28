@@ -52,7 +52,10 @@ export const AdminInvitationEmail = ({
             <Text style={paragraph}>
               <strong>{inviterName}</strong> has invited you to join{" "}
               <strong>{schoolName}</strong>&apos;s School Management System as
-              an <strong>{role}</strong>.
+              {["admin", "accountant"].includes(role.toLowerCase())
+                ? " an "
+                : " a "}
+              <strong>{role}</strong>.
             </Text>
 
             <Text style={paragraph}>

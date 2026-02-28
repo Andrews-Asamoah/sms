@@ -1,6 +1,7 @@
 // app/(system)/layout.tsx - FIXED
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session"; // ✅ Use getSession
+import { getDefaultRoute } from "@/lib/auth/route-resolver";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebarSystem } from "@/components/layout/app-sidebar-system";
 import { SiteHeaderSystem } from "@/components/layout/site-header-system";
@@ -15,8 +16,13 @@ export default async function SystemLayout({
 }) {
   const session = await getSession();
 
-  if (!session?.isSuperAdmin) {
+  if (!session) {
     redirect("/auth/login");
+  }
+
+  if (!session.isSuperAdmin) {
+    const defaultRoute = getDefaultRoute(session);
+    redirect(defaultRoute);
   }
 
   const userData = {

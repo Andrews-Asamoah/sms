@@ -4,7 +4,9 @@ import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { DashboardPageHeader } from "@/components/layout/page-header";
 import { StaffClient } from "./staff-client";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "Staff Directory",
@@ -92,7 +94,14 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
       <DashboardPageHeader
         title="Staff Directory"
         description="A unified directory of all teaching and non-teaching employees."
-      />
+      >
+        <Link href={`/${schoolSlug}/admin/staff/new`}>
+          <Button size="lg">
+            <Plus className="mr-2 h-5 w-5" />
+            New Staff
+          </Button>
+        </Link>
+      </DashboardPageHeader>
       <Suspense
         fallback={
           <div className="flex h-64 items-center justify-center">

@@ -1,4 +1,4 @@
-// app/(school)/[schoolSlug]/parent/communications/page.tsx
+// app/(school)/[schoolSlug]/guardian/communications/page.tsx
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
@@ -11,13 +11,13 @@ import {
 } from "@/components/ui/card";
 import { Bell, MessageSquare, Calendar, AlertCircle } from "lucide-react";
 
-interface CommunicationsPageProps {
+interface GuardianCommunicationsPageProps {
   params: Promise<{ schoolSlug: string }>;
 }
 
-export default async function CommunicationsPage({
+export default async function GuardianCommunicationsPage({
   params,
-}: CommunicationsPageProps) {
+}: GuardianCommunicationsPageProps) {
   const { schoolSlug } = await params;
   const session = await requireSchoolAccess(schoolSlug);
 
@@ -37,7 +37,16 @@ export default async function CommunicationsPage({
       },
     },
     include: {
-      students: true,
+      students: {
+        include: {
+          student: {
+            include: {
+              profile: true,
+              class: true,
+            },
+          },
+        },
+      },
     },
   });
 

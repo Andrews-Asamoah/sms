@@ -1,9 +1,8 @@
-// proxy.ts - Next.js 16 Request Interceptor with Role Detection Support
+// proxy.ts - Next.js 16
 import { type NextRequest, NextResponse } from "next/server";
 
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = [
-  "/",
   "/auth/login",
   "/auth/forgot-password",
   "/auth/reset-password",

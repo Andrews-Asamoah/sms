@@ -81,3 +81,30 @@ export async function getAttendanceForDate(
     return { success: false, error: "Failed to fetch attendance" };
   }
 }
+
+export async function getMarkedDates(schoolSlug: string, classId: string) {
+  try {
+    await requireSchoolAccess(schoolSlug);
+
+    const markedDates = await prisma.attendance.findMany({
+      where: {
+        student: {
+          classId: classId,
+          school: { subdomain: schoolSlug },
+        },
+      },
+      select: {
+        date: true,
+      },
+      distinct: ["date"],
+    });
+
+    return {
+      success: true,
+      data: markedDates.map((d) => d.date),
+    };
+  } catch (error) {
+    console.error("[GET_MARKED_DATES] Error:", error);
+    return { success: false, error: "Failed to fetch marked dates" };
+  }
+}
