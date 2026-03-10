@@ -20,6 +20,8 @@ const componentSchema = z.object({
   weight: z.coerce.number().min(0).max(100, "Weight must be between 0 and 100"),
   displayOrder: z.coerce.number().int().optional(),
   isRequired: z.boolean().default(true),
+  isRepeatable: z.boolean().default(false),
+  expectedCount: z.coerce.number().int().min(1).default(1),
 });
 
 const templateSchema = z.object({
@@ -104,6 +106,8 @@ export async function createAssessmentTemplate(
             weight: comp.weight,
             displayOrder: index + 1,
             isRequired: comp.isRequired,
+            isRepeatable: comp.isRepeatable,
+            expectedCount: comp.expectedCount,
           })),
         },
         classes: {
@@ -243,6 +247,8 @@ export async function updateAssessmentTemplate(
           weight: comp.weight,
           displayOrder: index + 1,
           isRequired: comp.isRequired,
+          isRepeatable: comp.isRepeatable,
+          expectedCount: comp.expectedCount,
         })),
       });
     });

@@ -71,6 +71,8 @@ const componentSchema = z.object({
   weight: z.coerce.number().min(0).max(100, "Weight must be between 0 and 100"),
   displayOrder: z.coerce.number().optional(),
   isRequired: z.boolean().optional(),
+  isRepeatable: z.boolean().default(false),
+  expectedCount: z.coerce.number().min(1).default(1),
 });
 
 const formSchema = z.object({
@@ -136,6 +138,8 @@ export function AssessmentTemplateDialog({
           maxMarks: 100,
           weight: 30,
           isRequired: true,
+          isRepeatable: true,
+          expectedCount: 4,
         },
         {
           name: "Final Exam",
@@ -143,6 +147,8 @@ export function AssessmentTemplateDialog({
           maxMarks: 100,
           weight: 70,
           isRequired: true,
+          isRepeatable: false,
+          expectedCount: 1,
         },
       ],
       deadline: null,
@@ -175,6 +181,8 @@ export function AssessmentTemplateDialog({
           maxMarks: Number(c.maxMarks),
           weight: Number(c.weight), // Ensure number
           isRequired: c.isRequired,
+          isRepeatable: c.isRepeatable ?? false,
+          expectedCount: c.expectedCount ?? 1,
         })),
       });
     } else if (mode === "create") {
@@ -190,6 +198,8 @@ export function AssessmentTemplateDialog({
             maxMarks: 100,
             weight: 30,
             isRequired: true,
+            isRepeatable: true,
+            expectedCount: 4,
           },
           {
             name: "Final Exam",
@@ -197,6 +207,8 @@ export function AssessmentTemplateDialog({
             maxMarks: 100,
             weight: 70,
             isRequired: true,
+            isRepeatable: false,
+            expectedCount: 1,
           },
         ],
       });
@@ -415,9 +427,11 @@ export function AssessmentTemplateDialog({
                 <TableRow>
                   <TableHead className="w-[200px]">Name</TableHead>
                   <TableHead className="w-[180px]">Type</TableHead>
-                  <TableHead className="w-[100px]">Max Marks</TableHead>
-                  <TableHead className="w-[100px]">Weight (%)</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[80px]">Max Marks</TableHead>
+                  <TableHead className="w-[80px]">Weight (%)</TableHead>
+                  <TableHead className="w-[120px]">Repeatable?</TableHead>
+                  <TableHead className="w-[90px]">Occurrences</TableHead>
+                  <TableHead className="w-[40px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -513,6 +527,36 @@ export function AssessmentTemplateDialog({
                       />
                     </TableCell>
                     <TableCell>
+                      <Controller
+                        control={form.control}
+                        name={`components.${index}.isRepeatable`}
+                        render={({ field }) => (
+                          <div className="flex items-center justify-center h-10 w-full">
+                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                          </div>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Controller
+                        control={form.control}
+                        name={`components.${index}.expectedCount`}
+                        render={({ field, fieldState }) => (
+                          <Field>
+                            <FieldGroup>
+                              <Input 
+                                type="number" 
+                                {...field} 
+                                disabled={!form.watch(`components.${index}.isRepeatable`)}
+                                className="bg-muted/50 w-full"
+                              />
+                            </FieldGroup>
+                            {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
+                          </Field>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>
                       <Button
                         type="button"
                         variant="ghost"
@@ -540,6 +584,8 @@ export function AssessmentTemplateDialog({
                   maxMarks: 100,
                   weight: 0,
                   isRequired: true,
+                  isRepeatable: false,
+                  expectedCount: 1,
                 })
               }
             >

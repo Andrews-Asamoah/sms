@@ -10,7 +10,7 @@ interface SaveMarksData {
   studentId: string;
   componentScores: {
     componentId: string;
-    marks: number;
+    marks: number | (number | "")[]; // array for repeatable components
   }[];
 }
 
@@ -49,6 +49,8 @@ interface MarksDataResult {
       maxMarks: number | { toNumber(): number };
       weight: number | { toNumber(): number };
       displayOrder: number;
+      isRepeatable: boolean;
+      expectedCount: number;
     }[];
     gradingSystem: {
       gradeScales: {
@@ -68,6 +70,7 @@ interface MarksDataResult {
     componentScores: {
       componentId: string;
       marksObtained: number | { toNumber(): number };
+      rawScores: any; // Prisma JsonValue maps to any in the frontend types
     }[];
   }[];
   extension: {
@@ -268,6 +271,8 @@ export async function getMarksData(
             maxMarks: Number(c.maxMarks),
             weight: Number(c.weight),
             displayOrder: c.displayOrder,
+            isRepeatable: c.isRepeatable,
+            expectedCount: c.expectedCount,
           })),
           deadline: template.deadline?.toISOString() || null,
           isLocked: template.isLocked,
@@ -289,6 +294,7 @@ export async function getMarksData(
           componentScores: es.componentScores.map((cs) => ({
             componentId: cs.componentId,
             marksObtained: Number(cs.marksObtained),
+            rawScores: cs.rawScores,
           })),
         })),
         extension: extension ? { deadline: extension.deadline.toISOString() } : null,
@@ -393,18 +399,32 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
             (c) => c.id === compScore.componentId,
           );
           if (component) {
-            const marks = Number(compScore.marks);
-            const weight = Number(component.weight);
+            let processedMarks = 0;
             const maxMarks = Number(component.maxMarks);
 
-            // Validation: Marks cannot exceed maxMarks
-            if (marks > maxMarks) {
-              throw new Error(
-                `Marks entered for student ${studentEntry.studentId} exceed max marks for ${component.name}`,
-              );
+            if (Array.isArray(compScore.marks)) {
+              // Averaged occurrences
+              const validScores = compScore.marks.filter(m => typeof m === "number") as number[];
+              if (validScores.length > 0) {
+                // Check if any single score exceeds maxMarks
+                for (const score of validScores) {
+                  if (score > maxMarks) {
+                     throw new Error(`Marks entered for student ${studentEntry.studentId} exceed max marks for ${component.name}`);
+                  }
+                }
+                const sum = validScores.reduce((acc, val) => acc + val, 0);
+                // Compute average over the valid entered subset (or should it divide by expectedCount?) -> typically divided by inputs available
+                processedMarks = sum / validScores.length; 
+              }
+            } else {
+              processedMarks = Number(compScore.marks);
+              if (processedMarks > maxMarks) {
+                 throw new Error(`Marks entered for student ${studentEntry.studentId} exceed max marks for ${component.name}`);
+              }
             }
 
-            const weighted = (marks / maxMarks) * weight;
+            const weight = Number(component.weight);
+            const weighted = (processedMarks / maxMarks) * weight;
             totalWeightedScore += weighted;
             totalMaxWeight += weight;
           }
@@ -470,11 +490,24 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
           );
           if (!component) continue;
 
-          const marks = Number(compScore.marks);
+          let finalMarks = 0;
+          let rawScoresJson: any = undefined;
+
+          if (Array.isArray(compScore.marks)) {
+            const validScores = compScore.marks.filter(m => typeof m === "number") as number[];
+            if (validScores.length > 0) {
+              const sum = validScores.reduce((acc, val) => acc + val, 0);
+              finalMarks = sum / validScores.length;
+            }
+            rawScoresJson = compScore.marks;
+          } else {
+            finalMarks = Number(compScore.marks);
+          }
+
           const weight = Number(component.weight);
           const maxMarks = Number(component.maxMarks);
-          const weighted = (marks / maxMarks) * weight;
-          const percentageComp = (marks / maxMarks) * 100;
+          const weighted = (finalMarks / maxMarks) * weight;
+          const percentageComp = (finalMarks / maxMarks) * 100;
 
           await tx.componentScore.upsert({
             where: {
@@ -486,17 +519,19 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
             create: {
               assessmentScoreId: assessmentScore.id,
               componentId: compScore.componentId,
-              marksObtained: marks,
+              marksObtained: finalMarks,
               maxMarks: maxMarks,
               percentage: percentageComp,
               weightedScore: weighted,
+              rawScores: rawScoresJson,
               recordedById: session.user.id,
             },
             update: {
-              marksObtained: marks,
+              marksObtained: finalMarks,
               maxMarks: maxMarks,
               percentage: percentageComp,
               weightedScore: weighted,
+              rawScores: rawScoresJson,
               recordedById: session.user.id,
               updatedAt: new Date(),
             },

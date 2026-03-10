@@ -147,7 +147,7 @@ export function AnnouncementDialog({
         : `/api/schools/${schoolSlug}/announcements`;
       const method = announcementToEdit ? "PUT" : "POST";
 
-      let finalTarget = data.target;
+      let finalTarget = data.target as string;
       if (data.target === "CLASS" && data.targetId) {
         finalTarget = `CLASS:${data.targetId}`;
       } else if (data.target === "CLUB" && data.targetId) {

@@ -39,6 +39,9 @@ export default async function BroadSheetPage(props: BroadSheetPageProps) {
     where: { id: setId },
     include: {
       class: true,
+      targetClasses: {
+        include: { class: true }
+      },
       reportCards: {
         include: {
           student: {
@@ -54,6 +57,10 @@ export default async function BroadSheetPage(props: BroadSheetPageProps) {
   if (!set) {
     redirect(`/${schoolSlug}/admin/reports/report-cards`);
   }
+
+  const classNameDisplay = set.class 
+    ? set.class.name 
+    : set.targetClasses.map(tc => tc.class.name).join(", ");
 
   return (
     <div className="min-h-screen bg-muted/30 p-6">
@@ -72,7 +79,7 @@ export default async function BroadSheetPage(props: BroadSheetPageProps) {
                 Class Broad Sheet
               </h1>
               <p className="text-muted-foreground mt-1">
-                {set.name} • {set.class.name}
+                {set.name} • {classNameDisplay || "Multiple Classes"}
               </p>
             </div>
           </div>

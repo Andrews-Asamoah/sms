@@ -21,6 +21,13 @@ import { saveMarksEntry } from "@/app/(school)/[schoolSlug]/teacher/classes/[cla
 
 import { MarksEntrySheetProps } from "@/app/(school)/[schoolSlug]/teacher/classes/[classSlug]/gradebook/types";
 
+// Helper to calculate average of valid numbers in an array
+const getAverage = (arr: (number | "")[]) => {
+  const valid = arr.filter((v): v is number => typeof v === "number" && !isNaN(v));
+  if (valid.length === 0) return 0;
+  return valid.reduce((sum, val) => sum + val, 0) / valid.length;
+};
+
 export function MarksEntrySheet({
   students,
   template,
@@ -46,30 +53,43 @@ export function MarksEntrySheet({
   const isGlobalLocked = template.isLocked;
   const isSystemLocked = isPublished || isGlobalLocked || isDeadlinePassed;
 
-  // State to hold marks: Record<studentId, Record<componentId, number | "">>
+  // State to hold marks: Record<studentId, Record<componentId, number | "" | (number | "")[]>>
   const [marksData, setMarksData] = useState<
-    Record<string, Record<string, number | "">>
+    Record<string, Record<string, number | "" | (number | "")[]>>
   >({});
 
   // Initialize state from existing scores
   useEffect(() => {
-    const initialData: Record<string, Record<string, number | "">> = {};
+    const initialData: Record<string, Record<string, number | "" | (number | "")[]>> = {};
 
     students.forEach((student) => {
       initialData[student.id] = {};
 
-      // Initialize with empty strings for all components
+      // Initialize with empty strings or arrays for all components
       template.components.forEach((comp) => {
-        initialData[student.id][comp.id] = "";
+        if (comp.isRepeatable && comp.expectedCount) {
+          initialData[student.id][comp.id] = Array(comp.expectedCount).fill("");
+        } else {
+          initialData[student.id][comp.id] = "";
+        }
       });
 
-      // Fill in existing scores
-      const studentScores = existingScores.find(
-        (s) => s.studentId === student.id,
-      );
+      const studentScores = existingScores.find((s) => s.studentId === student.id);
+
       if (studentScores) {
         studentScores.componentScores.forEach((cs) => {
-          initialData[student.id][cs.componentId] = Number(cs.marksObtained);
+          const comp = template.components.find((c) => c.id === cs.componentId);
+          if (comp?.isRepeatable && cs.rawScores && Array.isArray(cs.rawScores)) {
+            // Fill array based on expected count, padding with "" if needed
+            const expectedCount = comp.expectedCount || 1;
+            const arr = Array(expectedCount).fill("");
+            for (let i = 0; i < Math.min(cs.rawScores.length, expectedCount); i++) {
+              arr[i] = typeof cs.rawScores[i] === "number" ? cs.rawScores[i] : "";
+            }
+            initialData[student.id][cs.componentId] = arr;
+          } else {
+            initialData[student.id][cs.componentId] = Number(cs.marksObtained);
+          }
         });
       }
     });
@@ -77,38 +97,36 @@ export function MarksEntrySheet({
     setMarksData(initialData);
   }, [students, existingScores, template]);
 
-  // Handle Input Change
   const handleMarkChange = (
     studentId: string,
     componentId: string,
     value: string,
+    index?: number,
   ) => {
     if (isSystemLocked) return;
 
-    // Allow empty string or valid number
-    if (value === "") {
-      setMarksData((prev) => ({
-        ...prev,
-        [studentId]: {
-          ...prev[studentId],
-          [componentId]: "",
-        },
-      }));
-      setHasUnsavedChanges(true);
-      return;
-    }
+    setMarksData((prev) => {
+      const studentMarks = { ...prev[studentId] };
+      const valToSave = value === "" ? "" : parseFloat(value);
+      
+      if (typeof index === "number") {
+        // Handle array update for repeatable component
+        const currentArr = Array.isArray(studentMarks[componentId]) 
+          ? [...(studentMarks[componentId] as (number | "")[])]
+          : [];
+        currentArr[index] = Number.isNaN(valToSave) ? "" : valToSave;
+        studentMarks[componentId] = currentArr;
+      } else {
+        // Handle single value update
+        studentMarks[componentId] = Number.isNaN(valToSave) ? "" : valToSave;
+      }
 
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue) && numValue >= 0) {
-      setMarksData((prev) => ({
+      return {
         ...prev,
-        [studentId]: {
-          ...prev[studentId],
-          [componentId]: numValue,
-        },
-      }));
-      setHasUnsavedChanges(true);
-    }
+        [studentId]: studentMarks,
+      };
+    });
+    setHasUnsavedChanges(true);
   };
 
   // Calculate Derived Stats (Total, Grade) for a student
@@ -120,9 +138,21 @@ export function MarksEntrySheet({
 
     template.components.forEach((comp) => {
       const mark = studentMarks[comp.id];
-      if (typeof mark === "number") {
+      let averagedOrSingleMark: number | null = null;
+
+      if (Array.isArray(mark)) {
+        const valid = mark.filter((v): v is number => typeof v === "number");
+        if (valid.length > 0) {
+          hasEntries = true;
+          averagedOrSingleMark = getAverage(mark);
+        }
+      } else if (typeof mark === "number") {
         hasEntries = true;
-        const weighted = (mark / Number(comp.maxMarks)) * Number(comp.weight);
+        averagedOrSingleMark = mark;
+      }
+
+      if (averagedOrSingleMark !== null) {
+        const weighted = (averagedOrSingleMark / Number(comp.maxMarks)) * Number(comp.weight);
         totalWeightedScore += weighted;
       }
       totalMaxWeight += Number(comp.weight);
@@ -174,6 +204,11 @@ export function MarksEntrySheet({
       const studentMarks = marksData[student.id] || {};
       return template.components.some((comp) => {
         const mark = studentMarks[comp.id];
+        
+        if (Array.isArray(mark)) {
+          return mark.some(m => typeof m === "number" && (m > Number(comp.maxMarks) || m < 0));
+        }
+
         return (
           typeof mark === "number" && (mark > Number(comp.maxMarks) || mark < 0)
         );
@@ -198,10 +233,13 @@ export function MarksEntrySheet({
         .map((student) => {
           const studentMarks = marksData[student.id] || {};
           const componentScores = Object.entries(studentMarks)
-            .filter(([_, mark]) => typeof mark === "number")
+            .filter(([_, mark]) => {
+              if (Array.isArray(mark)) return mark.some(m => typeof m === "number");
+              return typeof mark === "number";
+            })
             .map(([componentId, mark]) => ({
               componentId,
-              marks: mark as number,
+              marks: mark as number | (number | "")[],
             }));
 
           return {
@@ -326,14 +364,27 @@ export function MarksEntrySheet({
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead className="w-[250px]">Student</TableHead>
-              {template.components.map((comp) => (
-                <TableHead key={comp.id} className="text-center min-w-[100px]">
-                  <div className="text-sm font-semibold">{comp.name}</div>
-                  <div className="text-[10px] font-normal opacity-70">
-                    Max: {comp.maxMarks} ({comp.weight}%)
-                  </div>
-                </TableHead>
-              ))}
+              {template.components.map((comp) => {
+                if (comp.isRepeatable && comp.expectedCount) {
+                  return Array.from({ length: comp.expectedCount }).map((_, idx) => (
+                    <TableHead key={`${comp.id}-${idx}`} className="text-center min-w-[70px]">
+                      <div className="text-sm font-semibold">{comp.name} {idx + 1}</div>
+                      <div className="text-[10px] font-normal opacity-70">
+                        Max: {comp.maxMarks}
+                      </div>
+                    </TableHead>
+                  ));
+                }
+
+                return (
+                  <TableHead key={comp.id} className="text-center min-w-[100px]">
+                    <div className="text-sm font-semibold">{comp.name}</div>
+                    <div className="text-[10px] font-normal opacity-70">
+                      Max: {comp.maxMarks} ({comp.weight}%)
+                    </div>
+                  </TableHead>
+                );
+              })}
               <TableHead className="text-center w-[100px] font-bold bg-muted/60">Total (%)</TableHead>
               <TableHead className="text-center w-[100px] font-bold bg-muted/60">Grade</TableHead>
             </TableRow>
@@ -364,9 +415,36 @@ export function MarksEntrySheet({
                     </div>
                   </TableCell>
                   {template.components.map((comp) => {
-                    const value = marksData[student.id]?.[comp.id] ?? "";
-                    const isInvalid = typeof value === "number" && (value > Number(comp.maxMarks) || value < 0);
+                    const valueOrArray = marksData[student.id]?.[comp.id] ?? "";
                     const isReadOnly = isSystemLocked || isSubmitted;
+
+                    if (comp.isRepeatable && comp.expectedCount) {
+                      const arr = Array.isArray(valueOrArray) ? valueOrArray : Array(comp.expectedCount).fill("");
+                      
+                      return Array.from({ length: comp.expectedCount }).map((_, idx) => {
+                        const val = arr[idx] ?? "";
+                        const isInvalid = typeof val === "number" && (val > Number(comp.maxMarks) || val < 0);
+                        
+                        return (
+                          <TableCell key={`${comp.id}-${idx}`} className="p-2">
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={Number(comp.maxMarks)}
+                                className={`text-center h-9 text-sm ${isInvalid ? "border-red-500 bg-red-50" : ""} ${isReadOnly ? "bg-muted opacity-80 cursor-not-allowed" : ""}`}
+                                value={val}
+                                disabled={isReadOnly}
+                                onChange={(e) => handleMarkChange(student.id, comp.id, e.target.value, idx)}
+                              />
+                            </div>
+                          </TableCell>
+                        );
+                      });
+                    }
+
+                    const val = typeof valueOrArray === "number" || typeof valueOrArray === "string" ? valueOrArray : "";
+                    const isInvalid = typeof val === "number" && (val > Number(comp.maxMarks) || val < 0);
 
                     return (
                       <TableCell key={comp.id} className="p-2">
@@ -376,7 +454,7 @@ export function MarksEntrySheet({
                             min={0}
                             max={Number(comp.maxMarks)}
                             className={`text-center h-9 text-sm ${isInvalid ? "border-red-500 bg-red-50" : ""} ${isReadOnly ? "bg-muted opacity-80 cursor-not-allowed" : ""}`}
-                            value={value}
+                            value={val}
                             disabled={isReadOnly}
                             onChange={(e) => handleMarkChange(student.id, comp.id, e.target.value)}
                           />

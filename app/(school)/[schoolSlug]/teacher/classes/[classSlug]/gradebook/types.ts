@@ -15,6 +15,8 @@ export interface AssessmentComponent {
   name: string;
   maxMarks: number;
   weight: number;
+  isRepeatable?: boolean;
+  expectedCount?: number;
 }
 
 export interface GradeScale {
@@ -44,6 +46,7 @@ export interface ExistingScore {
   componentScores: {
     componentId: string;
     marksObtained: number;
+    rawScores?: any;
   }[];
 }
 

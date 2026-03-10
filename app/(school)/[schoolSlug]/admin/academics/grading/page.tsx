@@ -34,32 +34,52 @@ export default async function GradingPage(props: GradingPageProps) {
     redirect("/");
   }
 
-  const gradingSystemsRaw = await prisma.gradingSystem.findMany({
-    where: { schoolId: school.id },
-    include: {
-      gradeScales: {
-        orderBy: { displayOrder: "asc" },
-      },
-      _count: {
-        select: {
-          gradeScales: true,
-          assessmentTemplates: true,
+  const [gradingSystemsRaw, systemDefaultsRaw] = await Promise.all([
+    prisma.gradingSystem.findMany({
+      where: { schoolId: school.id },
+      include: {
+        gradeScales: {
+          orderBy: { displayOrder: "asc" },
+        },
+        _count: {
+          select: {
+            gradeScales: true,
+            assessmentTemplates: true,
+          },
         },
       },
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy: { name: "asc" },
+    }),
+    prisma.gradingSystem.findMany({
+      where: { isSystemDefault: true },
+      include: {
+        gradeScales: {
+          orderBy: { displayOrder: "asc" },
+        },
+        _count: {
+          select: {
+            gradeScales: true,
+            assessmentTemplates: true,
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   // Convert Decimal to Number for serialization to Client Component
-  const gradingSystems = gradingSystemsRaw.map((gs) => ({
+  const serializeSystems = (systems: any[]) => systems.map((gs) => ({
     ...gs,
-    gradeScales: gs.gradeScales.map((scale) => ({
+    gradeScales: gs.gradeScales.map((scale: any) => ({
       ...scale,
       minScore: Number(scale.minScore),
       maxScore: Number(scale.maxScore),
       gradePoint: Number(scale.gradePoint),
     })),
   }));
+
+  const gradingSystems = serializeSystems(gradingSystemsRaw);
+  const systemDefaults = serializeSystems(systemDefaultsRaw);
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -77,9 +97,11 @@ export default async function GradingPage(props: GradingPageProps) {
           <GradingSystemDialog schoolSlug={schoolSlug} />
         </div>
 
-        <div className="bg-background rounded-lg border shadow-sm p-4">
-          <GradingSystemsClient data={gradingSystems} schoolSlug={schoolSlug} />
+        <div className="bg-background rounded-lg border shadow-sm p-4 hidden">
+          {/* Legacy single list block removed; Client now handles both */}
         </div>
+
+        <GradingSystemsClient data={gradingSystems} systemDefaults={systemDefaults} schoolSlug={schoolSlug} />
       </div>
     </div>
   );

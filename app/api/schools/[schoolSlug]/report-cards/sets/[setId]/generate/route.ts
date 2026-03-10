@@ -18,21 +18,26 @@ export async function POST(
     const set = await prisma.reportCardSet.findUnique({
       where: { id: setId },
       include: {
+        academicYear: true,
+        term: true,
         class: {
           include: {
             department: true,
-            classTeacher: {
+            classTeacher: { include: { profile: true } },
+            students: { where: { status: "ACTIVE" } },
+          },
+        },
+        targetClasses: {
+          include: {
+            class: {
               include: {
-                profile: true,
+                department: true,
+                classTeacher: { include: { profile: true } },
+                students: { where: { status: "ACTIVE" } },
               },
-            },
-            students: {
-              where: { status: "ACTIVE" },
             },
           },
         },
-        academicYear: true,
-        term: true,
       },
     });
 
@@ -46,9 +51,25 @@ export async function POST(
       data: { status: "GENERATING" },
     });
 
-    // 1. Fetch all students in the class
+    // Determine all target class IDs
+    const classIds = set.classId ? [set.classId] : set.targetClasses.map(tc => tc.classId);
+
+    // Build a map of classes by ID for quick lookup during generation
+    const classMap = new Map<string, any>();
+    if (set.class) {
+      classMap.set(set.class.id, set.class);
+    }
+    set.targetClasses.forEach(tc => {
+      classMap.set(tc.classId, tc.class);
+    });
+
+    if (classIds.length === 0) {
+      return new NextResponse("Report card set has no target classes", { status: 400 });
+    }
+
+    // 1. Fetch all students in the selected classes
     const students = await prisma.student.findMany({
-      where: { classId: set.classId, schoolId: set.schoolId, status: "ACTIVE" },
+      where: { classId: { in: classIds }, schoolId: set.schoolId, status: "ACTIVE" },
       include: {
         profile: {
           include: {
@@ -124,6 +145,7 @@ export async function POST(
 
       return {
         studentId: student.id,
+        classId: student.classId,
         totalMarks,
         averageMarks,
         aggregate,
@@ -159,6 +181,9 @@ export async function POST(
           total: 61,
         };
 
+        const stClassId = res.classId;
+        const studentClass = stClassId ? classMap.get(stClassId) : null;
+
         const reportData = {
           studentName: `${studentInfo?.profile.firstName} ${studentInfo?.profile.lastName}`,
           studentId: studentInfo?.studentId,
@@ -174,12 +199,12 @@ export async function POST(
           schoolGPS: (school?.settings as any)?.gpsAddress || "EN-075-3409",
           schoolPOBox: (school?.settings as any)?.poBox || "KF 222",
 
-          class: set.class.name,
-          classCount: set.class.students.length,
-          classTeacherName: set.class.classTeacher
-            ? `${set.class.classTeacher.profile?.firstName} ${set.class.classTeacher.profile?.lastName}`
+          class: studentClass?.name || "N/A",
+          classCount: studentClass?.students?.length || 0,
+          classTeacherName: studentClass?.classTeacher
+            ? `${studentClass.classTeacher.profile?.firstName} ${studentClass.classTeacher.profile?.lastName}`
             : "N/A",
-          classTeacherContact: set.class.classTeacher?.profile?.phone || "N/A",
+          classTeacherContact: studentClass?.classTeacher?.profile?.phone || "N/A",
           headmasterName:
             (school?.settings as any)?.headmasterName ||
             "AYEH ESSEL EDWINA OHENESI DR",
@@ -191,7 +216,7 @@ export async function POST(
           aggregate: res.aggregate,
           position: (res as any).position,
           positionSuffix: getOrdinalSuffix((res as any).position),
-          department: set.class.department?.name,
+          department: studentClass?.department?.name || "N/A",
           studentImage: studentInfo?.profile.user?.image,
           subjects: res.subjects,
           // Snapshot behavioral data if available

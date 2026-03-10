@@ -904,6 +904,10 @@ model AssessmentComponent {
   weight        Decimal        @db.Decimal(5, 2)
   displayOrder  Int
   isRequired    Boolean        @default(true)
+  // Repeatable components (e.g. Class Tests) allow multiple entries;
+  // the average of all entries is used as the effective score for weighting.
+  isRepeatable  Boolean        @default(false)
+  expectedCount Int            @default(1) // how many occurrences are expected
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -949,10 +953,12 @@ model ComponentScore {
   id                String   @id @default(cuid())
   assessmentScoreId String
   componentId       String
+  occurrenceIndex   Int      @default(0) // 0 = single/first, 1 = second, etc. for repeatable components
   marksObtained     Decimal  @db.Decimal(6, 2)
   maxMarks          Decimal  @db.Decimal(6, 2)
   percentage        Decimal  @db.Decimal(5, 2)
   weightedScore     Decimal  @db.Decimal(6, 2)
+  rawScores         Json?    
   recordedById      String?
   recordedAt        DateTime @default(now())
   createdAt         DateTime @default(now())
