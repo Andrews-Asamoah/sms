@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
+import { getSchoolRole } from "@/lib/auth/school-access";
 import { revalidatePath } from "next/cache";
 import { AttendanceStatus } from "@/lib/generated/prisma/client";
 
@@ -19,6 +20,39 @@ export async function saveAttendanceBatch(
 ) {
   try {
     const session = await requireSchoolAccess(schoolSlug);
+    const role = getSchoolRole(session, schoolSlug);
+
+    const isAdmin = 
+      role?.effectiveRole === "admin" || 
+      role?.effectiveRole === "owner" || 
+      session.isSuperAdmin;
+
+    // Fetch class to check teacher
+    const classData = await prisma.class.findFirst({
+      where: {
+        OR: [{ slug: classSlug }, { id: classSlug }],
+        school: { subdomain: schoolSlug },
+      },
+      select: { id: true, classTeacherId: true, schoolId: true },
+    });
+
+    if (!classData) {
+      return { success: false, error: "Class not found" };
+    }
+
+    if (!isAdmin) {
+      const teacher = await prisma.teacher.findFirst({
+        where: {
+          schoolId: classData.schoolId,
+          profile: { userId: session.user.id }
+        },
+        select: { id: true }
+      });
+
+      if (!teacher || classData.classTeacherId !== teacher.id) {
+        return { success: false, error: "Only the Class Teacher can mark attendance" };
+      }
+    }
 
     // Use a transaction to save all entries
     await prisma.$transaction(async (tx) => {

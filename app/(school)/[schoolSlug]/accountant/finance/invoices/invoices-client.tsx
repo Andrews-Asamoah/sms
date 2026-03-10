@@ -38,7 +38,13 @@ export function InvoicesClient() {
       setLoading(true);
       const res = await fetch(`/api/schools/${schoolSlug}/finance/invoices`);
       const data = await res.json();
-      setInvoices(data || []);
+      const mappedData = (data || []).map((inv: any) => ({
+        ...inv,
+        studentName: inv.student?.profile 
+          ? `${inv.student.profile.firstName} ${inv.student.profile.lastName}`
+          : "Unknown"
+      }));
+      setInvoices(mappedData);
     } catch (error) {
       console.error("Failed to fetch invoices", error);
     } finally {
@@ -59,7 +65,8 @@ export function InvoicesClient() {
       ),
     },
     {
-      accessorKey: "student",
+      id: "studentName",
+      accessorKey: "studentName",
       header: "Student",
       cell: ({ row }) => (
         <div>
@@ -140,8 +147,17 @@ export function InvoicesClient() {
         </Button>
       </DashboardPageHeader>
 
+      <div className="flex items-center gap-2 bg-muted/30 p-2 px-4 rounded-lg w-fit">
+        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+          Viewing: Selected Academic Period
+        </Badge>
+        <span className="text-xs text-muted-foreground italic">
+          Controlled by sidebar switcher
+        </span>
+      </div>
+
       <div className="bg-background rounded-md border shadow-sm p-4">
-        <DataTable columns={columns} data={invoices} searchKey="billNumber" />
+        <DataTable columns={columns} data={invoices} searchKey="studentName" />
       </div>
 
       {isGenerateOpen && (

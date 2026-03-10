@@ -52,12 +52,16 @@ export default async function StudentsPage({ params }: StudentsPageProps) {
   }
 
   // Fetch students
-  const [students, activeCount, graduatedCount, withdrawnCount] =
+  const [rawStudents, activeCount, graduatedCount, withdrawnCount] =
     await Promise.all([
       prisma.student.findMany({
         where: { schoolId: school.id },
         include: {
-          profile: true,
+          profile: {
+            include: {
+              user: true,
+            },
+          },
           class: {
             include: {
               academicYear: true,
@@ -85,6 +89,20 @@ export default async function StudentsPage({ params }: StudentsPageProps) {
       }),
     ]);
 
+  // Serialize students to convert Decimal fields to numbers
+  const students = rawStudents.map((s) => ({
+    ...s,
+    outstandingBalance: Number(s.outstandingBalance),
+    department: s.department
+      ? {
+          ...s.department,
+          promotionPassMark: s.department.promotionPassMark
+            ? Number(s.department.promotionPassMark)
+            : null,
+        }
+      : null,
+  }));
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -98,6 +116,12 @@ export default async function StudentsPage({ params }: StudentsPageProps) {
           </p>
         </div>
         <div className="flex gap-3">
+          <Link href={`/${schoolSlug}/admin/students/credentials`}>
+            <Button variant="outline" size="lg">
+              <UserCheck className="mr-2 h-5 w-5" />
+              Credentials
+            </Button>
+          </Link>
           <Link href={`/${schoolSlug}/admin/students/bulk-upload`}>
             <Button variant="outline" size="lg">
               <Upload className="mr-2 h-5 w-5" />

@@ -42,7 +42,13 @@ export default function PaymentsPage() {
       const res = await fetch(`/api/schools/${schoolSlug}/finance/payments`);
       if (res.ok) {
         const json = await res.json();
-        setData(json || []);
+        const mappedData = (json || []).map((p: any) => ({
+          ...p,
+          studentName: p.student?.profile 
+            ? `${p.student.profile.firstName} ${p.student.profile.lastName}`
+            : "Unknown"
+        }));
+        setData(mappedData);
       }
     } catch (e) {
       console.error(e);
@@ -61,7 +67,8 @@ export default function PaymentsPage() {
       header: "Receipt #",
     },
     {
-      accessorKey: "student",
+      id: "studentName",
+      accessorKey: "studentName",
       header: "Student",
       cell: ({ row }) => {
         const p = row.original.student?.profile;
@@ -114,8 +121,17 @@ export default function PaymentsPage() {
         </Button>
       </DashboardPageHeader>
 
+      <div className="flex items-center gap-2 bg-muted/30 p-2 px-4 rounded-lg w-fit">
+        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+          Viewing: Selected Academic Period
+        </Badge>
+        <span className="text-xs text-muted-foreground italic">
+          Controlled by sidebar switcher
+        </span>
+      </div>
+
       <div className="bg-background rounded-md border shadow-sm p-4">
-        <DataTable columns={columns} data={data} searchKey="paymentNumber" />
+        <DataTable columns={columns} data={data} searchKey="studentName" />
       </div>
 
       {isRecordOpen && (

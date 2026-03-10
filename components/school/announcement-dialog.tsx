@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
@@ -15,13 +15,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -36,7 +34,8 @@ import { Button } from "@/components/ui/button";
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   content: z.string().min(1, "Content is required"),
-  target: z.enum(["ALL", "TEACHER", "STUDENT", "STAFF"]),
+  target: z.enum(["ALL", "TEACHER", "STUDENT", "STAFF", "CLASS", "CLUB"]),
+  targetId: z.string().optional().nullable(),
   expiresAt: z.string().optional().nullable(),
 });
 
@@ -50,7 +49,7 @@ interface AnnouncementDialogProps {
     id: string;
     title: string;
     content: string;
-    target: "ALL" | "TEACHER" | "STUDENT" | "STAFF";
+    target: string;
     expiresAt?: string | null;
   } | null;
   onSuccess: () => void;
@@ -64,28 +63,63 @@ export function AnnouncementDialog({
   onSuccess,
 }: AnnouncementDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
+  const [clubs, setClubs] = useState<{ id: string; name: string }[]>([]);
 
-  const form = useForm<FormValues>({
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
       content: "",
       target: "ALL",
+      targetId: "",
       expiresAt: "",
     },
   });
 
+  const target = watch("target");
+  const targetId = watch("targetId");
+  const expiresAt = watch("expiresAt");
+
   useEffect(() => {
     if (open) {
+      // Fetch teacher's classes and clubs
+      fetch(`/api/schools/${schoolSlug}/teacher/classes`)
+        .then(res => res.json())
+        .then(data => setClasses(data))
+        .catch(console.error);
+        
+      fetch(`/api/schools/${schoolSlug}/teacher/clubs`)
+        .then(res => res.json())
+        .then(data => setClubs(data))
+        .catch(console.error);
+
       if (announcementToEdit) {
-        form.reset({
+        let initialTarget = "ALL";
+        let initialTargetId = "";
+
+        if (announcementToEdit.target.startsWith("CLASS:")) {
+          initialTarget = "CLASS";
+          initialTargetId = announcementToEdit.target.split(":")[1];
+        } else if (announcementToEdit.target.startsWith("CLUB:")) {
+          initialTarget = "CLUB";
+          initialTargetId = announcementToEdit.target.split(":")[1];
+        } else {
+          initialTarget = announcementToEdit.target;
+        }
+
+        reset({
           title: announcementToEdit.title,
           content: announcementToEdit.content,
-          target: announcementToEdit.target as
-            | "ALL"
-            | "TEACHER"
-            | "STUDENT"
-            | "STAFF",
+          target: initialTarget as any,
+          targetId: initialTargetId,
           expiresAt: announcementToEdit.expiresAt
             ? format(
                 new Date(announcementToEdit.expiresAt),
@@ -94,17 +128,18 @@ export function AnnouncementDialog({
             : "",
         });
       } else {
-        form.reset({
+        reset({
           title: "",
           content: "",
           target: "ALL",
+          targetId: "",
           expiresAt: "",
         });
       }
     }
-  }, [open, announcementToEdit, form]);
+  }, [open, announcementToEdit, reset, schoolSlug]);
 
-  const onSubmit = async (data: FormValues) => {
+  const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsSubmitting(true);
     try {
       const url = announcementToEdit
@@ -112,11 +147,19 @@ export function AnnouncementDialog({
         : `/api/schools/${schoolSlug}/announcements`;
       const method = announcementToEdit ? "PUT" : "POST";
 
+      let finalTarget = data.target;
+      if (data.target === "CLASS" && data.targetId) {
+        finalTarget = `CLASS:${data.targetId}`;
+      } else if (data.target === "CLUB" && data.targetId) {
+        finalTarget = `CLUB:${data.targetId}`;
+      }
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
+          target: finalTarget,
           expiresAt: data.expiresAt || null,
         }),
       });
@@ -154,108 +197,127 @@ export function AnnouncementDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Title</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter announcement title" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <FieldGroup>
+            <Field data-invalid={!!errors.title}>
+              <FieldLabel htmlFor="ann-title">Title</FieldLabel>
+              <Input id="ann-title" placeholder="Enter announcement title" {...register("title")} />
+              <FieldError errors={[errors.title]} />
+            </Field>
 
-            <FormField
-              control={form.control}
-              name="content"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Content</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Enter announcement details..."
-                      rows={4}
-                      className="resize-none"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <Field data-invalid={!!errors.content}>
+              <FieldLabel htmlFor="ann-content">Content</FieldLabel>
+              <Textarea
+                id="ann-content"
+                placeholder="Enter announcement details..."
+                rows={4}
+                className="resize-none"
+                {...register("content")}
+              />
+              <FieldError errors={[errors.content]} />
+            </Field>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="target"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Target Audience</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select target" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="ALL">Everyone</SelectItem>
-                        <SelectItem value="TEACHER">Teachers Only</SelectItem>
-                        <SelectItem value="STUDENT">
-                          Students & Parents
-                        </SelectItem>
-                        <SelectItem value="STAFF">Staff Only</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <Field data-invalid={!!errors.target}>
+                <FieldLabel htmlFor="ann-target">Target Audience</FieldLabel>
+                <Select
+                  onValueChange={(val) => {
+                    setValue("target", val as any);
+                    setValue("targetId", ""); // Reset targetId when target changes
+                  }}
+                  value={target}
+                >
+                  <SelectTrigger id="ann-target">
+                    <SelectValue placeholder="Select target" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Everyone</SelectItem>
+                    <SelectItem value="TEACHER">Teachers Only</SelectItem>
+                    <SelectItem value="STUDENT">
+                      Students & Parents
+                    </SelectItem>
+                    <SelectItem value="STAFF">Staff Only</SelectItem>
+                    <SelectItem value="CLASS">Specific Class</SelectItem>
+                    <SelectItem value="CLUB">Specific Club</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldError errors={[errors.target]} />
+              </Field>
 
-              <FormField
-                control={form.control}
-                name="expiresAt"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Expires At (Optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="datetime-local"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <Field data-invalid={!!errors.expiresAt}>
+                <FieldLabel htmlFor="ann-expires">Expires At (Optional)</FieldLabel>
+                <Input
+                  id="ann-expires"
+                  type="datetime-local"
+                  {...register("expiresAt")}
+                  value={expiresAt || ""}
+                />
+                <FieldError errors={[errors.expiresAt]} />
+              </Field>
             </div>
 
-            <div className="flex justify-end pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                className="mr-2"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {announcementToEdit ? "Update" : "Publish"}
-              </Button>
-            </div>
-          </form>
-        </Form>
+            {target === "CLASS" && (
+              <Field data-invalid={!!errors.targetId}>
+                <FieldLabel htmlFor="ann-class">Select Class</FieldLabel>
+                <Select
+                  onValueChange={(val) => setValue("targetId", val)}
+                  value={targetId || ""}
+                >
+                  <SelectTrigger id="ann-class">
+                    <SelectValue placeholder="Choose a class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError errors={[errors.targetId]} />
+              </Field>
+            )}
+
+            {target === "CLUB" && (
+              <Field data-invalid={!!errors.targetId}>
+                <FieldLabel htmlFor="ann-club">Select Club</FieldLabel>
+                <Select
+                  onValueChange={(val) => setValue("targetId", val)}
+                  value={targetId || ""}
+                >
+                  <SelectTrigger id="ann-club">
+                    <SelectValue placeholder="Choose a club" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clubs.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError errors={[errors.targetId]} />
+              </Field>
+            )}
+          </FieldGroup>
+
+          <div className="flex justify-end pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="mr-2"
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {announcementToEdit ? "Update" : "Publish"}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

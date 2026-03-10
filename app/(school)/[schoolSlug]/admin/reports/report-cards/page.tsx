@@ -45,6 +45,7 @@ export default async function ReportCardsPage(props: ReportCardsPageProps) {
           academicYear: { select: { name: true } },
           term: { select: { name: true } },
           class: { select: { name: true } },
+          targetClasses: { include: { class: { select: { name: true } } } },
           _count: { select: { reportCards: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -60,7 +61,11 @@ export default async function ReportCardsPage(props: ReportCardsPageProps) {
       }),
       prisma.class.findMany({
         where: { schoolId: school.id, isActive: true },
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          department: { select: { id: true, name: true } },
+        },
         orderBy: { name: "asc" },
       }),
       prisma.reportCardTemplate.findMany({

@@ -4,7 +4,8 @@ import { TeacherStudentsTable } from "@/components/school/teacher/students-table
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
 
 interface StudentsPageProps {
   params: Promise<{
@@ -18,6 +19,15 @@ export default async function StudentsPage({ params }: StudentsPageProps) {
 
   // 1. Auth check
   const session = await requireSchoolAccess(schoolSlug);
+  const activeRole = await getActiveSchoolRole(session, schoolSlug);
+  const effectiveRole = activeRole?.effectiveRole || "teacher";
+
+  if (
+    !["teacher", "admin", "owner", "headteacher"].includes(effectiveRole) &&
+    !session.isSuperAdmin
+  ) {
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
+  }
 
   // 2. Fetch Class Details
   const classData = await prisma.class.findFirst({
@@ -29,11 +39,33 @@ export default async function StudentsPage({ params }: StudentsPageProps) {
       id: true,
       name: true,
       level: true,
+      classTeacherId: true,
+      schoolId: true,
     },
   });
 
   if (!classData) {
     notFound();
+  }
+
+  // 2b. Access check (Class Teacher OR Admin)
+  const teacher = await prisma.teacher.findFirst({
+    where: {
+      schoolId: classData.schoolId,
+      profile: { userId: session.user.id }
+    },
+    select: { id: true }
+  });
+
+  const isClassTeacher = teacher && classData.classTeacherId === teacher.id;
+  const isAdmin = 
+    effectiveRole === "admin" || 
+    effectiveRole === "owner" || 
+    effectiveRole === "headteacher" ||
+    session.isSuperAdmin;
+
+  if (!isAdmin && !isClassTeacher) {
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
   }
 
   // 3. Fetch Students in this class

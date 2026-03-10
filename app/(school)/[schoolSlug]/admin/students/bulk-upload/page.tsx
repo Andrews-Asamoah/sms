@@ -110,12 +110,13 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
         <AlertDescription className="text-blue-800">
           <div className="space-y-1 mt-2">
             <p>
-              <strong>Student IDs:</strong> Will be auto-generated as STU00001,
-              STU00002, etc.
+              <strong>Student IDs:</strong> Will be auto-generated as <strong>STU-YYYY-NNNN</strong> (e.g., STU-2025-0001).
             </p>
             <p>
-              <strong>Admission Numbers:</strong> Will be auto-generated as{" "}
-              {school.code}0001, {school.code}0002, etc.
+              <strong>Admission Numbers:</strong> Will be auto-generated as <strong>{schoolSlug.toUpperCase()}-YY-NNNN</strong> (e.g., {schoolSlug.toUpperCase()}-25-0001).
+            </p>
+            <p className="text-sm font-medium text-blue-900 mt-2 bg-blue-100/50 p-2 rounded border border-blue-200">
+              Note: The year (YYYY/YY) is automatically derived from the student&apos;s <strong>Admission Date</strong>.
             </p>
             <p className="text-sm mt-2">
               Do NOT include these columns in your Excel file - they will be
@@ -210,12 +211,10 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
               <h4 className="font-semibold mb-2">Auto-Generated Fields</h4>
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>
-                  Student ID - Automatically generated (STU00001, STU00002,
-                  etc.)
+                  Student ID - Automatically generated (e.g., STU-2025-0001). Year is derived from Admission Date.
                 </li>
                 <li>
-                  Admission Number - Automatically generated ({school.code}0001,{" "}
-                  {school.code}0002, etc.)
+                  Admission Number - Automatically generated (e.g., WIS-25-0001). Year is derived from Admission Date.
                 </li>
               </ul>
             </div>

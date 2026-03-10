@@ -26,11 +26,35 @@ export async function GET(
   const status = searchParams.get("status");
   const classId = searchParams.get("classId");
   const studentId = searchParams.get("studentId");
+  const queryYearId = searchParams.get("academicYearId");
+  const queryTermId = searchParams.get("termId");
+
+  // Read Working Context from cookies
+  const cookieStore = await import("next/headers").then(mod => mod.cookies());
+  const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
+  const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
+
+  const schoolWithSettings = await prisma.school.findUnique({
+    where: { id: school.id },
+    select: { settings: true },
+  });
+  const settings = (schoolWithSettings?.settings as any) || {};
+
+  const effectiveYearId = queryYearId === "all" ? undefined : (queryYearId || workingYearId || settings.currentAcademicYearId);
+  const effectiveTermId = queryTermId === "all" ? undefined : (queryTermId || workingTermId || settings.currentTermId);
 
   const whereClause: any = { schoolId: school.id };
-  if (status) whereClause.status = status;
+  if (status) {
+    if (status.includes(",")) {
+      whereClause.status = { in: status.split(",") };
+    } else {
+      whereClause.status = status;
+    }
+  }
   if (classId) whereClause.student = { classId };
   if (studentId) whereClause.studentId = studentId;
+  if (effectiveYearId) whereClause.academicYearId = effectiveYearId;
+  if (effectiveTermId) whereClause.termId = effectiveTermId;
 
   try {
     const bills = await prisma.bill.findMany({
@@ -40,6 +64,7 @@ export async function GET(
           select: { profile: true, class: { select: { name: true } } },
         },
         feeStructure: { select: { name: true } },
+        items: true,
       },
       orderBy: { createdAt: "desc" },
     });

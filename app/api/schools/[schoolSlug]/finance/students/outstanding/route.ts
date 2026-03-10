@@ -21,14 +21,43 @@ export async function GET(
   if (!school)
     return NextResponse.json({ error: "School not found" }, { status: 404 });
 
-  // Find students with outstanding bills
-  // OR just check the student.outstandingBalance field if we maintain it securely.
-  // The schema has `outstandingBalance` on Student model.
+  const { searchParams } = new URL(request.url);
+  const classId = searchParams.get("classId");
+  const searchQuery = searchParams.get("q");
 
-  const students = await prisma.student.findMany({
+  // Read Working Context from cookies
+  const cookieStore = await import("next/headers").then(mod => mod.cookies());
+  const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
+  const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
+
+  const schoolWithSettings = await prisma.school.findUnique({
+    where: { id: school.id },
+    select: { settings: true },
+  });
+  const settings = (schoolWithSettings?.settings as any) || {};
+
+  const effectiveYearId = workingYearId || settings.currentAcademicYearId;
+  const effectiveTermId = workingTermId || settings.currentTermId;
+
+  // Find students who have unpaid bills in the target period
+  const studentsWithBills = await prisma.student.findMany({
     where: {
       schoolId: school.id,
-      outstandingBalance: { gt: 0 },
+      ...(classId && { classId }),
+      ...(searchQuery && {
+        OR: [
+          { profile: { firstName: { contains: searchQuery, mode: "insensitive" } } },
+          { profile: { lastName: { contains: searchQuery, mode: "insensitive" } } },
+          { studentId: { contains: searchQuery, mode: "insensitive" } },
+        ],
+      }),
+      bills: {
+        some: {
+          academicYearId: effectiveYearId,
+          ...(effectiveTermId && { termId: effectiveTermId }),
+          status: { not: "PAID" },
+        }
+      }
     },
     include: {
       profile: {
@@ -37,9 +66,29 @@ export async function GET(
       class: {
         select: { name: true },
       },
-    },
-    orderBy: { outstandingBalance: "desc" },
+      bills: {
+        where: {
+          academicYearId: effectiveYearId,
+          ...(effectiveTermId && { termId: effectiveTermId }),
+          status: { not: "PAID" },
+        },
+        select: {
+          balanceAmount: true,
+        }
+      }
+    }
   });
 
-  return NextResponse.json(students);
+  // Calculate the period-specific outstanding balance for each student
+  const debtors = studentsWithBills.map(student => {
+    const periodBalance = student.bills.reduce((sum, bill) => sum + Number(bill.balanceAmount), 0);
+    return {
+      ...student,
+      outstandingBalance: periodBalance,
+      bills: undefined, // cleanup
+    };
+  }).filter(s => s.outstandingBalance > 0)
+    .sort((a, b) => b.outstandingBalance - a.outstandingBalance);
+
+  return NextResponse.json(debtors);
 }

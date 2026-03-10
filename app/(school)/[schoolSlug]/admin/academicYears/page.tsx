@@ -20,6 +20,7 @@ import { SetGlobalYearTermButton } from "@/components/school/academic-years/set-
 import { DeleteAcademicYearButton } from "@/components/school/academic-years/delete-academic-year-button";
 import { TermDialog } from "@/components/school/academic-years/term-dialog";
 import { DeleteTermButton } from "@/components/school/academic-years/delete-term-button";
+import { TermTransitionCard } from "@/components/school/academic-years/term-transition-card";
 
 interface AcademicYearsPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -95,6 +96,8 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
     role?.effectiveRole === "admin" ||
     role?.effectiveRole === "owner" ||
     session.isSuperAdmin;
+
+  const now = new Date();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-muted/50">
@@ -187,7 +190,11 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
           </Card>
         )}
 
-        {/* Stats Cards */}
+        {/* Term Transition Card */}
+        {canManageGlobal && (
+          <TermTransitionCard />
+        )}
+
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="border-0 bg-card/60 backdrop-blur-xl shadow-xl">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -278,11 +285,32 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                           <CardTitle className="text-2xl">
                             {year.name}
                           </CardTitle>
-                          {isGlobal && (
+                        {isGlobal && (
                             <Badge className="bg-primary/20 text-primary border-primary/30">
                               Global Default
                             </Badge>
                           )}
+                          {(() => {
+                            const startDate = new Date(year.startDate);
+                            const endDate = new Date(year.endDate);
+                            const isUpcoming = startDate > now;
+                            const isExpired = endDate < now;
+                            const isActive = startDate <= now && endDate >= now;
+
+                            if (isGlobal) {
+                              return <Badge variant="default">Current</Badge>;
+                            }
+
+                            if (isUpcoming) {
+                              return <Badge variant="secondary">Upcoming</Badge>;
+                            }
+
+                            if (isActive) {
+                              return <Badge variant="outline" className="border-emerald-500 text-emerald-500">Active</Badge>;
+                            }
+
+                            return <Badge variant="outline">Past</Badge>;
+                          })()}
                         </div>
                         <CardDescription>
                           {new Date(year.startDate).toLocaleDateString(

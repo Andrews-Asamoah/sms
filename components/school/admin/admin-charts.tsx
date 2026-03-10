@@ -98,11 +98,11 @@ interface FinancialChartProps {
 export function FinancialSummaryChart({ data, currency }: FinancialChartProps) {
   const chartConfig = {
     revenue: {
-      label: "Collected",
+      label: "Revenue",
       color: "hsl(var(--primary))",
     },
-    outstanding: {
-      label: "Outstanding",
+    expenses: {
+      label: "Expenses",
       color: "hsl(var(--destructive))",
     },
   } satisfies ChartConfig;

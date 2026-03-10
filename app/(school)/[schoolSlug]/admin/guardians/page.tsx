@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { DashboardPageHeader } from "@/components/layout/page-header";
-import { ParentsClient } from "./parents-client";
+import { ParentsTable } from "@/components/school/parents-table";
 import { Loader2, Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -81,7 +81,7 @@ export default async function AdminParentsPage({ params }: ParentsPageProps) {
         title="Parents & Guardians"
         description="A complete directory of all parents, showing their contact information and linked students."
       >
-        <Link href={`/${schoolSlug}/admin/parents/new`}>
+        <Link href={`/${schoolSlug}/admin/guardians/new`}>
           <Button size="lg">
             <Plus className="mr-2 h-5 w-5" />
             New Parent
@@ -95,7 +95,7 @@ export default async function AdminParentsPage({ params }: ParentsPageProps) {
           </div>
         }
       >
-        <ParentsClient
+        <ParentsTable
           initialData={normalizedGuardians}
           schoolSlug={schoolSlug}
         />

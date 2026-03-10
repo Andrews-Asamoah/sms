@@ -1,7 +1,18 @@
 import React from "react";
+import { TimetableClient } from "./timetable-client";
+import { requireSchoolAccess } from "@/lib/auth/guards";
 
-const page = () => {
-  return <div>Timetable</div>;
-};
+export default async function TimetablePage({
+  params,
+}: {
+  params: Promise<{ schoolSlug: string }>;
+}) {
+  const { schoolSlug } = await params;
+  await requireSchoolAccess(schoolSlug);
 
-export default page;
+  return (
+    <div className="p-6">
+      <TimetableClient />
+    </div>
+  );
+}

@@ -92,6 +92,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const stringFields = [
       "name",
       "code",
+      "subdomain",
       "currency",
       "timezone",
       "locale",
@@ -141,7 +142,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     // Check if organization needs updating
     const needsOrgUpdate =
       (body.name && body.name !== existingSchool.name) ||
-      (body.logo !== undefined && body.logo !== existingSchool.logo);
+      (body.logo !== undefined && body.logo !== existingSchool.logo) ||
+      (body.subdomain && body.subdomain !== existingSchool.subdomain);
 
     // Update organization if needed
     if (needsOrgUpdate) {
@@ -152,6 +154,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
       if (body.logo !== undefined && body.logo !== existingSchool.logo) {
         orgData.logo = body.logo || undefined;
+      }
+      if (body.subdomain && body.subdomain !== existingSchool.subdomain) {
+        orgData.slug = body.subdomain;
       }
 
       console.log("Updating organization with:", orgData);

@@ -41,7 +41,7 @@ export default async function NewSchoolPage() {
       </div>
 
       {/* Info Alert */}
-      <div className="max-w-4xl mb-6">
+      <div className="w-full mb-6">
         <Alert>
           <Info className="h-4 w-4" />
           <AlertTitle>What happens when you create a school?</AlertTitle>
@@ -69,7 +69,7 @@ export default async function NewSchoolPage() {
       </div>
 
       {/* Form Card */}
-      <div className="max-w-4xl">
+      <div className="w-full">
         <Card>
           <CardHeader>
             <CardTitle>School Information</CardTitle>
@@ -85,7 +85,7 @@ export default async function NewSchoolPage() {
       </div>
 
       {/* Additional Info */}
-      <div className="max-w-4xl mt-6">
+      <div className="w-full mt-6">
         <Card className="bg-muted/50">
           <CardHeader>
             <CardTitle className="text-base">Next Steps</CardTitle>

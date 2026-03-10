@@ -9,7 +9,6 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     include: {
       _count: {
         select: {
-          students: { where: { status: "ACTIVE" } },
           teachers: { where: { isActive: true } },
           staff: { where: { isActive: true } },
           classes: { where: { isActive: true } },
@@ -20,25 +19,53 @@ export async function getAdminDashboardStats(schoolSlug: string) {
 
   if (!school) throw new Error("School not found");
 
-  // Fetch Financial Totals
+  const { currentAcademicYearId, currentTermId } = (school.settings as any) || {};
+
+  // Get active student count based on enrollments in current term/year
+  const activeStudentCount = await prisma.student.count({
+    where: {
+      schoolId: school.id,
+      status: "ACTIVE",
+      enrollments: {
+        some: {
+          academicYearId: currentAcademicYearId || undefined,
+          termId: currentTermId || undefined,
+          status: "ACTIVE"
+        }
+      }
+    }
+  });
+
+  // Fetch Financial Totals (Revenue vs Expenses)
   const bills = await prisma.bill.findMany({
-    where: { schoolId: school.id },
+    where: {
+      schoolId: school.id,
+      academicYearId: currentAcademicYearId || undefined,
+      termId: currentTermId || undefined,
+    },
     select: {
-      totalAmount: true,
       paidAmount: true,
-      balanceAmount: true,
+    },
+  });
+
+  const expenses = await prisma.expense.findMany({
+    where: {
+      schoolId: school.id,
+      academicYearId: currentAcademicYearId || undefined,
+      termId: currentTermId || undefined,
+    },
+    select: {
+      amount: true,
     },
   });
 
   const totalRevenue = bills.reduce((sum, b) => sum + Number(b.paidAmount), 0);
-  const totalOutstanding = bills.reduce(
-    (sum, b) => sum + Number(b.balanceAmount),
+  const totalExpenses = expenses.reduce(
+    (sum, e) => sum + Number(e.amount),
     0,
   );
 
-  // Fetch Enrollment Data for Charts (Last 6 Months)
-  const sixMonthsAgo = startOfMonth(subMonths(new Date(), 5));
-
+  // Fetch Enrollment Data for Charts (Last 6 Months) - NEW students per month
   const enrollmentTrends = await Promise.all(
     Array.from({ length: 6 }).map(async (_, i) => {
       const monthDate = subMonths(new Date(), 5 - i);
@@ -49,9 +76,9 @@ export async function getAdminDashboardStats(schoolSlug: string) {
         where: {
           schoolId: school.id,
           admissionDate: {
+            gte: start,
             lte: end,
           },
-          status: "ACTIVE",
         },
       });
 
@@ -62,13 +89,13 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     }),
   );
 
-  // Financial Chart Data (Revenue vs Outstanding)
+  // Financial Chart Data (Revenue vs Expenses)
   const financialData = [
-    { name: "Collected", value: totalRevenue, fill: "var(--color-revenue)" },
+    { name: "Revenue", value: totalRevenue, fill: "var(--color-revenue)" },
     {
-      name: "Outstanding",
-      value: totalOutstanding,
-      fill: "var(--color-outstanding)",
+      name: "Expenses",
+      value: totalExpenses,
+      fill: "var(--color-expenses)",
     },
   ];
 
@@ -79,6 +106,12 @@ export async function getAdminDashboardStats(schoolSlug: string) {
         schoolId: school.id,
         status: "ACTIVE",
         profile: { gender: "MALE" },
+        enrollments: {
+          some: {
+            academicYearId: currentAcademicYearId || undefined,
+            status: "ACTIVE",
+          },
+        },
       },
     }),
     prisma.student.count({
@@ -86,6 +119,12 @@ export async function getAdminDashboardStats(schoolSlug: string) {
         schoolId: school.id,
         status: "ACTIVE",
         profile: { gender: "FEMALE" },
+        enrollments: {
+          some: {
+            academicYearId: currentAcademicYearId || undefined,
+            status: "ACTIVE",
+          },
+        },
       },
     }),
   ]).then(([male, female]) => [
@@ -108,14 +147,14 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     schoolName: school.name,
     currency: school.currency,
     counts: {
-      students: school._count.students,
+      students: activeStudentCount,
       teachers: school._count.teachers,
       staff: school._count.staff,
       classes: school._count.classes,
     },
     financials: {
       totalRevenue,
-      totalOutstanding,
+      totalExpenses,
       chartData: financialData,
     },
     enrollmentTrends,

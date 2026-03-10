@@ -7,21 +7,18 @@ import {
   Shield,
   Database,
   CreditCard,
-  BarChart3,
-  FileText,
   HelpCircle,
   GraduationCap,
-  UserCircle, // Add this
+  UserCircle,
+  UserPlus,
+  TicketIcon,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 
 export const systemNavSections: NavSection[] = [
   {
     title: "Overview",
-    items: [
-      { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      { title: "Analytics", url: "/analytics", icon: BarChart3 },
-    ],
+    items: [{ title: "Dashboard", url: "/", icon: LayoutDashboard }],
   },
   {
     title: "School Management",
@@ -38,20 +35,6 @@ export const systemNavSections: NavSection[] = [
           { title: "Archived", url: "/schools/directory/archived" },
         ],
       },
-      {
-        title: "Onboarding",
-        url: "/schools/onboarding",
-        icon: Building2,
-        items: [
-          {
-            title: "New Applications",
-            url: "/schools/onboarding/applications",
-            badge: "5",
-          },
-          { title: "Setup Wizard", url: "/schools/onboarding/setup" },
-          { title: "Configuration", url: "/schools/onboarding/config" },
-        ],
-      },
     ],
   },
   {
@@ -61,22 +44,20 @@ export const systemNavSections: NavSection[] = [
         title: "System Users",
         url: "/users",
         icon: Users,
-        items: [
-          { title: "All Users", url: "/users" },
-          { title: "Super Admins", url: "/users/super-admins" },
-          { title: "School Admins", url: "/users/school-admins" },
-          { title: "Support Staff", url: "/users/support" },
-        ],
       },
       {
         title: "Access Control",
         url: "/users/access",
         icon: Shield,
         items: [
+          { title: "Overview", url: "/users/access" },
           { title: "Roles & Permissions", url: "/users/access/roles" },
-          { title: "Security Policies", url: "/users/access/policies" },
-          { title: "API Access", url: "/users/access/api" },
         ],
+      },
+      {
+        title: "Add Team Member",
+        url: "/team/new",
+        icon: UserPlus,
       },
     ],
   },
@@ -88,23 +69,8 @@ export const systemNavSections: NavSection[] = [
         url: "/subscriptions",
         icon: CreditCard,
         items: [
-          { title: "All Subscriptions", url: "/subscriptions" },
-          { title: "Active Plans", url: "/subscriptions?status=active" },
-          {
-            title: "Trials",
-            url: "/subscriptions?status=trialing",
-            badge: "8",
-          },
-          { title: "Expired", url: "/subscriptions?status=expired" },
-        ],
-      },
-      {
-        title: "Plans & Pricing",
-        url: "/settings/billing/plans",
-        icon: FileText,
-        items: [
-          { title: "Plan Templates", url: "/settings/billing/plans" },
-          { title: "Pricing Rules", url: "/settings/billing/pricing" },
+          { title: "Active Plans", url: "/subscriptions" },
+          { title: "Plans & Pricing", url: "/settings/billing/plans" },
         ],
       },
     ],
@@ -113,25 +79,14 @@ export const systemNavSections: NavSection[] = [
     title: "System Configuration",
     items: [
       {
-        title: "Grading Systems",
+        title: "Global Grading",
         url: "/config/grading",
         icon: GraduationCap,
-        items: [
-          { title: "All Systems", url: "/config/grading" },
-          { title: "Templates", url: "/config/grading/templates" },
-          { title: "Custom Scales", url: "/config/grading/scales" },
-        ],
       },
       {
-        title: "Database",
+        title: "Database Admin",
         url: "/system/database",
         icon: Database,
-        items: [
-          { title: "Health Check", url: "/system/database/health" },
-          { title: "Backups", url: "/system/database/backups" },
-          { title: "Migrations", url: "/system/database/migrations" },
-          { title: "Performance", url: "/system/database/performance" },
-        ],
       },
     ],
   },
@@ -152,13 +107,12 @@ export const systemNavSections: NavSection[] = [
         title: "System Settings",
         url: "/settings",
         icon: Settings,
-        items: [
-          { title: "General", url: "/settings/general" },
-          { title: "Email & Notifications", url: "/settings/email" },
-          { title: "Security", url: "/settings/security" },
-        ],
       },
-      { title: "Help & Support", url: "/support", icon: HelpCircle },
+      {
+        title: "Support Tickets",
+        url: "/support",
+        icon: TicketIcon,
+      },
     ],
   },
 ];

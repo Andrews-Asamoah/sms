@@ -201,12 +201,7 @@ export function getSchoolRole(
   session: ExtendedSession,
   subdomain: string,
 ): SchoolAccess | null {
-  console.log(`[School Access] 🔍 Checking access for: ${subdomain}`);
-  console.log(`[School Access] User: ${session.user.email}`);
-  console.log(`[School Access] Is Super Admin: ${session.isSuperAdmin}`);
-
   if (session.isSuperAdmin) {
-    console.log("[School Access] ✅ Super Admin - granting implicit access");
     return {
       schoolId: "system",
       schoolName: "System",
@@ -220,35 +215,7 @@ export function getSchoolRole(
   }
 
   const access = getUserSchoolAccess(session);
-  console.log(
-    `[School Access] 📋 User has access to ${access.length} schools:`,
-  );
-
-  access.forEach((a, index) => {
-    console.log(
-      `[School Access]   ${index + 1}. ${a.schoolName} (${a.subdomain})`,
-    );
-    console.log(`[School Access]      Role: ${a.effectiveRole}`);
-    console.log(
-      `[School Access]      Org Role: ${a.organizationRole || "none"}`,
-    );
-    console.log(
-      `[School Access]      Profile Roles: ${a.profileRoles.join(", ") || "none"}`,
-    );
-    console.log(`[School Access]      Active: ${a.isActive}`);
-  });
-
   const result = access.find((a) => a.subdomain === subdomain) || null;
-
-  if (result) {
-    console.log(`[School Access] ✅ Access granted to ${subdomain}`);
-    console.log(`[School Access]    Effective Role: ${result.effectiveRole}`);
-  } else {
-    console.log(`[School Access] ❌ No access to ${subdomain}`);
-    console.log(
-      `[School Access]    Available subdomains: ${access.map((a) => a.subdomain).join(", ") || "none"}`,
-    );
-  }
 
   return result;
 }
@@ -306,9 +273,6 @@ export function hasRoleInSchool(
   return access.profileRoles.includes(role as ProfileRoleType);
 }
 
-/**
- * Get all roles a user has in a specific school
- */
 export function getAllRolesInSchool(
   session: ExtendedSession,
   subdomain: string,
@@ -320,13 +284,17 @@ export function getAllRolesInSchool(
 
   const roles = new Set<string>();
 
-  // Add organization role
-  if (access.organizationRole) {
-    roles.add(access.organizationRole.toLowerCase());
-  }
-
-  // Add profile roles
+  // 1. Add profile roles first (e.g., teacher, student, etc.)
   access.profileRoles.forEach((role) => roles.add(role.toLowerCase()));
+
+  // 2. Add organization role only if it's NOT 'member' or if NO profile roles exist.
+  // This prevents 'member' from appearing alongside 'teacher' or 'admin'.
+  if (access.organizationRole) {
+    const orgRole = access.organizationRole.toLowerCase();
+    if (orgRole !== "member" || roles.size === 0) {
+      roles.add(orgRole);
+    }
+  }
 
   return Array.from(roles);
 }
@@ -361,4 +329,32 @@ export function getSchoolAccessById(
 
   const access = getUserSchoolAccess(session);
   return access.find((a) => a.schoolId === schoolId) || null;
+}
+
+/**
+ * Get the current active school role, considering the 'active role' cookie.
+ * This should be used for authorization checks in role-specific dashboards.
+ */
+export async function getActiveSchoolRole(
+  session: ExtendedSession,
+  subdomain: string,
+): Promise<SchoolAccess | null> {
+  const schoolRole = getSchoolRole(session, subdomain);
+  if (!schoolRole) return null;
+
+  // We use dynamic import for next/headers as this file might be imported in non-server contexts
+  // although this specific function should only be called in server environments.
+  const cookieStore = await import("next/headers").then((mod) => mod.cookies());
+  const activeRoleCookie = cookieStore.get(`sms_active_role_${subdomain}`)?.value;
+
+  const allRoles = getAllRolesInSchool(session, subdomain);
+
+  if (activeRoleCookie && allRoles.includes(activeRoleCookie)) {
+    return {
+      ...schoolRole,
+      effectiveRole: activeRoleCookie as EffectiveRole,
+    };
+  }
+
+  return schoolRole;
 }

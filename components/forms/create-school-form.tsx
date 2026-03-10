@@ -252,7 +252,7 @@ export function CreateSchoolForm() {
       });
 
       // Redirect to the school dashboard
-      router.push(`/schools/${result.data.id}/overview`);
+      router.push(`/schools/${result.data.subdomain}/overview`);
       router.refresh();
     } catch (error) {
       console.error("Error creating school:", error);

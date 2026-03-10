@@ -10,6 +10,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { AddExpenseDialog } from "./components/add-expense-dialog";
+import { ExpenseDetailsDialog } from "./components/expense-details-dialog";
 
 type Expense = {
   id: string;
@@ -29,13 +30,19 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const fetchExpenses = async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/schools/${schoolSlug}/finance/expenses`);
       const data = await res.json();
-      setExpenses(data || []);
+      const mappedData = (data || []).map((exp: any) => ({
+        ...exp,
+        category: exp.customCategory?.name || exp.registryCategory?.name || "General"
+      }));
+      setExpenses(mappedData);
     } catch (error) {
       console.error("Failed to fetch expenses", error);
     } finally {
@@ -104,7 +111,14 @@ export default function ExpensesPage() {
     {
       id: "actions",
       cell: ({ row }) => (
-        <Button variant="ghost" size="sm">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => {
+            setSelectedExpense(row.original);
+            setIsDetailsOpen(true);
+          }}
+        >
           Details
         </Button>
       ),
@@ -118,10 +132,6 @@ export default function ExpensesPage() {
         description="Monitor and record school expenses, payments, and outgoings."
       >
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Filter className="mr-2 h-4 w-4" />
-            Filter
-          </Button>
           <Button onClick={() => setIsAddOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             New Expense
@@ -129,10 +139,19 @@ export default function ExpensesPage() {
         </div>
       </DashboardPageHeader>
 
+      <div className="flex items-center gap-2 bg-muted/30 p-2 px-4 rounded-lg w-fit">
+        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+          Viewing: Selected Academic Period
+        </Badge>
+        <span className="text-xs text-muted-foreground italic">
+          Controlled by sidebar switcher
+        </span>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-4">
         <div className="bg-background rounded-md border shadow-sm p-4">
           <p className="text-sm font-medium text-muted-foreground">
-            Total Expenses (Month)
+            Total Expenses (Selected Period)
           </p>
           <h3 className="text-2xl font-bold mt-1">
             GH₵
@@ -156,6 +175,14 @@ export default function ExpensesPage() {
           open={isAddOpen}
           onOpenChange={setIsAddOpen}
           onSuccess={fetchExpenses}
+        />
+      )}
+
+      {selectedExpense && (
+        <ExpenseDetailsDialog
+          expense={selectedExpense}
+          open={isDetailsOpen}
+          onOpenChange={setIsDetailsOpen}
         />
       )}
     </div>

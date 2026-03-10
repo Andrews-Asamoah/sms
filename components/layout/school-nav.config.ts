@@ -16,6 +16,9 @@ import {
   GraduationCap,
   Calendar,
   Bell,
+  CheckCircle2,
+  Home,
+  Trophy,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 import type { NavPermissions } from "@/lib/auth/types";
@@ -125,6 +128,12 @@ export const schoolNavSections: NavSection[] = [
           },
         ],
       },
+      {
+        title: "Year-End Promotions",
+        url: "/admin/academics/promotion",
+        icon: GraduationCap,
+        permission: "canManageStudents",
+      },
     ],
   },
   {
@@ -135,6 +144,12 @@ export const schoolNavSections: NavSection[] = [
         url: "/accountant",
         icon: LayoutDashboard,
         permission: "canViewDashboard",
+      },
+      {
+        title: "Payroll Management",
+        url: "/accountant/finance/payroll",
+        icon: BadgeDollarSign,
+        permission: "canViewFinance",
       },
     ],
   },
@@ -161,6 +176,11 @@ export const schoolNavSections: NavSection[] = [
             url: "/admin/attendance",
             permission: "canManageAttendance",
           },
+          {
+            title: "Clubs",
+            url: "/admin/clubs",
+            permission: "canManageClasses",
+          },
         ],
       },
       {
@@ -175,6 +195,7 @@ export const schoolNavSections: NavSection[] = [
           { title: "Payments", url: "/admin/finance/payments" },
           { title: "Expenses", url: "/admin/finance/expenses" },
           { title: "Outstanding", url: "/admin/finance/outstanding" },
+          { title: "Categories", url: "/admin/finance/categories" },
           { title: "Reports", url: "/admin/finance/reports" },
         ],
       },
@@ -182,6 +203,7 @@ export const schoolNavSections: NavSection[] = [
         title: "Inventory",
         url: "/admin/inventory",
         icon: Package,
+        permission: "canViewFinance",
       },
     ],
   },
@@ -235,6 +257,21 @@ export const schoolNavSections: NavSection[] = [
         url: "/teacher/subjects",
         icon: BookOpen,
       },
+      {
+        title: "Clubs",
+        url: "/teacher/clubs",
+        icon: Users,
+      },
+      {
+        title: "My Salary",
+        url: "/teacher/salary",
+        icon: BadgeDollarSign,
+      },
+      {
+        title: "My House",
+        url: "/teacher/house",
+        icon: Home,
+      },
     ],
   },
   {
@@ -249,12 +286,6 @@ export const schoolNavSections: NavSection[] = [
         title: "Notifications",
         url: "/notifications",
         icon: Bell,
-      },
-      {
-        title: "Documents",
-        url: "/admin/documents",
-        icon: FileText,
-        permission: "canManageDocuments",
       },
     ],
   },
@@ -294,9 +325,34 @@ export const schoolNavSections: NavSection[] = [
         icon: LayoutDashboard,
       },
       {
-        title: "My Fees & Bills",
-        url: "/student/fees",
-        icon: DollarSign,
+        title: "Classmates",
+        url: "/student/classmates",
+        icon: Users,
+      },
+      {
+        title: "My Reports",
+        url: "/student/grades",
+        icon: FileText,
+      },
+      {
+        title: "Timetable",
+        url: "/student/timetable",
+        icon: Calendar,
+      },
+      {
+        title: "Attendance",
+        url: "/student/attendance",
+        icon: CheckCircle2,
+      },
+      {
+        title: "My House",
+        url: "/student/house",
+        icon: Home,
+      },
+      {
+        title: "My Clubs",
+        url: "/student/clubs",
+        icon: Trophy,
       },
     ],
   },
@@ -322,6 +378,11 @@ export const schoolNavSections: NavSection[] = [
         title: "Communications",
         url: "/guardian/communications",
         icon: MessageSquare,
+      },
+      {
+        title: "Clubs",
+        url: "/guardian/clubs",
+        icon: Users,
       },
     ],
   },
@@ -352,7 +413,12 @@ const ROLE_NAV_SECTIONS: Record<string, string[]> = {
     "System",
   ],
   teacher: ["Teacher Area", "Communication"],
-  accountant: ["Operations", "Accountant Dashboard", "Main"],
+  accountant: [
+    "User Management",
+    "Operations",
+    "Accountant Dashboard",
+    "Communication",
+  ],
   staff: ["Communication"],
   student: ["Student Area", "Communication"],
   guardian: ["Guardian Area", "Communication"],
@@ -369,9 +435,49 @@ export function filterNavByRole(
 ): NavSection[] {
   const allowedSections = ROLE_NAV_SECTIONS[role] || ROLE_NAV_SECTIONS.member;
 
-  return sections.filter(
-    (section) => !section.title || allowedSections.includes(section.title),
-  );
+  return sections
+    .filter(
+      (section) => !section.title || allowedSections.includes(section.title),
+    )
+    .map((section) => {
+      // Custom filtering for Accountant role
+      if (role === "accountant") {
+        if (section.title === "Operations") {
+          return {
+            ...section,
+            items: section.items.map((item) => {
+              if (item.title === "Administration") {
+                return {
+                  ...item,
+                  items: item.items?.filter(
+                    (subItem) => subItem.title === "Academic Years",
+                  ),
+                };
+              }
+              return item;
+            }),
+          };
+        }
+
+        if (section.title === "User Management") {
+          return {
+            ...section,
+            items: section.items.map((item) => {
+              if (item.title === "People") {
+                return {
+                  ...item,
+                  items: item.items?.filter(
+                    (subItem) => subItem.title !== "Teachers",
+                  ),
+                };
+              }
+              return item;
+            }),
+          };
+        }
+      }
+      return section;
+    });
 }
 
 /**
@@ -428,14 +534,31 @@ export function getPrefixedNavSections(
         currentRole === "accountant" &&
         (url.includes("/admin/finance") ||
           url.includes("/admin/inventory") ||
-          url.includes("/admin/academicYears"))
+          url.includes("/admin/academicYears") ||
+          url.includes("/admin/students") ||
+          url.includes("/admin/teachers") ||
+          url.includes("/admin/staff") ||
+          url.includes("/admin/guardians"))
       ) {
         url = url.replace("/admin", "/accountant");
       }
 
       // Rewrite announcements and notifications to use the role prefix
-      if (url === "/announcements" || url === "/notifications") {
-        url = `/${rolePrefix}${url}`;
+      if (
+        url.includes("/announcements") ||
+        url.includes("/notifications") ||
+        url.includes("/communications")
+      ) {
+        // If it starts with /communications or /announcements, etc.
+        if (
+          url.startsWith("/communications") ||
+          url.startsWith("/announcements") ||
+          url.startsWith("/notifications")
+        ) {
+          url = `/${rolePrefix}${url}`;
+        } else if (url.includes("/admin/communications")) {
+          url = url.replace("/admin", `/${rolePrefix}`);
+        }
       }
 
       return {
@@ -447,13 +570,29 @@ export function getPrefixedNavSections(
             currentRole === "accountant" &&
             (subUrl.includes("/admin/finance") ||
               subUrl.includes("/admin/inventory") ||
-              subUrl.includes("/admin/academicYears"))
+              subUrl.includes("/admin/academicYears") ||
+              subUrl.includes("/admin/students") ||
+              subUrl.includes("/admin/teachers") ||
+              subUrl.includes("/admin/staff") ||
+              subUrl.includes("/admin/guardians"))
           ) {
             subUrl = subUrl.replace("/admin", "/accountant");
           }
           // Rewrite announcements and notifications to use the role prefix
-          if (subUrl === "/announcements" || subUrl === "/notifications") {
-            subUrl = `/${rolePrefix}${subUrl}`;
+          if (
+            subUrl.includes("/announcements") ||
+            subUrl.includes("/notifications") ||
+            subUrl.includes("/communications")
+          ) {
+            if (
+              subUrl.startsWith("/communications") ||
+              subUrl.startsWith("/announcements") ||
+              subUrl.startsWith("/notifications")
+            ) {
+              subUrl = `/${rolePrefix}${subUrl}`;
+            } else if (subUrl.includes("/admin/communications")) {
+              subUrl = subUrl.replace("/admin", `/${rolePrefix}`);
+            }
           }
           return {
             ...subItem,

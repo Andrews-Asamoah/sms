@@ -183,6 +183,11 @@ export function ProfileForm({ userData }: ProfileFormProps) {
           </CardTitle>
           <CardDescription>
             Update your personal details and information
+            {userData.role === "student" && (
+              <span className="block mt-1 text-amber-400">
+                Note: Vital information (Name, Gender, DOB) cannot be changed for student accounts. Contact administration if corrections are needed.
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -223,7 +228,11 @@ export function ProfileForm({ userData }: ProfileFormProps) {
                     id="profile-firstName"
                     placeholder="Enter first name"
                     aria-invalid={fieldState.invalid}
-                    className="bg-white/5 border-white/10 focus:border-white/20"
+                    disabled={userData.role === "student"}
+                    className={cn(
+                      "bg-white/5 border-white/10 focus:border-white/20",
+                      userData.role === "student" && "opacity-60 cursor-not-allowed"
+                    )}
                   />
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
@@ -243,7 +252,11 @@ export function ProfileForm({ userData }: ProfileFormProps) {
                     id="profile-lastName"
                     placeholder="Enter last name"
                     aria-invalid={fieldState.invalid}
-                    className="bg-white/5 border-white/10 focus:border-white/20"
+                    disabled={userData.role === "student"}
+                    className={cn(
+                      "bg-white/5 border-white/10 focus:border-white/20",
+                      userData.role === "student" && "opacity-60 cursor-not-allowed"
+                    )}
                   />
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
@@ -290,7 +303,11 @@ export function ProfileForm({ userData }: ProfileFormProps) {
                     <SelectTrigger
                       id="profile-gender"
                       aria-invalid={fieldState.invalid}
-                      className="bg-white/5 border-white/10 focus:border-white/20"
+                      disabled={userData.role === "student"}
+                      className={cn(
+                        "bg-white/5 border-white/10 focus:border-white/20",
+                        userData.role === "student" && "opacity-60 cursor-not-allowed"
+                      )}
                     >
                       <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
@@ -320,9 +337,11 @@ export function ProfileForm({ userData }: ProfileFormProps) {
                       <Button
                         variant="outline"
                         id="profile-dateOfBirth"
+                        disabled={userData.role === "student"}
                         className={cn(
                           "pl-3 text-left font-normal bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 w-full",
-                          !field.value && "text-muted-foreground"
+                          !field.value && "text-muted-foreground",
+                          userData.role === "student" && "opacity-60 cursor-not-allowed"
                         )}
                         aria-invalid={fieldState.invalid}
                       >

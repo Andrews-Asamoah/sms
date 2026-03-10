@@ -9,17 +9,21 @@ import { defaultStatements, adminAc } from "better-auth/plugins/admin/access";
 
 export const statement = {
   ...defaultStatements,
+  user: [
+    "create",
+    "list",
+    "set-role",
+    "ban",
+    "impersonate",
+    "delete",
+    "set-password",
+    "get",
+    "update",
+  ],
 
   // 🔥 CRITICAL: Organization management (for Better Auth organization plugin)
-  organization: [
-    "create",
-    "update",
-    "delete",
-    "view",
-    "invite",
-    "remove-member",
-  ],
-  invitation: ["create", "view", "delete", "send"],
+  organization: ["create", "update", "delete", "view", "invite"],
+  invitation: ["create", "view", "delete"],
 
   // Core entities
   school: ["create", "update", "delete", "view", "manage"],
@@ -59,6 +63,16 @@ export const statement = {
   transport: ["create", "update", "delete", "view"],
 
   // User & Session (for Better Auth admin plugin)
+  session: ["list", "revoke", "delete"],
+} as const;
+
+export const ac = createAccessControl(statement);
+
+// ============================================================================
+// ROLE DEFINITIONS
+// ============================================================================
+
+export const superAdmin = ac.newRole({
   user: [
     "create",
     "list",
@@ -71,27 +85,10 @@ export const statement = {
     "update",
   ],
   session: ["list", "revoke", "delete"],
-} as const;
-
-export const ac = createAccessControl(statement);
-
-// ============================================================================
-// ROLE DEFINITIONS
-// ============================================================================
-
-export const superAdmin = ac.newRole({
-  ...adminAc.statements,
 
   // Organization permissions
-  organization: [
-    "create",
-    "update",
-    "delete",
-    "view",
-    "invite",
-    "remove-member",
-  ],
-  invitation: ["create", "view", "delete", "send"],
+  organization: ["create", "update", "delete", "view", "invite"],
+  invitation: ["create", "view", "delete"],
 
   school: ["create", "update", "delete", "view", "manage"],
   student: ["create", "update", "delete", "view", "enroll"],
@@ -125,8 +122,8 @@ export const owner = ac.newRole({
   session: ["list", "revoke"],
 
   // Organization permissions (owners can invite)
-  organization: ["update", "view", "invite", "remove-member"],
-  invitation: ["create", "view", "delete", "send"],
+  organization: ["update", "view", "invite"],
+  invitation: ["create", "view", "delete"],
 
   school: ["update", "view", "manage"],
   student: ["create", "update", "delete", "view", "enroll"],

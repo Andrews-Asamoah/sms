@@ -21,6 +21,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -34,6 +35,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 const generateSchema = z.object({
   feeStructureId: z.string().min(1, "Please select a fee structure"),
   targetClasses: z.array(z.string()).min(1, "Please select at least one class"),
+  notes: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof generateSchema>;
@@ -58,6 +60,7 @@ export function GenerateInvoiceDialog({
 
   const {
     handleSubmit,
+    register,
     formState: { errors },
     reset,
     watch,
@@ -67,6 +70,7 @@ export function GenerateInvoiceDialog({
     defaultValues: {
       feeStructureId: "",
       targetClasses: [],
+      notes: "",
     },
   });
 
@@ -193,6 +197,15 @@ export function GenerateInvoiceDialog({
                 </ScrollArea>
               </div>
               <FieldError errors={[errors.targetClasses]} />
+            </Field>
+
+            <Field data-invalid={!!errors.notes}>
+              <FieldLabel>Additional Notes (Optional)</FieldLabel>
+              <Input
+                placeholder="Deadline, payment mode, etc. (Displayed on bill)"
+                {...register("notes")}
+              />
+              <FieldError errors={[errors.notes]} />
             </Field>
 
             <div className="flex justify-end gap-2 pt-4">

@@ -75,7 +75,11 @@ export default async function GuardianChildDetailsPage({
       },
     },
     include: {
-      profile: true,
+      profile: {
+        include: {
+          user: true,
+        },
+      },
       class: {
         include: {
           academicYear: true,
@@ -171,6 +175,12 @@ export default async function GuardianChildDetailsPage({
                 <div>
                   <p className="text-sm text-muted-foreground">Student ID</p>
                   <p className="font-mono font-semibold">{student.studentId}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Username</p>
+                  <p className="font-mono font-semibold text-primary">
+                    {student.profile.user?.email}
+                  </p>
                 </div>
                 {student.admissionNumber && (
                   <div>

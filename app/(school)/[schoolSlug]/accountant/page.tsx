@@ -28,6 +28,13 @@ import { AnnouncementWidget } from "@/components/dashboard/announcement-widget";
 import { format } from "date-fns";
 import Link from "next/link";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -44,8 +51,14 @@ interface DashboardStats {
   expenses: number;
   inventoryCount: number;
   lowStockCount: number;
+  payroll: {
+    gross: number;
+    net: number;
+  };
   recentTransactions: any[];
   currency: string;
+  currentYearName: string | null;
+  currentTermName: string | null;
 }
 
 export default function AccountantDashboardPage() {
@@ -56,7 +69,9 @@ export default function AccountantDashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // In a real app, this would be a single optimized endpoint
+        setLoading(true);
+        // Stats are now naturally filtered by the server-side context 
+        // which defaults to working Year/Term if cookies are set.
         const [financeRes, inventoryRes] = await Promise.all([
           fetch(`/api/schools/${schoolSlug}/finance/overview`),
           fetch(`/api/schools/${schoolSlug}/inventory`),
@@ -72,6 +87,8 @@ export default function AccountantDashboardPage() {
             (i: any) => i.quantity <= i.minQuantity,
           ).length,
           currency: financeData.currency || "GHS",
+          currentYearName: financeData.currentYearName ?? null,
+          currentTermName: financeData.currentTermName ?? null,
         });
       } catch (error) {
         console.error("Failed to fetch dashboard stats", error);
@@ -100,8 +117,21 @@ export default function AccountantDashboardPage() {
           <p className="text-muted-foreground">
             Financial overview and quick actions for your school.
           </p>
-        </div>
-        <div className="flex items-center space-x-2">
+          {(stats?.currentYearName || stats?.currentTermName) ? (
+            <p className="text-sm mt-1 text-primary font-medium">
+               Showing data for:{" "}
+               <span className="font-semibold">
+                 {[stats.currentYearName, stats.currentTermName]
+                   .filter(Boolean)
+                   .join(" — ")}
+               </span>
+             </p>
+          ) : (
+            <p className="text-sm mt-1 text-primary font-medium">
+               Showing data for: <span className="font-semibold">All Time</span>
+            </p>
+          )}
+        </div>        <div className="flex items-center space-x-4">
           <Button asChild>
             <Link href={`/${schoolSlug}/accountant/finance/invoices`}>
               <Receipt className="mr-2 h-4 w-4" />
@@ -122,7 +152,7 @@ export default function AccountantDashboardPage() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <Card className="relative overflow-hidden border-none bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardTitle className="text-sm font-medium">
@@ -181,6 +211,26 @@ export default function AccountantDashboardPage() {
               </CardContent>
               <div className="absolute top-0 right-0 p-2 opacity-5">
                 <TrendingDown className="h-24 w-24" />
+              </div>
+            </Card>
+
+            <Card className="relative overflow-hidden border-none bg-gradient-to-br from-purple-500/10 to-purple-500/5 shadow-md">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-sm font-medium">
+                  Total Payroll
+                </CardTitle>
+                <Users className="h-4 w-4 text-purple-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatter.format(stats?.payroll?.gross || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Gross salaries
+                </p>
+              </CardContent>
+              <div className="absolute top-0 right-0 p-2 opacity-5">
+                <Users className="h-24 w-24" />
               </div>
             </Card>
 
@@ -396,6 +446,25 @@ export default function AccountantDashboardPage() {
                         </div>
                         <div className="text-[10px] text-muted-foreground">
                           Student fee payment
+                        </div>
+                      </div>
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="justify-start h-16 border-dashed hover:border-primary hover:bg-primary/5 transition-all group"
+                    asChild
+                  >
+                    <Link href={`/${schoolSlug}/accountant/finance/payroll`}>
+                      <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center mr-3 group-hover:bg-primary/20 transition-colors">
+                        <Users className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-sm font-semibold text-foreground">
+                          Payroll
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          Process salaries
                         </div>
                       </div>
                     </Link>

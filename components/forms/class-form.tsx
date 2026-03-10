@@ -73,6 +73,7 @@ interface FormErrors {
   level?: string;
   capacity?: string;
   academicYearId?: string;
+  departmentId?: string;
   general?: string;
 }
 
@@ -138,6 +139,11 @@ export function ClassForm({
       newErrors.academicYearId = "Academic year is required";
     }
 
+    // Department validation
+    if (!formData.departmentId || formData.departmentId === "none") {
+      newErrors.departmentId = "Department is required";
+    }
+
     // Capacity validation (optional but if provided must be valid)
     if (formData.capacity) {
       const capacityNum = parseInt(formData.capacity);
@@ -161,6 +167,7 @@ export function ClassForm({
       level: true,
       capacity: true,
       academicYearId: true,
+      departmentId: true,
     });
 
     if (!validateForm()) {
@@ -397,7 +404,9 @@ export function ClassForm({
 
         {/* Department */}
         <Field>
-          <FieldLabel htmlFor="departmentId">Department (Optional)</FieldLabel>
+          <FieldLabel htmlFor="departmentId">
+            Department <span className="text-destructive">*</span>
+          </FieldLabel>
           <FieldGroup>
             <Select
               value={formData.departmentId}

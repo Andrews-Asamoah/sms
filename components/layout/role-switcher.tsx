@@ -31,6 +31,13 @@ interface RoleSwitcherProps {
 }
 
 const roleConfig = {
+  superAdmin: {
+    label: "Super Administrator",
+    icon: Shield,
+    color: "text-purple-600",
+    badge: "purple",
+    route: "admin",
+  },
   owner: {
     label: "School Owner",
     icon: Shield,
@@ -43,6 +50,13 @@ const roleConfig = {
     icon: Shield,
     color: "text-blue-600",
     badge: "blue",
+    route: "admin",
+  },
+  headteacher: {
+    label: "Head Teacher",
+    icon: Shield,
+    color: "text-orange-600",
+    badge: "orange",
     route: "admin",
   },
   teacher: {
@@ -96,7 +110,6 @@ export function RoleSwitcher({
   className,
 }: RoleSwitcherProps) {
   const router = useRouter();
-
   const currentConfig =
     roleConfig[currentRole as keyof typeof roleConfig] || roleConfig.member;
   const CurrentIcon = currentConfig.icon;
@@ -106,8 +119,12 @@ export function RoleSwitcher({
     const config = roleConfig[role as keyof typeof roleConfig];
     if (!config) return;
 
-    // Navigate to the appropriate dashboard for the selected role
+    // Set the active role cookie to persist the choice
+    document.cookie = `sms_active_role_${schoolSlug}=${role}; path=/; max-age=31536000; SameSite=Lax`;
+
+    // Navigate to the appropriate dashboard and force a refresh of the server-side layout
     router.push(`/${schoolSlug}/${config.route}`);
+    router.refresh();
   };
 
   const SwitcherButton = (

@@ -77,7 +77,7 @@ export default async function SchoolSubscriptionPage({
         </p>
       </div>
 
-      <SchoolSubscriptionManager school={school} isSuperAdmin={isSuperAdmin} />
+      <SchoolSubscriptionManager school={JSON.parse(JSON.stringify(school))} isSuperAdmin={isSuperAdmin} />
     </div>
   );
 }

@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Table,
   TableBody,
@@ -79,6 +80,9 @@ const formSchema = z.object({
   classLevel: z.string().nullable().optional(),
   subjectCode: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
+  deadline: z.string().nullable().optional(),
+  isLocked: z.boolean().optional(),
+  classIds: z.array(z.string()).default([]),
   components: z
     .array(componentSchema)
     .min(1, "At least one component is required"),
@@ -90,6 +94,7 @@ interface AssessmentTemplateDialogProps {
   children?: React.ReactNode;
   schoolSlug: string;
   gradingSystems: { id: string; name: string }[];
+  classes: { id: string; name: string }[];
   template?: any; // Replace with proper type
   mode?: "create" | "edit";
   open?: boolean;
@@ -100,6 +105,7 @@ export function AssessmentTemplateDialog({
   children,
   schoolSlug,
   gradingSystems,
+  classes = [],
   template,
   mode = "create",
   open: controlledOpen,
@@ -139,6 +145,9 @@ export function AssessmentTemplateDialog({
           isRequired: true,
         },
       ],
+      deadline: null,
+      isLocked: false,
+      classIds: [],
     },
   });
 
@@ -156,6 +165,9 @@ export function AssessmentTemplateDialog({
         classLevel: template.classLevel,
         subjectCode: template.subjectCode,
         isActive: template.isActive,
+        deadline: template.deadline ? new Date(template.deadline).toISOString() : null,
+        isLocked: template.isLocked,
+        classIds: template.classes?.map((c: any) => c.classId) || [],
         components: template.components.map((c: any) => ({
           id: c.id,
           name: c.name,
@@ -301,6 +313,31 @@ export function AssessmentTemplateDialog({
             />
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Controller
+              control={form.control}
+              name="deadline"
+              render={({ field, fieldState }) => (
+                <Field>
+                  <FieldLabel>Deadline for Marks Entry</FieldLabel>
+                  <FieldGroup>
+                    <DatePicker
+                      date={field.value ? new Date(field.value) : undefined}
+                      setDate={(date) => field.onChange(date?.toISOString() || null)}
+                      placeholder="Select Deadline"
+                    />
+                  </FieldGroup>
+                  <FieldDescription>
+                    Teachers won't be able to edit marks after this date.
+                  </FieldDescription>
+                  {fieldState.error && (
+                    <FieldError>{fieldState.error.message}</FieldError>
+                  )}
+                </Field>
+              )}
+            />
+          </div>
+
           <Controller
             control={form.control}
             name="description"
@@ -319,6 +356,49 @@ export function AssessmentTemplateDialog({
               </Field>
             )}
           />
+
+          <div className="space-y-4">
+            <FieldLabel>Assigned Classes</FieldLabel>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 bg-muted/20 p-4 rounded-lg border">
+              {classes.map((cls) => (
+                <Controller
+                  key={cls.id}
+                  control={form.control}
+                  name="classIds"
+                  render={({ field }) => (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`class-${cls.id}`}
+                        checked={field.value?.includes(cls.id)}
+                        onCheckedChange={(checked) => {
+                          const current = field.value || [];
+                          if (checked) {
+                            field.onChange([...current, cls.id]);
+                          } else {
+                            field.onChange(current.filter((id) => id !== cls.id));
+                          }
+                        }}
+                      />
+                      <label 
+                        htmlFor={`class-${cls.id}`}
+                        className="text-sm font-medium leading-none cursor-pointer select-none"
+                      >
+                        {cls.name}
+                      </label>
+                    </div>
+                  )}
+                />
+              ))}
+              {classes.length === 0 && (
+                <p className="text-sm text-muted-foreground col-span-full italic">
+                  No active classes found for the current academic year.
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Select one or more classes that will use this assessment template.
+            </p>
+          </div>
 
           <div className="border rounded-md p-4 bg-muted/20">
             <div className="flex items-center justify-between mb-4">
@@ -468,12 +548,12 @@ export function AssessmentTemplateDialog({
             </Button>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Controller
               control={form.control}
               name="isActive"
               render={({ field, fieldState }) => (
-                <Field className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm w-full">
+                <Field className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
                   <Checkbox
                     checked={field.value}
                     onCheckedChange={field.onChange}
@@ -481,12 +561,28 @@ export function AssessmentTemplateDialog({
                   <div className="space-y-1 leading-none">
                     <FieldLabel>Active Status</FieldLabel>
                     <FieldDescription>
-                      Inactive templates cannot be selected for new assessments.
+                      Inactive templates cannot be selected.
                     </FieldDescription>
                   </div>
-                  {fieldState.error && (
-                    <FieldError>{fieldState.error.message}</FieldError>
-                  )}
+                </Field>
+              )}
+            />
+
+            <Controller
+              control={form.control}
+              name="isLocked"
+              render={({ field, fieldState }) => (
+                <Field className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                  <div className="space-y-1 leading-none">
+                    <FieldLabel>Lock Automatically</FieldLabel>
+                    <FieldDescription>
+                      Lock all marks for this template immediately.
+                    </FieldDescription>
+                  </div>
                 </Field>
               )}
             />

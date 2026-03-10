@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, SubmitHandler, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search, School, CheckCircle2, ChevronsUpDown, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 
 const paymentSchema = z.object({
   studentId: z.string().min(1, "Please select a student"),
@@ -38,27 +55,75 @@ const paymentSchema = z.object({
   paymentMethod: z.enum(["CASH", "BANK_TRANSFER", "MOBILE_MONEY", "CHEQUE"]),
   referenceNumber: z.string().optional(),
   notes: z.string().optional(),
+  items: z.array(z.object({
+    billItemId: z.string(),
+    amount: z.number().min(0),
+    selected: z.boolean(),
+    description: z.string(),
+    balance: z.number(),
+  })).optional(),
 });
 
 type FormValues = z.infer<typeof paymentSchema>;
+
+interface Student {
+  id: string;
+  studentId: string;
+  profile: {
+    firstName: string;
+    lastName: string;
+  };
+  class?: { name: string };
+  outstandingBalance: number;
+}
+
+interface Class {
+  id: string;
+  name: string;
+}
+
+interface Bill {
+  id: string;
+  billNumber: string;
+  balanceAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  feeStructure?: {
+    name: string;
+  };
+  items: {
+    id: string;
+    description: string;
+    totalAmount: number;
+    paidAmount: number;
+    balanceAmount: number;
+  }[];
+}
 
 interface RecordPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  preSelectedStudentId?: string;
+  initialStudentId?: string;
+  initialAmount?: number;
 }
 
 export function RecordPaymentDialog({
   open,
   onOpenChange,
   onSuccess,
-  preSelectedStudentId,
+  initialStudentId,
+  initialAmount,
 }: RecordPaymentDialogProps) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [students, setStudents] = useState<any[]>([]);
-  const [bills, setBills] = useState<any[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
 
   const {
     register,
@@ -67,36 +132,67 @@ export function RecordPaymentDialog({
     reset,
     watch,
     setValue,
+    control,
   } = useForm<FormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      studentId: preSelectedStudentId || "",
+      studentId: initialStudentId || "",
       billId: "",
-      amount: 0,
+      amount: initialAmount || 0,
       paymentMethod: "CASH",
       referenceNumber: "",
       notes: "",
+      items: [],
     },
+  });
+
+  const { fields, append, remove, replace } = useFieldArray({
+    control,
+    name: "items",
   });
 
   const studentId = watch("studentId");
   const billId = watch("billId");
   const paymentMethod = watch("paymentMethod");
 
+  // Load Classes on mount
   useEffect(() => {
     if (!open) return;
-    const loadData = async () => {
+    const loadClasses = async () => {
       try {
+        const res = await fetch(`/api/schools/${schoolSlug}/classes`);
+        if (res.ok) setClasses(await res.json());
+      } catch (e) {
+        console.error("Failed to load classes", e);
+      }
+    };
+    loadClasses();
+  }, [open, schoolSlug]);
+
+  // Load Students with filters and debouncing
+  useEffect(() => {
+    if (!open) return;
+    
+    const handler = setTimeout(async () => {
+      try {
+        setIsLoadingStudents(true);
+        const params = new URLSearchParams();
+        if (selectedClassId !== "all") params.append("classId", selectedClassId);
+        if (searchQuery.trim()) params.append("q", searchQuery.trim());
+
         const res = await fetch(
-          `/api/schools/${schoolSlug}/finance/students/outstanding`,
+          `/api/schools/${schoolSlug}/finance/students/outstanding?${params.toString()}`,
         );
         if (res.ok) setStudents(await res.json());
       } catch (e) {
         console.error("Failed to load students", e);
+      } finally {
+        setIsLoadingStudents(false);
       }
-    };
-    loadData();
-  }, [open, schoolSlug]);
+    }, 400); // 400ms debounce
+
+    return () => clearTimeout(handler);
+  }, [open, schoolSlug, selectedClassId, searchQuery]);
 
   useEffect(() => {
     if (!studentId) {
@@ -106,7 +202,7 @@ export function RecordPaymentDialog({
     const loadBills = async () => {
       try {
         const res = await fetch(
-          `/api/schools/${schoolSlug}/finance/invoices?studentId=${studentId}&status=PENDING`,
+          `/api/schools/${schoolSlug}/finance/invoices?studentId=${studentId}&status=PENDING,PARTIALLY_PAID`,
         );
         if (res.ok) {
           const fetchedBills = await res.json();
@@ -124,11 +220,22 @@ export function RecordPaymentDialog({
       const b = bills.find((x) => x.id === billId);
       if (b) {
         setValue("amount", Number(b.balanceAmount));
+        // Populate items
+        const formItems = b.items.map(item => ({
+          billItemId: item.id,
+          description: item.description,
+          amount: Number(item.balanceAmount),
+          balance: Number(item.balanceAmount),
+          selected: true,
+        }));
+        setValue("items", formItems);
       }
+    } else {
+        setValue("items", []);
     }
   }, [billId, bills, setValue]);
 
-  const onSubmit = async (data: FormValues) => {
+  const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsSubmitting(true);
     try {
       const res = await fetch(`/api/schools/${schoolSlug}/finance/payments`, {
@@ -163,37 +270,125 @@ export function RecordPaymentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <FieldGroup>
-            <Field data-invalid={!!errors.studentId}>
-              <FieldLabel>Select Student</FieldLabel>
-              <Select
-                onValueChange={(val) => setValue("studentId", val)}
-                defaultValue={studentId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Search student with balance..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.profile.firstName} {s.profile.lastName} - GHS{" "}
-                      {Number(s.outstandingBalance).toFixed(2)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError errors={[errors.studentId]} />
-            </Field>
+        <ScrollArea className="max-h-[80vh] px-1">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pb-6 px-1">
+            <FieldGroup className="border-b pb-4 mb-4">
+              <Field>
+                <FieldLabel className="text-xs uppercase text-muted-foreground flex items-center mb-2">
+                  <School className="w-3 h-3 mr-1" /> Initial Class Filter
+                </FieldLabel>
+                <Select
+                  value={selectedClassId}
+                  onValueChange={(val) => {
+                    setSelectedClassId(val);
+                    setValue("studentId", "");
+                    setValue("billId", "");
+                  }}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="All Classes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Classes</SelectItem>
+                    {classes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Narrow down results before searching.
+                </p>
+              </Field>
+            </FieldGroup>
 
-            <Field data-invalid={!!errors.billId}>
-              <FieldLabel>Select Bill to Pay</FieldLabel>
+            <FieldGroup>
+              <Field data-invalid={!!errors.studentId}>
+                <FieldLabel htmlFor="pmt-student">Select Student</FieldLabel>
+                <Popover open={isComboboxOpen} onOpenChange={setIsComboboxOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={isComboboxOpen}
+                      className="w-full justify-between h-12 text-left font-normal"
+                      disabled={isLoadingStudents}
+                    >
+                      {studentId ? (
+                        <div className="flex flex-col items-start overflow-hidden">
+                          <span className="truncate w-full font-medium">
+                            {students.find((s) => s.id === studentId)?.profile.firstName}{" "}
+                            {students.find((s) => s.id === studentId)?.profile.lastName}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground truncate w-full">
+                            ID: {students.find((s) => s.id === studentId)?.studentId}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {isLoadingStudents ? "Loading students..." : "Search by name or ID..."}
+                        </span>
+                      )}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Type name or ID to search..."
+                        value={searchQuery}
+                        onValueChange={setSearchQuery}
+                      />
+                      <CommandList>
+                        {isLoadingStudents && (
+                          <div className="flex items-center justify-center py-6">
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            <span className="text-sm">Fetching...</span>
+                          </div>
+                        )}
+                        {!isLoadingStudents && students.length === 0 && (
+                          <CommandEmpty>No students found.</CommandEmpty>
+                        )}
+                        <CommandGroup>
+                          {students.map((s) => (
+                            <CommandItem
+                              key={s.id}
+                              value={s.id}
+                              onSelect={() => {
+                                setValue("studentId", s.id);
+                                setValue("billId", "");
+                                setIsComboboxOpen(false);
+                              }}
+                              className="flex flex-col items-start py-2 px-3 cursor-pointer"
+                            >
+                              <div className="flex items-center justify-between w-full">
+                                <span className="font-medium text-sm">
+                                  {s.profile.firstName} {s.profile.lastName}
+                                </span>
+                                {studentId === s.id && <Check className="h-3 w-3 text-primary" />}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground leading-tight">
+                                {s.studentId} • {s.class?.name || "No Class"} • GHS {Number(s.outstandingBalance).toFixed(2)}
+                              </span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <FieldError errors={[errors.studentId]} />
+              </Field>
+
+              <Field data-invalid={!!errors.billId}>
+              <FieldLabel htmlFor="pmt-bill">Select Bill to Pay</FieldLabel>
               <Select
                 onValueChange={(val) => setValue("billId", val)}
-                defaultValue={billId}
+                value={billId}
                 disabled={!studentId || bills.length === 0}
               >
-                <SelectTrigger>
+                <SelectTrigger id="pmt-bill">
                   <SelectValue placeholder="Select outstanding invoice" />
                 </SelectTrigger>
                 <SelectContent>
@@ -208,25 +403,106 @@ export function RecordPaymentDialog({
               <FieldError errors={[errors.billId]} />
             </Field>
 
+            {billId && fields.length > 0 && (
+              <div className="space-y-3 bg-muted/30 p-4 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    Payment Distribution
+                  </h4>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {fields.length} Items Found
+                  </Badge>
+                </div>
+                
+                <ScrollArea className="h-[200px] pr-4">
+                  <div className="space-y-3">
+                    {fields.map((field, index) => (
+                      <div key={field.id} className="flex items-start gap-4 p-2 rounded hover:bg-muted/50 transition-colors">
+                        <Checkbox
+                          id={`item-cb-${index}`}
+                          className="mt-1"
+                          checked={watch(`items.${index}.selected`)}
+                          onCheckedChange={(checked) => {
+                            setValue(`items.${index}.selected`, !!checked);
+                            if (!checked) setValue(`items.${index}.amount`, 0);
+                            else setValue(`items.${index}.amount`, field.balance);
+                          }}
+                        />
+                        <div className="flex-1 space-y-1">
+                          <label htmlFor={`item-cb-${index}`} className="text-sm font-medium cursor-pointer">
+                            {field.description}
+                          </label>
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                            <span>Balance: GHS {field.balance.toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <div className="w-24">
+                           <Input 
+                             type="number"
+                             step="0.01"
+                             className="h-8 text-xs text-right"
+                             placeholder="Amount"
+                             disabled={!watch(`items.${index}.selected`)}
+                             {...register(`items.${index}.amount` as const, { valueAsNumber: true })}
+                           />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+                
+                <div className="pt-2 border-t flex justify-between items-center px-1">
+                   <span className="text-xs font-medium">Sum of distributed:</span>
+                   <span className="text-xs font-bold text-primary">
+                     GHS {watch("items")?.filter(i => i.selected).reduce((acc, i) => acc + (i.amount || 0), 0).toFixed(2)}
+                   </span>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
-              <Field data-invalid={!!errors.amount}>
-                <FieldLabel htmlFor="amount">Amount (GHS)</FieldLabel>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  {...register("amount", { valueAsNumber: true })}
-                />
+               <Field data-invalid={!!errors.amount}>
+                <div className="flex items-center justify-between mb-2">
+                  <FieldLabel htmlFor="pmt-amount" className="font-bold mb-0">Total Payment Amount (GHS)</FieldLabel>
+                  {billId && fields.length > 0 && (
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="xs" 
+                      className="h-6 text-[10px] text-primary hover:text-primary hover:bg-primary/5"
+                      onClick={() => {
+                        const sum = watch("items")?.filter(i => i.selected).reduce((acc, i) => acc + (i.amount || 0), 0);
+                        setValue("amount", sum || 0);
+                      }}
+                    >
+                      Sync with Selection
+                    </Button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Input
+                    id="pmt-amount"
+                    type="number"
+                    step="0.01"
+                    className="pl-8 font-bold text-lg h-12"
+                    {...register("amount", { valueAsNumber: true })}
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₵</span>
+                </div>
                 <FieldError errors={[errors.amount]} />
+                <p className="text-[10px] text-muted-foreground italic mt-1 leading-tight">
+                   Total received. If this exceeds the bill balance, the student will have a credit balance.
+                </p>
               </Field>
 
               <Field data-invalid={!!errors.paymentMethod}>
-                <FieldLabel>Method</FieldLabel>
+                <FieldLabel htmlFor="pmt-method">Method</FieldLabel>
                 <Select
-                  onValueChange={(val) => setValue("paymentMethod", val as any)}
-                  defaultValue={paymentMethod}
+                  onValueChange={(val) => setValue("paymentMethod", val as "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "CHEQUE")}
+                  value={paymentMethod}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="pmt-method">
                     <SelectValue placeholder="Select method" />
                   </SelectTrigger>
                   <SelectContent>
@@ -241,11 +517,11 @@ export function RecordPaymentDialog({
             </div>
 
             <Field data-invalid={!!errors.referenceNumber}>
-              <FieldLabel htmlFor="referenceNumber">
+              <FieldLabel htmlFor="pmt-ref">
                 Ref Number (Momo/Bank Txn ID)
               </FieldLabel>
               <Input
-                id="referenceNumber"
+                id="pmt-ref"
                 placeholder="Optional"
                 {...register("referenceNumber")}
               />
@@ -253,15 +529,17 @@ export function RecordPaymentDialog({
             </Field>
 
             <Field data-invalid={!!errors.notes}>
-              <FieldLabel htmlFor="notes">Notes (Optional)</FieldLabel>
+              <FieldLabel htmlFor="pmt-notes">Notes (Optional)</FieldLabel>
               <Textarea
-                id="notes"
+                id="pmt-notes"
                 placeholder="Any receipt remarks..."
                 rows={2}
                 {...register("notes")}
               />
               <FieldError errors={[errors.notes]} />
             </Field>
+
+            </FieldGroup>
 
             <div className="flex justify-end gap-2 pt-4">
               <Button
@@ -278,8 +556,8 @@ export function RecordPaymentDialog({
                 Record Payment
               </Button>
             </div>
-          </FieldGroup>
-        </form>
+          </form>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

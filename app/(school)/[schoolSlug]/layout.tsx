@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth/session";
 import { hasSchoolAccess } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { ReactNode } from "react";
+import { SchoolThemeInjector } from "@/components/layout/school-theme-injector";
 
 interface SchoolLayoutProps {
   children: ReactNode;
@@ -49,5 +50,13 @@ export default async function SchoolLayout({
     notFound();
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <SchoolThemeInjector
+        primaryColor={school.primaryColor}
+        secondaryColor={school.secondaryColor}
+      />
+      {children}
+    </>
+  );
 }

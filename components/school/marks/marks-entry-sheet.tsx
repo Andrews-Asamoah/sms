@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Save, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Save, Loader2, AlertCircle, CheckCircle2, Lock, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { saveMarksEntry } from "@/app/(school)/[schoolSlug]/teacher/classes/[classSlug]/gradebook/actions";
 
 import { MarksEntrySheetProps } from "@/app/(school)/[schoolSlug]/teacher/classes/[classSlug]/gradebook/types";
@@ -29,10 +29,22 @@ export function MarksEntrySheet({
   classId,
   subjectId,
   termId,
+  extension,
+  isPublished = false,
 }: MarksEntrySheetProps) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Locking Logic
+  const now = new Date();
+  const deadline = template.deadline ? new Date(template.deadline) : null;
+  const extDeadline = extension?.deadline ? new Date(extension.deadline) : null;
+  const effectiveDeadline = extDeadline || deadline;
+  const isDeadlinePassed = effectiveDeadline ? now > effectiveDeadline : false;
+  const isGlobalLocked = template.isLocked;
+  const isSystemLocked = isPublished || isGlobalLocked || isDeadlinePassed;
 
   // State to hold marks: Record<studentId, Record<componentId, number | "">>
   const [marksData, setMarksData] = useState<
@@ -71,6 +83,8 @@ export function MarksEntrySheet({
     componentId: string,
     value: string,
   ) => {
+    if (isSystemLocked) return;
+
     // Allow empty string or valid number
     if (value === "") {
       setMarksData((prev) => ({
@@ -108,39 +122,28 @@ export function MarksEntrySheet({
       const mark = studentMarks[comp.id];
       if (typeof mark === "number") {
         hasEntries = true;
-        // Weighted score calculation
-        // (Marks Obtained / Max Marks) * Weight
         const weighted = (mark / Number(comp.maxMarks)) * Number(comp.weight);
         totalWeightedScore += weighted;
       }
-      totalMaxWeight += Number(comp.weight); // Should sum to 100 usually
+      totalMaxWeight += Number(comp.weight);
     });
 
     if (!hasEntries) return null;
 
-    // Determine Grade
-    // Assuming totalMaxWeight is 100, totalWeightedScore is the percentage.
-    // If not, normalize: (totalWeightedScore / totalMaxWeight) * 100
     const percentage =
       totalMaxWeight > 0 ? (totalWeightedScore / totalMaxWeight) * 100 : 0;
 
-    // Find generic grade from scales
-    // Sort scales descending by minScore to find the highest match
     const gradeScale = template.gradingSystem.gradeScales
       .sort((a, b) => Number(b.minScore) - Number(a.minScore))
       .find((scale) => percentage >= Number(scale.minScore));
 
-    const gradeStr = gradeScale ? gradeScale.grade : "9"; // Default 9 if no match for Ghana schools
+    const gradeStr = gradeScale ? gradeScale.grade : "9";
     const gradeNum = parseInt(gradeStr);
 
-    // Color mapping for Ghana Basic Schools (1-9 scale)
-    // 1 (Highest) -> Green
-    // 9 (Lowest) -> Red
     let colorClass = "text-gray-600 border-gray-200 bg-gray-50";
     if (!isNaN(gradeNum)) {
       if (gradeNum === 1)
-        colorClass =
-          "text-emerald-700 border-emerald-500 bg-emerald-50 font-bold";
+        colorClass = "text-emerald-700 border-emerald-500 bg-emerald-50 font-bold";
       else if (gradeNum === 2)
         colorClass = "text-green-700 border-green-500 bg-green-50";
       else if (gradeNum <= 4)
@@ -152,10 +155,8 @@ export function MarksEntrySheet({
       else if (gradeNum >= 9)
         colorClass = "text-red-700 border-red-500 bg-red-50";
     } else {
-      // Fallback for letter grades if any
       if (["A", "B"].some((g) => gradeStr.startsWith(g)))
-        colorClass =
-          "text-emerald-700 border-emerald-500 bg-emerald-50 font-bold";
+        colorClass = "text-emerald-700 border-emerald-500 bg-emerald-50 font-bold";
       else if (gradeStr.startsWith("C"))
         colorClass = "text-yellow-700 border-yellow-500 bg-yellow-50";
       else colorClass = "text-red-700 border-red-500 bg-red-50";
@@ -168,7 +169,6 @@ export function MarksEntrySheet({
     };
   };
 
-  // Check if any mark is invalid
   const hasInvalidMarks = useMemo(() => {
     return students.some((student) => {
       const studentMarks = marksData[student.id] || {};
@@ -181,15 +181,19 @@ export function MarksEntrySheet({
     });
   }, [students, template.components, marksData]);
 
-  // Save Function
-  const handleSave = async () => {
+  const handleSave = async (status: "DRAFT" | "SUBMITTED" = "DRAFT") => {
     if (hasInvalidMarks) {
       toast.error("Please correct invalid marks before saving");
       return;
     }
-    setIsSaving(true);
+    
+    if (status === "SUBMITTED") {
+      setIsSubmitting(true);
+    } else {
+      setIsSaving(true);
+    }
+
     try {
-      // Transform state to API payload
       const payload = students
         .map((student) => {
           const studentMarks = marksData[student.id] || {};
@@ -205,11 +209,12 @@ export function MarksEntrySheet({
             componentScores,
           };
         })
-        .filter((s) => s.componentScores.length > 0); // Only send students with marks
+        .filter((s) => s.componentScores.length > 0);
 
       if (payload.length === 0) {
         toast.error("No marks entered to save");
         setIsSaving(false);
+        setIsSubmitting(false);
         return;
       }
 
@@ -219,11 +224,12 @@ export function MarksEntrySheet({
         subjectId,
         termId,
         templateId: template.id,
+        status,
         marks: payload,
       });
 
       if (result.success) {
-        toast.success("Marks saved successfully");
+        toast.success(status === "SUBMITTED" ? "Marks submitted for review" : "Marks saved successfully");
         setHasUnsavedChanges(false);
         router.refresh();
       } else {
@@ -234,6 +240,7 @@ export function MarksEntrySheet({
       toast.error("Failed to save marks");
     } finally {
       setIsSaving(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -250,17 +257,11 @@ export function MarksEntrySheet({
             </h2>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm text-muted-foreground">Template:</span>
-              <Badge
-                variant="secondary"
-                className="font-semibold text-primary/80"
-              >
+              <Badge variant="secondary" className="font-semibold text-primary/80">
                 {template.name}
               </Badge>
               {hasUnsavedChanges && (
-                <Badge
-                  variant="default"
-                  className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200 shadow-none animate-pulse"
-                >
+                <Badge variant="default" className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200">
                   <AlertCircle className="w-3 h-3 mr-1" />
                   Unsaved Changes
                 </Badge>
@@ -270,120 +271,128 @@ export function MarksEntrySheet({
         </div>
         <div className="flex items-center gap-3">
           <Button
-            size="lg"
-            className="h-12 px-8 text-base shadow-md transition-all active:scale-95"
-            onClick={handleSave}
-            disabled={isSaving || !hasUnsavedChanges || hasInvalidMarks}
+            variant="outline"
+            className="h-10 px-4"
+            onClick={() => handleSave("DRAFT")}
+            disabled={isSaving || isSubmitting || !hasUnsavedChanges || hasInvalidMarks || isSystemLocked}
           >
-            {isSaving ? (
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-5 w-5" />
-            )}
-            Save All Marks
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Save Draft
+          </Button>
+          <Button
+            className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700"
+            onClick={() => handleSave("SUBMITTED")}
+            disabled={isSaving || isSubmitting || hasInvalidMarks || isSystemLocked}
+          >
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            Submit for Review
           </Button>
         </div>
       </div>
 
-      <div className="border rounded-md overflow-hidden">
+      {isSystemLocked && (
+        <Card className={isPublished ? "border-blue-200 bg-blue-50" : "border-red-200 bg-red-50"}>
+          <CardContent className="flex items-center gap-4 p-4">
+            <Lock className={`h-5 w-5 ${isPublished ? "text-blue-600" : "text-red-600"}`} />
+            <div className="flex-1">
+              {isPublished ? (
+                <>
+                  <p className="text-sm font-medium text-blue-900">Report cards have been published.</p>
+                  <p className="text-xs text-blue-700 opacity-80">This gradebook is now read-only. Contact your administrator if changes are needed.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-red-900">Marks entry is currently locked.</p>
+                  <p className="text-xs text-red-700 opacity-80">
+                    {isGlobalLocked ? "Administrator has locked this assessment." : `Deadline (${effectiveDeadline?.toLocaleDateString()}) has passed.`}
+                    {" "}Contact admin for an extension.
+                  </p>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {effectiveDeadline && !isSystemLocked && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground px-1">
+          <Clock className="h-4 w-4" />
+          <span>Deadline: <b>{effectiveDeadline.toLocaleString()}</b></span>
+        </div>
+      )}
+
+      <div className="border rounded-md overflow-hidden bg-white">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="w-[250px] min-w-[200px]">Student</TableHead>
+              <TableHead className="w-[250px]">Student</TableHead>
               {template.components.map((comp) => (
                 <TableHead key={comp.id} className="text-center min-w-[100px]">
-                  <div>{comp.name}</div>
-                  <div className="text-xs font-normal text-muted-foreground">
-                    Max: {Number(comp.maxMarks)} ({Number(comp.weight)}%)
+                  <div className="text-sm font-semibold">{comp.name}</div>
+                  <div className="text-[10px] font-normal opacity-70">
+                    Max: {comp.maxMarks} ({comp.weight}%)
                   </div>
                 </TableHead>
               ))}
-              <TableHead className="text-center w-[100px] font-bold bg-muted/60">
-                Total (%)
-              </TableHead>
-              <TableHead className="text-center w-[80px] font-bold bg-muted/60">
-                Grade
-              </TableHead>
+              <TableHead className="text-center w-[100px] font-bold bg-muted/60">Total (%)</TableHead>
+              <TableHead className="text-center w-[100px] font-bold bg-muted/60">Grade</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {students.map((student) => {
               const stats = getStudentStats(student.id);
+              const studentScore = existingScores.find(s => s.studentId === student.id);
+              const isSubmitted = studentScore?.status && studentScore.status !== "DRAFT";
+
               return (
-                <TableRow
-                  key={student.id}
-                  className="hover:bg-muted/30 transition-colors"
-                >
-                  <TableCell className="font-medium p-4">
+                <TableRow key={student.id} className="hover:bg-muted/30">
+                  <TableCell className="p-4">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border shadow-sm">
+                      <Avatar className="h-8 w-8 border">
                         <AvatarImage src={student.user.image || undefined} />
-                        <AvatarFallback className="bg-primary/5 text-primary">
-                          {student.user.firstName[0]}
-                          {student.user.lastName[0]}
-                        </AvatarFallback>
+                        <AvatarFallback>{student.user.firstName[0]}{student.user.lastName[0]}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <div className="font-bold text-foreground">
-                          {student.user.firstName} {student.user.lastName}
-                        </div>
-                        {student.admissionNumber && (
-                          <div className="text-xs text-muted-foreground font-mono">
-                            {student.admissionNumber}
-                          </div>
-                        )}
+                        <div className="font-semibold text-sm">{student.user.firstName} {student.user.lastName}</div>
+                        <div className="text-[10px] text-muted-foreground">{student.admissionNumber || "No ID"}</div>
                       </div>
+                      {isSubmitted && (
+                        <Badge variant="outline" className="ml-auto text-[10px] bg-blue-50 text-blue-700">
+                          {studentScore.status}
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   {template.components.map((comp) => {
                     const value = marksData[student.id]?.[comp.id] ?? "";
-                    const isInvalid =
-                      typeof value === "number" &&
-                      (value > Number(comp.maxMarks) || value < 0);
+                    const isInvalid = typeof value === "number" && (value > Number(comp.maxMarks) || value < 0);
+                    const isReadOnly = isSystemLocked || isSubmitted;
 
                     return (
-                      <TableCell key={comp.id} className="p-3">
-                        <div className="relative group/input">
+                      <TableCell key={comp.id} className="p-2">
+                        <div className="relative">
                           <Input
                             type="number"
                             min={0}
                             max={Number(comp.maxMarks)}
-                            className={`text-center h-10 font-medium transition-all focus:ring-primary/20 ${isInvalid ? "border-red-500 bg-red-50 ring-1 ring-red-500" : "border-muted-foreground/20 hover:border-primary/50"}`}
+                            className={`text-center h-9 text-sm ${isInvalid ? "border-red-500 bg-red-50" : ""} ${isReadOnly ? "bg-muted opacity-80 cursor-not-allowed" : ""}`}
                             value={value}
-                            onChange={(e) =>
-                              handleMarkChange(
-                                student.id,
-                                comp.id,
-                                e.target.value,
-                              )
-                            }
-                            step={0.5}
+                            disabled={isReadOnly}
+                            onChange={(e) => handleMarkChange(student.id, comp.id, e.target.value)}
                           />
-                          {isInvalid && (
-                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] px-1.5 rounded-full border border-red-700 shadow-sm z-10 whitespace-nowrap">
-                              {typeof value === "number" && value < 0
-                                ? "Min 0"
-                                : `Max ${Number(comp.maxMarks)}`}
-                            </div>
-                          )}
                         </div>
                       </TableCell>
                     );
                   })}
-                  <TableCell className="text-center font-bold bg-muted/20 p-4 border-x">
-                    <span className="text-lg">{stats ? stats.total : "-"}</span>
+                  <TableCell className="text-center font-bold bg-muted/10 p-4 border-x text-sm">
+                    {stats ? stats.total : "-"}
                   </TableCell>
-                  <TableCell className="text-center p-4 bg-muted/20">
+                  <TableCell className="text-center p-4">
                     {stats ? (
-                      <Badge
-                        variant="outline"
-                        className={`h-9 px-4 text-base rounded-md shadow-sm transition-all ${stats.color}`}
-                      >
+                      <Badge variant="outline" className={`h-7 px-3 text-xs rounded-md ${stats.color}`}>
                         {stats.grade}
                       </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
+                    ) : "-"}
                   </TableCell>
                 </TableRow>
               );
@@ -391,12 +400,6 @@ export function MarksEntrySheet({
           </TableBody>
         </Table>
       </div>
-
-      {students.length === 0 && (
-        <div className="p-8 text-center text-muted-foreground border rounded-md">
-          No students found in this class.
-        </div>
-      )}
     </div>
   );
 }

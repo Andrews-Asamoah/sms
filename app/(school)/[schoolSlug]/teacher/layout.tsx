@@ -23,13 +23,10 @@ export default async function TeacherLayout({
       schoolName={school.name}
       schoolPlan={school.subscription?.planName || "Free Plan"}
       schoolLogo={school.logo || undefined}
-      user={{
-        ...userData,
-        role: "teacher",
-      }}
+      user={userData}
       academicYear={academicYear}
       currentTerm={currentTerm}
-      currentRole="teacher"
+      currentRole={userData.role}
       availableRoles={allRoles}
       permissions={permissions}
     >

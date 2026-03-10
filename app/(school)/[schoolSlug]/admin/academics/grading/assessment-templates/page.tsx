@@ -52,14 +52,17 @@ export default async function AssessmentTemplatesPage({
     return <div>School not found</div>;
   }
 
-  // Fetch templates and grading systems
-  const [templates, gradingSystems] = await Promise.all([
+  // Fetch templates, grading systems, and current classes
+  const [templates, gradingSystems, schoolClasses] = await Promise.all([
     prisma.assessmentTemplate.findMany({
       where: { schoolId: school.id },
       include: {
         gradingSystem: true,
         components: {
           orderBy: { displayOrder: "asc" },
+        },
+        classes: {
+          select: { classId: true },
         },
         _count: {
           select: { assessmentScores: true },
@@ -72,6 +75,15 @@ export default async function AssessmentTemplatesPage({
         OR: [{ schoolId: school.id }, { isSystemDefault: true }],
         isActive: true,
       },
+      orderBy: { name: "asc" },
+    }),
+    prisma.class.findMany({
+      where: {
+        schoolId: school.id,
+        academicYear: { isCurrent: true },
+        isActive: true,
+      },
+      select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -98,6 +110,7 @@ export default async function AssessmentTemplatesPage({
         <AssessmentTemplateDialog
           schoolSlug={schoolSlug}
           gradingSystems={gradingSystems}
+          classes={schoolClasses}
         >
           <Button>
             <Plus className="mr-2 h-4 w-4" />
@@ -127,6 +140,7 @@ export default async function AssessmentTemplatesPage({
                 template={template}
                 schoolSlug={schoolSlug}
                 gradingSystems={gradingSystems}
+                classes={schoolClasses}
               />
             </CardHeader>
             <CardContent className="flex-1 mt-4">
@@ -201,6 +215,7 @@ export default async function AssessmentTemplatesPage({
             <AssessmentTemplateDialog
               schoolSlug={schoolSlug}
               gradingSystems={gradingSystems}
+              classes={schoolClasses}
             >
               <Button>
                 <Plus className="mr-2 h-4 w-4" />

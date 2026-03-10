@@ -9,6 +9,8 @@ import { Gender } from "@/lib/generated/prisma/client";
 // Schema for teacher invitation
 const teacherInviteSchema = z.object({
   email: z.string().email("Valid email is required"),
+  firstName: z.string().min(2, "First name is required"),
+  lastName: z.string().min(2, "Last name is required"),
   staffNumber: z.string().nullable().optional(),
   departmentId: z.string().min(1, "Department is required"),
   houseId: z.string().nullable().optional(),
@@ -271,6 +273,8 @@ export async function POST(
             profileId: profileId,
             invitationEmail: null, // Fully linked immediately
             staffNumber: data.staffNumber ?? null,
+            firstName: data.firstName,
+            lastName: data.lastName,
             departmentId: data.departmentId,
             houseId: data.houseId ?? null,
             qualification: data.qualification ?? null,
@@ -324,6 +328,8 @@ export async function POST(
         schoolId: school.id,
         profileId: null,
         invitationEmail: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
         staffNumber: data.staffNumber ?? null,
         departmentId: data.departmentId,
         houseId: data.houseId ?? null,

@@ -1,7 +1,5 @@
-import React from "react";
+import { ComingSoonPage } from "@/components/common/coming-soon-page";
 
-function page() {
-  return <div>Helo</div>;
+export default function StudentGradesPage() {
+  return <ComingSoonPage title="My Grades" description="View your academic scores, grades, and report cards. This feature is coming soon." />;
 }
-
-export default page;

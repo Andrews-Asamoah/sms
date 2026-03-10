@@ -10,6 +10,7 @@ export type RoleName =
   | "superAdmin"
   | "owner"
   | "admin"
+  | "headteacher"
   | "teacher"
   | "accountant"
   | "student"
@@ -21,6 +22,7 @@ export const ROLES: readonly RoleName[] = [
   "superAdmin",
   "owner",
   "admin",
+  "headteacher",
   "teacher",
   "accountant",
   "student",
@@ -33,6 +35,7 @@ export const ROLE_DISPLAY_NAMES: Record<RoleName, string> = {
   superAdmin: "Super Administrator",
   owner: "School Owner",
   admin: "Administrator",
+  headteacher: "Head Teacher",
   teacher: "Teacher",
   accountant: "Accountant",
   student: "Student",
@@ -45,6 +48,7 @@ export const ROLE_DESCRIPTIONS: Record<RoleName, string> = {
   superAdmin: "Full platform access and school creation",
   owner: "Full access to their school",
   admin: "Day-to-day school operations management",
+  headteacher: "Academic and administrative head of the school",
   teacher: "Classroom management and student assessment",
   accountant: "Financial management and reporting",
   student: "View own academic information",
@@ -254,6 +258,7 @@ export function isEffectiveRole(role: string): role is EffectiveRole {
   const effectiveRoles: EffectiveRole[] = [
     "owner",
     "admin",
+    "headteacher",
     "teacher",
     "accountant",
     "staff",
@@ -269,6 +274,7 @@ export function isEffectiveRole(role: string): role is EffectiveRole {
  */
 export function isProfileRole(role: string): role is ProfileRoleType {
   const profileRoles: ProfileRoleType[] = [
+    "headteacher",
     "teacher",
     "student",
     "guardian",

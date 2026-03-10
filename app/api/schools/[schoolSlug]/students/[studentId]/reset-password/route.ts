@@ -8,8 +8,8 @@ import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 
 function generateSecurePassword(): string {
-  // Generate a 12-character random readable password
-  return crypto.randomBytes(6).toString("hex");
+  // Generate an 8-character random readable password
+  return crypto.randomBytes(4).toString("hex");
 }
 
 export async function POST(
@@ -83,6 +83,12 @@ export async function POST(
         },
       });
     }
+
+    // Update the plain text password in the Student model for admin visibility
+    await prisma.student.update({
+      where: { id: student.id },
+      data: { plainTextPassword: newPassword },
+    });
 
     // Create an audit log for the action
     await prisma.auditLog.create({

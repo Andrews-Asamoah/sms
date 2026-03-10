@@ -76,8 +76,9 @@ export function TeacherStudentsTable({ data }: TeacherStudentsTableProps) {
               <div className="font-medium">
                 {student.firstName} {student.lastName}
               </div>
-              <div className="text-xs text-muted-foreground font-mono">
-                {student.admissionNumber || "No Adm #"}
+              <div className="text-[10px] text-muted-foreground font-mono flex flex-col">
+                <span>{student.admissionNumber || "No Adm #"}</span>
+                <span className="text-primary/70">{student.email}</span>
               </div>
             </div>
           </div>

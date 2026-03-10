@@ -101,48 +101,102 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
     }
 
     setIsUploading(true);
-    setUploadProgress(10);
+    setUploadProgress(0);
     setResults([]);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("schoolId", schoolId);
-
-      setUploadProgress(30);
-
-      const response = await fetch(
-        `/api/schools/${schoolSlug}/students/bulk-upload`,
-        {
-          method: "POST",
-          body: formData,
-        },
-      );
-
-      setUploadProgress(70);
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to upload students");
+      const { read, utils } = await import("xlsx");
+      const buffer = await file.arrayBuffer();
+      const workbook = read(buffer, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      
+      const rawRows = utils.sheet_to_json(sheet, { raw: false }) as Record<string, unknown>[];
+      
+      if (rawRows.length === 0) {
+        throw new Error("No data found in the Excel file");
       }
 
-      const data = await response.json();
-      setResults(data.results);
+      const getVal = (row: Record<string, any>, ...keys: string[]) => {
+        for (const key of keys) {
+          if (row[key] !== undefined) return row[key];
+          const normalizedReq = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const actualKey = Object.keys(row).find((k) => {
+            const normalizedActual = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+            return normalizedActual === normalizedReq;
+          });
+          if (actualKey) return row[actualKey];
+        }
+        return undefined;
+      };
+
+      const studentsData = rawRows.map((row) => ({
+        firstName: String(getVal(row, "First Name*", "First Name", "FirstName") || "").trim(),
+        lastName: String(getVal(row, "Last Name*", "Last Name", "LastName") || "").trim(),
+        otherNames: getVal(row, "Other Names") ? String(getVal(row, "Other Names")).trim() : null,
+        gender: String(getVal(row, "Gender*", "Gender") || "").toUpperCase(),
+        dateOfBirth: String(getVal(row, "Date of Birth*", "Date of Birth", "DOB") || ""),
+        nationality: getVal(row, "Nationality") ? String(getVal(row, "Nationality")).trim() : null,
+        phone: getVal(row, "Phone") ? String(getVal(row, "Phone")).trim() : null,
+        alternatePhone: getVal(row, "Alternate Phone") ? String(getVal(row, "Alternate Phone")).trim() : null,
+        residentialAddress: getVal(row, "Residential Address") ? String(getVal(row, "Residential Address")).trim() : null,
+        postalAddress: getVal(row, "Postal Address") ? String(getVal(row, "Postal Address")).trim() : null,
+        city: getVal(row, "City") ? String(getVal(row, "City")).trim() : null,
+        region: getVal(row, "Region") ? String(getVal(row, "Region")).trim() : null,
+        country: getVal(row, "Country") ? String(getVal(row, "Country")).trim() : null,
+        admissionDate: String(getVal(row, "Admission Date*", "Admission Date") || ""),
+        className: getVal(row, "Class Name", "Class") ? String(getVal(row, "Class Name", "Class")).trim() : null,
+        departmentName: getVal(row, "Department Name", "Department") ? String(getVal(row, "Department Name", "Department")).trim() : null,
+        houseName: getVal(row, "House Name", "House") ? String(getVal(row, "House Name", "House")).trim() : null,
+        previousSchool: getVal(row, "Previous School") ? String(getVal(row, "Previous School")).trim() : null,
+        previousClass: getVal(row, "Previous Class") ? String(getVal(row, "Previous Class")).trim() : null,
+        bloodGroup: getVal(row, "Blood Group") ? String(getVal(row, "Blood Group")).trim() : null,
+        allergies: getVal(row, "Allergies") ? String(getVal(row, "Allergies")).trim() : null,
+        medicalConditions: getVal(row, "Medical Conditions") ? String(getVal(row, "Medical Conditions")).trim() : null,
+        emergencyContactName: getVal(row, "Emergency Contact Name") ? String(getVal(row, "Emergency Contact Name")).trim() : null,
+        emergencyContactPhone: getVal(row, "Emergency Contact Phone") ? String(getVal(row, "Emergency Contact Phone")).trim() : null,
+        emergencyRelationship: getVal(row, "Emergency Relationship") ? String(getVal(row, "Emergency Relationship")).trim() : null,
+      }));
+
+      const BATCH_SIZE = 20;
+      const allResults: UploadResult[] = [];
+      
+      for (let i = 0; i < studentsData.length; i += BATCH_SIZE) {
+        const batch = studentsData.slice(i, i + BATCH_SIZE);
+        const progress = Math.round((i / studentsData.length) * 100);
+        setUploadProgress(progress);
+
+        const response = await fetch(
+          `/api/schools/${schoolSlug}/students/bulk-upload`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ students: batch, schoolId }),
+          },
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || `Failed to upload batch starting at row ${i + 2}`);
+        }
+
+        const data = await response.json();
+        allResults.push(...data.results);
+      }
+
+      setResults(allResults);
       setShowResults(true);
       setUploadProgress(100);
 
-      const successCount = data.results.filter(
+      const successCount = allResults.filter(
         (r: UploadResult) => r.status === "success",
       ).length;
-      const errorCount = data.results.filter(
+      const errorCount = allResults.filter(
         (r: UploadResult) => r.status === "error",
       ).length;
 
       if (successCount > 0 && errorCount === 0) {
-        toast.success("Upload completed successfully!", {
-          description: `${successCount} students uploaded successfully.`,
-        });
-
+        toast.success(`Successfully processed ${successCount} students.`);
         setTimeout(() => {
           router.push(`/${schoolSlug}/admin/students`);
           router.refresh();

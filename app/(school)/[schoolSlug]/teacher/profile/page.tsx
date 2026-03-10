@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getCurrentUserProfile } from "@/app/actions/profile";
 import { ProfileForm } from "@/components/forms/profile-form";
+import { getActiveSchoolRole } from "@/lib/auth/school-access";
 
 export default async function TeacherProfilePage({
   params,
@@ -14,6 +15,17 @@ export default async function TeacherProfilePage({
 
   if (!session) {
     redirect(`/auth/login?callbackUrl=/${schoolSlug}/teacher/profile`);
+  }
+
+  // Active role check
+  const activeRole = await getActiveSchoolRole(session, schoolSlug);
+  const effectiveRole = activeRole?.effectiveRole || "teacher";
+
+  if (
+    !["teacher", "admin", "owner", "headteacher"].includes(effectiveRole) &&
+    !session.isSuperAdmin
+  ) {
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
   }
 
   const userData = await getCurrentUserProfile();

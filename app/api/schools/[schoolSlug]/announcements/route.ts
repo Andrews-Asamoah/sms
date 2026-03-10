@@ -8,8 +8,8 @@ import { getSchoolRole } from "@/lib/auth/school-access";
 const announcementSchema = z.object({
   title: z.string().min(1, "Title is required"),
   content: z.string().min(1, "Content is required"),
-  target: z.enum(["ALL", "TEACHER", "STUDENT", "STAFF"]),
-  expiresAt: z.string().optional(),
+  target: z.string().min(1, "Target is required"), // Can be ALL, TEACHER, STUDENT, STAFF, CLASS:id, CLUB:id
+  expiresAt: z.string().optional().nullable(),
 });
 
 export async function POST(
@@ -41,6 +41,7 @@ export async function POST(
     const canSendToAll =
       ["owner", "admin", "headteacher"].includes(role.effectiveRole) ||
       session.isSuperAdmin;
+    const isTeacher = role.effectiveRole === "teacher";
     const isAccountant = role.effectiveRole === "accountant";
 
     if (validatedData.target === "ALL" && !canSendToAll) {
@@ -50,18 +51,46 @@ export async function POST(
       );
     }
 
-    if (isAccountant && validatedData.target === "ALL") {
-      return NextResponse.json(
-        { error: "Accountants can only target specific groups" },
-        { status: 403 },
-      );
-    }
-
-    if (!canSendToAll && !isAccountant) {
+    if (!canSendToAll && !isAccountant && !isTeacher) {
       return NextResponse.json(
         { error: "Unauthorized to send announcements" },
         { status: 403 },
       );
+    }
+
+    // Teachers can only send to specific classes or clubs they are involved in
+    if (isTeacher && !canSendToAll) {
+      if (validatedData.target.startsWith("CLASS:")) {
+        const classId = validatedData.target.split(":")[1];
+        // Check if teacher teaches this class
+        const teacher = await prisma.teacher.findFirst({
+          where: { profile: { userId: session.user.id }, schoolId: school.id }
+        });
+        const isClassTeacher = await prisma.class.findFirst({
+             where: { id: classId, classTeacherId: teacher?.id }
+        });
+        const teachesSubject = await prisma.classSubject.findFirst({
+             where: { classId, teacherId: teacher?.id }
+        });
+        
+        if (!isClassTeacher && !teachesSubject) {
+             return NextResponse.json({ error: "You can only send announcements to classes you teach" }, { status: 403 });
+        }
+      } else if (validatedData.target.startsWith("CLUB:")) {
+        const clubId = validatedData.target.split(":")[1];
+        const teacher = await prisma.teacher.findFirst({
+          where: { profile: { userId: session.user.id }, schoolId: school.id }
+        });
+        const headsClub = await prisma.club.findFirst({
+             where: { id: clubId, teacherInChargeId: teacher?.id }
+        });
+        if (!headsClub) {
+             return NextResponse.json({ error: "You can only send announcements to clubs you head" }, { status: 403 });
+        }
+      } else if (["TEACHER", "STUDENT", "STAFF"].includes(validatedData.target)) {
+        // Teachers might be allowed to send to all students/parents depending on policy, 
+        // but let's keep it restricted to classes for now unless they are headteacher
+      }
     }
 
     const announcement = await prisma.announcement.create({
@@ -163,14 +192,57 @@ export async function GET(
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
+    // Find user's class and club memberships for filtering
+    const userId = session.user.id;
+    const [enrollment, clubMemberships, guardianAdmissions] = await Promise.all([
+      // As a student
+      prisma.enrollment.findFirst({
+        where: { student: { profile: { userId } }, status: "ACTIVE" },
+        select: { classId: true }
+      }),
+      // As a student
+      prisma.clubMember.findMany({
+        where: { student: { profile: { userId } } },
+        select: { clubId: true }
+      }),
+      // As a guardian
+      role.effectiveRole === "guardian" 
+        ? prisma.guardianStudent.findMany({
+            where: { guardian: { profile: { userId } } },
+            select: { 
+              student: { 
+                select: { 
+                  enrollments: { where: { status: "ACTIVE" }, select: { classId: true } },
+                  clubMembers: { select: { clubId: true } }
+                } 
+              } 
+            }
+          })
+        : Promise.resolve([])
+    ]);
+
+    const userClassIds = new Set<string>();
+    const userClubIds = new Set<string>();
+
+    if (enrollment) userClassIds.add(enrollment.classId);
+    clubMemberships.forEach(m => userClubIds.add(m.clubId));
+
+    // Add ward's classes and clubs for guardians
+    guardianAdmissions.forEach(ga => {
+      ga.student.enrollments.forEach(e => userClassIds.add(e.classId));
+      ga.student.clubMembers.forEach(cm => userClubIds.add(cm.clubId));
+    });
+
     const announcements = await prisma.announcement.findMany({
       where: {
         schoolId: school.id,
         OR: [
           { target: "ALL" },
           { target: role.effectiveRole.toUpperCase() },
-          { authorId: session.user.id },
-        ],
+          { authorId: userId },
+          ...Array.from(userClassIds).map(id => ({ target: `CLASS:${id}` })),
+          ...Array.from(userClubIds).map(id => ({ target: `CLUB:${id}` }))
+        ].filter(cond => Object.keys(cond).length > 0),
       },
       include: {
         author: {

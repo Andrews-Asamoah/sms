@@ -29,6 +29,8 @@ export interface GradeScale {
 export interface GradebookTemplate {
   id: string;
   name: string;
+  deadline: string | null;
+  isLocked: boolean;
   components: AssessmentComponent[];
   gradingSystem: {
     gradeScales: GradeScale[];
@@ -37,6 +39,8 @@ export interface GradebookTemplate {
 
 export interface ExistingScore {
   studentId: string;
+  status: "DRAFT" | "SUBMITTED" | "REVIEWED" | "FINAL";
+  isLocked: boolean;
   componentScores: {
     componentId: string;
     marksObtained: number;
@@ -51,4 +55,8 @@ export interface MarksEntrySheetProps {
   classId: string;
   subjectId: string;
   termId: string;
+  extension?: {
+    deadline: string;
+  } | null;
+  isPublished?: boolean;
 }

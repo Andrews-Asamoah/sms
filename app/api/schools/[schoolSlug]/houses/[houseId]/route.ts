@@ -80,19 +80,12 @@ export async function PATCH(
     const session = await requireSchoolAccess(schoolSlug);
     const role = getSchoolRole(session, schoolSlug);
 
-    if (
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner" &&
-      !session.isSuperAdmin
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
-
     const body = await request.json();
     const validatedData = updateHouseSchema.parse(body);
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
+      select: { id: true },
     });
 
     if (!school) {
@@ -104,10 +97,38 @@ export async function PATCH(
         id: houseId,
         schoolId: school.id,
       },
+      include: {
+        houseTeacher: {
+          include: {
+            profile: true,
+          },
+        },
+      },
     });
 
     if (!existingHouse) {
       return NextResponse.json({ error: "House not found" }, { status: 404 });
+    }
+
+    const isHouseTeacher = existingHouse.houseTeacher?.profile?.userId === session.user.id;
+    const isAdmin = 
+      role?.effectiveRole === "admin" || 
+      role?.effectiveRole === "owner" || 
+      session.isSuperAdmin;
+
+    if (!isAdmin && !isHouseTeacher) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // If only house teacher, restrict fields
+    if (!isAdmin && isHouseTeacher) {
+      const allowedFields = ["description", "motto", "color"];
+      const requestedFields = Object.keys(validatedData);
+      const isRestricted = requestedFields.some(field => !allowedFields.includes(field));
+      
+      if (isRestricted) {
+        return NextResponse.json({ error: "House Master can only update motto, description and color" }, { status: 403 });
+      }
     }
 
     // Check code uniqueness if being changed

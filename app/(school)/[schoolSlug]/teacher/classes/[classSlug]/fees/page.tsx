@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
-import { getSchoolRole } from "@/lib/auth/school-access";
+import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
 import { DashboardPageHeader } from "@/components/layout/page-header";
 import { DataTable } from "@/components/ui/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -22,15 +22,13 @@ export default async function ClassFeesPage({ params }: ClassFeesPageProps) {
 
   // 1. Auth check
   const session = await requireSchoolAccess(schoolSlug);
-  const role = getSchoolRole(session, schoolSlug);
+  const activeRole = await getActiveSchoolRole(session, schoolSlug);
+  const effectiveRole = activeRole?.effectiveRole || "teacher";
 
   if (
-    !role ||
-    (role.effectiveRole !== "teacher" &&
-      role.effectiveRole !== "admin" &&
-      role.effectiveRole !== "owner")
+    !["teacher", "admin", "owner", "headteacher"].includes(effectiveRole)
   ) {
-    redirect(`/${schoolSlug}/unauthorized`);
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
   }
 
   // 2. Fetch teacher identity
@@ -43,8 +41,8 @@ export default async function ClassFeesPage({ params }: ClassFeesPageProps) {
   let teacherId = teacher?.id;
 
   // If role is specifically teacher, ensure we found a record
-  if (role.effectiveRole === "teacher" && !teacherId) {
-    redirect(`/${schoolSlug}/unauthorized`);
+  if (effectiveRole === "teacher" && !teacherId) {
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
   }
 
   // 3. Find Class and verify Teacher is the Class Teacher
@@ -65,12 +63,12 @@ export default async function ClassFeesPage({ params }: ClassFeesPageProps) {
 
   if (!classData) return notFound();
 
-  // If role is teacher, ensure they are the class teacher. Admins/owners bypass this check.
+  // If role is teacher, ensure they are the class teacher. Admins/owners bypass this check IF they are not in Teacher role.
   if (
-    role.effectiveRole === "teacher" &&
+    effectiveRole === "teacher" &&
     classData.classTeacherId !== teacherId
   ) {
-    redirect(`/${schoolSlug}/unauthorized`);
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
   }
 
   // 4. Summarize Balances

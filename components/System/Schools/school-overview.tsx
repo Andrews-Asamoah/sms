@@ -30,6 +30,7 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { MemberActionsMenu } from "./member-actions-menu";
+import { SchoolStatusMenu } from "./school-status-menu";
 
 type SchoolWithDetails = Prisma.SchoolGetPayload<{
   include: {
@@ -233,7 +234,7 @@ export function SchoolOverview({
               {/* Action Buttons */}
               <div className="flex gap-2">
                 <Button asChild variant="outline" size="sm">
-                  <Link href={`/schools/${school.id}/settings`}>
+                  <Link href={`/schools/${school.subdomain}/settings`}>
                     <Settings className="mr-2 h-4 w-4" />
                     Edit Settings
                   </Link>
@@ -244,6 +245,12 @@ export function SchoolOverview({
                     Open Portal
                   </Link>
                 </Button>
+                <SchoolStatusMenu
+                  schoolId={school.id}
+                  subdomain={school.subdomain}
+                  currentStatus={school.subscription?.status}
+                  isSuperAdmin={isSuperAdmin}
+                />
               </div>
             </div>
           </div>
@@ -430,7 +437,7 @@ export function SchoolOverview({
               </dl>
               <div className="mt-4">
                 <Button asChild variant="outline" className="w-full">
-                  <Link href={`/schools/${school.id}/subscription`}>
+                  <Link href={`/schools/${school.subdomain}/subscription`}>
                     Manage Subscription
                   </Link>
                 </Button>
@@ -565,11 +572,16 @@ export function SchoolOverview({
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {school.organization.members.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                >
+              {school.organization.members
+                .filter(
+                  (member) =>
+                    member.role === "admin" || member.role === "owner",
+                )
+                .map((member) => (
+                  <div
+                    key={member.id}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     {member.user.image ? (
                       <Image

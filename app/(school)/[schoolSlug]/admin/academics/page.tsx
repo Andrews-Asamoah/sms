@@ -147,13 +147,20 @@ export default async function AcademicOverviewPage(
     };
   });
 
-  const recentAcademicYears = school.academicYears.slice(0, 5).map((year) => ({
-    id: year.id,
-    name: year.name,
-    termsCount: year.terms.length,
-    classesCount: year._count.classes,
-    isCurrent: year.id === settings.currentAcademicYearId,
-  }));
+  const now = new Date();
+  const recentAcademicYears = school.academicYears.slice(0, 5).map((year) => {
+    const isCurrent = year.id === settings.currentAcademicYearId;
+    const isUpcoming = !isCurrent && new Date(year.startDate) > now;
+    const status = isCurrent ? "Current" : isUpcoming ? "Upcoming" : "Past";
+    return {
+      id: year.id,
+      name: year.name,
+      termsCount: year.terms.length,
+      classesCount: year._count.classes,
+      isCurrent,
+      status,
+    };
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-muted/50">
@@ -185,7 +192,7 @@ export default async function AcademicOverviewPage(
                   </CardDescription>
                 </div>
                 <Button asChild variant="outline">
-                  <Link href={`/${schoolSlug}/admin/academic-years`}>
+                  <Link href={`/${schoolSlug}/admin/academicYears`}>
                     Manage Periods
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
@@ -438,8 +445,16 @@ export default async function AcademicOverviewPage(
                         {year.termsCount} terms • {year.classesCount} classes
                       </p>
                     </div>
-                    <Badge variant={year.isCurrent ? "default" : "outline"}>
-                      {year.isCurrent ? "Current" : "Past"}
+                    <Badge
+                      variant={
+                        year.isCurrent
+                          ? "default"
+                          : year.status === "Upcoming"
+                          ? "secondary"
+                          : "outline"
+                      }
+                    >
+                      {year.status}
                     </Badge>
                   </div>
                 ))}

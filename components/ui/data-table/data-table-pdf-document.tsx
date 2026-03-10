@@ -14,7 +14,9 @@ import {
 
 const styles = StyleSheet.create({
   page: {
-    padding: 30,
+    paddingTop: 40,
+    paddingBottom: 60,
+    paddingHorizontal: 30,
     backgroundColor: "#ffffff",
   },
   title: {
@@ -60,7 +62,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     position: "absolute",
-    bottom: 30,
+    bottom: 20,
     left: 30,
     right: 30,
     textAlign: "center",
@@ -76,19 +78,21 @@ interface PDFDocumentProps {
   data: any[];
   columns: { header: string; accessor: string }[];
   title?: string;
+  orientation?: "portrait" | "landscape";
 }
 
 export const DataTablePDFDocument = ({
   data,
   columns,
   title = "Data Export",
+  orientation = "portrait",
 }: PDFDocumentProps) => {
   // Calculate column widths proportionately
   const colWidth = 100 / columns.length;
 
   return (
     <Document>
-      <Page size="A4" orientation="landscape" style={styles.page}>
+      <Page size="A4" orientation={orientation} style={styles.page}>
         <Text style={styles.title}>{title}</Text>
 
         <View style={styles.table}>

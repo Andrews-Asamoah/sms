@@ -16,6 +16,69 @@ interface DataTableExportProps<TData> {
 }
 
 export function DataTableExport<TData>({ table }: DataTableExportProps<TData>) {
+  const formatExportValue = (value: any): string => {
+    if (value === null || value === undefined) return "";
+
+    // 1. Handle Dates
+    if (value instanceof Date) {
+      return value.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    }
+
+    // Check if string is a valid ISO date
+    if (
+      typeof value === "string" &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)
+    ) {
+      const date = new Date(value);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+      }
+    }
+
+    // 2. Handle Objects (Profiles, Students, Categories)
+    if (typeof value === "object") {
+      // Priority 1: Full Name from Profile
+      if (value.profile) {
+        const p = value.profile;
+        return [p.firstName, p.otherNames, p.lastName]
+          .filter(Boolean)
+          .join(" ");
+      }
+      
+      // Priority 2: Standard Name/Title fields
+      if ("name" in value) return String(value.name);
+      if ("title" in value) return String(value.title);
+      if ("firstName" in value && "lastName" in value) {
+        return `${value.firstName} ${value.lastName}`;
+      }
+
+      // Fallback: Stringify but clean up
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }
+
+    // 3. Handle Numbers (Currency/Amount)
+    if (typeof value === "number") {
+      return value.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+
+    return String(value);
+  };
+
   const getExportData = () => {
     return table.getFilteredRowModel().rows.map((row) => {
       const rowData: Record<string, any> = {};
@@ -25,16 +88,7 @@ export function DataTableExport<TData>({ table }: DataTableExportProps<TData>) {
 
         if (cell.column.id === "actions" || cell.column.id === "select") return;
 
-        const value = cell.getValue();
-
-        if (typeof value === "object" && value !== null) {
-          if ("name" in value) rowData[headerTitle] = (value as any).name;
-          else if ("title" in value)
-            rowData[headerTitle] = (value as any).title;
-          else rowData[headerTitle] = JSON.stringify(value);
-        } else {
-          rowData[headerTitle] = value;
-        }
+        rowData[headerTitle] = formatExportValue(cell.getValue());
       });
       return rowData;
     });
@@ -73,6 +127,7 @@ export function DataTableExport<TData>({ table }: DataTableExportProps<TData>) {
           data={data}
           columns={exportColumns}
           title="Data Export"
+          orientation="portrait"
         />,
       ).toBlob();
 

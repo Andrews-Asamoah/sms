@@ -57,11 +57,6 @@ export function AppSidebarSchool({
     [schoolSlug, filteredNavSections, currentActiveRole],
   );
 
-  console.log(`[Sidebar] Active role: ${currentActiveRole}`);
-  console.log(
-    `[Sidebar] Sections after filtering: ${prefixedNavSections.length}`,
-  );
-
   return (
     <BaseSidebar
       logoName={schoolName}
@@ -71,7 +66,11 @@ export function AppSidebarSchool({
       navSections={prefixedNavSections}
       user={user}
       headerContent={
-        currentActiveRole === "accountant" ? <WorkingYearSwitcher /> : null
+        ["accountant", "admin", "owner", "headteacher", "superAdmin"].includes(
+          currentActiveRole,
+        ) ? (
+          <WorkingYearSwitcher />
+        ) : null
       }
       {...props}
     />

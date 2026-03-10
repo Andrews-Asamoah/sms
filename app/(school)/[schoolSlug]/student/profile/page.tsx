@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getCurrentUserProfile } from "@/app/actions/profile";
 import { ProfileForm } from "@/components/forms/profile-form";
+import { getSchoolRole } from "@/lib/auth/school-access";
 
 export default async function StudentProfilePage({
   params,
@@ -20,6 +21,12 @@ export default async function StudentProfilePage({
 
   if (!userData) {
     redirect(`/auth/login?callbackUrl=/${schoolSlug}/student/profile`);
+  }
+
+  // Override the global role with the effective school role so the form knows they are a student
+  const schoolAccess = getSchoolRole(session, schoolSlug);
+  if (schoolAccess) {
+    userData.role = schoolAccess.effectiveRole;
   }
 
   return (

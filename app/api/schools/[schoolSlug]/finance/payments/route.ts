@@ -22,8 +22,34 @@ export async function GET(
     return NextResponse.json({ error: "School not found" }, { status: 404 });
 
   try {
+    const { searchParams } = new URL(request.url);
+    const queryYearId = searchParams.get("academicYearId");
+    const queryTermId = searchParams.get("termId");
+
+    // Read Working Context from cookies
+    const cookieStore = await import("next/headers").then(mod => mod.cookies());
+    const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
+    const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
+
+    const schoolWithSettings = await prisma.school.findUnique({
+      where: { id: school.id },
+      select: { settings: true },
+    });
+    const settings = (schoolWithSettings?.settings as any) || {};
+
+    const effectiveYearId = queryYearId === "all" ? undefined : (queryYearId || workingYearId || settings.currentAcademicYearId);
+    const effectiveTermId = queryTermId === "all" ? undefined : (queryTermId || workingTermId || settings.currentTermId);
+
+    const whereClause: any = { schoolId: school.id };
+    if (effectiveYearId || effectiveTermId) {
+      whereClause.bill = {
+        ...(effectiveYearId && { academicYearId: effectiveYearId }),
+        ...(effectiveTermId && { termId: effectiveTermId }),
+      };
+    }
+
     const payments = await prisma.payment.findMany({
-      where: { schoolId: school.id },
+      where: whereClause,
       include: {
         student: {
           select: { profile: true, class: { select: { name: true } } },
@@ -65,8 +91,16 @@ export async function POST(
     return NextResponse.json({ error: "School not found" }, { status: 404 });
 
   const body = await request.json();
-  const { billId, amount, paymentMethod, referenceNumber, notes, paymentDate } =
-    body;
+  const {
+    studentId,
+    billId,
+    amount,
+    paymentMethod,
+    referenceNumber,
+    notes,
+    paymentDate,
+    items, // Array of { billItemId, amount, selected }
+  } = body;
 
   if (!billId || !amount || parseFloat(amount) <= 0) {
     return NextResponse.json(
@@ -77,62 +111,87 @@ export async function POST(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Find the target Bill
+      // 1. Find the target Bill and its items
       const bill = await tx.bill.findUnique({
         where: { id: billId, schoolId: school.id },
+        include: { items: true },
       });
 
-      if (!bill) {
-        throw new Error("Bill not found.");
-      }
-
-      if (bill.status === "PAID" || Number(bill.balanceAmount) <= 0) {
+      if (!bill) throw new Error("Bill not found.");
+      if (bill.status === "PAID")
         throw new Error("This bill is already fully paid.");
-      }
 
-      const payAmount = parseFloat(amount);
-      if (payAmount > Number(bill.balanceAmount)) {
-        throw new Error(
-          `Payment amount cannot exceed the balance of $${bill.balanceAmount}.`,
-        );
-      }
+      const totalPayAmount = parseFloat(amount);
 
       // 2. Create the Payment Record
       const payment = await tx.payment.create({
         data: {
           schoolId: school.id,
-          studentId: bill.studentId,
+          studentId: studentId || bill.studentId,
           billId: bill.id,
           paymentNumber: `RCPT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          amount: payAmount,
+          amount: totalPayAmount,
           paymentMethod: paymentMethod || "CASH",
           paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
           referenceNumber: referenceNumber || null,
           notes: notes || null,
           status: "COMPLETED",
-          // recordedById: session.user.id // Would add if tracking cashier exactly.
         },
       });
 
-      // 3. Update the Bill
-      const newPaidAmount = Number(bill.paidAmount) + payAmount;
-      const newBalanceAmount = Number(bill.balanceAmount) - payAmount;
-      const newStatus = newBalanceAmount === 0 ? "PAID" : "PARTIALLY_PAID";
+      // 3. Process each paid item
+      if (items && Array.isArray(items)) {
+        for (const itemPay of items) {
+          if (!itemPay.selected) continue;
+
+          const payAmount = parseFloat(itemPay.amount);
+          if (payAmount <= 0) continue;
+
+          const billItem = bill.items.find((i) => i.id === itemPay.billItemId);
+          if (!billItem) continue;
+
+          // Update BillItem
+          const newPaid = Number(billItem.paidAmount) + payAmount;
+          const newBal = Number(billItem.balanceAmount) - payAmount;
+
+          await tx.billItem.update({
+            where: { id: billItem.id },
+            data: {
+              paidAmount: newPaid,
+              balanceAmount: newBal,
+              status: newBal <= 0 ? "FULLY_PAID" : "PARTIALLY_PAID",
+            },
+          });
+
+          // Create PaymentItem link
+          await tx.paymentItem.create({
+            data: {
+              paymentId: payment.id,
+              billItemId: billItem.id,
+              amount: payAmount,
+            },
+          });
+        }
+      }
+
+      // 4. Update the Bill summary
+      const newPaidAmount = Number(bill.paidAmount) + totalPayAmount;
+      const newBalanceAmount = Number(bill.balanceAmount) - totalPayAmount;
 
       await tx.bill.update({
         where: { id: bill.id },
         data: {
           paidAmount: newPaidAmount,
           balanceAmount: newBalanceAmount,
-          status: newStatus,
+          status: newBalanceAmount <= 0 ? "PAID" : "PARTIALLY_PAID",
         },
       });
 
-      // 4. Update the Student's aggregate outstanding balance
+      // 5. Update the Student's aggregate outstanding balance
       await tx.student.update({
-        where: { id: bill.studentId },
+        where: { id: studentId || bill.studentId },
         data: {
-          outstandingBalance: { decrement: payAmount },
+          outstandingBalance: { decrement: totalPayAmount },
         },
       });
 

@@ -14,9 +14,6 @@ export async function getNavPermissions(
 ): Promise<NavPermissions> {
   // SuperAdmin - all permissions
   if (session.isSuperAdmin) {
-    console.log(
-      `[Permissions] SuperAdmin ${session.user.email} - granting all permissions`,
-    );
     return getAllPermissions();
   }
 
@@ -24,20 +21,8 @@ export async function getNavPermissions(
   const schoolAccess = getSchoolRole(session, subdomain);
 
   if (!schoolAccess) {
-    console.log(`[Permissions] No school access found for ${subdomain}`);
     return getNoPermissions();
   }
-
-  console.log(
-    `[Permissions] Getting permissions for ${session.user.email} in ${subdomain}`,
-  );
-  console.log(`[Permissions] Effective role: ${schoolAccess.effectiveRole}`);
-  console.log(
-    `[Permissions] Organization role: ${schoolAccess.organizationRole ?? "none"}`,
-  );
-  console.log(
-    `[Permissions] Profile roles: ${schoolAccess.profileRoles.join(", ") || "none"}`,
-  );
 
   // Start with permissions based on effective role
   let permissions = getPermissionsByRole(schoolAccess.effectiveRole);
@@ -56,7 +41,6 @@ export async function getNavPermissions(
     });
 
     if (hasSchoolManage) {
-      console.log(`[Permissions] User has explicit school:manage permission`);
       const adminPerms = getPermissionsByRole("admin");
       permissions = mergePermissions(permissions, adminPerms);
     }

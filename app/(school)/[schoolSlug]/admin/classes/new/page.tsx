@@ -109,7 +109,13 @@ export default async function NewClassPage({ params }: NewClassPageProps) {
             academicYears={school.academicYears}
             teachers={school.teachers
               .filter((t) => t.profile !== null)
-              .map((t) => ({ ...t, profile: t.profile! }))}
+              .map((t) => ({
+                id: t.id,
+                profile: {
+                  firstName: t.profile!.firstName,
+                  lastName: t.profile!.lastName,
+                },
+              }))}
             departments={school.departments}
           />
         </CardContent>

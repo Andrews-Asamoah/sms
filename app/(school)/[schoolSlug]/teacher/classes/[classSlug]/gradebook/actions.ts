@@ -4,7 +4,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
-import { getSchoolRole } from "@/lib/auth/school-access";
+import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
 
 interface SaveMarksData {
   studentId: string;
@@ -20,6 +20,7 @@ interface SaveMarksRequest {
   subjectId: string;
   termId: string;
   templateId: string;
+  status: "DRAFT" | "SUBMITTED" | "REVIEWED" | "FINAL";
   marks: SaveMarksData[];
 }
 
@@ -40,6 +41,8 @@ interface MarksDataResult {
   template: {
     id: string;
     name: string;
+    deadline: string | null;
+    isLocked: boolean;
     components: {
       id: string;
       name: string;
@@ -60,11 +63,17 @@ interface MarksDataResult {
   };
   existingScores: {
     studentId: string;
+    status: "DRAFT" | "SUBMITTED" | "REVIEWED" | "FINAL";
+    isLocked: boolean;
     componentScores: {
       componentId: string;
       marksObtained: number | { toNumber(): number };
     }[];
   }[];
+  extension: {
+    deadline: string;
+  } | null;
+  isPublished: boolean;
   className: string;
   subjectName: string;
 }
@@ -83,10 +92,11 @@ export async function getMarksData(
 > {
   try {
     const session = await requireSchoolAccess(schoolSlug);
-    const role = getSchoolRole(session, schoolSlug);
+    const activeRole = await getActiveSchoolRole(session, schoolSlug);
+    const effectiveRole = activeRole?.effectiveRole || "teacher";
 
     if (
-      !["teacher", "admin", "owner"].includes(role?.effectiveRole || "") &&
+      !["teacher", "admin", "owner", "headteacher"].includes(effectiveRole) &&
       !session.isSuperAdmin
     ) {
       return { success: false, error: "Unauthorized" };
@@ -205,20 +215,28 @@ export async function getMarksData(
     });
 
     // 4. Get Existing Scores
-    const [existingScores, school] = await Promise.all([
+    const [existingScores, extension, school, publishedSet] = await Promise.all([
       prisma.assessmentScore.findMany({
-        where: {
-          subjectId,
-          termId,
-          studentId: { in: students.map((s) => s.id) },
-          templateId: template.id,
-        },
-        include: {
-          componentScores: true,
-        },
+        where: { subjectId, termId, templateId: template.id },
+        include: { componentScores: true },
+      }),
+      prisma.assessmentExtension.findFirst({
+        where: { templateId: template.id, classId },
+        select: { deadline: true },
       }),
       prisma.school.findUnique({
         where: { subdomain: schoolSlug },
+        select: { id: true },
+      }),
+      prisma.reportCardSet.findFirst({
+        where: {
+          termId,
+          status: "PUBLISHED",
+          OR: [
+            { classId },
+            { targetClasses: { some: { classId } } },
+          ],
+        },
         select: { id: true },
       }),
     ]);
@@ -251,6 +269,8 @@ export async function getMarksData(
             weight: Number(c.weight),
             displayOrder: c.displayOrder,
           })),
+          deadline: template.deadline?.toISOString() || null,
+          isLocked: template.isLocked,
           gradingSystem: {
             gradeScales: template.gradingSystem.gradeScales.map((gs) => ({
               id: gs.id,
@@ -264,11 +284,15 @@ export async function getMarksData(
         },
         existingScores: existingScores.map((es) => ({
           studentId: es.studentId,
+          status: es.status as any,
+          isLocked: es.isLocked,
           componentScores: es.componentScores.map((cs) => ({
             componentId: cs.componentId,
             marksObtained: Number(cs.marksObtained),
           })),
         })),
+        extension: extension ? { deadline: extension.deadline.toISOString() } : null,
+        isPublished: !!publishedSet,
         className: classData.name,
         subjectName: subjectData.name,
       },
@@ -289,7 +313,15 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
 
     // Auth check
     const session = await requireSchoolAccess(schoolSlug);
-    // (Assuming role check done in UI/middleware, but good to have here too)
+    const activeRole = await getActiveSchoolRole(session, schoolSlug);
+    const effectiveRole = activeRole?.effectiveRole || "teacher";
+
+    if (
+      !["teacher", "admin", "owner", "headteacher"].includes(effectiveRole) &&
+      !session.isSuperAdmin
+    ) {
+      return { success: false, error: "Unauthorized" };
+    }
 
     // Get template for validation and grading
     const template = await prisma.assessmentTemplate.findUnique({
@@ -299,10 +331,54 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
         gradingSystem: {
           include: { gradeScales: true },
         },
+        extensions: {
+          where: { classId: classId },
+        },
       },
     });
 
     if (!template) return { success: false, error: "Template not found" };
+
+    // Locking check
+    const isGlobalLocked = template.isLocked;
+    const now = new Date();
+    const isDeadlinePassed = template.deadline && now > template.deadline;
+    const extension = template.extensions[0];
+    const hasActiveExtension = extension && now <= extension.deadline;
+
+    const isLocked = (isGlobalLocked || isDeadlinePassed) && !hasActiveExtension;
+
+    // Headteachers and admins can bypass locking
+    const canBypassLock = ["admin", "owner", "headteacher"].includes(effectiveRole) || session.isSuperAdmin;
+
+    if (isLocked && !canBypassLock) {
+      return { 
+        success: false, 
+        error: "Marks entry is locked for this assessment. Please contact the administrator for an extension." 
+      };
+    }
+
+    // Check if a ReportCardSet for this class+term has been published
+    // If yes, the gradebook is finalized and teachers cannot edit it.
+    if (!canBypassLock) {
+      const publishedSet = await prisma.reportCardSet.findFirst({
+        where: {
+          termId,
+          status: "PUBLISHED",
+          OR: [
+            { classId }, // single-class backward compat
+            { targetClasses: { some: { classId } } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (publishedSet) {
+        return {
+          success: false,
+          error: "Report cards for this class and term have been published. The gradebook is now read-only.",
+        };
+      }
+    }
 
     // Process each student's marks
     // We use a transaction to ensure integrity
@@ -374,6 +450,7 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
             percentage: percentage,
             grade,
             gradePoint,
+            status: req.status || "DRAFT",
           },
           update: {
             templateId, // Update template ID if changed (rare)
@@ -381,6 +458,7 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
             percentage: percentage,
             grade,
             gradePoint,
+            status: req.status || "DRAFT",
             updatedAt: new Date(),
           },
         });

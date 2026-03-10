@@ -35,7 +35,7 @@ import {
 
 const staffInviteSchema = z.object({
   email: z.string().email("Valid email is required"),
-  role: z.enum(["STAFF", "ACCOUNTANT", "ADMIN"]),
+  role: z.enum(["STAFF", "ACCOUNTANT", "ADMIN", "HEADTEACHER"]),
   firstName: z
     .string()
     .min(2, "First name is optional but recommended")
@@ -134,10 +134,8 @@ export default function InviteStaffPage() {
             <Briefcase className="h-6 w-6 text-primary" />
             Invite Staff Member
           </CardTitle>
-          <CardDescription>
-            Send an email invitation to add a new staff member, accountant, or
-            admin to the school system.
-          </CardDescription>
+            Send an email invitation to add a new staff member, accountant,
+            headteacher, or admin to the school system.
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -195,9 +193,10 @@ export default function InviteStaffPage() {
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="STAFF">General Staff</SelectItem>
-                    <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
                     <SelectItem value="ADMIN">Administrator</SelectItem>
+                    <SelectItem value="HEADTEACHER">Head Teacher</SelectItem>
+                    <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
+                    <SelectItem value="STAFF">General Staff</SelectItem>
                   </SelectContent>
                 </Select>
                 <FieldDescription>

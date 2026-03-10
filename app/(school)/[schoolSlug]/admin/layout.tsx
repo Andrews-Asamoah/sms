@@ -32,7 +32,7 @@ export default async function AdminLayout({
       user={userData}
       academicYear={academicYear}
       currentTerm={currentTerm}
-      currentRole="admin"
+      currentRole={userData.role}
       availableRoles={allRoles}
       permissions={permissions}
     >

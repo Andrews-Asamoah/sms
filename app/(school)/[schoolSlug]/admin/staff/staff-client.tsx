@@ -7,11 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, GraduationCap, Briefcase } from "lucide-react";
+import { BanUserButton } from "@/components/school/ban-user-button";
 
 type StaffData = {
   id: string;
   profileId: string | null;
   schoolId: string;
+  userId?: string;
   employeeId: string | null;
   firstName: string | undefined;
   lastName: string | undefined;
@@ -20,6 +22,7 @@ type StaffData = {
   type: string;
   category: "TEACHING" | "NON_TEACHING";
   isActive: boolean;
+  isBanned?: boolean;
   hireDate: Date;
   gender: string | null | undefined;
 };
@@ -98,6 +101,21 @@ export function StaffClient({ schoolSlug, initialData }: StaffClientProps) {
           {row.original.isActive ? "Active" : "Inactive"}
         </Badge>
       ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        if (!row.original.userId) return null;
+        return (
+          <BanUserButton
+            schoolSlug={schoolSlug}
+            userId={row.original.userId}
+            isBanned={row.original.isBanned ?? false}
+            userName={`${row.original.firstName} ${row.original.lastName}`}
+          />
+        );
+      }
     },
   ];
 

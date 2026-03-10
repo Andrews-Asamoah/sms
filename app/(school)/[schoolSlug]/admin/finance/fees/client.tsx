@@ -37,6 +37,7 @@ type FeeStructure = {
   isActive: boolean;
   _count: { bills: number };
   items: { id: string; name: string; amount: number }[];
+  targetClasses: { classId: string; }[];
 };
 
 interface FeesClientProps {

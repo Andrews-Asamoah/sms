@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -43,6 +43,7 @@ const expenseSchema = z.object({
   description: z.string().min(3, "Description is required"),
   amount: z.number().min(0.01, "Amount must be greater than 0"),
   date: z.date({ message: "Date is required" }),
+  registryCategoryId: z.string().min(1, "Please select an expenditure category"),
   category: z.string().optional(),
   payee: z.string().optional(),
   paymentMethod: z.string().min(1, "Payment method is required"),
@@ -66,6 +67,21 @@ export function AddExpenseDialog({
 }: AddExpenseProps) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registryCategories, setRegistryCategories] = useState<any[]>([]);
+
+  // Fetch standard expenditure categories
+  useEffect(() => {
+    if (open && schoolSlug) {
+      console.log(`🔍 [AddExpenseDialog] Fetching categories for ${schoolSlug}`);
+      fetch(`/api/schools/${schoolSlug}/finance/expenditure-registry`)
+        .then(res => res.json())
+        .then(data => {
+          console.log(`✅ [AddExpenseDialog] Loaded ${data.length} categories`);
+          setRegistryCategories(data);
+        })
+        .catch(err => console.error("❌ [AddExpenseDialog] Fetch error:", err));
+    }
+  }, [open, schoolSlug]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(expenseSchema),
@@ -73,6 +89,7 @@ export function AddExpenseDialog({
       description: "",
       amount: 0,
       date: new Date(),
+      registryCategoryId: "",
       category: "OTHER",
       payee: "",
       paymentMethod: "CASH",
@@ -91,7 +108,7 @@ export function AddExpenseDialog({
   } = form;
 
   const date = watch("date");
-  const category = watch("category");
+  const registryCategoryId = watch("registryCategoryId");
   const paymentMethod = watch("paymentMethod");
 
   const onFormSubmit: SubmitHandler<FormValues> = async (data) => {
@@ -183,27 +200,24 @@ export function AddExpenseDialog({
                 <FieldError errors={[errors.date]} />
               </Field>
 
-              <Field data-invalid={!!errors.category}>
-                <FieldLabel>Category</FieldLabel>
+              <Field data-invalid={!!errors.registryCategoryId}>
+                <FieldLabel>Expense Category *</FieldLabel>
                 <Select
-                  onValueChange={(val) => setValue("category", val)}
-                  defaultValue={category}
+                  onValueChange={(val) => setValue("registryCategoryId", val)}
+                  value={registryCategoryId}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue placeholder="Select standard category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="UTILITIES">Utilities</SelectItem>
-                    <SelectItem value="SALARY">Salaries</SelectItem>
-                    <SelectItem value="SUPPLIES">
-                      Supplies / Stationery
-                    </SelectItem>
-                    <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-                    <SelectItem value="TRANSPORT">Transport</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
+                    {registryCategories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <FieldError errors={[errors.category]} />
+                <FieldError errors={[errors.registryCategoryId]} />
               </Field>
             </div>
 

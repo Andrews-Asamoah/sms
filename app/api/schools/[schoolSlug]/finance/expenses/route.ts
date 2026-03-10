@@ -14,27 +14,46 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const school = await prisma.school.findUnique({
-      where: { subdomain: schoolSlug },
-      select: { id: true },
-    });
+  const school = await prisma.school.findUnique({
+    where: { subdomain: schoolSlug },
+  });
 
-    if (!school) {
-      return NextResponse.json({ error: "School not found" }, { status: 404 });
-    }
+  if (!school)
+    return NextResponse.json({ error: "School not found" }, { status: 404 });
+
+  try {
+    const url = new URL(request.url);
+    const academicYearId = url.searchParams.get("academicYearId");
+    const termId = url.searchParams.get("termId");
+
+    // Read Working Context from cookies
+    const cookieStore = await import("next/headers").then(mod => mod.cookies());
+    const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
+    const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
+
+    const schoolWithSettings = await prisma.school.findUnique({
+      where: { id: school.id },
+      select: { settings: true },
+    });
+    const settings = (schoolWithSettings?.settings as any) || {};
+    
+    // Priority: 1. Query Param, 2. Working Context (Cookie), 3. School Default
+    const effectiveYearId = academicYearId === "all" ? undefined : (academicYearId || workingYearId || settings.currentAcademicYearId);
+    const effectiveTermId = termId === "all" ? undefined : (termId || workingTermId || settings.currentTermId);
+
+    const where: any = { schoolId: school.id };
+    if (effectiveYearId) where.academicYearId = effectiveYearId;
+    if (effectiveTermId) where.termId = effectiveTermId;
 
     const expenses = await prisma.expense.findMany({
-      where: { schoolId: school.id },
+      where,
       include: {
-        customCategory: true,
-        recordedBy: {
-          select: { name: true },
-        },
+        customCategory: { select: { name: true, code: true } },
+        registryCategory: { select: { name: true } },
+        recordedBy: { select: { name: true } },
       },
       orderBy: { date: "desc" },
     });
-
     return NextResponse.json(expenses);
   } catch (error) {
     console.error("Fetch Expenses Error:", error);
@@ -56,47 +75,60 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const school = await prisma.school.findUnique({
+    where: { subdomain: schoolSlug },
+  });
+  if (!school)
+    return NextResponse.json({ error: "School not found" }, { status: 404 });
+
   try {
-    const school = await prisma.school.findUnique({
-      where: { subdomain: schoolSlug },
-      select: { id: true },
-    });
-
-    if (!school) {
-      return NextResponse.json({ error: "School not found" }, { status: 404 });
-    }
-
     const body = await request.json();
     const {
-      date,
       amount,
-      category,
-      customCategoryId,
+      date,
       description,
+      customCategoryId,
+      registryCategoryId,
       payee,
       paymentMethod,
-      checkNumber,
-      voucherNumber,
       referenceNumber,
+      voucherNumber,
+      notes,
     } = body;
+
+    if (!amount || !date || !description) {
+      return NextResponse.json(
+        { error: "Amount, date, and description are required." },
+        { status: 400 },
+      );
+    }
+
+    // Get Working Context from cookies or settings
+    const cookieStore = await import("next/headers").then(mod => mod.cookies());
+    const workingYearId = (await cookieStore).get("sms_working_academic_year_id")?.value;
+    const workingTermId = (await cookieStore).get("sms_working_term_id")?.value;
+
+    const schoolWithSettings = await prisma.school.findUnique({
+      where: { id: school.id },
+      select: { settings: true },
+    });
+    const settings = (schoolWithSettings?.settings as any) || {};
 
     const expense = await prisma.expense.create({
       data: {
         schoolId: school.id,
+        amount: parseFloat(amount),
         date: new Date(date),
-        amount: Number(amount),
-        category,
-        customCategoryId,
         description,
-        payee,
+        customCategoryId: customCategoryId || null,
+        registryCategoryId: registryCategoryId || null,
+        payee: payee || null,
         paymentMethod: paymentMethod || "CASH",
-        checkNumber,
-        voucherNumber,
-        referenceNumber,
+        referenceNumber: referenceNumber || null,
+        voucherNumber: voucherNumber || null,
         recordedById: session.user.id,
-      },
-      include: {
-        customCategory: true,
+        academicYearId: workingYearId || settings.currentAcademicYearId,
+        termId: workingTermId || settings.currentTermId,
       },
     });
 

@@ -6,9 +6,10 @@ import { DataTable } from "@/components/ui/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Wallet } from "lucide-react";
 import { format } from "date-fns";
 import { NavPermissions } from "@/lib/auth/types";
+import { RecordPaymentSheet } from "@/components/school/finance/record-payment-sheet";
 
 type Payment = {
   id: string;
@@ -17,6 +18,7 @@ type Payment = {
   paymentMethod: string;
   paymentDate: string;
   student: {
+    id: string;
     profile: {
       firstName: string;
       lastName: string;
@@ -36,19 +38,24 @@ export default function PaymentsClient({ permissions }: PaymentsClientProps) {
   const params = useParams();
   const schoolSlug = params.schoolSlug as string;
   const [data, setData] = useState<Payment[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`/api/schools/${schoolSlug}/finance/payments`);
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch(`/api/schools/${schoolSlug}/finance/payments`);
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    };
     fetchData();
   }, [schoolSlug]);
 
@@ -62,7 +69,7 @@ export default function PaymentsClient({ permissions }: PaymentsClientProps) {
       header: "Student",
       cell: ({ row }) => {
         const p = row.original.student.profile;
-        return `${p.firstName} ${p.lastName}`; // Simplified
+        return `${p.firstName} ${p.lastName}`;
       },
     },
     {
@@ -89,8 +96,25 @@ export default function PaymentsClient({ permissions }: PaymentsClientProps) {
       cell: ({ row }) => format(new Date(row.original.paymentDate), "PPP"),
     },
     {
-      header: "Recorded By",
-      accessorFn: (row) => row.recordedBy.name,
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) =>
+        permissions.canManageFinance ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8"
+            onClick={() =>
+              setSelectedStudent({
+                id: row.original.student.id,
+                name: `${row.original.student.profile.firstName} ${row.original.student.profile.lastName}`,
+              })
+            }
+          >
+            <Wallet className="h-4 w-4 mr-1" />
+            Top-up
+          </Button>
+        ) : null,
     },
   ];
 
@@ -103,15 +127,23 @@ export default function PaymentsClient({ permissions }: PaymentsClientProps) {
             Transaction history and revenue records
           </p>
         </div>
-        {permissions.canManageFinance && (
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Record Payment
-          </Button>
-        )}
+        <Button onClick={() => setSelectedStudent({ id: "", name: "" })}>
+          <Plus className="mr-2 h-4 w-4" /> Record Payment
+        </Button>
       </div>
 
       <DataTable columns={columns} data={data} searchKey="paymentNumber" />
+
+      {selectedStudent && (
+        <RecordPaymentSheet
+          open={!!selectedStudent}
+          onOpenChange={(open) => !open && setSelectedStudent(null)}
+          studentId={selectedStudent.id || undefined}
+          studentName={selectedStudent.name || undefined}
+          schoolSlug={schoolSlug}
+          onSuccess={fetchData}
+        />
+      )}
     </div>
   );
 }

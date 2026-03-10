@@ -29,6 +29,9 @@ const templateSchema = z.object({
   classLevel: z.string().nullable().optional(),
   subjectCode: z.string().nullable().optional(),
   isActive: z.boolean().default(true),
+  deadline: z.string().nullable().optional(),
+  isLocked: z.boolean().default(false),
+  classIds: z.array(z.string()).default([]),
   components: z
     .array(componentSchema)
     .min(1, "At least one component is required"),
@@ -81,7 +84,7 @@ export async function createAssessmentTemplate(
       return { success: false, error: "School not found" };
     }
 
-    // Create template with components
+    // Create template with components and class assignments
     const template = await prisma.assessmentTemplate.create({
       data: {
         schoolId: school.id,
@@ -91,18 +94,31 @@ export async function createAssessmentTemplate(
         classLevel: validated.classLevel,
         subjectCode: validated.subjectCode,
         isActive: validated.isActive,
+        deadline: validated.deadline ? new Date(validated.deadline) : null,
+        isLocked: validated.isLocked,
         components: {
           create: validated.components.map((comp, index) => ({
             name: comp.name,
             componentType: comp.componentType,
             maxMarks: comp.maxMarks,
             weight: comp.weight,
-            displayOrder: index + 1, // Ensure sequential order
+            displayOrder: index + 1,
             isRequired: comp.isRequired,
+          })),
+        },
+        classes: {
+          create: validated.classIds.map((classId) => ({
+            classId,
           })),
         },
       },
     });
+
+    // Trigger notifications if classes are assigned
+    if (validated.classIds.length > 0) {
+      const { notifyTeachersOfAssessment } = await import("@/lib/notifications");
+      await notifyTeachersOfAssessment(school.id, template.id, template.name);
+    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -177,7 +193,7 @@ export async function updateAssessmentTemplate(
 
     // Transaction to update template and replace components
     await prisma.$transaction(async (tx) => {
-      // 1. Update template basic info
+      // 1. Update template basic info and classes
       await tx.assessmentTemplate.update({
         where: { id: templateId },
         data: {
@@ -187,6 +203,14 @@ export async function updateAssessmentTemplate(
           classLevel: validated.classLevel,
           subjectCode: validated.subjectCode,
           isActive: validated.isActive,
+          deadline: validated.deadline ? new Date(validated.deadline) : null,
+          isLocked: validated.isLocked,
+          classes: {
+            deleteMany: {},
+            create: validated.classIds.map((classId) => ({
+              classId,
+            })),
+          },
         },
       });
 

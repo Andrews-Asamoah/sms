@@ -2,7 +2,8 @@
 
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { organization, admin } from "better-auth/plugins";
+import { organization, admin, magicLink } from "better-auth/plugins";
+import { nextCookies } from "better-auth/next-js";
 import prisma from "@/lib/prisma";
 import {
   ac,
@@ -100,9 +101,34 @@ export const auth = betterAuth({
   },
 
   // ==========================================================================
+  // RATE LIMITING & SECURITY ENHANCEMENTS
+  // ==========================================================================
+  rateLimit: {
+    window: 60, // time window in seconds
+    max: 100, // max requests per window
+    customRules: {
+      "/api/auth/sign-in/email": {
+        window: 60,
+        max: 5, // Only 5 login attempts per minute
+      },
+      "/api/auth/sign-up/email": {
+        window: 3600,
+        max: 3, // Only 3 signups per hour from same IP
+      },
+    },
+  },
+
+  // ==========================================================================
   // PLUGINS
   // ==========================================================================
   plugins: [
+    nextCookies(), // Enables robust session management over HTTP
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        console.log(`✨ [Auth] Magic link generated for ${email}: ${url}`);
+        // Can wire up Resend here later if desired.
+      },
+    }),
     // ------------------------------------------------------------------------
     // ORGANIZATION PLUGIN
     // ------------------------------------------------------------------------
@@ -196,6 +222,7 @@ export const auth = betterAuth({
       },
 
       organizationLimit: 100,
+      membershipLimit: 1000,
 
       // ======================================================================
       // HOOKS: Organization lifecycle events

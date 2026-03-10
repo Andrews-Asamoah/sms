@@ -106,51 +106,66 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <FieldGroup>
+      <FieldGroup className="space-y-5">
         {error && (
-          <Alert variant="destructive" className="backdrop-blur-sm">
+          <Alert
+            variant="destructive"
+            className="bg-destructive/10 border-destructive/20 text-destructive dark:text-red-400"
+          >
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription className="text-sm font-medium">
+              {error}
+            </AlertDescription>
           </Alert>
         )}
 
-        <Field data-invalid={!!errors.email}>
-          <FieldLabel htmlFor="email">Email Address</FieldLabel>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+        <Field data-invalid={!!errors.email} className="space-y-2">
+          <FieldLabel
+            htmlFor="email"
+            className="text-slate-700 dark:text-slate-300 font-medium"
+          >
+            Email Address
+          </FieldLabel>
+          <div className="relative group">
+            <Mail className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
             <Input
               {...register("email")}
               id="email"
               type="email"
               placeholder="you@school.edu"
-              className="pl-10 bg-background/50 backdrop-blur-sm"
+              className="pl-11 h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 transition-all duration-300 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 hover:border-slate-300 dark:hover:border-slate-700"
               disabled={isSubmitting}
               aria-invalid={!!errors.email}
               autoComplete="email"
             />
           </div>
-          <FieldError errors={[errors.email]} />
+          <FieldError className="text-xs" errors={[errors.email]} />
         </Field>
 
-        <Field data-invalid={!!errors.password}>
-          <div className="flex items-center justify-between mb-2">
-            <FieldLabel htmlFor="password">Password</FieldLabel>
+        <Field data-invalid={!!errors.password} className="space-y-2">
+          <div className="flex items-center justify-between">
+            <FieldLabel
+              htmlFor="password"
+              className="text-slate-700 dark:text-slate-300 font-medium"
+            >
+              Password
+            </FieldLabel>
             <Link
               href="/auth/forgot-password"
-              className="text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+              className="text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
               tabIndex={-1}
             >
               Forgot password?
             </Link>
           </div>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <div className="relative group">
+            <Lock className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
             <Input
               {...register("password")}
               id="password"
               type={showPassword ? "text" : "password"}
-              placeholder="Enter your password"
-              className="pl-10 pr-10 bg-background/50 backdrop-blur-sm"
+              placeholder="••••••••"
+              className="pl-11 pr-11 h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 transition-all duration-300 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 hover:border-slate-300 dark:hover:border-slate-700 tracking-wider placeholder:tracking-normal"
               disabled={isSubmitting}
               aria-invalid={!!errors.password}
               autoComplete="current-password"
@@ -158,7 +173,7 @@ export function LoginForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute right-3.5 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
               disabled={isSubmitting}
               tabIndex={-1}
               aria-label={showPassword ? "Hide password" : "Show password"}
@@ -170,38 +185,39 @@ export function LoginForm() {
               )}
             </button>
           </div>
-          <FieldError errors={[errors.password]} />
+          <FieldError className="text-xs" errors={[errors.password]} />
         </Field>
 
         <Button
           type="submit"
-          className={`w-full shadow-lg hover:shadow-xl transition-all duration-500 ${
-            isSuccess ? "bg-green-600 hover:bg-green-600 text-white" : ""
+          className={`w-full h-12 mt-2 font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-300 ${
+            isSuccess
+              ? "bg-green-500 hover:bg-green-600 text-white shadow-green-500/25"
+              : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 shadow-purple-500/25"
           }`}
-          size="lg"
           disabled={isSubmitting || isSuccess}
         >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Signing in...
+              Authenticating...
             </>
           ) : isSuccess ? (
             <>
               <CheckCircle2 className="mr-2 h-5 w-5 animate-in zoom-in duration-300" />
-              Success! Preparing Dashboard...
+              Sign in successful
             </>
           ) : (
             <>
-              Sign In
-              <ArrowRight className="ml-2 h-5 w-5" />
+              Sign in to platform
+              <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </>
           )}
         </Button>
 
         {callbackUrl && (
-          <p className="text-xs text-center text-muted-foreground bg-muted/50 p-2 rounded">
-            You&apos;ll be redirected after signing in
+          <p className="text-xs text-center text-slate-500 dark:text-slate-400 mt-4">
+            You will be redirected automatically
           </p>
         )}
       </FieldGroup>

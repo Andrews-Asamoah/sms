@@ -42,39 +42,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-const guardianSchema = z.object({
-  firstName: z.string().min(2, "First name required"),
-  lastName: z.string().min(2, "Last name required"),
-  otherNames: z.string().optional().nullable(),
-  email: z
-    .string()
-    .email("Valid email required")
-    .or(z.literal(""))
-    .optional()
-    .nullable(),
-  phone: z.string().min(10, "Phone number required"),
-  alternatePhone: z.string().optional().nullable(),
-  gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional().nullable(),
-  relationshipType: z.enum([
-    "FATHER",
-    "MOTHER",
-    "GUARDIAN",
-    "SIBLING",
-    "RELATIVE",
-    "OTHER",
-  ]),
-  occupation: z.string().optional().nullable(),
-  employer: z.string().optional().nullable(),
-  workAddress: z.string().optional().nullable(),
-  workPhone: z.string().optional().nullable(),
-  residentialAddress: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  region: z.string().optional().nullable(),
-  isPrimary: z.boolean(),
-  canPickup: z.boolean(),
-  receiveReports: z.boolean(),
-  receiveAlerts: z.boolean(),
-});
+
 
 const studentFormSchema = z.object({
   // Personal Information
@@ -118,8 +86,6 @@ const studentFormSchema = z.object({
   emergencyContactPhone: z.string().optional().nullable(),
   emergencyRelationship: z.string().optional().nullable(),
 
-  // Guardians - optional, only for new students
-  guardians: z.array(guardianSchema).optional(),
 });
 
 type StudentFormValues = z.infer<typeof studentFormSchema>;
@@ -167,25 +133,7 @@ export function StudentForm({
       country: "Ghana",
       admissionDate: new Date().toISOString().split("T")[0],
       gender: "MALE",
-      guardians: [
-        {
-          firstName: "",
-          lastName: "",
-          email: "",
-          phone: "",
-          relationshipType: "FATHER",
-          isPrimary: true,
-          canPickup: true,
-          receiveReports: true,
-          receiveAlerts: true,
-        },
-      ],
     }) as any,
-  });
-
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "guardians",
   });
 
   async function onSubmit(data: any) {
@@ -216,13 +164,16 @@ export function StudentForm({
         {
           description: studentProfileId
             ? `${data.firstName} ${data.lastName} has been updated.`
-            : `${data.firstName} ${data.lastName} has been added.${!studentProfileId && data.guardians?.length ? ` Invitations sent to ${data.guardians.length} guardian(s).` : ""}`,
+            : `${data.firstName} ${data.lastName} has been added.`,
         },
       );
 
-      router.push(
-        `/${schoolSlug}/admin/students/${result.id || result.student?.id}`,
-      );
+      const targetId = result.student?.id || result.id;
+      if (targetId) {
+        router.push(`/${schoolSlug}/admin/students/${targetId}`);
+      } else {
+        router.push(`/${schoolSlug}/admin/students`);
+      }
       router.refresh();
     } catch (error) {
       console.error("Error saving student:", error);
@@ -388,7 +339,7 @@ export function StudentForm({
             <FieldLabel htmlFor="studentId">Student ID *</FieldLabel>
             <Input
               id="studentId"
-              placeholder="STU00001"
+              placeholder={`STU-${new Date().getFullYear()}-0001`}
               {...register("studentId")}
               readOnly
               className="bg-muted"
@@ -406,13 +357,13 @@ export function StudentForm({
             </FieldLabel>
             <Input
               id="admissionNumber"
-              placeholder="ABC0001"
+              placeholder={`${schoolSlug.toUpperCase()}-${new Date().getFullYear().toString().slice(-2)}-0001`}
               {...register("admissionNumber")}
               readOnly
               className="bg-muted"
             />
             <p className="text-sm text-muted-foreground">
-              Auto-generated based on school code
+              Auto-generated based on school slug
             </p>
             {errors.admissionNumber && (
               <FieldError>{errors.admissionNumber.message}</FieldError>
@@ -593,361 +544,7 @@ export function StudentForm({
         </div>
       </div>
 
-      {/* Guardians/Parents Section - Only show when creating new students */}
-      {!isEditing && (
-        <>
-          <Separator />
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-muted-foreground" />
-                <h3 className="text-lg font-semibold">
-                  Guardians/Parents Information
-                </h3>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  append({
-                    firstName: "",
-                    lastName: "",
-                    otherNames: null,
-                    email: "",
-                    phone: "",
-                    alternatePhone: null,
-                    gender: null,
-                    relationshipType: "MOTHER",
-                    occupation: null,
-                    employer: null,
-                    workAddress: null,
-                    workPhone: null,
-                    residentialAddress: null,
-                    city: null,
-                    region: null,
-                    isPrimary: false,
-                    canPickup: true,
-                    receiveReports: true,
-                    receiveAlerts: true,
-                  })
-                }
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Guardian
-              </Button>
-            </div>
 
-            {fields.map((field, index) => (
-              <Card key={field.id} className="border-2">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">
-                      Guardian {index + 1}
-                    </CardTitle>
-                    {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => remove(index)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    )}
-                  </div>
-                  <CardDescription>
-                    An invitation email will be sent to this guardian
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Basic Info */}
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <FieldGroup>
-                      <FieldLabel>First Name *</FieldLabel>
-                      <Input
-                        placeholder="John"
-                        {...register(`guardians.${index}.firstName`)}
-                      />
-                      {errors.guardians?.[index]?.firstName && (
-                        <FieldError>
-                          {errors.guardians[index]?.firstName?.message}
-                        </FieldError>
-                      )}
-                    </FieldGroup>
-                    <FieldGroup>
-                      <FieldLabel>Last Name *</FieldLabel>
-                      <Input
-                        placeholder="Doe"
-                        {...register(`guardians.${index}.lastName`)}
-                      />
-                      {errors.guardians?.[index]?.lastName && (
-                        <FieldError>
-                          {errors.guardians[index]?.lastName?.message}
-                        </FieldError>
-                      )}
-                    </FieldGroup>
-                    <FieldGroup>
-                      <FieldLabel>Other Names</FieldLabel>
-                      <Input
-                        placeholder="Middle name"
-                        {...register(`guardians.${index}.otherNames`)}
-                      />
-                    </FieldGroup>
-                  </div>
-
-                  {/* Contact Info */}
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <FieldGroup>
-                      <FieldLabel>
-                        <Mail className="inline h-4 w-4 mr-1" />
-                        Email
-                      </FieldLabel>
-                      <Input
-                        type="email"
-                        placeholder="john.doe@email.com (Optional)"
-                        {...register(`guardians.${index}.email`)}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Needed for parent portal access
-                      </p>
-                      {errors.guardians?.[index]?.email && (
-                        <FieldError>
-                          {errors.guardians[index]?.email?.message}
-                        </FieldError>
-                      )}
-                    </FieldGroup>
-                    <FieldGroup>
-                      <FieldLabel>
-                        <PhoneIcon className="inline h-4 w-4 mr-1" />
-                        Phone *
-                      </FieldLabel>
-                      <Input
-                        placeholder="+233 24 123 4567"
-                        {...register(`guardians.${index}.phone`)}
-                      />
-                      {errors.guardians?.[index]?.phone && (
-                        <FieldError>
-                          {errors.guardians[index]?.phone?.message}
-                        </FieldError>
-                      )}
-                    </FieldGroup>
-                    <FieldGroup>
-                      <FieldLabel>Alternate Phone</FieldLabel>
-                      <Input
-                        placeholder="+233 20 987 6543"
-                        {...register(`guardians.${index}.alternatePhone`)}
-                      />
-                    </FieldGroup>
-                  </div>
-
-                  {/* Relationship and Gender */}
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <FieldGroup>
-                      <FieldLabel>Relationship *</FieldLabel>
-                      <Select
-                        value={watch(`guardians.${index}.relationshipType`)}
-                        onValueChange={(value) =>
-                          setValue(
-                            `guardians.${index}.relationshipType`,
-                            value as
-                              | "FATHER"
-                              | "MOTHER"
-                              | "GUARDIAN"
-                              | "SIBLING"
-                              | "RELATIVE"
-                              | "OTHER",
-                          )
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="FATHER">Father</SelectItem>
-                          <SelectItem value="MOTHER">Mother</SelectItem>
-                          <SelectItem value="GUARDIAN">Guardian</SelectItem>
-                          <SelectItem value="SIBLING">Sibling</SelectItem>
-                          <SelectItem value="RELATIVE">Relative</SelectItem>
-                          <SelectItem value="OTHER">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {errors.guardians?.[index]?.relationshipType && (
-                        <FieldError>
-                          {errors.guardians[index]?.relationshipType?.message}
-                        </FieldError>
-                      )}
-                    </FieldGroup>
-                    <FieldGroup>
-                      <FieldLabel>Gender</FieldLabel>
-                      <Select
-                        value={watch(`guardians.${index}.gender`) || ""}
-                        onValueChange={(value) =>
-                          setValue(
-                            `guardians.${index}.gender`,
-                            value as "MALE" | "FEMALE" | "OTHER",
-                          )
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="MALE">Male</SelectItem>
-                          <SelectItem value="FEMALE">Female</SelectItem>
-                          <SelectItem value="OTHER">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FieldGroup>
-                  </div>
-
-                  {/* Occupation */}
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <FieldGroup>
-                      <FieldLabel>Occupation</FieldLabel>
-                      <Input
-                        placeholder="Engineer"
-                        {...register(`guardians.${index}.occupation`)}
-                      />
-                    </FieldGroup>
-                    <FieldGroup>
-                      <FieldLabel>Employer</FieldLabel>
-                      <Input
-                        placeholder="Company name"
-                        {...register(`guardians.${index}.employer`)}
-                      />
-                    </FieldGroup>
-                    <FieldGroup>
-                      <FieldLabel>Work Phone</FieldLabel>
-                      <Input
-                        placeholder="+233 30 123 4567"
-                        {...register(`guardians.${index}.workPhone`)}
-                      />
-                    </FieldGroup>
-                  </div>
-
-                  {/* Work Address */}
-                  <FieldGroup>
-                    <FieldLabel>Work Address</FieldLabel>
-                    <Textarea
-                      placeholder="Office address"
-                      {...register(`guardians.${index}.workAddress`)}
-                    />
-                  </FieldGroup>
-
-                  {/* Residential Address */}
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <FieldGroup className="md:col-span-2">
-                      <FieldLabel>Residential Address</FieldLabel>
-                      <Textarea
-                        placeholder="Home address"
-                        {...register(`guardians.${index}.residentialAddress`)}
-                      />
-                    </FieldGroup>
-                    <div className="space-y-4">
-                      <FieldGroup>
-                        <FieldLabel>City</FieldLabel>
-                        <Input
-                          placeholder="Accra"
-                          {...register(`guardians.${index}.city`)}
-                        />
-                      </FieldGroup>
-                      <FieldGroup>
-                        <FieldLabel>Region</FieldLabel>
-                        <Input
-                          placeholder="Greater Accra"
-                          {...register(`guardians.${index}.region`)}
-                        />
-                      </FieldGroup>
-                    </div>
-                  </div>
-
-                  {/* Permissions */}
-                  <div className="space-y-3 pt-4 border-t">
-                    <FieldLabel className="text-base font-semibold">
-                      Permissions & Access
-                    </FieldLabel>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`guardian-${index}-primary`}
-                          checked={watch(`guardians.${index}.isPrimary`)}
-                          onCheckedChange={(checked) =>
-                            setValue(
-                              `guardians.${index}.isPrimary`,
-                              checked as boolean,
-                            )
-                          }
-                        />
-                        <label
-                          htmlFor={`guardian-${index}-primary`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Primary Guardian
-                        </label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`guardian-${index}-pickup`}
-                          checked={watch(`guardians.${index}.canPickup`)}
-                          onCheckedChange={(checked) =>
-                            setValue(
-                              `guardians.${index}.canPickup`,
-                              checked as boolean,
-                            )
-                          }
-                        />
-                        <label
-                          htmlFor={`guardian-${index}-pickup`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Can Pickup Student
-                        </label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`guardian-${index}-reports`}
-                          checked={watch(`guardians.${index}.receiveReports`)}
-                          onCheckedChange={(checked) =>
-                            setValue(
-                              `guardians.${index}.receiveReports`,
-                              checked as boolean,
-                            )
-                          }
-                        />
-                        <label
-                          htmlFor={`guardian-${index}-reports`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Receive Reports
-                        </label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`guardian-${index}-alerts`}
-                          checked={watch(`guardians.${index}.receiveAlerts`)}
-                          onCheckedChange={(checked) =>
-                            setValue(
-                              `guardians.${index}.receiveAlerts`,
-                              checked as boolean,
-                            )
-                          }
-                        />
-                        <label
-                          htmlFor={`guardian-${index}-alerts`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Receive Alerts
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </>
-      )}
 
       {/* Submit Button */}
       <div className="flex justify-end gap-4">
@@ -964,7 +561,7 @@ export function StudentForm({
           <Save className="mr-2 h-4 w-4" />
           {studentProfileId
             ? "Update Student"
-            : "Create Student & Send Invitations"}
+            : "Create Student"}
         </Button>
       </div>
     </form>

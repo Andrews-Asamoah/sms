@@ -1,5 +1,5 @@
 import { requireSchoolAccess } from "@/lib/auth/guards";
-import { getSchoolRole } from "@/lib/auth/school-access";
+import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
@@ -30,13 +30,14 @@ export default async function GradebookPage({
   const { subjectId, termId } = await searchParams;
 
   const session = await requireSchoolAccess(schoolSlug);
-  const role = getSchoolRole(session, schoolSlug);
+  const activeRole = await getActiveSchoolRole(session, schoolSlug);
+  const effectiveRole = activeRole?.effectiveRole || "teacher";
 
   if (
-    !["teacher", "admin", "owner"].includes(role?.effectiveRole || "") &&
+    !["teacher", "admin", "owner", "headteacher"].includes(effectiveRole) &&
     !session.isSuperAdmin
   ) {
-    redirect(`/${schoolSlug}/unauthorized`);
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
   }
 
   // Fetch Class Details
@@ -76,11 +77,14 @@ export default async function GradebookPage({
   const teacherId = teacher?.id;
 
   // Fetch Assigned Subjects for this Class (filtered by teacher if applicable)
+  // If role is specifically teacher, we strictly filter by their assignments
+  const isRestrictedTeacher = effectiveRole === "teacher";
+
   const assignedSubjects = await prisma.classSubject.findMany({
     where: {
       classId: classData.id,
-      // If teacher, check if they are assigned to this subject via ClassSubject
-      ...(teacherId ? { teacherId: teacherId } : {}),
+      // If teacher role active, restrict to their subjects
+      ...(isRestrictedTeacher && teacherId ? { teacherId: teacherId } : {}),
     },
     include: {
       subject: true,
@@ -98,20 +102,8 @@ export default async function GradebookPage({
   const activeTerm = terms.find((t) => t.isCurrent) || terms[0];
   const selectedTermId = termId || activeTerm?.id;
 
-  // Debug role access
-  console.log(`[Gradebook] Access check for ${schoolSlug}/${classSlug}`);
-  console.log(
-    `[Gradebook] User: ${session.user.email}, Role: ${role?.effectiveRole}`,
-  );
-  console.log(`[Gradebook] Class Found: ${classData?.name} (${classData?.id})`);
-  console.log(`[Gradebook] Subjects Found: ${assignedSubjects.length}`);
-
-  if (!role) {
-    console.log(
-      "[Gradebook] ❌ No role found for this subdomain. Profile Inspect:",
-    );
-    console.dir(session.profile, { depth: null });
-    console.log("[Gradebook] Memberships Count:", session.memberships.length);
+  if (!effectiveRole) {
+    // Silent fail or handled by layout
   }
 
   // Determine selected subject
@@ -149,7 +141,7 @@ export default async function GradebookPage({
   // 2. If subject/term selected, fetch marks data
   let marksData: Pick<
     MarksEntrySheetProps,
-    "students" | "template" | "existingScores"
+    "students" | "template" | "existingScores" | "extension" | "isPublished"
   > | null = null;
   let error = null;
 
@@ -179,6 +171,8 @@ export default async function GradebookPage({
         template: {
           id: rawData.template.id,
           name: rawData.template.name,
+          deadline: rawData.template.deadline,
+          isLocked: rawData.template.isLocked,
           components: rawData.template.components.map((c) => ({
             id: c.id,
             name: c.name,
@@ -200,11 +194,15 @@ export default async function GradebookPage({
         },
         existingScores: rawData.existingScores.map((es) => ({
           studentId: es.studentId,
+          status: es.status,
+          isLocked: es.isLocked,
           componentScores: es.componentScores.map((cs) => ({
             componentId: cs.componentId,
             marksObtained: Number(cs.marksObtained),
           })),
         })),
+        extension: rawData.extension,
+        isPublished: rawData.isPublished,
       };
     } else {
       error = !result.success ? result.error : null;
@@ -276,6 +274,8 @@ export default async function GradebookPage({
             classId={classData.id}
             subjectId={selectedSubject!.id}
             termId={selectedTermId!}
+            extension={marksData.extension}
+            isPublished={marksData.isPublished}
           />
         ) : (
           <div className="flex items-center justify-center h-[400px]">

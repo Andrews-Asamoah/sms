@@ -1,6 +1,6 @@
 // lib/layout/get-role-layout-data.ts
 import { getSession } from "@/lib/auth/session";
-import { getSchoolRole, getAllRolesInSchool } from "@/lib/auth/school-access";
+import { getSchoolRole, getAllRolesInSchool, getActiveSchoolRole } from "@/lib/auth/school-access";
 import { getNavPermissions } from "@/lib/permissions/utils";
 import prisma from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
@@ -20,13 +20,20 @@ export async function getRoleLayoutData(
   // Verify user has required role
   const schoolRole = getSchoolRole(session, schoolSlug);
 
-  const allowedRoles = Array.isArray(requiredRole)
-    ? requiredRole
-    : [requiredRole];
-
   if (!schoolRole) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
+
+  // Determine role-specific unauthorized route
+  const roleRoute =
+    schoolRole.effectiveRole === "member"
+      ? "teacher"
+      : schoolRole.effectiveRole;
+  const unauthorizedRedirect = `/${schoolSlug}/${roleRoute}/unauthorized`;
+
+  const allowedRoles = Array.isArray(requiredRole)
+    ? requiredRole
+    : [requiredRole];
 
   // Check if user has one of the allowed roles
   const hasRequiredRole =
@@ -34,13 +41,7 @@ export async function getRoleLayoutData(
     schoolRole.profileRoles.some((role) => allowedRoles.includes(role));
 
   if (!hasRequiredRole) {
-    // Redirect to their appropriate portal
-    // Note: 'member' role has no dedicated /member/ folder — redirect to teacher dashboard
-    const roleRoute =
-      schoolRole.effectiveRole === "member"
-        ? "teacher"
-        : schoolRole.effectiveRole;
-    redirect(`/${schoolSlug}/${roleRoute}`);
+    redirect(unauthorizedRedirect);
   }
 
   // Get school details
@@ -56,36 +57,66 @@ export async function getRoleLayoutData(
     notFound();
   }
 
-  // Get current academic year and term
+  // Get current academic year and term from cookies (Working Context) or system defaults
+  const cookieStore = await import("next/headers").then(mod => mod.cookies());
+  const workingYearId = cookieStore.get(`sms_working_year_${schoolSlug}`)?.value;
+  const workingTermId = cookieStore.get(`sms_working_term_${schoolSlug}`)?.value;
+
   interface SchoolSettings {
     currentAcademicYearId?: string;
     currentTermId?: string;
   }
 
   const settings = (school.settings as SchoolSettings) || {};
-  const academicYear = settings.currentAcademicYearId
+  
+  // Priority: 1. Cookie, 2. School Settings
+  const effectiveYearId = workingYearId || settings.currentAcademicYearId;
+  const effectiveTermId = workingTermId || settings.currentTermId;
+
+  const academicYear = effectiveYearId
     ? await prisma.academicYear.findUnique({
-        where: { id: settings.currentAcademicYearId },
+        where: { id: effectiveYearId },
         include: {
           terms: {
-            where: { id: settings.currentTermId },
-            take: 1,
+            orderBy: { termNumber: "asc" },
           },
         },
       })
     : null;
 
-  // Get all roles this user has in this school
+  // Find the term:
+  // 1. If cookie term exists and belongs to this year, use it.
+  // 2. Otherwise use school settings term if it belongs to this year.
+  // 3. Otherwise use the current term of the year (isCurrent=true).
+  // 4. Otherwise use the first term.
+  let activeTerm = null;
+  if (academicYear && academicYear.terms.length > 0) {
+    if (workingTermId) {
+      activeTerm = academicYear.terms.find((t) => t.id === workingTermId) || null;
+    }
+    
+    if (!activeTerm && settings.currentTermId) {
+      activeTerm = academicYear.terms.find((t) => t.id === settings.currentTermId) || null;
+    }
+
+    if (!activeTerm) {
+      activeTerm = academicYear.terms.find((t) => t.isCurrent) || academicYear.terms[0];
+    }
+  }
+
+  // Get the active school role (respects cookies)
+  const activeSchoolRole = await getActiveSchoolRole(session, schoolSlug);
+  const currentActiveRole = activeSchoolRole?.effectiveRole || schoolRole.effectiveRole;
   const allRoles = getAllRolesInSchool(session, schoolSlug);
 
-  // Get navigation permissions
+  // Get navigation permissions based on the session (permissions usually cover all roles)
   const permissions = await getNavPermissions(session, schoolSlug);
 
   const userData = {
     name: session.user.name || "User",
     email: session.user.email,
     avatar: session.user.image || school.logo || "/wis-logo.png",
-    role: schoolRole.effectiveRole,
+    role: currentActiveRole, // Now reflects the switched role
   };
 
   return {
@@ -105,9 +136,12 @@ export async function getRoleLayoutData(
           }
         : null,
     },
-    schoolRole,
+    schoolRole: {
+      ...schoolRole,
+      effectiveRole: currentActiveRole, // Override for layout
+    },
     academicYear: academicYear?.name || "No Active Year",
-    currentTerm: academicYear?.terms[0]?.name || null,
+    currentTerm: activeTerm?.name || null,
     allRoles,
     permissions,
     userData,

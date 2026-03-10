@@ -44,8 +44,8 @@ export function DepartmentDialog({
             </Button>
         )}
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
+      <DialogContent className="max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle>{department ? "Edit Department" : "Add Department"}</DialogTitle>
           <DialogDescription>
             {department
@@ -53,11 +53,13 @@ export function DepartmentDialog({
               : "Create a new department for your school."}
           </DialogDescription>
         </DialogHeader>
-        <DepartmentForm
-          schoolSlug={schoolSlug}
-          department={department}
-          onSuccess={() => onOpenChange(false)}
-        />
+        <div className="flex-1 overflow-y-auto p-6 pt-2">
+          <DepartmentForm
+            schoolSlug={schoolSlug}
+            department={department}
+            onSuccess={() => onOpenChange(false)}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

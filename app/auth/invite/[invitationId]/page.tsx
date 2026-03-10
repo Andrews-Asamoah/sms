@@ -42,6 +42,7 @@ interface InvitationData {
   role: string | null;
   invitationId: string;
   organizationId: string;
+  name?: string;
 }
 
 // ============================================================================
@@ -62,6 +63,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
         include: {
           school: {
             select: {
+              id: true,
               name: true,
               subdomain: true,
               logo: true,
@@ -112,6 +114,39 @@ export default async function InvitePage({ params }: InvitePageProps) {
     invitationId: invitation.id,
     organizationId: invitation.organization.id,
   };
+
+  // If this invitation is for a teacher, try to fetch their pre-filled name
+  const pendingTeacher = await prisma.teacher.findFirst({
+    where: {
+      invitationEmail: invitation.email,
+      schoolId: invitation.organization.school?.id,
+    },
+    select: {
+      firstName: true,
+      lastName: true,
+    },
+  });
+
+  if (pendingTeacher?.firstName && pendingTeacher?.lastName) {
+    invitationData.name = `${pendingTeacher.firstName} ${pendingTeacher.lastName}`;
+  } else {
+    // If no pending teacher, check the audit log for staff/admin invites
+    const auditLog = await prisma.auditLog.findFirst({
+      where: {
+        entityType: "INVITATION",
+        entityId: invitation.id,
+        action: "CREATE",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (auditLog && auditLog.newValues) {
+      const data = auditLog.newValues as any;
+      if (data.firstName || data.lastName) {
+        invitationData.name = [data.firstName, data.lastName].filter(Boolean).join(" ");
+      }
+    }
+  }
 
   return <InviteAcceptForm invitation={invitationData} />;
 }

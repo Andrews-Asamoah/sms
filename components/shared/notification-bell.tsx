@@ -33,6 +33,7 @@ export function NotificationBell() {
   const [loading, setLoading] = useState(true);
 
   const fetchNotifications = async () => {
+    if (!schoolSlug) return;
     try {
       const res = await fetch(`/api/schools/${schoolSlug}/notifications`);
       const data = await res.json();
@@ -135,7 +136,11 @@ export function NotificationBell() {
                   </p>
                   {notification.link && (
                     <Link
-                      href={notification.link}
+                      href={
+                        notification.link.startsWith("/")
+                          ? `/${schoolSlug}${notification.link}`
+                          : `/${schoolSlug}/${notification.link}`
+                      }
                       className="text-[10px] text-primary hover:underline mt-1"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -149,7 +154,7 @@ export function NotificationBell() {
         </ScrollArea>
         <div className="p-2 border-t text-center">
           <Button variant="ghost" size="sm" className="w-full text-xs" asChild>
-            <Link href={`/${schoolSlug}/notifications`}>
+            <Link href={`/schools/${schoolSlug}/notifications`}>
               View all notifications
             </Link>
           </Button>

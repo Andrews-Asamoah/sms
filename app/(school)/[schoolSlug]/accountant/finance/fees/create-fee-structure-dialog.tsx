@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,10 +23,18 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 const feeItemSchema = z.object({
+  registryItemId: z.string().min(1, "Please select a standard fee item"),
   name: z.string().min(1, "Item name is required"),
   amount: z.number().min(0, "Amount must be positive"),
   isOptional: z.boolean(),
@@ -55,6 +63,21 @@ export function CreateFeeStructureDialog({
 }: CreateFeeStructureDialogProps) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registryItems, setRegistryItems] = useState<any[]>([]);
+
+  // Fetch standard fee items
+  useEffect(() => {
+    if (open && schoolSlug) {
+      console.log(`🔍 [CreateFeeStructureDialog] Fetching fee items for ${schoolSlug}`);
+      fetch(`/api/schools/${schoolSlug}/finance/fee-item-registry`)
+        .then(res => res.json())
+        .then(data => {
+          console.log(`✅ [CreateFeeStructureDialog] Loaded ${data.length} fee items`);
+          setRegistryItems(data);
+        })
+        .catch(err => console.error("❌ [CreateFeeStructureDialog] Fetch error:", err));
+    }
+  }, [open, schoolSlug]);
 
   const {
     register,
@@ -70,7 +93,7 @@ export function CreateFeeStructureDialog({
       name: "",
       description: "",
       classLevel: "",
-      items: [{ name: "", amount: 0, isOptional: false, description: "" }],
+      items: [{ registryItemId: "", name: "", amount: 0, isOptional: false, description: "" }],
     },
   });
 
@@ -163,6 +186,7 @@ export function CreateFeeStructureDialog({
                   size="sm"
                   onClick={() =>
                     append({
+                      registryItemId: "",
                       name: "",
                       amount: 0,
                       isOptional: false,
@@ -181,16 +205,32 @@ export function CreateFeeStructureDialog({
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 grid grid-cols-2 gap-4">
-                      <Field data-invalid={!!errors.items?.[index]?.name}>
-                        <FieldLabel htmlFor={`items.${index}.name`}>
-                          Item Name
+                      <Field data-invalid={!!errors.items?.[index]?.registryItemId}>
+                        <FieldLabel htmlFor={`items.${index}.registryItemId`}>
+                          Fee Item Category
                         </FieldLabel>
-                        <Input
-                          id={`items.${index}.name`}
-                          placeholder="e.g. Development Fee"
-                          {...register(`items.${index}.name` as const)}
-                        />
-                        <FieldError errors={[errors.items?.[index]?.name]} />
+                        <Select
+                          value={watch(`items.${index}.registryItemId`)}
+                          onValueChange={(val) => {
+                            setValue(`items.${index}.registryItemId`, val, { shouldValidate: true });
+                            const matchingItem = registryItems.find(r => r.id === val);
+                            if (matchingItem) {
+                              setValue(`items.${index}.name`, matchingItem.name);
+                            }
+                          }}
+                        >
+                          <SelectTrigger id={`items.${index}.registryItemId`}>
+                            <SelectValue placeholder="Select standard item" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {registryItems.map(r => (
+                              <SelectItem key={r.id} value={r.id}>
+                                {r.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FieldError errors={[errors.items?.[index]?.registryItemId]} />
                       </Field>
                       <Field data-invalid={!!errors.items?.[index]?.amount}>
                         <FieldLabel htmlFor={`items.${index}.amount`}>

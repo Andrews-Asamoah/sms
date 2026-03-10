@@ -17,6 +17,9 @@ export type Student = {
     lastName: string;
     gender: string;
     phone: string | null;
+    user?: {
+      email: string;
+    };
   };
   class: {
     name: string;
@@ -65,8 +68,11 @@ export const columns: ColumnDef<Student>[] = [
             <div className="font-medium">
               {student.profile.firstName} {student.profile.lastName}
             </div>
-            <div className="text-sm text-muted-foreground">
-              {student.profile.phone || "No phone"}
+            <div className="text-[10px] text-muted-foreground font-mono flex flex-col">
+              <span>{student.profile.phone || "No phone"}</span>
+              <span className="text-primary font-semibold">
+                {student.profile.user?.email}
+              </span>
             </div>
           </div>
         </div>

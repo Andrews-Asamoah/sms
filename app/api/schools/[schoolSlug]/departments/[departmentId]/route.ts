@@ -9,6 +9,7 @@ const updateDepartmentSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
   code: z.string().min(1, "Code is required").max(10, "Code must be 10 characters or less").optional(),
   description: z.string().optional(),
+  promotionPassMark: z.number().nullable().optional(),
   headOfDeptId: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
 });
@@ -31,7 +32,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, code, description, headOfDeptId, isActive } = updateDepartmentSchema.parse(body);
+    const { name, code, description, promotionPassMark, headOfDeptId, isActive } = updateDepartmentSchema.parse(body);
 
     const school = await prisma.school.findUnique({
         where: { subdomain: schoolSlug },
@@ -67,6 +68,7 @@ export async function PATCH(
         name,
         code,
         description,
+        promotionPassMark,
         headOfDeptId,
         isActive,
       },

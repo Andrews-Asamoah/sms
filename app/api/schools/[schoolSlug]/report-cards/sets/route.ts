@@ -8,7 +8,7 @@ const createSetSchema = z.object({
   templateId: z.string().min(1, "Template is required"),
   academicYearId: z.string().min(1, "Academic year is required"),
   termId: z.string().min(1, "Term is required"),
-  classId: z.string().min(1, "Class is required"),
+  classIds: z.array(z.string()).min(1, "At least one class is required"),
   name: z.string().min(1, "Name is required"),
   publishAt: z.string().optional().nullable(),
 });
@@ -42,6 +42,11 @@ export async function GET(
         academicYear: true,
         term: true,
         class: true,
+        targetClasses: {
+          include: {
+            class: true,
+          }
+        },
         _count: {
           select: { reportCards: true },
         },
@@ -85,19 +90,29 @@ export async function POST(
       return new NextResponse("School not found", { status: 404 });
     }
 
+    const { classIds, ...rest } = validatedData;
+
     const set = await prisma.reportCardSet.create({
       data: {
-        ...validatedData,
+        ...rest,
         schoolId: school.id,
+        // For backward compatibility, use the first class as the primary classId
+        classId: classIds[0],
         publishAt: validatedData.publishAt
           ? new Date(validatedData.publishAt)
           : null,
+        targetClasses: {
+          create: classIds.map((id) => ({
+            classId: id,
+          })),
+        },
       },
       include: {
         template: true,
         academicYear: true,
         term: true,
         class: true,
+        targetClasses: true,
       },
     });
 

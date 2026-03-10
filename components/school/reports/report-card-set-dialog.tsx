@@ -11,13 +11,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ReportCardSetForm } from "./report-card-set-form";
+import { ReportCardSetForm, ClassWithDept } from "./report-card-set-form";
 
 interface ReportCardSetDialogProps {
   schoolSlug: string;
   academicYears: Array<{ id: string; name: string }>;
   terms: Array<{ id: string; name: string; academicYearId: string }>;
-  classes: Array<{ id: string; name: string }>;
+  classes: ClassWithDept[];
   templates: Array<{ id: string; name: string }>;
   onSuccess?: () => void;
 }
@@ -40,11 +40,11 @@ export function ReportCardSetDialog({
           New Report Set
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[550px] bg-background/95 backdrop-blur-xl border-border/50">
+      <DialogContent className="sm:max-w-[580px] max-h-[90vh] overflow-y-auto bg-background/95 backdrop-blur-xl border-border/50">
         <DialogHeader>
           <DialogTitle>Create Report Card Set</DialogTitle>
           <DialogDescription>
-            Generate a new batch of report cards for a specific class and term.
+            Generate report cards for one or more classes. You can select individual classes or pick an entire department.
           </DialogDescription>
         </DialogHeader>
         <ReportCardSetForm

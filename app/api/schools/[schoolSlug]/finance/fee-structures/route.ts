@@ -71,24 +71,32 @@ export async function POST(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Create the Fee Structure Template
+      // 1. Create the Fee Structure Template with class relations
       const feeStructure = await tx.feeStructure.create({
         data: {
           schoolId: school.id,
           name,
           description,
-          classLevel,
+          targetClasses: {
+            create:
+              targetClasses?.map((classId: string) => ({
+                classId,
+              })) || [],
+          },
           items: {
             create: items.map((item: any) => ({
               name: item.name,
               amount: item.amount,
               isOptional: item.isOptional || false,
               description: item.description,
-              category: "TUITION", // Default category, can be enhanced
+              registryItemId: item.registryItemId,
             })),
           },
         },
-        include: { items: true },
+        include: {
+          items: true,
+          targetClasses: true,
+        },
       });
 
       // 2. Automate Billing (if targets provided)
@@ -100,7 +108,7 @@ export async function POST(
         // Find students in these classes/departments
         const whereClause: any = {
           schoolId: school.id,
-          status: "ACTIVE", // Only active students
+          status: "ACTIVE",
           OR: [],
         };
 
@@ -111,61 +119,86 @@ export async function POST(
           whereClause.OR.push({ departmentId: { in: targetDepartments } });
         }
 
-        if (whereClause.OR.length === 0) {
-          // No valid targets
-        } else {
-          const studentsToBill = await tx.student.findMany({
-            where: whereClause,
-            select: { id: true, outstandingBalance: true },
-          });
+        const studentsToBill = await tx.student.findMany({
+          where: whereClause,
+          select: { id: true, outstandingBalance: true },
+        });
 
-          // Get current Academic Year (assuming active)
-          const academicYear = await tx.academicYear.findFirst({
-            where: { schoolId: school.id, isCurrent: true },
-          });
+        // Read Working Context from cookies
+        const cookieStore = await import("next/headers").then(mod => mod.cookies());
+        const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
+        const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
 
-          if (academicYear && studentsToBill.length > 0) {
-            const totalAmount = items.reduce(
-              (sum: number, item: any) => sum + Number(item.amount),
-              0,
-            );
+        // Get current Academic Year and Term from Working Context or school settings
+        const schoolWithSettings = await tx.school.findUnique({
+          where: { id: school.id },
+          select: { settings: true },
+        });
 
-            for (const student of studentsToBill) {
-              // Create Bill
-              const bill = await tx.bill.create({
-                data: {
-                  schoolId: school.id,
-                  studentId: student.id,
-                  academicYearId: academicYear.id,
-                  feeStructureId: feeStructure.id,
-                  billNumber: `BILL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                  totalAmount: totalAmount,
-                  balanceAmount: totalAmount,
-                  paidAmount: 0,
-                  status: "PENDING",
-                  dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // +30 days
-                  items: {
-                    create: feeStructure.items.map((item) => ({
-                      description: item.name,
-                      amount: item.amount,
-                      quantity: 1,
-                      totalAmount: item.amount,
-                      feeItemId: item.id,
-                    })),
-                  },
+        const settings = (schoolWithSettings?.settings as any) || {};
+        const effectiveYearId = workingYearId || settings.currentAcademicYearId;
+        const effectiveTermId = workingTermId || settings.currentTermId;
+
+        const [academicYear, term] = await Promise.all([
+          tx.academicYear.findUnique({ where: { id: effectiveYearId || "" } }),
+          tx.term.findUnique({ where: { id: effectiveTermId || "" } }),
+        ]);
+
+        if (academicYear && studentsToBill.length > 0) {
+          const totalAmount = items.reduce(
+            (sum: number, item: any) => sum + Number(item.amount),
+            0,
+          );
+
+          const yearCode = academicYear.name.replace(/\s+/g, "").toUpperCase();
+          const termCode = term ? `T${term.termNumber}` : "T1";
+
+          for (const student of studentsToBill) {
+            // Generate Unique Bill Code: B-YEAR-TERM-STUDENT_ID_OR_RANDOM
+            const randomStr = Math.random()
+              .toString(36)
+              .substring(2, 6)
+              .toUpperCase();
+            const billCode = `B-${yearCode}-${termCode}-${randomStr}`;
+
+            await tx.bill.create({
+              data: {
+                schoolId: school.id,
+                studentId: student.id,
+                academicYearId: effectiveYearId,
+                termId: effectiveTermId,
+                feeStructureId: feeStructure.id,
+                billNumber: billCode, // Using billCode for billNumber as well for simplicity if unique
+                billCode: billCode,
+                totalAmount: totalAmount,
+                balanceAmount: totalAmount,
+                paidAmount: 0,
+                status: "PENDING",
+                dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                items: {
+                  create: feeStructure.items.map((item) => ({
+                    description: item.name,
+                    amount: item.amount,
+                    quantity: 1,
+                    totalAmount: item.amount,
+                    feeItemId: item.id,
+                    paidAmount: 0,
+                    balanceAmount: item.amount,
+                    status: "UNPAID",
+                  })),
                 },
-              });
+              },
+            });
 
-              // Update Student Outstanding Balance
-              await tx.student.update({
-                where: { id: student.id },
-                data: {
-                  outstandingBalance: { increment: totalAmount },
-                },
-              });
+            // Update Student Outstanding Balance
+            await tx.student.update({
+              where: { id: student.id },
+              data: {
+                outstandingBalance: { increment: totalAmount },
+              },
+            });
 
-              createdBillsCount++;
-            }
+            createdBillsCount++;
           }
         }
       }

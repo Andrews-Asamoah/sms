@@ -56,8 +56,10 @@ function shouldBypass(pathname: string): boolean {
  * Check if user has valid session cookie
  */
 function hasSessionCookie(request: NextRequest): boolean {
-  // Better Auth uses a cookie named "better-auth.session_token"
-  const sessionCookie = request.cookies.get("better-auth.session_token");
+  // Better Auth uses a cookie named "better-auth.session_token" or "__Secure-better-auth.session_token" in production
+  const sessionCookie =
+    request.cookies.get("better-auth.session_token") ||
+    request.cookies.get("__Secure-better-auth.session_token");
   return !!sessionCookie?.value;
 }
 

@@ -20,12 +20,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 interface FeeItem {
   name: string;
   amount: string;
+  registryItemId?: string;
 }
 
 interface FormData {
   name: string;
   description: string;
-  classLevel: string;
   items: FeeItem[];
   targetClasses: string[];
   targetDepartments: string[];
@@ -42,14 +42,20 @@ interface InitialData {
   id: string;
   name: string;
   description: string;
-  classLevel: string;
-  items: { id: string; name: string; amount: number }[];
+  items: {
+    id: string;
+    name: string;
+    amount: number;
+    registryItemId?: string;
+  }[];
+  targetClasses: { classId: string }[];
 }
 
 interface FeeStructureFormProps {
   schoolSlug: string;
   classes: { id: string; name: string }[];
   departments: { id: string; name: string }[];
+  feeItemRegistry: { id: string; name: string }[];
   initialData?: InitialData | null;
   onSuccess?: () => void;
 }
@@ -58,6 +64,7 @@ export function FeeStructureForm({
   schoolSlug,
   classes,
   departments,
+  feeItemRegistry,
   initialData,
   onSuccess,
 }: FeeStructureFormProps) {
@@ -69,12 +76,15 @@ export function FeeStructureForm({
   const [formData, setFormData] = useState<FormData>({
     name: initialData?.name || "",
     description: initialData?.description || "",
-    classLevel: initialData?.classLevel || "",
-    items: initialData?.items.map((item) => ({
-      name: item.name,
-      amount: item.amount.toString(),
-    })) || [{ name: "Tuition Fee", amount: "0" }],
-    targetClasses: [],
+    items:
+      initialData?.items.map((item) => ({
+        name: item.name,
+        amount: item.amount.toString(),
+      })) ||
+      (feeItemRegistry.length > 0
+        ? [{ name: feeItemRegistry[0].name, amount: "0" }]
+        : [{ name: "", amount: "0" }]),
+    targetClasses: initialData?.targetClasses.map((tc) => tc.classId) || [],
     targetDepartments: [],
   });
 
@@ -99,7 +109,10 @@ export function FeeStructureForm({
   };
 
   const addItem = () => {
-    handleChange("items", [...formData.items, { name: "", amount: "0" }]);
+    handleChange("items", [
+      ...formData.items,
+      { name: "", amount: "0", registryItemId: "" },
+    ]);
   };
 
   const removeItem = (index: number) => {
@@ -166,10 +179,10 @@ export function FeeStructureForm({
       const payload = {
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
-        classLevel: formData.classLevel.trim() || undefined,
         items: formData.items.map((item) => ({
           name: item.name.trim(),
           amount: parseFloat(item.amount),
+          registryItemId: item.registryItemId,
         })),
         targetClasses:
           formData.targetClasses.length > 0
@@ -266,6 +279,40 @@ export function FeeStructureForm({
       </Field>
 
       <div className="space-y-3">
+        <div>
+          <h4 className="text-sm font-medium">
+            Target Classes <span className="text-destructive">*</span>
+          </h4>
+          <p className="text-xs text-muted-foreground mt-1">
+            Apply this fee structure to one or more classes.
+          </p>
+        </div>
+        <ScrollArea className="h-[140px] w-full rounded-md border p-3">
+          <div className="grid grid-cols-2 gap-2">
+            {classes.map((cls) => (
+              <div
+                key={cls.id}
+                className="flex flex-row items-center space-x-2"
+              >
+                <Checkbox
+                  id={`class-${cls.id}`}
+                  checked={formData.targetClasses.includes(cls.id)}
+                  onCheckedChange={() => toggleClass(cls.id)}
+                  disabled={isSubmitting}
+                />
+                <label
+                  htmlFor={`class-${cls.id}`}
+                  className="text-sm font-normal cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  {cls.name}
+                </label>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
+
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-medium">
             Fee Items <span className="text-destructive">*</span>
@@ -285,15 +332,30 @@ export function FeeStructureForm({
         <div className="space-y-2">
           {formData.items.map((item, index) => (
             <div key={index} className="flex items-center gap-2">
-              <Input
-                placeholder="Item Name"
-                value={item.name}
-                onChange={(e) =>
-                  handleItemChange(index, "name", e.target.value)
-                }
+              <select
+                className="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                value={item.registryItemId}
+                onChange={(e) => {
+                  const regItem = feeItemRegistry.find(
+                    (r) => r.id === e.target.value,
+                  );
+                  const newItems = [...formData.items];
+                  newItems[index] = {
+                    ...newItems[index],
+                    registryItemId: e.target.value,
+                    name: regItem?.name || "",
+                  };
+                  handleChange("items", newItems);
+                }}
                 disabled={isSubmitting}
-                className="flex-1"
-              />
+              >
+                <option value="">Select Fee Item</option>
+                {feeItemRegistry.map((reg) => (
+                  <option key={reg.id} value={reg.id}>
+                    {reg.name}
+                  </option>
+                ))}
+              </select>
               <Input
                 type="number"
                 min="0"
@@ -332,52 +394,15 @@ export function FeeStructureForm({
           <div className="space-y-3">
             <div>
               <h4 className="text-sm font-medium">
-                Bulk Assignment (Optional)
+                Target Departments (Optional)
               </h4>
               <p className="text-xs text-muted-foreground mt-1">
-                Select classes or departments to automatically create bills for
-                students
+                Select departments to automatically create bills for students in
+                those departments
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="space-y-2">
-                <h5 className="text-xs font-semibold text-muted-foreground">
-                  Target Classes
-                </h5>
-                <ScrollArea className="h-[140px] w-full rounded-md border p-3">
-                  <div className="space-y-2">
-                    {classes.map((cls) => (
-                      <div
-                        key={cls.id}
-                        className="flex flex-row items-center space-x-2"
-                      >
-                        <Checkbox
-                          id={`class-${cls.id}`}
-                          checked={formData.targetClasses.includes(cls.id)}
-                          onCheckedChange={() => toggleClass(cls.id)}
-                          disabled={isSubmitting}
-                        />
-                        <label
-                          htmlFor={`class-${cls.id}`}
-                          className="text-sm font-normal cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          {cls.name}
-                        </label>
-                      </div>
-                    ))}
-                    {classes.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-4">
-                        No classes found.
-                      </p>
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-
-              <div className="space-y-2">
-                <h5 className="text-xs font-semibold text-muted-foreground">
-                  Target Departments
-                </h5>
                 <ScrollArea className="h-[140px] w-full rounded-md border p-3">
                   <div className="space-y-2">
                     {departments.map((dept) => (

@@ -29,6 +29,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddGuardianDialog } from "@/components/school/students/add-guardian-dialog";
 import { ResetPasswordDialog } from "@/components/school/students/reset-password-dialog";
 import { Decimal } from "@/lib/generated/prisma/runtime/client";
+import { StudentBillingTab } from "@/components/school/students/student-billing-tab";
+import { StudentStatusDropdown } from "@/components/school/students/student-status-dropdown";
 
 // Helper function to safely convert Decimal to string
 function decimalToString(value: Decimal | string | null): string {
@@ -41,12 +43,7 @@ interface StudentDetailPageProps {
   params: Promise<{ schoolSlug: string; studentId: string }>;
 }
 
-const statusColors: Record<string, string> = {
-  ACTIVE: "bg-green-500/10 text-green-700 border-green-200",
-  GRADUATED: "bg-blue-500/10 text-blue-700 border-blue-200",
-  WITHDRAWN: "bg-orange-500/10 text-orange-700 border-orange-200",
-  SUSPENDED: "bg-red-500/10 text-red-700 border-red-200",
-};
+
 
 export default async function StudentDetailPage({
   params,
@@ -74,7 +71,11 @@ export default async function StudentDetailPage({
       schoolId: school.id,
     },
     include: {
-      profile: true,
+      profile: {
+        include: {
+          user: true,
+        },
+      },
       class: {
         include: {
           academicYear: true,
@@ -114,6 +115,26 @@ export default async function StudentDetailPage({
   if (!student) {
     notFound();
   }
+
+  // Serialize student data to convert Decimal fields to numbers
+  const serializedStudent = {
+    ...student,
+    outstandingBalance: Number(student.outstandingBalance),
+    department: student.department
+      ? {
+          ...student.department,
+          promotionPassMark: student.department.promotionPassMark
+            ? Number(student.department.promotionPassMark)
+            : null,
+        }
+      : null,
+    bills: student.bills.map((bill) => ({
+      ...bill,
+      totalAmount: Number(bill.totalAmount),
+      paidAmount: Number(bill.paidAmount),
+      balanceAmount: Number(bill.balanceAmount),
+    })),
+  };
 
   const initials =
     `${student.profile.firstName.charAt(0)}${student.profile.lastName.charAt(0)}`.toUpperCase();
@@ -172,26 +193,23 @@ export default async function StudentDetailPage({
                     </p>
                   )}
                 </div>
-                <Badge
-                  variant="outline"
-                  className={statusColors[student.status]}
-                >
-                  {student.status}
-                </Badge>
+                <StudentStatusDropdown
+                  studentId={student.id}
+                  currentStatus={student.status}
+                  schoolSlug={schoolSlug}
+                />
               </div>
               <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Student ID</p>
                   <p className="font-mono font-semibold">{student.studentId}</p>
                 </div>
-                {student.admissionNumber && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Admission No.
-                    </p>
-                    <p className="font-semibold">{student.admissionNumber}</p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-sm text-muted-foreground">Username</p>
+                  <p className="font-mono font-semibold text-primary">
+                    {student.profile.user?.email}
+                  </p>
+                </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Class</p>
                   <p className="font-semibold">
@@ -218,7 +236,6 @@ export default async function StudentDetailPage({
           <TabsTrigger value="academic">Academic</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
         </TabsList>
-
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -382,7 +399,6 @@ export default async function StudentDetailPage({
             </Card>
           </div>
         </TabsContent>
-
         {/* Guardians Tab - ENHANCED WITH ADD BUTTON */}
         <TabsContent value="guardians">
           <Card className="backdrop-blur-sm bg-card/50 border-border/50">
@@ -501,7 +517,6 @@ export default async function StudentDetailPage({
             </CardContent>
           </Card>
         </TabsContent>
-
         <TabsContent value="academic" className="space-y-4">
           <Card className="backdrop-blur-sm bg-card/50 border-border/50">
             <CardHeader>
@@ -584,44 +599,13 @@ export default async function StudentDetailPage({
             </CardContent>
           </Card>
         </TabsContent>
-
         {/* Billing Tab */}
         <TabsContent value="billing">
-          <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-            <CardHeader>
-              <CardTitle>Recent Bills</CardTitle>
-              <CardDescription>Latest billing information</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {student.bills.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  No bills generated yet
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {student.bills.map((bill) => (
-                    <div
-                      key={bill.id}
-                      className="flex items-center justify-between p-4 rounded-lg border"
-                    >
-                      <div>
-                        <p className="font-semibold">{bill.billNumber}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(bill.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold">
-                          {school.currency} {decimalToString(bill.totalAmount)}
-                        </p>
-                        <Badge variant="outline">{bill.status}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <StudentBillingTab
+            student={serializedStudent as any}
+            school={school}
+            schoolSlug={schoolSlug}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -43,6 +43,8 @@ import { toast } from "sonner";
 // ─── Invite Mode Schema (new teacher — email only, no bio) ───────────────────
 const teacherInviteSchema = z.object({
   email: z.email("Valid email is required"),
+  firstName: z.string().min(2, "First name is required"),
+  lastName: z.string().min(2, "Last name is required"),
   staffNumber: z.string().optional().nullable(),
   departmentId: z.string().min(1, "Department is required"),
   houseId: z.string().optional().nullable(),
@@ -166,6 +168,8 @@ export function TeacherDialog({
     resolver: zodResolver(teacherInviteSchema),
     defaultValues: {
       email: "",
+      firstName: "",
+      lastName: "",
       staffNumber: null,
       departmentId: "",
       houseId: null,
@@ -588,9 +592,37 @@ export function TeacherDialog({
                       </FieldError>
                     )}
                   </FieldGroup>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FieldGroup>
+                      <FieldLabel htmlFor="firstName">First Name *</FieldLabel>
+                      <Input
+                        id="firstName"
+                        placeholder="e.g., John"
+                        {...inviteForm.register("firstName")}
+                      />
+                      {inviteForm.formState.errors.firstName && (
+                        <FieldError>
+                          {inviteForm.formState.errors.firstName.message}
+                        </FieldError>
+                      )}
+                    </FieldGroup>
+                    <FieldGroup>
+                      <FieldLabel htmlFor="lastName">Last Name *</FieldLabel>
+                      <Input
+                        id="lastName"
+                        placeholder="e.g., Doe"
+                        {...inviteForm.register("lastName")}
+                      />
+                      {inviteForm.formState.errors.lastName && (
+                        <FieldError>
+                          {inviteForm.formState.errors.lastName.message}
+                        </FieldError>
+                      )}
+                    </FieldGroup>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    The teacher will receive an email invitation. Their name and
-                    personal details will be collected when they sign up.
+                    The teacher will receive an email invitation. These details
+                    will be pre-filled when they sign up.
                   </p>
                 </div>
 

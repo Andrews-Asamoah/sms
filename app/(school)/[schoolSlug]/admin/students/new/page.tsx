@@ -60,39 +60,47 @@ export default async function NewStudentPage({ params }: NewStudentPageProps) {
     }),
   ]);
 
-  // Generate next student ID
+  // Generate next student ID and Admission Number
+  const currentYear = new Date().getFullYear();
+  const yearShort = currentYear.toString().slice(-2);
+
+  const schoolPrefix = schoolSlug.toUpperCase();
+
+  // Suggested Student ID: STU-YYYY-NNNN
   const lastStudent = await prisma.student.findFirst({
-    where: { schoolId: school.id },
+    where: { 
+      schoolId: school.id,
+      studentId: { startsWith: `STU-${currentYear}-` }
+    },
     orderBy: { createdAt: "desc" },
     select: { studentId: true },
   });
 
-  const nextStudentNumber = lastStudent
-    ? parseInt(lastStudent.studentId.replace(/\D/g, "")) + 1
-    : 1;
+  let nextStudentNumber = 1;
+  if (lastStudent?.studentId.startsWith(`STU-${currentYear}-`)) {
+    const parts = lastStudent.studentId.split("-");
+    nextStudentNumber = parseInt(parts[parts.length - 1]) + 1;
+  }
 
-  const suggestedStudentId = `STU${nextStudentNumber.toString().padStart(5, "0")}`;
+  const suggestedStudentId = `STU-${currentYear}-${nextStudentNumber.toString().padStart(4, "0")}`;
 
-  // Generate suggested admission number: schoolCode + number
+  // Suggested Admission Number: {SCHOOL_PREFIX}-YY-NNNN
   const lastAdmission = await prisma.student.findFirst({
     where: {
       schoolId: school.id,
-      admissionNumber: { not: null },
+      admissionNumber: { startsWith: `${schoolPrefix}-${yearShort}-` },
     },
     orderBy: { createdAt: "desc" },
     select: { admissionNumber: true },
   });
 
-  let suggestedAdmissionNumber: string;
-  if (lastAdmission?.admissionNumber) {
-    const lastNumber = parseInt(
-      lastAdmission.admissionNumber.replace(/\D/g, ""),
-    );
-    const nextNumber = isNaN(lastNumber) ? 1 : lastNumber + 1;
-    suggestedAdmissionNumber = `${school.code}${nextNumber.toString().padStart(4, "0")}`;
-  } else {
-    suggestedAdmissionNumber = `${school.code}0001`;
+  let nextAdmissionNumber = 1;
+  if (lastAdmission?.admissionNumber?.startsWith(`${schoolPrefix}-${yearShort}-`)) {
+    const parts = lastAdmission.admissionNumber.split("-");
+    nextAdmissionNumber = parseInt(parts[parts.length - 1]) + 1;
   }
+
+  const suggestedAdmissionNumber = `${schoolPrefix}-${yearShort}-${nextAdmissionNumber.toString().padStart(4, "0")}`;
 
   return (
     <div className="space-y-6">

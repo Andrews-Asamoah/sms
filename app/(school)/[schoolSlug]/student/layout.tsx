@@ -23,13 +23,10 @@ export default async function StudentLayout({
       schoolName={school.name}
       schoolPlan={school.subscription?.planName || "Free Plan"}
       schoolLogo={school.logo || undefined}
-      user={{
-        ...userData,
-        role: "student",
-      }}
+      user={userData}
       academicYear={academicYear}
       currentTerm={currentTerm}
-      currentRole="student"
+      currentRole={userData.role}
       availableRoles={allRoles}
       permissions={permissions}
     >

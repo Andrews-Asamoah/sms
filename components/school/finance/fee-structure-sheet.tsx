@@ -15,8 +15,13 @@ interface FeeStructure {
   id: string;
   name: string;
   description: string;
-  classLevel: string;
-  items: { id: string; name: string; amount: number }[];
+  items: {
+    id: string;
+    name: string;
+    amount: number;
+    registryItemId?: string;
+  }[];
+  targetClasses: { classId: string }[];
 }
 
 interface FeeStructureSheetProps {
@@ -39,6 +44,7 @@ export function FeeStructureSheet({
   const [internalOpen, setInternalOpen] = useState(false);
   const [classes, setClasses] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [feeItemRegistry, setFeeItemRegistry] = useState([]);
 
   // Use controlled or internal state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -48,9 +54,10 @@ export function FeeStructureSheet({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [classesRes, deptsRes] = await Promise.all([
+        const [classesRes, deptsRes, registryRes] = await Promise.all([
           fetch(`/api/schools/${schoolSlug}/classes`),
           fetch(`/api/schools/${schoolSlug}/departments`),
+          fetch(`/api/schools/${schoolSlug}/finance/fee-item-registry`),
         ]);
 
         if (classesRes.ok) {
@@ -60,6 +67,10 @@ export function FeeStructureSheet({
         if (deptsRes.ok) {
           const d = await deptsRes.json();
           setDepartments(d);
+        }
+        if (registryRes.ok) {
+          const r = await registryRes.json();
+          setFeeItemRegistry(r);
         }
       } catch (e) {
         console.error("Failed to fetch metadata for form", e);
@@ -92,6 +103,7 @@ export function FeeStructureSheet({
             schoolSlug={schoolSlug}
             classes={classes}
             departments={departments}
+            feeItemRegistry={feeItemRegistry}
             initialData={feeStructure}
             onSuccess={handleSuccess}
           />

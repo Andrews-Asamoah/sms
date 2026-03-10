@@ -56,50 +56,50 @@ export function ThemeProvider({
     const themeColors = isDark ? themes[theme].dark : themes[theme].light;
 
     // Apply all theme colors as CSS variables
-    root.style.setProperty("--background", themeColors.background);
-    root.style.setProperty("--foreground", themeColors.foreground);
-    root.style.setProperty("--card", themeColors.card);
-    root.style.setProperty("--card-foreground", themeColors.cardForeground);
-    root.style.setProperty("--popover", themeColors.popover);
+    root.style.setProperty("--theme-background", themeColors.background);
+    root.style.setProperty("--theme-foreground", themeColors.foreground);
+    root.style.setProperty("--theme-card", themeColors.card);
+    root.style.setProperty("--theme-card-foreground", themeColors.cardForeground);
+    root.style.setProperty("--theme-popover", themeColors.popover);
     root.style.setProperty(
-      "--popover-foreground",
+      "--theme-popover-foreground",
       themeColors.popoverForeground,
     );
-    root.style.setProperty("--primary", themeColors.primary);
+    root.style.setProperty("--theme-primary", themeColors.primary);
     root.style.setProperty(
-      "--primary-foreground",
+      "--theme-primary-foreground",
       themeColors.primaryForeground,
     );
-    root.style.setProperty("--secondary", themeColors.secondary);
+    root.style.setProperty("--theme-secondary", themeColors.secondary);
     root.style.setProperty(
-      "--secondary-foreground",
+      "--theme-secondary-foreground",
       themeColors.secondaryForeground,
     );
-    root.style.setProperty("--muted", themeColors.muted);
-    root.style.setProperty("--muted-foreground", themeColors.mutedForeground);
-    root.style.setProperty("--accent", themeColors.accent);
-    root.style.setProperty("--accent-foreground", themeColors.accentForeground);
-    root.style.setProperty("--destructive", themeColors.destructive);
-    root.style.setProperty("--border", themeColors.border);
-    root.style.setProperty("--input", themeColors.input);
-    root.style.setProperty("--ring", themeColors.ring);
-    root.style.setProperty("--sidebar", themeColors.sidebar);
+    root.style.setProperty("--theme-muted", themeColors.muted);
+    root.style.setProperty("--theme-muted-foreground", themeColors.mutedForeground);
+    root.style.setProperty("--theme-accent", themeColors.accent);
+    root.style.setProperty("--theme-accent-foreground", themeColors.accentForeground);
+    root.style.setProperty("--theme-destructive", themeColors.destructive);
+    root.style.setProperty("--theme-border", themeColors.border);
+    root.style.setProperty("--theme-input", themeColors.input);
+    root.style.setProperty("--theme-ring", themeColors.ring);
+    root.style.setProperty("--theme-sidebar", themeColors.sidebar);
     root.style.setProperty(
-      "--sidebar-foreground",
+      "--theme-sidebar-foreground",
       themeColors.sidebarForeground,
     );
-    root.style.setProperty("--sidebar-primary", themeColors.sidebarPrimary);
+    root.style.setProperty("--theme-sidebar-primary", themeColors.sidebarPrimary);
     root.style.setProperty(
-      "--sidebar-primary-foreground",
+      "--theme-sidebar-primary-foreground",
       themeColors.sidebarPrimaryForeground,
     );
-    root.style.setProperty("--sidebar-accent", themeColors.sidebarAccent);
+    root.style.setProperty("--theme-sidebar-accent", themeColors.sidebarAccent);
     root.style.setProperty(
-      "--sidebar-accent-foreground",
+      "--theme-sidebar-accent-foreground",
       themeColors.sidebarAccentForeground,
     );
-    root.style.setProperty("--sidebar-border", themeColors.sidebarBorder);
-    root.style.setProperty("--sidebar-ring", themeColors.sidebarRing);
+    root.style.setProperty("--theme-sidebar-border", themeColors.sidebarBorder);
+    root.style.setProperty("--theme-sidebar-ring", themeColors.sidebarRing);
   }, [theme, mounted, resolvedTheme]);
 
   const setTheme = (newTheme: ThemeName) => {

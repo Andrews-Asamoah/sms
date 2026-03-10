@@ -59,6 +59,7 @@ interface InviteAcceptFormProps {
     inviterName: string;
     role: string | null;
     invitationId: string;
+    name?: string;
   };
 }
 
@@ -72,7 +73,7 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
-      name: "",
+      name: invitation.name || "",
       email: invitation.email,
       password: "",
       confirmPassword: "",

@@ -31,32 +31,123 @@ interface GuardianData {
   receiveAlerts?: boolean;
 }
 
+interface SchoolSettings {
+  currentAcademicYearId?: string | null;
+  currentTermId?: string | null;
+  [key: string]: any;
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
-function generateStudentEmail(
+async function generateUniqueStudentEmail(
   firstName: string,
   lastName: string,
-  studentId: string,
   schoolSubdomain: string,
-): string {
-  const firstInitial = firstName
-    .charAt(0)
-    .toLowerCase()
-    .replace(/[^a-z]/g, "");
-  const cleanLast = lastName.toLowerCase().replace(/[^a-z]/g, "");
-  const shortId = studentId.replace(/\D/g, "").slice(-3) || "001";
-  return `${firstInitial}.${cleanLast}.${shortId}@${schoolSubdomain}.sms`;
+): Promise<string> {
+  const cleanFirst = firstName.trim().toLowerCase().replace(/[^a-z]/g, "");
+  const firstInitial = cleanFirst.charAt(0) || "s";
+  const cleanLast = lastName.trim().toLowerCase().replace(/[^a-z]/g, "") || "student";
+  const baseEmailPrefix = `${firstInitial}.${cleanLast}`;
+  
+  let currentEmail = `${baseEmailPrefix}@${schoolSubdomain}.sms`;
+  let counter = 1;
+
+  while (true) {
+    const existingUser = await prisma.user.findUnique({
+      where: { email: currentEmail },
+    });
+    
+    if (!existingUser) {
+      break;
+    }
+    
+    currentEmail = `${baseEmailPrefix}${counter}@${schoolSubdomain}.sms`;
+    counter++;
+  }
+
+  return currentEmail;
 }
 
 function generateSecurePassword(): string {
-  return crypto.randomBytes(16).toString("base64").slice(0, 16);
+  // Generate an 8-character random readable password
+  return crypto.randomBytes(4).toString("hex");
 }
 
 // ============================================================================
 // MAIN API HANDLER
 // ============================================================================
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ schoolSlug: string }> },
+) {
+  try {
+    const { schoolSlug } = await params;
+    const { searchParams } = new URL(req.url);
+    const query = searchParams.get("search");
+
+    const session = await requireSchoolAccess(schoolSlug);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+    });
+
+    if (!school) {
+      return NextResponse.json({ error: "School not found" }, { status: 404 });
+    }
+
+    const where: any = {
+      schoolId: school.id,
+      status: "ACTIVE",
+    };
+
+    if (query) {
+      where.OR = [
+        { profile: { firstName: { contains: query, mode: "insensitive" } } },
+        { profile: { lastName: { contains: query, mode: "insensitive" } } },
+        { studentId: { contains: query, mode: "insensitive" } },
+        { admissionNumber: { contains: query, mode: "insensitive" } },
+      ];
+    }
+
+    const students = await prisma.student.findMany({
+      where,
+      include: {
+        profile: true,
+        class: true,
+        bills: {
+          where: {
+            status: { in: ["PENDING", "PARTIALLY_PAID"] },
+          },
+          orderBy: { createdAt: "desc" },
+          include: {
+            academicYear: true,
+            term: true,
+            items: {
+              where: {
+                status: { in: ["UNPAID", "PARTIALLY_PAID"] },
+              },
+            },
+          },
+        },
+      },
+      take: 20,
+    });
+
+    return NextResponse.json(students);
+  } catch (error) {
+    console.error("[Students] Error fetching students:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch students" },
+      { status: 500 },
+    );
+  }
+}
 
 export async function POST(
   req: NextRequest,
@@ -79,8 +170,6 @@ export async function POST(
     }
 
     // ========================================================================
-    // STEP 2: Parse request body
-    // ========================================================================
     const body = await req.json();
     const {
       firstName,
@@ -91,7 +180,6 @@ export async function POST(
       admissionNumber,
       admissionDate,
       schoolId,
-      guardians = [],
       ...otherData
     } = body;
 
@@ -102,6 +190,7 @@ export async function POST(
         name: true,
         subdomain: true,
         organizationId: true,
+        settings: true,
       },
     });
 
@@ -109,34 +198,137 @@ export async function POST(
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
+    const { currentAcademicYearId, currentTermId } = (school.settings as unknown as SchoolSettings) || {};
+
+    if (!currentAcademicYearId) {
+      return NextResponse.json({ error: "Global Academic Year not set. Please set it in system settings first." }, { status: 400 });
+    }
+
+    // ========================================================================
+    // STEP 3: Enforce Student Limits
+    // ========================================================================
+    const subscription = await prisma.subscription.findUnique({
+      where: { schoolId: school.id },
+      select: { maxStudents: true, planName: true }
+    });
+
+    const studentCount = await prisma.student.count({
+      where: { schoolId: school.id, status: "ACTIVE" }
+    });
+
+    const maxStudents = subscription?.maxStudents || 50; // Default to 50 for Free Plan
+
+    if (studentCount >= maxStudents) {
+      return NextResponse.json(
+        { 
+          error: `Student limit reached for ${subscription?.planName || "Free Plan"}.`,
+          details: `Current students: ${studentCount}, Limit: ${maxStudents}. Please upgrade your subscription to add more students.` 
+        },
+        { status: 403 }
+      );
+    }
+
+    // ========================================================================
+    // STEP 3.5: Generate Student ID and Admission Number if not provided
+    // ========================================================================
+    let finalStudentId = studentId;
+    let finalAdmissionNumber = admissionNumber;
+
+    const schoolPrefix = schoolSlug.toUpperCase();
+
+    if (!finalStudentId || !finalAdmissionNumber) {
+      const admDate = new Date(admissionDate);
+      const admYear = admDate.getFullYear();
+      const admYearShort = admYear.toString().slice(-2);
+
+      const lastStudent = await prisma.student.findFirst({
+        where: { 
+          schoolId: school.id,
+          OR: [
+            { studentId: { startsWith: `STU-${admYear}-` } },
+            { admissionNumber: { startsWith: `${schoolPrefix}-${admYearShort}-` } }
+          ]
+        },
+        orderBy: { createdAt: "desc" },
+        select: { studentId: true, admissionNumber: true },
+      });
+
+      let nextStudentNumber = 1;
+      let nextAdmissionNumber = 1;
+
+      if (lastStudent) {
+        if (lastStudent.studentId.startsWith(`STU-${admYear}-`)) {
+          const parts = lastStudent.studentId.split("-");
+          const lastNum = parseInt(parts[parts.length - 1]);
+          if (!isNaN(lastNum)) nextStudentNumber = lastNum + 1;
+        }
+        if (lastStudent.admissionNumber?.startsWith(`${schoolPrefix}-${admYearShort}-`)) {
+          const parts = lastStudent.admissionNumber.split("-");
+          const lastNum = parseInt(parts[parts.length - 1]);
+          if (!isNaN(lastNum)) nextAdmissionNumber = lastNum + 1;
+        }
+      }
+
+      if (!finalStudentId) {
+        finalStudentId = `STU-${admYear}-${nextStudentNumber.toString().padStart(4, "0")}`;
+      }
+      if (!finalAdmissionNumber) {
+        finalAdmissionNumber = `${schoolPrefix}-${admYearShort}-${nextAdmissionNumber.toString().padStart(4, "0")}`;
+      }
+
+      // Check for collisions
+      let collision = await prisma.student.findFirst({
+        where: { schoolId: school.id, OR: [{ studentId: finalStudentId }, { admissionNumber: finalAdmissionNumber }] },
+      });
+
+      while (collision) {
+        if (!studentId) {
+          nextStudentNumber++;
+          finalStudentId = `STU-${admYear}-${nextStudentNumber.toString().padStart(4, "0")}`;
+        }
+        if (!admissionNumber) {
+          nextAdmissionNumber++;
+          finalAdmissionNumber = `${schoolPrefix}-${admYearShort}-${nextAdmissionNumber.toString().padStart(4, "0")}`;
+        }
+        collision = await prisma.student.findFirst({
+          where: { schoolId: school.id, OR: [{ studentId: finalStudentId }, { admissionNumber: finalAdmissionNumber }] },
+        });
+      }
+    }
+
     // ========================================================================
     // STEP 4: Create student user account
     // ========================================================================
-    const studentEmail = generateStudentEmail(
+    const studentEmail = await generateUniqueStudentEmail(
       firstName,
       lastName,
-      studentId,
       school.subdomain,
     );
     const temporaryPassword = generateSecurePassword();
 
-    const userResult = await auth.api.signUpEmail({
+    // Create user via Better Auth Admin API to avoid auto-login
+    // The admin plugin exposes createUser directly on auth.api, not nested under admin
+    const userResult = await (auth.api as any).createUser({
       body: {
         email: studentEmail,
         password: temporaryPassword,
         name: `${firstName} ${lastName}`,
+        role: "student",
       },
+      headers: await headers(),
     });
 
-    if (!userResult) {
+    const createdUser = userResult?.user;
+    if (!createdUser) {
       throw new Error("Failed to create user account");
     }
 
-    const userId = userResult.user.id;
+    const userId = createdUser.id;
 
     // ========================================================================
     // STEP 5: Add student to organization
-    // This triggers afterAddMember hook which creates a basic UserProfile
+    // Since we used admin.createUser, we still need to link it to the org.
+    // However, for students, we just need them to be in the org.
     // ========================================================================
     await auth.api.addMember({
       body: {
@@ -219,8 +411,8 @@ export async function POST(
       data: {
         schoolId,
         profileId: userProfile.id,
-        studentId,
-        admissionNumber,
+        studentId: finalStudentId,
+        admissionNumber: finalAdmissionNumber,
         admissionDate: new Date(admissionDate),
         classId: otherData.classId || null,
         departmentId: otherData.departmentId || null,
@@ -231,6 +423,7 @@ export async function POST(
         allergies: otherData.allergies || null,
         medicalConditions: otherData.medicalConditions || null,
         status: "ACTIVE",
+        plainTextPassword: temporaryPassword,
       },
       include: {
         profile: true,
@@ -240,212 +433,23 @@ export async function POST(
     console.log(`✅ [Students] Created student record: ${studentId}`);
 
     // ========================================================================
-    // STEP 8: Process guardians
+    // STEP 7.5: Create Enrollment record for the current active term/year
     // ========================================================================
-    const createdGuardians = [];
-
-    for (const guardianData of guardians as GuardianData[]) {
-      // If no email is provided, we only create the guardian record and DB link (no user account)
-      if (!guardianData.email) {
-        console.log(
-          `📋 [Students] Guardian ${guardianData.firstName} has no email, skipping account creation.`,
-        );
-        const guardian = await prisma.guardian.create({
-          data: {
-            schoolId,
-            guardianId: crypto.randomUUID(),
-            firstName: guardianData.firstName,
-            lastName: guardianData.lastName,
-            otherNames: guardianData.otherNames || null,
-            email: null,
-            phone: guardianData.phone,
-            alternatePhone: guardianData.alternatePhone || null,
-            relationshipType: guardianData.relationshipType,
-            occupation: guardianData.occupation || null,
-            employer: guardianData.employer || null,
-            workPhone: guardianData.workPhone || null,
-            workAddress: guardianData.workAddress || null,
-            canLogin: false, // Cannot login without an account
-          },
-        });
-
-        // Link to student
-        await prisma.guardianStudent.create({
-          data: {
-            guardianId: guardian.id,
-            studentId: student.id,
-            isPrimary: guardianData.isPrimary || false,
-            canPickup: guardianData.canPickup || true,
-            receiveReports: guardianData.receiveReports || true,
-            receiveAlerts: guardianData.receiveAlerts || true,
-          },
-        });
-
-        createdGuardians.push({
-          id: guardian.id,
-          email: null,
-          name: `${guardianData.firstName} ${guardianData.lastName}`,
-          relationshipType: guardianData.relationshipType,
-        });
-
-        continue;
-      }
-
-      const existingUser = await prisma.user.findUnique({
-        where: { email: guardianData.email },
-      });
-
-      let guardian;
-
-      if (existingUser) {
-        // Guardian exists
-        console.log(
-          `📋 [Students] Guardian ${guardianData.email} already has account`,
-        );
-
-        const guardianProfile = await prisma.userProfile.findUnique({
-          where: { userId: existingUser.id },
-        });
-
-        if (!guardianProfile) {
-          throw new Error(
-            `User profile not found for guardian ${guardianData.email}`,
-          );
+    if (otherData.classId) {
+      await prisma.enrollment.create({
+        data: {
+          studentId: student.id,
+          classId: otherData.classId,
+          academicYearId: currentAcademicYearId,
+          termId: currentTermId || null,
+          status: "ACTIVE",
         }
-
-        // Find or create Guardian record
-        guardian = await prisma.guardian.findFirst({
-          where: {
-            schoolId,
-            email: guardianData.email,
-          },
-        });
-
-        if (!guardian) {
-          guardian = await prisma.guardian.create({
-            data: {
-              schoolId,
-              guardianId: crypto.randomUUID(),
-              firstName: guardianData.firstName,
-              lastName: guardianData.lastName,
-              otherNames: guardianData.otherNames || null,
-              email: guardianData.email,
-              phone: guardianData.phone,
-              alternatePhone: guardianData.alternatePhone || null,
-              relationshipType: guardianData.relationshipType,
-              occupation: guardianData.occupation || null,
-              employer: guardianData.employer || null,
-              workPhone: guardianData.workPhone || null,
-              workAddress: guardianData.workAddress || null,
-              profileId: guardianProfile.id,
-              canLogin: true,
-            },
-          });
-        }
-
-        // Add to organization if not already member
-        const existingMembership = await prisma.member.findFirst({
-          where: {
-            userId: existingUser.id,
-            organizationId: school.organizationId,
-          },
-        });
-
-        if (!existingMembership) {
-          await auth.api.addMember({
-            body: {
-              organizationId: school.organizationId,
-              userId: existingUser.id,
-              role: "guardian",
-            },
-          });
-          console.log(
-            `✅ [Students] Added ${guardianData.email} to organization`,
-          );
-        }
-      } else {
-        // New guardian
-        console.log(
-          `📧 [Students] Creating guardian and sending invitation: ${guardianData.email}`,
-        );
-
-        guardian = await prisma.guardian.create({
-          data: {
-            schoolId,
-            guardianId: crypto.randomUUID(),
-            firstName: guardianData.firstName,
-            lastName: guardianData.lastName,
-            otherNames: guardianData.otherNames || null,
-            email: guardianData.email,
-            phone: guardianData.phone,
-            alternatePhone: guardianData.alternatePhone || null,
-            relationshipType: guardianData.relationshipType,
-            occupation: guardianData.occupation || null,
-            employer: guardianData.employer || null,
-            workPhone: guardianData.workPhone || null,
-            workAddress: guardianData.workAddress || null,
-            canLogin: true,
-          },
-        });
-
-        // Link to student first
-        await prisma.guardianStudent.create({
-          data: {
-            guardianId: guardian.id,
-            studentId: student.id,
-            isPrimary: guardianData.isPrimary || false,
-            canPickup: guardianData.canPickup || true,
-            receiveReports: guardianData.receiveReports || true,
-            receiveAlerts: guardianData.receiveAlerts || true,
-          },
-        });
-
-        // Send invitation
-        await auth.api.createInvitation({
-          body: {
-            email: guardianData.email,
-            organizationId: school.organizationId,
-            role: "guardian",
-          },
-          headers: await headers(),
-        });
-
-        console.log(`✅ [Students] Sent invitation to ${guardianData.email}`);
-      }
-
-      // Link guardian to student if not already linked
-      const existingLink = await prisma.guardianStudent.findUnique({
-        where: {
-          guardianId_studentId: {
-            guardianId: guardian.id,
-            studentId: student.id,
-          },
-        },
       });
-
-      if (!existingLink) {
-        await prisma.guardianStudent.create({
-          data: {
-            guardianId: guardian.id,
-            studentId: student.id,
-            isPrimary: guardianData.isPrimary || false,
-            canPickup: guardianData.canPickup || true,
-            receiveReports: guardianData.receiveReports || true,
-            receiveAlerts: guardianData.receiveAlerts || true,
-          },
-        });
-      }
-
-      createdGuardians.push({
-        id: guardian.id,
-        email: guardianData.email,
-        name: `${guardianData.firstName} ${guardianData.lastName}`,
-        relationshipType: guardianData.relationshipType,
-      });
+      console.log(`✅ [Students] Enrolled student in class ${otherData.classId} for year ${currentAcademicYearId}`);
     }
 
     // ========================================================================
-    // STEP 9: Create audit log
+    // STEP 8: Create audit log
     // ========================================================================
     await prisma.auditLog.create({
       data: {
@@ -454,13 +458,12 @@ export async function POST(
         entityType: "STUDENT",
         entityId: student.id,
         newValues: {
-          studentId: student.studentId,
-          admissionNumber: student.admissionNumber,
+          studentId: finalStudentId,
+          admissionNumber: finalAdmissionNumber,
           name: `${firstName} ${lastName}`,
           email: studentEmail,
           schoolId,
           createdBy: session.user.email,
-          guardiansCount: createdGuardians.length,
         },
       },
     });
@@ -473,8 +476,8 @@ export async function POST(
         success: true,
         student: {
           id: student.id,
-          studentId: student.studentId,
-          admissionNumber: student.admissionNumber,
+          studentId: finalStudentId,
+          admissionNumber: finalAdmissionNumber,
           name: `${firstName} ${lastName}`,
           email: studentEmail,
         },
@@ -482,8 +485,7 @@ export async function POST(
           email: studentEmail,
           temporaryPassword,
         },
-        message: `Student created successfully. Invitation${createdGuardians.length > 1 ? "s" : ""} sent to ${createdGuardians.length} guardian${createdGuardians.length > 1 ? "s" : ""}.`,
-        guardians: createdGuardians,
+        message: "Student created successfully.",
       },
       { status: 201 },
     );

@@ -9,6 +9,7 @@ const createDepartmentSchema = z.object({
   name: z.string().min(1, "Name is required"),
   code: z.string().min(1, "Code is required").max(10, "Code must be 10 characters or less"),
   description: z.string().optional(),
+  promotionPassMark: z.number().nullable().optional(),
   headOfDeptId: z.string().optional().nullable(),
 });
 
@@ -86,7 +87,7 @@ export async function POST(
       }
 
     const body = await request.json();
-    const { name, code, description, headOfDeptId } = createDepartmentSchema.parse(body);
+    const { name, code, description, promotionPassMark, headOfDeptId } = createDepartmentSchema.parse(body);
 
     // Check if department code already exists in this school
     const existingDepartment = await prisma.department.findUnique({
@@ -107,6 +108,7 @@ export async function POST(
         name,
         code,
         description,
+        promotionPassMark,
         headOfDeptId: headOfDeptId || null,
         schoolId: school.id,
       },

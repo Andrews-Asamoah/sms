@@ -27,6 +27,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { AssignTeacherSheet } from "@/components/school/teachers/assign-teacher-sheet";
+import { BanUserButton } from "@/components/school/ban-user-button";
 
 interface TeacherDetailPageProps {
   params: Promise<{ schoolSlug: string; teacherId: string }>;
@@ -119,6 +120,12 @@ export default async function TeacherDetailPage({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <BanUserButton
+            schoolSlug={schoolSlug}
+            userId={profile.userId}
+            isBanned={profile.user?.banned ?? false}
+            userName={`${profile.firstName} ${profile.lastName}`}
+          />
           <AssignTeacherSheet
             schoolSlug={schoolSlug}
             teacher={teacher}

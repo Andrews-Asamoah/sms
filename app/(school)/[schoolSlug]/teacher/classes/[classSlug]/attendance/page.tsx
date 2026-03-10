@@ -1,10 +1,11 @@
 import { requireSchoolAccess } from "@/lib/auth/guards";
+import { getActiveSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { AttendanceClient } from "./attendance-client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { startOfDay } from "date-fns";
 
 interface AttendancePageProps {
@@ -19,6 +20,14 @@ export default async function AttendancePage({ params }: AttendancePageProps) {
 
   // 1. Auth check
   const session = await requireSchoolAccess(schoolSlug);
+  const activeRole = await getActiveSchoolRole(session, schoolSlug);
+  const effectiveRole = activeRole?.effectiveRole || "teacher";
+
+  const isAdmin =
+    effectiveRole === "admin" ||
+    effectiveRole === "owner" ||
+    effectiveRole === "headteacher" ||
+    session.isSuperAdmin;
 
   // 2. Fetch Class Details
   const classData = await prisma.class.findFirst({
@@ -29,11 +38,28 @@ export default async function AttendancePage({ params }: AttendancePageProps) {
     select: {
       id: true,
       name: true,
+      classTeacherId: true,
+      schoolId: true,
     },
   });
 
   if (!classData) {
     notFound();
+  }
+
+  // 2b. Access check (Class Teacher OR Admin)
+  const teacher = await prisma.teacher.findFirst({
+    where: {
+      schoolId: classData.schoolId,
+      profile: { userId: session.user.id },
+    },
+    select: { id: true },
+  });
+
+  const isClassTeacher = teacher && classData.classTeacherId === teacher.id;
+
+  if (!isAdmin && !isClassTeacher) {
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
   }
 
   // 3. Fetch Students in this class

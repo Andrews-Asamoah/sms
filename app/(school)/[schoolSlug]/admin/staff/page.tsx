@@ -36,7 +36,9 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
   const nonTeachingStaff = await prisma.staff.findMany({
     where: { schoolId: school.id },
     include: {
-      profile: true,
+      profile: {
+        include: { user: { select: { id: true, banned: true } } }
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -45,7 +47,9 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
   const teachers = await prisma.teacher.findMany({
     where: { schoolId: school.id },
     include: {
-      profile: true,
+      profile: {
+        include: { user: { select: { id: true, banned: true } } }
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -56,10 +60,12 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
       id: s.id,
       profileId: s.profileId,
       schoolId: s.schoolId,
+      userId: s.profile?.user?.id,
+      isBanned: s.profile?.user?.banned ?? false,
       employeeId: s.staffNumber || s.staffId,
       firstName: s.profile?.firstName,
       lastName: s.profile?.lastName,
-      email: null, // UserProfile has no email field
+      email: null,
       phone: s.profile?.phone,
       type: s.staffType.replace("_", " "),
       category: "NON_TEACHING" as const,
@@ -71,15 +77,17 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
       id: t.id,
       profileId: t.profileId,
       schoolId: t.schoolId,
-      employeeId: t.teacherId, // using internal teacher ID
+      userId: t.profile?.user?.id,
+      isBanned: t.profile?.user?.banned ?? false,
+      employeeId: t.teacherId,
       firstName: t.profile?.firstName,
       lastName: t.profile?.lastName,
-      email: null, // UserProfile has no email field
+      email: null,
       phone: t.profile?.phone,
       type: "TEACHER",
       category: "TEACHING" as const,
       isActive: t.isActive,
-      hireDate: t.createdAt, // Teacher model lacks hireDate, using createdAt
+      hireDate: t.createdAt,
       gender: t.profile?.gender,
     })),
   ].sort((a, b) => {

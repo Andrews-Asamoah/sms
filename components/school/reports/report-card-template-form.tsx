@@ -3,20 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, SubmitHandler } from "react-hook-form";
 import * as z from "zod";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  FormDescription,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldDescription,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -42,7 +40,13 @@ export function ReportCardTemplateForm({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const form = useForm<TemplateFormValues>({
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<TemplateFormValues>({
     resolver: zodResolver(termSchema),
     defaultValues: {
       name: "",
@@ -51,7 +55,9 @@ export function ReportCardTemplateForm({
     },
   });
 
-  async function onSubmit(values: TemplateFormValues) {
+  const isActive = watch("isActive");
+
+  const onSubmit: SubmitHandler<TemplateFormValues> = async (values) => {
     try {
       setLoading(true);
       const response = await fetch(
@@ -87,71 +93,52 @@ export function ReportCardTemplateForm({
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Template Name</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="e.g., Standard Terminal Report"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Description</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Optional description of this template..."
-                  className="resize-none"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="isActive"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <FormLabel className="text-base">Active Status</FormLabel>
-                <FormDescription>
-                  Determine if this template can be used for new report sets.
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" type="button" onClick={() => onSuccess?.()}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create Template
-          </Button>
-        </div>
-      </form>
-    </Form>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+      <FieldGroup>
+        <Field data-invalid={!!errors.name}>
+          <FieldLabel htmlFor="tpl-name">Template Name</FieldLabel>
+          <Input
+            id="tpl-name"
+            placeholder="e.g., Standard Terminal Report"
+            {...register("name")}
+          />
+          <FieldError errors={[errors.name]} />
+        </Field>
+
+        <Field data-invalid={!!errors.description}>
+          <FieldLabel htmlFor="tpl-desc">Description</FieldLabel>
+          <Textarea
+            id="tpl-desc"
+            placeholder="Optional description of this template..."
+            className="resize-none"
+            {...register("description")}
+          />
+          <FieldError errors={[errors.description]} />
+        </Field>
+
+        <Field orientation="horizontal" className="justify-between items-center rounded-lg border p-4">
+          <div className="space-y-0.5">
+            <FieldLabel className="text-base">Active Status</FieldLabel>
+            <FieldDescription>
+              Determine if this template can be used for new report sets.
+            </FieldDescription>
+          </div>
+          <Switch
+            checked={isActive}
+            onCheckedChange={(val) => setValue("isActive", val)}
+          />
+        </Field>
+      </FieldGroup>
+
+      <div className="flex justify-end gap-2 pt-4">
+        <Button variant="outline" type="button" onClick={() => onSuccess?.()}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Create Template
+        </Button>
+      </div>
+    </form>
   );
 }

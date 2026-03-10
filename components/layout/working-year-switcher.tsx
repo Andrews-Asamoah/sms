@@ -18,42 +18,72 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useSidebar } from "@/components/ui/sidebar";
+
+interface AcademicTerm {
+  id: string;
+  name: string;
+}
 
 interface AcademicYear {
   id: string;
   name: string;
   isCurrent: boolean;
+  terms: AcademicTerm[];
 }
 
 export function WorkingYearSwitcher() {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
-  const router = useRouter();
+  const { state } = useSidebar();
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
+  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Robust cookie parser
+  const getCookie = (name: string) => {
+    if (typeof document === "undefined") return null;
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.startsWith(`${name}=`)) {
+        return cookie.substring(name.length + 1) || null;
+      }
+    }
+    return null;
+  };
 
   useEffect(() => {
     async function fetchYears() {
       try {
         const res = await fetch(`/api/schools/${schoolSlug}/academic-years`);
-        if (res.ok) {
-          const data = await res.json();
-          setYears(data);
+        if (!res.ok) return;
 
-          // Check for working year in cookie
-          const cookies = document.cookie.split(";");
-          const workingYearCookie = cookies.find((c) =>
-            c.trim().startsWith("sms_working_academic_year="),
-          );
+        const data: AcademicYear[] = await res.json();
+        setYears(data);
 
-          if (workingYearCookie) {
-            setSelectedYearId(workingYearCookie.split("=")[1]);
-          } else {
-            // Default to the one marked isCurrent OR the first one
-            const current = data.find((y: AcademicYear) => y.isCurrent);
-            if (current) setSelectedYearId(current.id);
+        const yearCookie = getCookie(`sms_working_year_${schoolSlug}`);
+        const termCookie = getCookie(`sms_working_term_${schoolSlug}`);
+
+        // 1. Resolve Year
+        let activeYear = data.find((y) => y.id === yearCookie) || 
+                         data.find((y) => y.isCurrent) || 
+                         data[0];
+        
+        if (activeYear) {
+          setSelectedYearId(activeYear.id);
+          
+          // 2. Resolve Term within that Year
+          let activeTerm = activeYear.terms.find((t) => t.id === termCookie) || 
+                           activeYear.terms.find((t: any) => t.isCurrent) || 
+                           activeYear.terms[0];
+          
+          if (activeTerm) {
+            setSelectedTermId(activeTerm.id);
           }
         }
       } catch (error) {
@@ -68,78 +98,112 @@ export function WorkingYearSwitcher() {
     }
   }, [schoolSlug]);
 
-  const handleSelect = (yearId: string) => {
+  const handleYearSelect = (yearId: string) => {
     setSelectedYearId(yearId);
-    setOpen(false);
-
-    // Set cookie (valid for 7 days)
+    setSelectedTermId(null); // Reset term when year changes
+    
     const expires = new Date();
     expires.setTime(expires.getTime() + 7 * 24 * 60 * 60 * 1000);
-    document.cookie = `sms_working_academic_year=${yearId};path=/;expires=${expires.toUTCString()}`;
+    document.cookie = `sms_working_year_${schoolSlug}=${yearId};path=/;expires=${expires.toUTCString()}`;
+    // Remove individual term cookie when changing year to force default term of new year
+    document.cookie = `sms_working_term_${schoolSlug}=;path=/;expires=Thu, 01 Jan 1970 00:00:00 UTC;`;
+    
+    toast.success("Academic year changed");
+    setTimeout(() => window.location.reload(), 500);
+  };
 
-    // Refresh to apply changes if needed, or just let APIs handle it
-    router.refresh();
+  const handleTermSelect = (termId: string) => {
+    setSelectedTermId(termId);
+    setOpen(false);
+
+    const expires = new Date();
+    expires.setTime(expires.getTime() + 7 * 24 * 60 * 60 * 1000);
+    document.cookie = `sms_working_term_${schoolSlug}=${termId};path=/;expires=${expires.toUTCString()}`;
+
+    toast.success("Working term updated");
+    setTimeout(() => window.location.reload(), 500);
   };
 
   const selectedYear = years.find((y) => y.id === selectedYearId);
+  const selectedTerm = selectedYear?.terms.find((t) => t.id === selectedTermId);
 
-  if (loading) return null;
+  if (state === "collapsed") return null;
+
+  if (loading)
+    return (
+      <div className="px-3 py-2 animate-pulse">
+        <div className="h-3 w-20 bg-muted rounded mb-2" />
+        <div className="h-8 w-full bg-muted rounded" />
+      </div>
+    );
 
   return (
-    <div className="px-3 py-2">
-      <p className="text-xs font-medium text-muted-foreground mb-1 px-1">
-        Working Academic Year
-      </p>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between bg-background/50 hover:bg-background h-8 text-xs"
-          >
-            <Calendar className="mr-2 h-3 w-3 shrink-0 opacity-50" />
-            {selectedYear ? selectedYear.name : "Select Year..."}
-            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0">
-          <Command>
-            <CommandInput
-              placeholder="Search year..."
-              className="h-8 text-xs"
-            />
-            <CommandList>
-              <CommandEmpty>No year found.</CommandEmpty>
-              <CommandGroup>
-                {years.map((year) => (
-                  <CommandItem
-                    key={year.id}
-                    value={year.id}
-                    onSelect={() => handleSelect(year.id)}
-                    className="text-xs"
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-3 w-3",
-                        selectedYearId === year.id
-                          ? "opacity-100"
-                          : "opacity-0",
-                      )}
-                    />
-                    {year.name}
-                    {year.isCurrent && (
-                      <span className="ml-auto text-[10px] bg-primary/10 text-primary px-1 rounded">
-                        Global
-                      </span>
-                    )}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+    <div className="px-3 py-2 space-y-3">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-1.5 px-1">
+          Working Year
+        </p>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="w-full justify-between h-9 text-xs border-white/10 bg-white/5 hover:bg-white/10 transition-all rounded-lg"
+            >
+              <div className="flex items-center gap-2 overflow-hidden">
+                <Calendar className="h-3 w-3 shrink-0 text-blue-400" />
+                <span className="truncate">
+                  {selectedYear ? selectedYear.name : "Select Year..."}
+                </span>
+              </div>
+              <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[180px] p-0 bg-popover/95 backdrop-blur-xl border-white/10" align="start">
+            <Command className="bg-transparent">
+              <CommandInput placeholder="Search academic years..." className="h-9 text-xs" />
+              <CommandList>
+                <CommandEmpty>No academic year found.</CommandEmpty>
+                <CommandGroup heading="Available Years">
+                  {years.map((year) => (
+                    <CommandItem
+                      key={year.id}
+                      value={year.id}
+                      onSelect={() => handleYearSelect(year.id)}
+                      className="text-xs py-2 cursor-pointer"
+                    >
+                      <Check className={cn("mr-2 h-3.5 w-3.5 text-blue-500", selectedYearId === year.id ? "opacity-100" : "opacity-0")} />
+                      <div className="flex flex-col">
+                        <span>{year.name}</span>
+                        {year.isCurrent && <span className="text-[9px] text-blue-400 font-medium">Global Default</span>}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {selectedYear && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-1.5 px-1">
+            Working Term
+          </p>
+          <Select value={selectedTermId || ""} onValueChange={handleTermSelect}>
+            <SelectTrigger className="w-full h-8 text-[10px] border-white/10 bg-white/5 hover:bg-white/10 rounded-lg py-0 px-2">
+              <SelectValue placeholder="Select Term" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover/95 backdrop-blur-xl border-white/10">
+              {selectedYear.terms.map((term) => (
+                <SelectItem key={term.id} value={term.id} className="text-xs">
+                  {term.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </div>
   );
 }

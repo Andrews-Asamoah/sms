@@ -1,6 +1,6 @@
 // app/(school)/[schoolSlug]/teacher/attendance/page.tsx
 import { requireSchoolAccess } from "@/lib/auth/guards";
-import { getSchoolRole } from "@/lib/auth/school-access";
+import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { AttendanceClient } from "./attendance-client";
@@ -12,13 +12,14 @@ export default async function TeacherAttendancePage({
 }) {
   const { schoolSlug } = await params;
   const session = await requireSchoolAccess(schoolSlug);
-  const schoolRole = getSchoolRole(session, schoolSlug);
+  const activeRole = await getActiveSchoolRole(session, schoolSlug);
+  const effectiveRole = activeRole?.effectiveRole || "teacher";
 
   if (
-    !["teacher", "admin", "owner"].includes(schoolRole?.effectiveRole || "") &&
+    !["teacher", "admin", "owner", "headteacher"].includes(effectiveRole) &&
     !session.isSuperAdmin
   ) {
-    redirect(`/${schoolSlug}/unauthorized`);
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
   }
 
   const school = await prisma.school.findUnique({
@@ -30,11 +31,22 @@ export default async function TeacherAttendancePage({
     redirect("/auth/login");
   }
 
-  // Get ALL active classes in the school
+  // Define if the user should be restricted to only their assigned classes
+  // We restrict if the active role is 'teacher', even if they have higher roles.
+  const isRestrictedTeacher = effectiveRole === "teacher";
+
+  // Get classes: filter by teacher if restricted
   const classes = await prisma.class.findMany({
     where: {
       schoolId: school.id,
       isActive: true,
+      ...(isRestrictedTeacher && {
+        classTeacher: {
+          profile: {
+            userId: session.user.id,
+          },
+        },
+      }),
     },
     include: {
       academicYear: true,
@@ -51,9 +63,7 @@ export default async function TeacherAttendancePage({
     },
   });
 
-  const editableClassIds = classes
-    .filter((c) => c.classTeacher?.profile?.userId === session.user.id)
-    .map((c) => c.id);
+  const editableClassIds = classes.map((c) => c.id);
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">

@@ -45,6 +45,7 @@ interface NavUserProps {
     name: string;
     email: string;
     avatar?: string;
+    role?: string;
   };
 }
 
@@ -140,7 +141,20 @@ export default function NavUser({ user }: NavUserProps) {
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
-                  <Link href="/profile" className="cursor-pointer">
+                  <Link
+                    href={
+                      schoolSlug
+                        ? `/${schoolSlug}/${
+                            user.role === "superAdmin"
+                              ? "admin"
+                              : user.role === "owner"
+                                ? "admin"
+                                : user.role
+                          }/profile`
+                        : "/profile"
+                    }
+                    className="cursor-pointer"
+                  >
                     <UserCircle className="h-4 w-4" />
                     Profile
                   </Link>

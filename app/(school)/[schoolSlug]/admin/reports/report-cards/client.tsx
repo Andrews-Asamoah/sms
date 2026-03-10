@@ -30,7 +30,8 @@ interface ReportCardSet {
   createdAt: Date;
   academicYear: { name: string };
   term: { name: string };
-  class: { name: string };
+  class?: { name: string } | null;
+  targetClasses: { class: { name: string } }[];
   _count: { reportCards: number };
 }
 
@@ -163,16 +164,27 @@ export function ReportCardsClient({
 
                 <CardContent>
                   <div className="space-y-5">
-                    <div className="flex justify-between items-center p-3 rounded-xl bg-muted/30 border border-border/50">
-                      <div className="flex flex-col">
+                    <div className="flex justify-between items-start p-3 rounded-xl bg-muted/30 border border-border/50">
+                      <div className="flex flex-col gap-1 flex-1 min-w-0">
                         <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-tighter">
-                          Target Class
+                          Target Classes
                         </span>
-                        <span className="font-bold text-foreground">
-                          {set.class.name}
-                        </span>
+                        {set.targetClasses.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {set.targetClasses.slice(0, 3).map((tc, i) => (
+                              <span key={i} className="text-xs font-semibold text-foreground bg-muted rounded px-1.5 py-0.5">
+                                {tc.class.name}
+                              </span>
+                            ))}
+                            {set.targetClasses.length > 3 && (
+                              <span className="text-xs text-muted-foreground">+{set.targetClasses.length - 3} more</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="font-bold text-foreground">{set.class?.name ?? "—"}</span>
+                        )}
                       </div>
-                      <div className="flex flex-col items-end">
+                      <div className="flex flex-col items-end flex-shrink-0">
                         <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-tighter">
                           Students
                         </span>

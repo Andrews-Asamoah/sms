@@ -29,12 +29,14 @@ interface AssessmentTemplateActionsProps {
   template: any; // Replace with proper type
   schoolSlug: string;
   gradingSystems: { id: string; name: string }[];
+  classes: { id: string; name: string }[];
 }
 
 export function AssessmentTemplateActions({
   template,
   schoolSlug,
   gradingSystems,
+  classes,
 }: AssessmentTemplateActionsProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -91,6 +93,7 @@ export function AssessmentTemplateActions({
         mode="edit"
         schoolSlug={schoolSlug}
         gradingSystems={gradingSystems}
+        classes={classes}
         template={template}
       />
 

@@ -7,6 +7,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Wallet } from "lucide-react";
 import { NavPermissions } from "@/lib/auth/types";
+import { RecordPaymentSheet } from "@/components/school/finance/record-payment-sheet";
 
 type StudentDebtor = {
   id: string;
@@ -31,21 +32,26 @@ export default function OutstandingFeesClient({
   const params = useParams();
   const schoolSlug = params.schoolSlug as string;
   const [data, setData] = useState<StudentDebtor[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const fetchData = async () => {
+    try {
+      const res = await fetch(
+        `/api/schools/${schoolSlug}/finance/students/outstanding`,
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch(
-          `/api/schools/${schoolSlug}/finance/students/outstanding`,
-        );
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    };
     fetchData();
   }, [schoolSlug]);
 
@@ -85,6 +91,12 @@ export default function OutstandingFeesClient({
           <Badge
             variant="outline"
             className="cursor-pointer hover:bg-slate-100"
+            onClick={() =>
+              setSelectedStudent({
+                id: row.original.id,
+                name: `${row.original.profile.firstName} ${row.original.profile.lastName}`,
+              })
+            }
           >
             <Wallet className="mr-1 h-3 w-3" />
             Pay
@@ -105,6 +117,17 @@ export default function OutstandingFeesClient({
       </div>
 
       <DataTable columns={columns} data={data} searchKey="studentId" />
+
+      {selectedStudent && (
+        <RecordPaymentSheet
+          open={!!selectedStudent}
+          onOpenChange={(open) => !open && setSelectedStudent(null)}
+          studentId={selectedStudent.id}
+          studentName={selectedStudent.name}
+          schoolSlug={schoolSlug}
+          onSuccess={fetchData}
+        />
+      )}
     </div>
   );
 }

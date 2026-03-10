@@ -14,60 +14,126 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Verify Accountant or Admin role (handled by sidebar but good to check)
-  // Logic simplified: If they have access to school, we proceed, assuming role checks happen in UI/logic
-  // detailed role check:
-  const userRole = session.user.role; // This is system role. School role logic needed if strict.
-  // For now, proceeding as authorized.
-
   try {
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      select: { id: true, currency: true },
+      select: { id: true, currency: true, settings: true },
     });
 
     if (!school) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    // 1. Total Revenue (Total Paid Bills)
-    // We can sum Payment amounts.
+    const searchParams = request.nextUrl.searchParams;
+    const queryYearId = searchParams.get("academicYearId");
+    const queryTermId = searchParams.get("termId");
+
+    // Read Working Context from cookies
+    const cookieStore = await import("next/headers").then(mod => mod.cookies());
+    const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
+    const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
+
+    interface SchoolSettings {
+      currentAcademicYearId?: string;
+      currentTermId?: string;
+    }
+    const settings = (school.settings as SchoolSettings) || {};
+    
+    // Fallback logic priority: 
+    // 1. Explicit Query Param (e.g. from a specific report filter)
+    // 2. Working Context (Cookie - for the current accountant's session)
+    // 3. School Default (Global setting)
+    
+    let currentAcademicYearId: string | undefined;
+    if (queryYearId === "all") {
+      currentAcademicYearId = undefined;
+    } else {
+      currentAcademicYearId = queryYearId || workingYearId || settings.currentAcademicYearId;
+    }
+
+    let currentTermId: string | undefined;
+    if (queryTermId === "all") {
+      currentTermId = undefined;
+    } else {
+      currentTermId = queryTermId || workingTermId || settings.currentTermId;
+    }
+
+    // Fetch current year/term names for display in the dashboard
+    const [currentYear, currentTerm] = await Promise.all([
+      currentAcademicYearId
+        ? prisma.academicYear.findUnique({
+            where: { id: currentAcademicYearId },
+            select: { name: true },
+          })
+        : null,
+      currentTermId
+        ? prisma.term.findUnique({
+            where: { id: currentTermId },
+            select: { name: true },
+          })
+        : null,
+    ]);
+
+    // 1. Total Revenue (Completed payments linked to bills in the current period)
     const totalRevenue = await prisma.payment.aggregate({
       where: {
         schoolId: school.id,
         status: "COMPLETED",
+        ...(currentAcademicYearId && {
+          bill: {
+            academicYearId: currentAcademicYearId,
+            ...(currentTermId && { termId: currentTermId }),
+          },
+        }),
       },
       _sum: {
         amount: true,
       },
     });
 
-    // 2. Outstanding Fees (Sum of Bill balances)
-    // Bills that are not fully paid.
+    // 2. Outstanding Fees (Bills not fully paid in the current period)
     const outstandingFees = await prisma.bill.aggregate({
       where: {
         schoolId: school.id,
         status: { not: "PAID" },
+        ...(currentAcademicYearId && { academicYearId: currentAcademicYearId }),
+        ...(currentTermId && { termId: currentTermId }),
       },
       _sum: {
         balanceAmount: true,
       },
     });
 
-    // 3. Total Expenses (Sum of Expense Model)
+    // 3. Total Expenses for current period
     const totalExpenses = await prisma.expense.aggregate({
       where: {
         schoolId: school.id,
+        ...(currentAcademicYearId && { academicYearId: currentAcademicYearId }),
+        ...(currentTermId && { termId: currentTermId }),
       },
       _sum: {
         amount: true,
       },
     });
 
-    // 4. Recent Transactions (Last 5 from Expenses and Payments combined or just Expenses for now)
-    // For simplicity and matching the dashboard's expectation of "recentTransactions"
+    // 4. Total Payroll (not scoped to term — payroll is school-wide)
+    const totalPayroll = await prisma.payrollRecord.aggregate({
+      where: {
+        schoolId: school.id,
+      },
+      _sum: {
+        totalGross: true,
+        totalNet: true,
+      },
+    });
+
+    // 5. Recent expenses in current period
     const recentExpenses = await prisma.expense.findMany({
-      where: { schoolId: school.id },
+      where: {
+        schoolId: school.id,
+        ...(currentAcademicYearId && { academicYearId: currentAcademicYearId }),
+        ...(currentTermId && { termId: currentTermId }),
+      },
       orderBy: { date: "desc" },
       take: 5,
       include: {
@@ -75,8 +141,75 @@ export async function GET(
       },
     });
 
+    // 5. Categorized Revenue Breakdown
+    // We get all payment items for this period and group by their FeeItem's registryCategory
+    const categorizedRevenueRaw = await prisma.paymentItem.findMany({
+      where: {
+        payment: {
+          schoolId: school.id,
+          status: "COMPLETED",
+        },
+        billItem: {
+          bill: {
+            ...(currentAcademicYearId && { academicYearId: currentAcademicYearId }),
+            ...(currentTermId && { termId: currentTermId }),
+          }
+        }
+      },
+      select: {
+        amount: true,
+        billItem: {
+          select: {
+            feeItem: {
+              select: {
+                registryItem: { select: { name: true } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const revenueByCategory: Record<string, number> = {};
+    categorizedRevenueRaw.forEach(item => {
+      const categoryName = item.billItem.feeItem?.registryItem?.name || "Uncategorized Income";
+      revenueByCategory[categoryName] = (revenueByCategory[categoryName] || 0) + Number(item.amount);
+    });
+
+    const revenueBreakdown = Object.entries(revenueByCategory).map(([name, amount]) => ({
+      name,
+      amount
+    })).sort((a, b) => b.amount - a.amount);
+
+    // 6. Categorized Expense Breakdown
+    const categorizedExpensesRaw = await prisma.expense.groupBy({
+      by: ['registryCategoryId'],
+      where: {
+        schoolId: school.id,
+        ...(currentAcademicYearId && { academicYearId: currentAcademicYearId }),
+        ...(currentTermId && { termId: currentTermId }),
+      },
+      _sum: { amount: true }
+    });
+
+    const registryCategories = await prisma.expenditureCategoryRegistry.findMany({
+      where: { id: { in: categorizedExpensesRaw.map(e => e.registryCategoryId).filter(Boolean) as string[] } },
+      select: { id: true, name: true }
+    });
+
+    const expenseBreakdown = categorizedExpensesRaw.map(exp => {
+      const category = registryCategories.find(c => c.id === exp.registryCategoryId);
+      return {
+        name: category?.name || "Uncategorized Expense",
+        amount: Number(exp._sum.amount || 0)
+      };
+    }).sort((a, b) => b.amount - a.amount);
+
+
     return NextResponse.json({
       currency: school.currency,
+      currentYearName: currentYear?.name ?? null,
+      currentTermName: currentTerm?.name ?? null,
       revenue: totalRevenue._sum.amount ? Number(totalRevenue._sum.amount) : 0,
       outstanding: outstandingFees._sum.balanceAmount
         ? Number(outstandingFees._sum.balanceAmount)
@@ -84,6 +217,16 @@ export async function GET(
       expenses: totalExpenses._sum.amount
         ? Number(totalExpenses._sum.amount)
         : 0,
+      payroll: {
+        gross: totalPayroll._sum.totalGross
+          ? Number(totalPayroll._sum.totalGross)
+          : 0,
+        net: totalPayroll._sum.totalNet
+          ? Number(totalPayroll._sum.totalNet)
+          : 0,
+      },
+      revenueBreakdown,
+      expenseBreakdown,
       recentTransactions: recentExpenses,
     });
   } catch (error) {

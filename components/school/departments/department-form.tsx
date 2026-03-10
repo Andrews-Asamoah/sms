@@ -20,6 +20,7 @@ const formSchema = z.object({
     .min(1, "Code is required")
     .max(10, "Code must be 10 characters or less"),
   description: z.string().optional(),
+  promotionPassMark: z.string().optional(),
   isActive: z.boolean(),
 });
 
@@ -49,6 +50,7 @@ export function DepartmentForm({
       name: department?.name || "",
       code: department?.code || "",
       description: department?.description || "",
+      promotionPassMark: department?.promotionPassMark?.toString() || "",
       isActive: department?.isActive ?? true,
     },
   });
@@ -67,7 +69,10 @@ export function DepartmentForm({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          ...values,
+          promotionPassMark: values.promotionPassMark ? parseFloat(values.promotionPassMark) : null,
+        }),
       });
 
       if (!response.ok) {
@@ -100,10 +105,10 @@ export function DepartmentForm({
         {errors.name && <FieldError>{errors.name.message}</FieldError>}
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup className="space-y-1">
         <FieldLabel htmlFor="code">Code</FieldLabel>
         <Input id="code" placeholder="MATH" {...register("code")} />
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground text-[0.8rem]">
           unique code for the department (max 10 characters).
         </p>
         {errors.code && <FieldError>{errors.code.message}</FieldError>}
@@ -118,6 +123,25 @@ export function DepartmentForm({
         />
         {errors.description && (
           <FieldError>{errors.description.message}</FieldError>
+        )}
+      </FieldGroup>
+
+      <FieldGroup className="space-y-1">
+        <FieldLabel htmlFor="promotionPassMark">Promotion Pass Mark</FieldLabel>
+        <Input 
+          id="promotionPassMark" 
+          type="number" 
+          step="0.01" 
+          min="0" 
+          max="100" 
+          placeholder="e.g. 50.00" 
+          {...register("promotionPassMark")} 
+        />
+        <p className="text-sm text-muted-foreground text-[0.8rem]">
+          Minimum raw score required for students to be promoted to the next academic year.
+        </p>
+        {errors.promotionPassMark && (
+          <FieldError>{errors.promotionPassMark.message}</FieldError>
         )}
       </FieldGroup>
 

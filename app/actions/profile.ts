@@ -78,6 +78,11 @@ export async function updateUserProfile(data: UpdateProfileInput) {
     if (data.name) userUpdateData.name = data.name;
     if (data.image !== undefined) userUpdateData.image = data.image;
 
+    // Reject crucial updates for students - checking both global role and profile relations
+    const isStudent = 
+      session.user.role === "student" || 
+      !!session.profile?.student;
+
     if (Object.keys(userUpdateData).length > 0) {
       await prisma.user.update({
         where: { id: session.user.id },
@@ -110,15 +115,15 @@ export async function updateUserProfile(data: UpdateProfileInput) {
       emergencyRelationship?: string | null;
     } = {};
 
-    if (data.firstName) profileData.firstName = data.firstName;
-    if (data.lastName) profileData.lastName = data.lastName;
+    if (data.firstName && !isStudent) profileData.firstName = data.firstName;
+    if (data.lastName && !isStudent) profileData.lastName = data.lastName;
     if (data.otherNames !== undefined)
       profileData.otherNames = data.otherNames || null;
     if (data.phone !== undefined) profileData.phone = data.phone || null;
     if (data.alternatePhone !== undefined)
       profileData.alternatePhone = data.alternatePhone || null;
-    if (data.gender) profileData.gender = data.gender;
-    if (data.dateOfBirth) profileData.dateOfBirth = data.dateOfBirth;
+    if (data.gender && !isStudent) profileData.gender = data.gender;
+    if (data.dateOfBirth && !isStudent) profileData.dateOfBirth = data.dateOfBirth;
     if (data.nationality !== undefined)
       profileData.nationality = data.nationality || null;
     if (data.residentialAddress !== undefined)

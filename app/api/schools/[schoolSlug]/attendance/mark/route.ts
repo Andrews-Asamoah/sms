@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
-import { getSchoolRole } from "@/lib/auth/school-access";
+import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
 
 const markAttendanceSchema = z.object({
   classId: z.string().min(1),
@@ -31,11 +31,13 @@ export async function POST(
   try {
     const { schoolSlug } = await params;
     const session = await requireSchoolAccess(schoolSlug);
-    const role = getSchoolRole(session, schoolSlug);
+    const activeRole = await getActiveSchoolRole(session, schoolSlug);
 
-    if (!role) {
+    if (!activeRole) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
+
+    const role = activeRole;
 
     const body = await request.json();
     const validatedData = markAttendanceSchema.parse(body);

@@ -178,7 +178,29 @@ export async function POST(
 
     // Step 10: Perform update in transaction
     await prisma.$transaction(async (tx) => {
-      // Update school settings
+      // 1. Reset all isCurrent flags for this school's years and terms
+      await tx.academicYear.updateMany({
+        where: { schoolId: school.id },
+        data: { isCurrent: false },
+      });
+
+      await tx.term.updateMany({
+        where: { academicYear: { schoolId: school.id } },
+        data: { isCurrent: false },
+      });
+
+      // 2. Set the new year and term as current
+      await tx.academicYear.update({
+        where: { id: validatedData.academicYearId },
+        data: { isCurrent: true },
+      });
+
+      await tx.term.update({
+        where: { id: validatedData.termId },
+        data: { isCurrent: true },
+      });
+
+      // 3. Update school settings
       await tx.school.update({
         where: { id: school.id },
         data: {
@@ -186,7 +208,7 @@ export async function POST(
         },
       });
 
-      // Create audit log
+      // 4. Create audit log
       await tx.auditLog.create({
         data: {
           userId: session.user.id,

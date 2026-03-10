@@ -23,13 +23,10 @@ export default async function GuardianLayout({
       schoolName={school.name}
       schoolPlan={school.subscription?.planName || "Free Plan"}
       schoolLogo={school.logo || undefined}
-      user={{
-        ...userData,
-        role: "guardian",
-      }}
+      user={userData}
       academicYear={academicYear}
       currentTerm={currentTerm}
-      currentRole="guardian"
+      currentRole={userData.role}
       availableRoles={allRoles}
       permissions={permissions}
     >

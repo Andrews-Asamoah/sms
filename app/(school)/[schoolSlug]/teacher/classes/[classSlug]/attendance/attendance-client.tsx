@@ -1,6 +1,5 @@
 "use client";
-
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import {
   Calendar as CalendarIcon,
@@ -35,7 +34,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { saveAttendanceBatch } from "./actions";
+import { saveAttendanceBatch, getAttendanceForDate, getMarkedDates } from "./actions";
 
 type AttendanceStatus =
   | "PRESENT"
@@ -83,41 +82,30 @@ export function AttendanceClient({
   const [date, setDate] = useState<Date>(new Date());
   const [attendance, setAttendance] = useState<
     Record<string, AttendanceStatus>
-  >(
+  >(() => 
     Object.fromEntries(
       students.map((s) => [s.id, initialAttendance[s.id]?.status || "PRESENT"]),
-    ),
+    )
   );
   const [markedDates, setMarkedDates] = useState<Date[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   // Load marked dates on mount
-  useState(() => {
-    import("./actions").then((mod) => {
-      mod.getMarkedDates(schoolSlug, classId).then((res) => {
-        if (res.success && res.data) {
-          setMarkedDates(res.data.map((d) => new Date(d)));
-        }
-      });
-    });
-  });
-
-  // Load attendance when date changes
-  useState(() => {
-    // Skip initial load as it's passed via props
-    let isInitial = true;
-
-    // We'll use an effect for this instead of useState initializer hack
-  });
-
-  const { useEffect } = require("react");
-
   useEffect(() => {
+    getMarkedDates(schoolSlug, classId).then((res) => {
+      if (res.success && res.data) {
+        setMarkedDates(res.data.map((d) => new Date(d)));
+      }
+    });
+  }, [schoolSlug, classId]);
+
+  // Fetch attendance when date changes
+  useEffect(() => {
+    // Only fetch if date is not today or if we need to refresh
     const fetchAttendance = async () => {
       setIsLoading(true);
       try {
-        const { getAttendanceForDate } = await import("./actions");
         const result = await getAttendanceForDate(schoolSlug, classId, date);
         if (result.success && result.data) {
           const newAttendance = Object.fromEntries(
@@ -128,7 +116,7 @@ export function AttendanceClient({
           });
           setAttendance(newAttendance);
         } else {
-          // Reset to default if no attendance found or error
+          // Reset to default if no attendance found
           setAttendance(
             Object.fromEntries(students.map((s) => [s.id, "PRESENT"])),
           );
@@ -141,7 +129,10 @@ export function AttendanceClient({
     };
 
     fetchAttendance();
-  }, [date, schoolSlug, classId, students]);
+    // We only want to re-run this when the date or class changes. 
+    // We explicitly omit 'students' and 'schoolSlug' to avoid infinite loops from parent re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, classId]);
 
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
     setAttendance((prev) => ({ ...prev, [studentId]: status }));

@@ -106,6 +106,48 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
     notFound();
   }
 
+  // Fetch all active students not already enrolled in this class.
+  // This includes students with no class AND students currently in a different class.
+  const otherStudents = await prisma.student.findMany({
+    where: {
+      schoolId: school.id,
+      status: "ACTIVE",
+      OR: [
+        { classId: null },
+        { classId: { not: classData.id } }
+      ]
+    },
+    include: {
+      profile: true,
+      class: { select: { name: true } },
+    },
+    orderBy: {
+      profile: { firstName: "asc" },
+    },
+  });
+
+  // Serialize students to convert Decimal fields (outstandingBalance) to numbers for Client Components
+  const serializedClassStudents = classData.students.map((s) => ({
+    ...s,
+    outstandingBalance: Number(s.outstandingBalance),
+  }));
+
+  // Split into unassigned (no class) and students who need to be moved from another class
+  const unassignedStudents = otherStudents
+    .filter((s) => !s.classId)
+    .map((s) => ({
+      ...s,
+      outstandingBalance: Number(s.outstandingBalance),
+    }));
+
+  const studentsInOtherClasses = otherStudents
+    .filter((s) => s.classId !== null)
+    .map((s) => ({
+      ...s,
+      currentClassName: s.class?.name ?? null,
+      outstandingBalance: Number(s.outstandingBalance),
+    }));
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
@@ -154,7 +196,13 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
             allSubjects={school.subjects}
             schoolTeachers={school.teachers
               .filter((t) => t.profile !== null)
-              .map((t) => ({ ...t, profile: t.profile! }))}
+              .map((t) => ({
+                id: t.id,
+                profile: {
+                  firstName: t.profile!.firstName,
+                  lastName: t.profile!.lastName,
+                },
+              }))}
           />
         </TabsContent>
 
@@ -162,7 +210,13 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
           value="students"
           className="animate-in fade-in-50 duration-300"
         >
-          <ClassStudentsTab students={classData.students as any} />
+          <ClassStudentsTab
+            schoolSlug={schoolSlug}
+            classId={classData.id}
+            students={serializedClassStudents as any}
+            unassignedStudents={unassignedStudents as any}
+            studentsInOtherClasses={studentsInOtherClasses as any}
+          />
         </TabsContent>
 
         <TabsContent
@@ -184,9 +238,25 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
                 academicYears={school.academicYears}
                 teachers={school.teachers
                   .filter((t) => t.profile !== null)
-                  .map((t) => ({ ...t, profile: t.profile! }))}
+                  .map((t) => ({
+                    id: t.id,
+                    profile: {
+                      firstName: t.profile!.firstName,
+                      lastName: t.profile!.lastName,
+                    },
+                  }))}
                 departments={school.departments}
-                initialData={classData}
+                initialData={{
+                  id: classData.id,
+                  name: classData.name,
+                  level: classData.level,
+                  section: classData.section,
+                  capacity: classData.capacity,
+                  academicYearId: classData.academicYearId,
+                  classTeacherId: classData.classTeacherId,
+                  departmentId: classData.departmentId,
+                  isActive: classData.isActive,
+                }}
               />
             </CardContent>
           </Card>

@@ -7,7 +7,6 @@ import {
   UserRound,
   BookOpen,
   GraduationCap,
-  ArrowUpRight,
   TrendingUp,
   Calendar,
   Wallet,
@@ -222,29 +221,63 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground text-foreground">
-                  Revenue Collection
+                  Revenue vs Expenses
                 </span>
                 <Badge
                   variant="secondary"
-                  className="bg-emerald-500/10 text-emerald-500 border-none px-2 py-0"
+                  className={`${
+                    stats.financials.totalRevenue >= stats.financials.totalExpenses
+                      ? "bg-emerald-500/10 text-emerald-500"
+                      : "bg-red-500/10 text-red-500"
+                  } border-none px-2 py-0`}
                 >
-                  Healthy
+                  {stats.financials.totalRevenue >= stats.financials.totalExpenses
+                    ? "Healthy"
+                    : "Deficit"}
                 </Badge>
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-mono">
-                  <span>Progress</span>
-                  <span>78%</span>
+                  <span>Usage</span>
+                  <span>
+                    {stats.financials.totalRevenue > 0
+                      ? Math.min(
+                          Math.round(
+                            (stats.financials.totalExpenses /
+                              stats.financials.totalRevenue) *
+                              100,
+                          ),
+                          100,
+                        )
+                      : 0}
+                    %
+                  </span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                  <div className="h-full w-[78%] bg-primary transition-all" />
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{
+                      width: `${
+                        stats.financials.totalRevenue > 0
+                          ? Math.min(
+                              (stats.financials.totalExpenses /
+                                stats.financials.totalRevenue) *
+                                100,
+                              100,
+                            )
+                          : 0
+                      }%`,
+                    }}
+                  />
                 </div>
               </div>
               <Separator className="bg-primary/10" />
               <div className="pt-2">
-                <Button className="w-full rounded-xl" size="sm">
-                  <Wallet className="mr-2 h-4 w-4" />
-                  Financial Reports
+                <Button className="w-full rounded-xl" size="sm" asChild>
+                  <a href={`/${schoolSlug}/admin/finance`}>
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Financial Reports
+                  </a>
                 </Button>
               </div>
             </CardContent>

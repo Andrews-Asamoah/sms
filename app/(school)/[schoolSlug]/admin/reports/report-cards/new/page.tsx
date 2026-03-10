@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { MultiSelect, Option } from "@/components/ui/multi-select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function NewReportCardSetPage() {
   const { schoolSlug } = useParams();
@@ -31,6 +33,7 @@ export default function NewReportCardSetPage() {
     years: [],
     terms: [],
     classes: [],
+    departments: [],
   });
 
   const [formData, setFormData] = useState({
@@ -38,22 +41,24 @@ export default function NewReportCardSetPage() {
     templateId: "",
     academicYearId: "",
     termId: "",
-    classId: "",
+    classIds: [] as string[],
   });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [templatesRes, yearsRes, classesRes] = await Promise.all([
+        const [templatesRes, yearsRes, classesRes, departmentsRes] = await Promise.all([
           fetch(`/api/schools/${schoolSlug}/report-cards/templates`),
           fetch(`/api/schools/${schoolSlug}/academic-years`),
           fetch(`/api/schools/${schoolSlug}/classes`),
+          fetch(`/api/schools/${schoolSlug}/departments`),
         ]);
 
-        const [templates, years, classes] = await Promise.all([
+        const [templates, years, classes, departments] = await Promise.all([
           templatesRes.json(),
           yearsRes.json(),
           classesRes.json(),
+          departmentsRes.json(),
         ]);
 
         setData({
@@ -61,6 +66,7 @@ export default function NewReportCardSetPage() {
           years,
           terms: [],
           classes: classes.classes || classes,
+          departments,
         });
       } catch (error) {
         toast.error("Error loading form data");
@@ -84,6 +90,10 @@ export default function NewReportCardSetPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.classIds.length === 0) {
+      toast.error("Please select at least one class");
+      return;
+    }
     setLoading(true);
     try {
       const response = await fetch(
@@ -96,13 +106,12 @@ export default function NewReportCardSetPage() {
 
       if (!response.ok) throw new Error("Failed to create");
 
-      const newSet = await response.json();
-      toast.success("Report card set created");
+      toast.success("Report card sets created");
       router.push(
-        `/${schoolSlug}/admin/reports/report-cards/sets/${newSet.id}`,
+        `/${schoolSlug}/admin/reports/report-cards`,
       );
     } catch (error) {
-      toast.error("Failed to create report card set");
+      toast.error("Failed to create report card sets");
     } finally {
       setLoading(false);
     }
@@ -123,14 +132,14 @@ export default function NewReportCardSetPage() {
         <CardHeader>
           <CardTitle>Set Configuration</CardTitle>
           <CardDescription>
-            Configure the academic term and class for this report card batch.
+            Configure the academic term and classes for this report card batch.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="name">
-                Set Name (e.g. Primary 1 - Term 1 - 2024/25)
+                Set Name Prefix (e.g. "Terminal Report - ")
               </Label>
               <Input
                 id="name"
@@ -138,12 +147,15 @@ export default function NewReportCardSetPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                placeholder="Enter a descriptive name"
+                placeholder="Enter a descriptive prefix"
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                The class name will be appended to this prefix for each set.
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Template</Label>
                 <Select
@@ -166,29 +178,6 @@ export default function NewReportCardSetPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Class</Label>
-                <Select
-                  onValueChange={(v) =>
-                    setFormData({ ...formData, classId: v })
-                  }
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {data.classes.map((c: any) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
                 <Label>Academic Year</Label>
                 <Select onValueChange={handleYearChange} required>
                   <SelectTrigger>
@@ -203,8 +192,10 @@ export default function NewReportCardSetPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2">
                 <Label>Term</Label>
                 <Select
                   onValueChange={(v) => setFormData({ ...formData, termId: v })}
@@ -225,6 +216,55 @@ export default function NewReportCardSetPage() {
               </div>
             </div>
 
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Classes</Label>
+                <MultiSelect
+                  options={data.classes.map((c: any) => ({
+                    label: c.name,
+                    value: c.id,
+                  }))}
+                  selected={formData.classIds}
+                  onChange={(values) =>
+                    setFormData({ ...formData, classIds: values })
+                  }
+                  placeholder="Select Classes"
+                />
+              </div>
+
+              <div className="space-y-2 border-t pt-4">
+                <Label className="text-sm font-medium">Quick Select by Department</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {data.departments.map((dept: any) => (
+                    <div key={dept.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={dept.id}
+                        onCheckedChange={(checked) => {
+                          const deptClasses = data.classes
+                            .filter((c: any) => c.departmentId === dept.id)
+                            .map((c: any) => c.id);
+                          
+                          if (checked) {
+                            const newClassIds = Array.from(new Set([...formData.classIds, ...deptClasses]));
+                            setFormData({ ...formData, classIds: newClassIds });
+                          } else {
+                            const newClassIds = formData.classIds.filter(id => !deptClasses.includes(id));
+                            setFormData({ ...formData, classIds: newClassIds });
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={dept.id}
+                        className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-opacity-70"
+                      >
+                        {dept.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-4">
               <Button
                 type="button"
@@ -235,7 +275,7 @@ export default function NewReportCardSetPage() {
               </Button>
               <Button type="submit" disabled={loading}>
                 <Save className="w-4 h-4 mr-2" />
-                {loading ? "Creating..." : "Create Report Set"}
+                {loading ? "Creating..." : "Create Report Sets"}
               </Button>
             </div>
           </form>
