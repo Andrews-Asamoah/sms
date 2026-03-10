@@ -40,7 +40,7 @@ export function EnrollmentTrendChart({ data }: EnrollmentTrendProps) {
   } satisfies ChartConfig;
 
   return (
-    <Card className="col-span-2 backdrop-blur-sm bg-card/30 border-border/50">
+    <Card className="col-span-2 backdrop-blur-md bg-card/50 border-primary/10 shadow-sm">
       <CardHeader>
         <CardTitle>Enrollment Growth</CardTitle>
         <CardDescription>
@@ -67,7 +67,7 @@ export function EnrollmentTrendChart({ data }: EnrollmentTrendProps) {
             <CartesianGrid
               vertical={false}
               strokeDasharray="3 3"
-              className="stroke-muted"
+              className="stroke-muted/50"
             />
             <XAxis
               dataKey="month"
@@ -108,7 +108,7 @@ export function FinancialSummaryChart({ data, currency }: FinancialChartProps) {
   } satisfies ChartConfig;
 
   return (
-    <Card className="backdrop-blur-sm bg-card/30 border-border/50">
+    <Card className="backdrop-blur-md bg-card/50 border-primary/10 shadow-sm">
       <CardHeader>
         <CardTitle>Financial Status</CardTitle>
         <CardDescription>
@@ -156,7 +156,7 @@ export function GenderDistributionChart({ data }: GenderDistributionProps) {
   } satisfies ChartConfig;
 
   return (
-    <Card className="flex flex-col backdrop-blur-sm bg-card/30 border-border/50">
+    <Card className="flex flex-col backdrop-blur-md bg-card/50 border-primary/10 shadow-sm">
       <CardHeader className="items-center pb-0">
         <CardTitle>Gender Distribution</CardTitle>
         <CardDescription>Active Student Population</CardDescription>
@@ -195,7 +195,7 @@ export function GenderDistributionChart({ data }: GenderDistributionProps) {
                         <tspan
                           x={viewBox.cx}
                           y={viewBox.cy}
-                          className="fill-foreground text-3xl font-bold"
+                          className="fill-foreground dark:fill-white text-3xl font-bold"
                         >
                           {total.toLocaleString()}
                         </tspan>

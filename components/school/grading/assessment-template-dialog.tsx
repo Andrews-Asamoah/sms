@@ -173,7 +173,9 @@ export function AssessmentTemplateDialog({
         classLevel: template.classLevel,
         subjectCode: template.subjectCode,
         isActive: template.isActive,
-        deadline: template.deadline ? new Date(template.deadline).toISOString() : null,
+        deadline: template.deadline
+          ? new Date(template.deadline).toISOString()
+          : null,
         isLocked: template.isLocked,
         classIds: template.classes?.map((c: any) => c.classId) || [],
         components: template.components.map((c: any) => ({
@@ -261,7 +263,7 @@ export function AssessmentTemplateDialog({
   return (
     <Dialog open={showDialog} onOpenChange={setShowDialog}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>
             {mode === "create"
@@ -337,7 +339,9 @@ export function AssessmentTemplateDialog({
                   <FieldGroup>
                     <DatePicker
                       date={field.value ? new Date(field.value) : undefined}
-                      setDate={(date) => field.onChange(date?.toISOString() || null)}
+                      setDate={(date) =>
+                        field.onChange(date?.toISOString() || null)
+                      }
                       placeholder="Select Deadline"
                     />
                   </FieldGroup>
@@ -373,14 +377,14 @@ export function AssessmentTemplateDialog({
 
           <div className="space-y-4">
             <FieldLabel>Assigned Classes</FieldLabel>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 bg-muted/20 p-4 rounded-lg border">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 bg-muted/20 p-4 rounded-lg border">
               {classes.map((cls) => (
                 <Controller
                   key={cls.id}
                   control={form.control}
                   name="classIds"
                   render={({ field }) => (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <Checkbox
                         id={`class-${cls.id}`}
                         checked={field.value?.includes(cls.id)}
@@ -389,13 +393,16 @@ export function AssessmentTemplateDialog({
                           if (checked) {
                             field.onChange([...current, cls.id]);
                           } else {
-                            field.onChange(current.filter((id) => id !== cls.id));
+                            field.onChange(
+                              current.filter((id) => id !== cls.id),
+                            );
                           }
                         }}
+                        className="size-4 shrink-0"
                       />
-                      <label 
+                      <label
                         htmlFor={`class-${cls.id}`}
-                        className="text-sm font-medium leading-none cursor-pointer select-none"
+                        className="text-sm font-medium leading-none cursor-pointer select-none truncate flex-1"
                       >
                         {cls.name}
                       </label>
@@ -426,10 +433,15 @@ export function AssessmentTemplateDialog({
 
             <div className="space-y-4">
               {fields.map((field, index) => {
-                const isRepeatable = form.watch(`components.${index}.isRepeatable`);
+                const isRepeatable = form.watch(
+                  `components.${index}.isRepeatable`,
+                );
 
                 return (
-                  <div key={field.id} className="relative p-4 border rounded-md bg-background shadow-sm space-y-4">
+                  <div
+                    key={field.id}
+                    className="relative p-4 border rounded-md bg-background shadow-sm space-y-4"
+                  >
                     <Button
                       type="button"
                       variant="ghost"
@@ -439,18 +451,27 @@ export function AssessmentTemplateDialog({
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-10">
                       <Controller
                         control={form.control}
                         name={`components.${index}.name`}
                         render={({ field, fieldState }) => (
                           <Field>
-                            <FieldLabel className="text-xs text-muted-foreground uppercase">Component Name</FieldLabel>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">
+                              Component Name
+                            </FieldLabel>
                             <FieldGroup>
-                              <Input placeholder="e.g. Midterm Exams" {...field} />
+                              <Input
+                                placeholder="e.g. Midterm Exams"
+                                {...field}
+                              />
                             </FieldGroup>
-                            {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
+                            {fieldState.error && (
+                              <FieldError>
+                                {fieldState.error.message}
+                              </FieldError>
+                            )}
                           </Field>
                         )}
                       />
@@ -460,38 +481,60 @@ export function AssessmentTemplateDialog({
                         name={`components.${index}.componentType`}
                         render={({ field, fieldState }) => (
                           <Field>
-                            <FieldLabel className="text-xs text-muted-foreground uppercase">Assessment Type</FieldLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">
+                              Assessment Type
+                            </FieldLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              value={field.value}
+                            >
                               <FieldGroup>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                               </FieldGroup>
                               <SelectContent>
-                                {Object.entries(AssessmentType).map(([key, type]) => (
-                                  <SelectItem key={key} value={type}>
-                                    {type.replace(/_/g, " ")}
-                                  </SelectItem>
-                                ))}
+                                {Object.entries(AssessmentType).map(
+                                  ([key, type]) => (
+                                    <SelectItem key={key} value={type}>
+                                      {type.replace(/_/g, " ")}
+                                    </SelectItem>
+                                  ),
+                                )}
                               </SelectContent>
                             </Select>
-                            {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
+                            {fieldState.error && (
+                              <FieldError>
+                                {fieldState.error.message}
+                              </FieldError>
+                            )}
                           </Field>
                         )}
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-end bg-muted/30 p-3 rounded-md border">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end bg-muted/30 p-3 rounded-md border">
                       <Controller
                         control={form.control}
                         name={`components.${index}.maxMarks`}
                         render={({ field, fieldState }) => (
                           <Field>
-                            <FieldLabel className="text-xs text-muted-foreground uppercase">Max Marks</FieldLabel>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">
+                              Max Marks
+                            </FieldLabel>
                             <FieldGroup>
-                              <Input type="number" {...field} className="bg-background" />
+                              <Input
+                                type="number"
+                                {...field}
+                                className="bg-background"
+                              />
                             </FieldGroup>
-                            {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
+                            {fieldState.error && (
+                              <FieldError>
+                                {fieldState.error.message}
+                              </FieldError>
+                            )}
                           </Field>
                         )}
                       />
@@ -501,11 +544,21 @@ export function AssessmentTemplateDialog({
                         name={`components.${index}.weight`}
                         render={({ field, fieldState }) => (
                           <Field>
-                            <FieldLabel className="text-xs text-muted-foreground uppercase">Weight (%)</FieldLabel>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">
+                              Weight (%)
+                            </FieldLabel>
                             <FieldGroup>
-                              <Input type="number" {...field} className="bg-background" />
+                              <Input
+                                type="number"
+                                {...field}
+                                className="bg-background"
+                              />
                             </FieldGroup>
-                            {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
+                            {fieldState.error && (
+                              <FieldError>
+                                {fieldState.error.message}
+                              </FieldError>
+                            )}
                           </Field>
                         )}
                       />
@@ -515,10 +568,19 @@ export function AssessmentTemplateDialog({
                         name={`components.${index}.isRepeatable`}
                         render={({ field }) => (
                           <Field>
-                            <FieldLabel className="text-xs text-muted-foreground uppercase">Repeatable</FieldLabel>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">
+                              Repeatable
+                            </FieldLabel>
                             <div className="flex items-center space-x-2 h-10 bg-background border rounded-md px-3 mt-1.5 focus-within:ring-1 focus-within:ring-ring">
-                              <Checkbox checked={field.value} onCheckedChange={field.onChange} id={`rep-${index}`} />
-                              <label htmlFor={`rep-${index}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                id={`rep-${index}`}
+                              />
+                              <label
+                                htmlFor={`rep-${index}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              >
                                 Allow Multiple
                               </label>
                             </div>
@@ -531,18 +593,26 @@ export function AssessmentTemplateDialog({
                         name={`components.${index}.expectedCount`}
                         render={({ field, fieldState }) => (
                           <Field className={!isRepeatable ? "opacity-50" : ""}>
-                            <FieldLabel className="text-xs text-muted-foreground uppercase">Occurrences</FieldLabel>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">
+                              Occurrences
+                            </FieldLabel>
                             <FieldGroup>
-                              <Input 
-                                type="number" 
-                                {...field} 
-                                className="bg-background" 
-                                min={1} 
+                              <Input
+                                type="number"
+                                {...field}
+                                className="bg-background"
+                                min={1}
                                 disabled={!isRepeatable}
-                                placeholder={!isRepeatable ? "1 (Single)" : "e.g. 4"}
+                                placeholder={
+                                  !isRepeatable ? "1 (Single)" : "e.g. 4"
+                                }
                               />
                             </FieldGroup>
-                            {fieldState.error && isRepeatable && <FieldError>{fieldState.error.message}</FieldError>}
+                            {fieldState.error && isRepeatable && (
+                              <FieldError>
+                                {fieldState.error.message}
+                              </FieldError>
+                            )}
                           </Field>
                         )}
                       />
@@ -579,18 +649,22 @@ export function AssessmentTemplateDialog({
               control={form.control}
               name="isActive"
               render={({ field, fieldState }) => (
-                <Field className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
+                <div className="flex flex-row items-start space-x-3 p-4 rounded-md border bg-background shadow-sm min-w-0">
                   <Checkbox
                     checked={field.value}
                     onCheckedChange={field.onChange}
+                    className="mt-1 size-4 shrink-0"
+                    id="is-active"
                   />
-                  <div className="space-y-1 leading-none">
-                    <FieldLabel>Active Status</FieldLabel>
-                    <FieldDescription>
+                  <div className="space-y-1 leading-none flex-1 min-w-0">
+                    <label htmlFor="is-active" className="text-sm font-medium cursor-pointer">
+                      Active Status
+                    </label>
+                    <p className="text-xs text-muted-foreground text-pretty">
                       Inactive templates cannot be selected.
-                    </FieldDescription>
+                    </p>
                   </div>
-                </Field>
+                </div>
               )}
             />
 
@@ -598,18 +672,22 @@ export function AssessmentTemplateDialog({
               control={form.control}
               name="isLocked"
               render={({ field, fieldState }) => (
-                <Field className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
+                <div className="flex flex-row items-start space-x-3 p-4 rounded-md border bg-background shadow-sm min-w-0">
                   <Checkbox
                     checked={field.value}
                     onCheckedChange={field.onChange}
+                    className="mt-1 size-4 shrink-0"
+                    id="is-locked"
                   />
-                  <div className="space-y-1 leading-none">
-                    <FieldLabel>Lock Automatically</FieldLabel>
-                    <FieldDescription>
+                  <div className="space-y-1 leading-none flex-1 min-w-0">
+                    <label htmlFor="is-locked" className="text-sm font-medium cursor-pointer">
+                      Lock Automatically
+                    </label>
+                    <p className="text-xs text-muted-foreground text-pretty">
                       Lock all marks for this template immediately.
-                    </FieldDescription>
+                    </p>
                   </div>
-                </Field>
+                </div>
               )}
             />
           </div>

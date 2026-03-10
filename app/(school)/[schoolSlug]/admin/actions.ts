@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { startOfMonth, subMonths, endOfMonth } from "date-fns";
+import { formatStudentName } from "@/lib/utils/name-formatter";
 
 export async function getAdminDashboardStats(schoolSlug: string) {
   const school = await prisma.school.findUnique({
@@ -162,7 +163,7 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     recentActivities: recentStudents.map((s) => ({
       id: s.id,
       title: "New Student Enrolled",
-      description: `${s.profile.firstName} ${s.profile.lastName} joined ${s.class?.name || "N/A"}`,
+      description: `${formatStudentName(s.profile.firstName, s.profile.lastName, s.profile.otherNames)} joined ${s.class?.name || "N/A"}`,
       time: s.createdAt,
     })),
   };

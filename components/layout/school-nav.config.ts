@@ -230,6 +230,10 @@ export const schoolNavSections: NavSection[] = [
             title: "Manage Templates",
             url: "/admin/reports/report-cards/templates",
           },
+          {
+            title: "Gradebook Tracking",
+            url: "/admin/reports/gradebook-tracking",
+          },
         ],
       },
     ],
