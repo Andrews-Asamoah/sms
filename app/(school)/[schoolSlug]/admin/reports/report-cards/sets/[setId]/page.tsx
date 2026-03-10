@@ -46,7 +46,7 @@ export default async function SetDetailPage(props: SetDetailPageProps) {
             where: { status: "ACTIVE" },
             orderBy: { profile: { lastName: "asc" } },
             include: {
-              profile: { select: { firstName: true, lastName: true } },
+              profile: { select: { firstName: true, lastName: true, otherNames: true } },
             },
           },
         } 
@@ -61,7 +61,7 @@ export default async function SetDetailPage(props: SetDetailPageProps) {
                 where: { status: "ACTIVE" },
                 orderBy: { profile: { lastName: "asc" } },
                 include: {
-                  profile: { select: { firstName: true, lastName: true } },
+                  profile: { select: { firstName: true, lastName: true, otherNames: true } },
                 },
               },
             },

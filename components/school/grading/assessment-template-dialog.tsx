@@ -36,6 +36,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -422,155 +424,133 @@ export function AssessmentTemplateDialog({
               </div>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[200px]">Name</TableHead>
-                  <TableHead className="w-[180px]">Type</TableHead>
-                  <TableHead className="w-[80px]">Max Marks</TableHead>
-                  <TableHead className="w-[80px]">Weight (%)</TableHead>
-                  <TableHead className="w-[120px]">Repeatable?</TableHead>
-                  <TableHead className="w-[90px]">Occurrences</TableHead>
-                  <TableHead className="w-[40px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {fields.map((field, index) => (
-                  <TableRow key={field.id}>
-                    <TableCell>
+            <div className="space-y-4">
+              {fields.map((field, index) => {
+                const isRepeatable = form.watch(`components.${index}.isRepeatable`);
+
+                return (
+                  <div key={field.id} className="relative p-4 border rounded-md bg-background shadow-sm space-y-4">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => remove(index)}
+                      className="absolute top-2 right-2 text-red-500 hover:text-red-700 hover:bg-destructive/10 h-8 w-8"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-10">
                       <Controller
                         control={form.control}
                         name={`components.${index}.name`}
                         render={({ field, fieldState }) => (
                           <Field>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">Component Name</FieldLabel>
                             <FieldGroup>
-                              <Input {...field} />
-                            </FieldGroup>
-                            {fieldState.error && (
-                              <FieldError>
-                                {fieldState.error.message}
-                              </FieldError>
-                            )}
-                          </Field>
-                        )}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Controller
-                        control={form.control}
-                        name={`components.${index}.componentType`}
-                        render={({ field, fieldState }) => (
-                          <Field>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              value={field.value}
-                            >
-                              <FieldGroup>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Type" />
-                                </SelectTrigger>
-                              </FieldGroup>
-                              <SelectContent>
-                                {Object.entries(AssessmentType).map(
-                                  ([key, type]) => (
-                                    <SelectItem key={key} value={type}>
-                                      {type.replace(/_/g, " ")}
-                                    </SelectItem>
-                                  ),
-                                )}
-                              </SelectContent>
-                            </Select>
-                            {fieldState.error && (
-                              <FieldError>
-                                {fieldState.error.message}
-                              </FieldError>
-                            )}
-                          </Field>
-                        )}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Controller
-                        control={form.control}
-                        name={`components.${index}.maxMarks`}
-                        render={({ field, fieldState }) => (
-                          <Field>
-                            <FieldGroup>
-                              <Input type="number" {...field} />
-                            </FieldGroup>
-                            {fieldState.error && (
-                              <FieldError>
-                                {fieldState.error.message}
-                              </FieldError>
-                            )}
-                          </Field>
-                        )}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Controller
-                        control={form.control}
-                        name={`components.${index}.weight`}
-                        render={({ field, fieldState }) => (
-                          <Field>
-                            <FieldGroup>
-                              <Input type="number" {...field} />
-                            </FieldGroup>
-                            {fieldState.error && (
-                              <FieldError>
-                                {fieldState.error.message}
-                              </FieldError>
-                            )}
-                          </Field>
-                        )}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Controller
-                        control={form.control}
-                        name={`components.${index}.isRepeatable`}
-                        render={({ field }) => (
-                          <div className="flex items-center justify-center h-10 w-full">
-                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                          </div>
-                        )}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Controller
-                        control={form.control}
-                        name={`components.${index}.expectedCount`}
-                        render={({ field, fieldState }) => (
-                          <Field>
-                            <FieldGroup>
-                              <Input 
-                                type="number" 
-                                {...field} 
-                                disabled={!form.watch(`components.${index}.isRepeatable`)}
-                                className="bg-muted/50 w-full"
-                              />
+                              <Input placeholder="e.g. Midterm Exams" {...field} />
                             </FieldGroup>
                             {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
                           </Field>
                         )}
                       />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => remove(index)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+
+                      <Controller
+                        control={form.control}
+                        name={`components.${index}.componentType`}
+                        render={({ field, fieldState }) => (
+                          <Field>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">Assessment Type</FieldLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                              <FieldGroup>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select type" />
+                                </SelectTrigger>
+                              </FieldGroup>
+                              <SelectContent>
+                                {Object.entries(AssessmentType).map(([key, type]) => (
+                                  <SelectItem key={key} value={type}>
+                                    {type.replace(/_/g, " ")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
+                          </Field>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-end bg-muted/30 p-3 rounded-md border">
+                      <Controller
+                        control={form.control}
+                        name={`components.${index}.maxMarks`}
+                        render={({ field, fieldState }) => (
+                          <Field>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">Max Marks</FieldLabel>
+                            <FieldGroup>
+                              <Input type="number" {...field} className="bg-background" />
+                            </FieldGroup>
+                            {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
+                          </Field>
+                        )}
+                      />
+
+                      <Controller
+                        control={form.control}
+                        name={`components.${index}.weight`}
+                        render={({ field, fieldState }) => (
+                          <Field>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">Weight (%)</FieldLabel>
+                            <FieldGroup>
+                              <Input type="number" {...field} className="bg-background" />
+                            </FieldGroup>
+                            {fieldState.error && <FieldError>{fieldState.error.message}</FieldError>}
+                          </Field>
+                        )}
+                      />
+
+                      <Controller
+                        control={form.control}
+                        name={`components.${index}.isRepeatable`}
+                        render={({ field }) => (
+                          <Field>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">Repeatable</FieldLabel>
+                            <div className="flex items-center space-x-2 h-10 bg-background border rounded-md px-3 mt-1.5 focus-within:ring-1 focus-within:ring-ring">
+                              <Checkbox checked={field.value} onCheckedChange={field.onChange} id={`rep-${index}`} />
+                              <label htmlFor={`rep-${index}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
+                                Allow Multiple
+                              </label>
+                            </div>
+                          </Field>
+                        )}
+                      />
+
+                      <Controller
+                        control={form.control}
+                        name={`components.${index}.expectedCount`}
+                        render={({ field, fieldState }) => (
+                          <Field className={!isRepeatable ? "opacity-50" : ""}>
+                            <FieldLabel className="text-xs text-muted-foreground uppercase">Occurrences</FieldLabel>
+                            <FieldGroup>
+                              <Input 
+                                type="number" 
+                                {...field} 
+                                className="bg-background" 
+                                min={1} 
+                                disabled={!isRepeatable}
+                                placeholder={!isRepeatable ? "1 (Single)" : "e.g. 4"}
+                              />
+                            </FieldGroup>
+                            {fieldState.error && isRepeatable && <FieldError>{fieldState.error.message}</FieldError>}
+                          </Field>
+                        )}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             <Button
               type="button"

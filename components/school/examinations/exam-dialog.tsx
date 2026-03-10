@@ -47,7 +47,7 @@ export function ExamDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {exam ? "Edit Examination" : "Add Examination"}

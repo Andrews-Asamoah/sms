@@ -40,6 +40,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { deleteReportCardSet } from "./actions";
+import { formatStudentName } from "@/lib/utils/name-formatter";
 
 interface SetDetailClientProps {
   set: any;
@@ -52,6 +53,9 @@ export function SetDetailClient({ set, schoolSlug, school }: SetDetailClientProp
   const [processing, setProcessing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const displayClasses: any[] = set.displayClasses ?? [];
+  const [activeClassId, setActiveClassId] = useState<string | undefined>(
+    displayClasses.length > 0 ? displayClasses[0].id : undefined
+  );
 
   const handleGenerate = async () => {
     setProcessing(true);
@@ -142,7 +146,11 @@ export function SetDetailClient({ set, schoolSlug, school }: SetDetailClientProp
               return (
                 <TableRow key={student.id}>
                   <TableCell className="font-medium">
-                    {student.profile.firstName} {student.profile.lastName}
+                    {formatStudentName(
+                      student.profile.firstName,
+                      student.profile.lastName,
+                      student.profile.otherNames
+                    )}
                   </TableCell>
                   <TableCell>
                     {report ? (
@@ -215,7 +223,7 @@ export function SetDetailClient({ set, schoolSlug, school }: SetDetailClientProp
           </CardHeader>
           <CardContent className="p-0">
             {displayClasses.length > 1 ? (
-              <Tabs defaultValue={displayClasses[0]?.id}>
+              <Tabs defaultValue={displayClasses[0]?.id} onValueChange={setActiveClassId}>
                 <div className="px-4 pt-4 border-b">
                   <TabsList className="w-full justify-start h-auto flex-wrap gap-1 bg-transparent p-0">
                     {displayClasses.map((cls: any) => (
@@ -278,7 +286,11 @@ export function SetDetailClient({ set, schoolSlug, school }: SetDetailClientProp
           <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             <Button variant="outline" className="w-full justify-start" asChild>
-              <Link href={`/${schoolSlug}/admin/reports/report-cards/sets/${set.id}/broad-sheet`}>
+              <Link
+                href={`/${schoolSlug}/admin/reports/report-cards/sets/${set.id}/broad-sheet${
+                  activeClassId ? `?classId=${activeClassId}` : ""
+                }`}
+              >
                 <FileText className="w-4 h-4 mr-2" /> Class Broad Sheet
               </Link>
             </Button>

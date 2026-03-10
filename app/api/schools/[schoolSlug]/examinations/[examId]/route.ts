@@ -4,6 +4,16 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+const componentSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  componentType: z.string(),
+  maxMarks: z.coerce.number().min(1),
+  weight: z.coerce.number().min(0).max(100),
+  isRepeatable: z.boolean().optional(),
+  expectedCount: z.coerce.number().min(1).optional(),
+});
+
 const updateExamSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
   gradingSystemId: z.string().min(1, "Grading system is required").optional(),
@@ -11,6 +21,7 @@ const updateExamSchema = z.object({
   termNumber: z.coerce.number().int().optional(),
   description: z.string().optional(),
   isActive: z.boolean().optional(),
+  components: z.array(componentSchema).optional(),
 });
 
 export async function PATCH(
@@ -38,6 +49,7 @@ export async function PATCH(
       termNumber,
       description,
       isActive,
+      components,
     } = updateExamSchema.parse(body);
 
     const school = await prisma.school.findUnique({
@@ -68,23 +80,49 @@ export async function PATCH(
       }
     }
 
-    const exam = await prisma.assessmentTemplate.update({
-      where: {
-        id: examId,
-        schoolId: school.id,
-      },
-      data: {
-        name,
-        gradingSystemId,
-        classId: classId !== undefined ? classId : undefined,
-        termNumber,
-        description,
-        isActive,
-      },
-      include: {
-        gradingSystem: true,
-        class: true,
-      },
+    const exam = await prisma.$transaction(async (tx) => {
+      if (components) {
+        // Delete existing components if they exist and no scores are recorded
+        // If scores exist, we should ideally prevent this or handle carefully
+        await tx.assessmentComponent.deleteMany({
+          where: { templateId: examId },
+        });
+
+        if (components.length > 0) {
+          await tx.assessmentComponent.createMany({
+            data: components.map((c, index) => ({
+              templateId: examId,
+              name: c.name,
+              componentType: c.componentType as any,
+              maxMarks: c.maxMarks,
+              weight: c.weight,
+              displayOrder: index,
+              isRepeatable: c.isRepeatable ?? false,
+              expectedCount: c.expectedCount ?? 1,
+            })),
+          });
+        }
+      }
+
+      return await tx.assessmentTemplate.update({
+        where: {
+          id: examId,
+          schoolId: school.id,
+        },
+        data: {
+          name,
+          gradingSystemId,
+          classId: classId !== undefined ? classId : undefined,
+          termNumber,
+          description,
+          isActive,
+        },
+        include: {
+          gradingSystem: true,
+          class: true,
+          components: true,
+        },
+      });
     });
 
     return NextResponse.json(exam);

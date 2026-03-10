@@ -9,11 +9,14 @@ import { BroadSheetClient } from "./client";
 
 interface BroadSheetPageProps {
   params: Promise<{ schoolSlug: string; setId: string }>;
+  searchParams?: Promise<{ classId?: string }>;
 }
 
 export default async function BroadSheetPage(props: BroadSheetPageProps) {
   const params = await props.params;
+  const searchParams = props.searchParams ? await props.searchParams : {};
   const { schoolSlug, setId } = params;
+  const targetClassId = searchParams.classId;
 
   const session = await requireSchoolAccess(schoolSlug);
   const role = getSchoolRole(session, schoolSlug);
@@ -56,6 +59,18 @@ export default async function BroadSheetPage(props: BroadSheetPageProps) {
 
   if (!set) {
     redirect(`/${schoolSlug}/admin/reports/report-cards`);
+  }
+
+  if (targetClassId) {
+    const selectedTarget = set.targetClasses.find(tc => tc.class.id === targetClassId);
+    if (selectedTarget) {
+      set.targetClasses = [selectedTarget]; // Filter to only the requested class
+    } else if (set.class && set.class.id !== targetClassId) {
+      // Legacy set fallback - if it's single class and doesn't match, we still just show what we have, but theoretically it could be empty
+    }
+  } else if (set.targetClasses.length > 0) {
+    // Default to the first class if none specified and has multiple
+    set.targetClasses = [set.targetClasses[0]];
   }
 
   const classNameDisplay = set.class 

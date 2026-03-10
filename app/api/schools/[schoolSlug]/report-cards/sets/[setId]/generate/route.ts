@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { formatStudentName } from "@/lib/utils/name-formatter";
 
 export async function POST(
   req: Request,
@@ -100,6 +101,34 @@ export async function POST(
       },
     });
 
+    // 2b. Fetch attendance and remarks for these students in this term
+    const [attendanceRecords, studentRemarks] = await Promise.all([
+      prisma.attendance.findMany({
+        where: {
+          studentId: { in: students.map((s) => s.id) },
+          date: { gte: set.term.startDate, lte: set.term.endDate },
+        },
+      }),
+      prisma.remark.findMany({
+        where: {
+          studentId: { in: students.map((s) => s.id) },
+          termId: set.termId,
+        },
+      }),
+    ]);
+
+    // Pre-calculate total school days per class (unique dates marked for each class)
+    const classTotalDaysMap = new Map<string, number>();
+    classIds.forEach(cid => {
+      const classStudentIds = students.filter(s => s.classId === cid).map(s => s.id);
+      const uniqueDates = new Set(
+        attendanceRecords
+          .filter(a => classStudentIds.includes(a.studentId))
+          .map(a => a.date.toISOString().split('T')[0])
+      );
+      classTotalDaysMap.set(cid, uniqueDates.size);
+    });
+
     // 3. Process scores per student
     const studentResults = students.map((student) => {
       const studentScores = assessmentScores.filter(
@@ -143,6 +172,16 @@ export async function POST(
       const averageMarks =
         subjects.length > 0 ? totalMarks / subjects.length : 0;
 
+      // Calculate real attendance
+      const studentAttendance = attendanceRecords.filter(a => a.studentId === student.id);
+      const presentCount = studentAttendance.filter(a => ["PRESENT", "LATE", "PERMISSION"].includes(a.status)).length;
+      const totalPossible = classTotalDaysMap.get(student.classId!) || 0;
+
+      // Get relevant remarks
+      const bRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "BEHAVIORAL")?.content;
+      const aRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "ACADEMIC")?.content;
+      const gRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "GENERAL")?.content;
+
       return {
         studentId: student.id,
         classId: student.classId,
@@ -150,6 +189,13 @@ export async function POST(
         averageMarks,
         aggregate,
         subjects,
+        attendance: {
+          present: presentCount,
+          total: totalPossible,
+        },
+        behavioral: bRemark,
+        academic: aRemark,
+        general: gRemark,
       };
     });
 
@@ -174,18 +220,18 @@ export async function POST(
       studentResults.map((res) => {
         const studentInfo = students.find((s) => s.id === res.studentId);
 
-        // Calculate attendance (mocking for now as we don't have term duration)
-        // In a real system you'd count actual attendance records
-        const attendance = {
-          present: 60, // Mocked to match user's image
-          total: 61,
-        };
+        // Real attendance from processed results
+        const attendance = res.attendance;
 
         const stClassId = res.classId;
         const studentClass = stClassId ? classMap.get(stClassId) : null;
 
         const reportData = {
-          studentName: `${studentInfo?.profile.firstName} ${studentInfo?.profile.lastName}`,
+          studentName: formatStudentName(
+            studentInfo?.profile.firstName,
+            studentInfo?.profile.lastName,
+            studentInfo?.profile.otherNames
+          ),
           studentId: studentInfo?.studentId,
           indexNo: studentInfo?.admissionNumber || studentInfo?.studentId,
           studentEmail: studentInfo?.profile.user?.email,
@@ -220,12 +266,14 @@ export async function POST(
           studentImage: studentInfo?.profile.user?.image,
           subjects: res.subjects,
           // Snapshot behavioral data if available
+          // Use real remarks if available
           behavioral: {
-            attitude: "Well Behaved",
-            conduct: "Satisfactory",
-            interest: "Shows interest in class",
-            remarks:
-              "Should be more attentive in class and extra tutorials at home is recommended.",
+            attitude: "N/A", // These specific sub-fields could be expanded later
+            conduct: "N/A",
+            interest: "N/A",
+            remarks: res.behavioral ?? "No behavioral remarks recorded.",
+            academic: res.academic ?? "No academic remarks recorded.",
+            general: res.general ?? "No general remarks recorded.",
           },
           generatedAt: new Date().toISOString(),
         };

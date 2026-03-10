@@ -11,8 +11,11 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileSpreadsheet } from "lucide-react";
+import { FileSpreadsheet, MessageSquare } from "lucide-react";
 import * as XLSX from "xlsx";
+import { useState } from "react";
+import { RemarksDialog } from "@/components/school/reports/remarks-dialog";
+import { formatStudentName } from "@/lib/utils/name-formatter";
 
 interface BroadSheetClientProps {
   set: any;
@@ -20,7 +23,9 @@ interface BroadSheetClientProps {
 }
 
 export function BroadSheetClient({ set, schoolSlug }: BroadSheetClientProps) {
+  const [isRemarksOpen, setIsRemarksOpen] = useState(false);
   const reportCards = set.reportCards || [];
+  const students = reportCards.map((rc: any) => rc.student);
 
   // Extract all subjects across all students for headers
   const subjects = useMemo(() => {
@@ -38,7 +43,7 @@ export function BroadSheetClient({ set, schoolSlug }: BroadSheetClientProps) {
     const wsData = reportCards.map((rc: any) => {
       const data = rc.data as any;
       const row: any = {
-        "Student Name": `${rc.student.profile.firstName} ${rc.student.profile.lastName}`,
+        "Student Name": formatStudentName(rc.student.profile.firstName, rc.student.profile.lastName, rc.student.profile.otherNames),
         "Admission No": rc.student.admissionNumber || rc.student.studentId,
       };
 
@@ -62,7 +67,11 @@ export function BroadSheetClient({ set, schoolSlug }: BroadSheetClientProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button onClick={() => setIsRemarksOpen(true)} variant="outline" className="border-primary/50 text-primary hover:bg-primary/5">
+          <MessageSquare className="mr-2 h-4 w-4" />
+          Enter Student Remarks
+        </Button>
         <Button onClick={exportToExcel} variant="outline">
           <FileSpreadsheet className="mr-2 h-4 w-4" />
           Export to Excel
@@ -104,8 +113,11 @@ export function BroadSheetClient({ set, schoolSlug }: BroadSheetClientProps) {
                   return (
                     <TableRow key={rc.id} className="hover:bg-muted/30">
                       <TableCell className="font-medium border-r">
-                        {rc.student.profile.firstName}{" "}
-                        {rc.student.profile.lastName}
+                        {formatStudentName(
+                          rc.student.profile.firstName,
+                          rc.student.profile.lastName,
+                          rc.student.profile.otherNames
+                        )}
                       </TableCell>
                       {subjects.map((s) => {
                         const score = data.subjects?.find(
@@ -132,6 +144,14 @@ export function BroadSheetClient({ set, schoolSlug }: BroadSheetClientProps) {
           </Table>
         </CardContent>
       </Card>
+
+      <RemarksDialog
+        isOpen={isRemarksOpen}
+        onOpenChange={setIsRemarksOpen}
+        students={students}
+        termId={set.termId}
+        schoolSlug={schoolSlug}
+      />
     </div>
   );
 }

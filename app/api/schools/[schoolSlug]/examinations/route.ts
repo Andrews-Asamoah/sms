@@ -4,6 +4,15 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+const componentSchema = z.object({
+  name: z.string().min(1, "Component name is required"),
+  componentType: z.string(),
+  maxMarks: z.coerce.number().min(1),
+  weight: z.coerce.number().min(0).max(100),
+  isRepeatable: z.boolean().optional(),
+  expectedCount: z.coerce.number().min(1).optional(),
+});
+
 const createExamSchema = z.object({
   name: z.string().min(1, "Name is required"),
   gradingSystemId: z.string().min(1, "Grading system is required"),
@@ -11,6 +20,7 @@ const createExamSchema = z.object({
   termNumber: z.coerce.number().int().optional(),
   description: z.string().optional(),
   isActive: z.boolean().default(true),
+  components: z.array(componentSchema).optional(),
 });
 
 export async function GET(
@@ -53,9 +63,9 @@ export async function GET(
         _count: {
           select: {
             assessmentScores: true,
-            components: true,
           },
         },
+        components: true,
       },
       orderBy: { name: "asc" },
     });
@@ -92,6 +102,7 @@ export async function POST(
       termNumber,
       description,
       isActive,
+      components,
     } = createExamSchema.parse(body);
 
     const school = await prisma.school.findUnique({
@@ -131,10 +142,22 @@ export async function POST(
         description,
         isActive,
         schoolId: school.id,
+        components: components ? {
+          create: components.map((c, index) => ({
+            name: c.name,
+            componentType: c.componentType as any,
+            maxMarks: c.maxMarks,
+            weight: c.weight,
+            displayOrder: index,
+            isRepeatable: c.isRepeatable ?? false,
+            expectedCount: c.expectedCount ?? 1,
+          })),
+        } : undefined,
       },
       include: {
         gradingSystem: true,
         class: true,
+        components: true,
       },
     });
 
