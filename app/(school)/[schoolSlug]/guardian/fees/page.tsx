@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Decimal } from "@/lib/generated/prisma/runtime/client";
+import { GuardianFeesClient } from "./guardian-fees-client";
 
 interface GuardianFeesPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -72,6 +73,9 @@ export default async function GuardianFeesPage({
                 orderBy: {
                   createdAt: "desc",
                 },
+                include: {
+                  items: true
+                }
               },
               payments: {
                 orderBy: {
@@ -105,12 +109,21 @@ export default async function GuardianFeesPage({
       billNumber: bill.billNumber,
       studentName: `${gs.student.profile.firstName} ${gs.student.profile.lastName}`,
       studentId: gs.student.studentId,
+      internalStudentId: gs.student.id,
       totalAmount: decimalToNumber(bill.totalAmount),
       paidAmount: decimalToNumber(bill.paidAmount),
       balanceAmount: decimalToNumber(bill.balanceAmount),
       status: bill.status,
       issuedAt: bill.issuedAt,
       dueDate: bill.dueDate,
+      notes: bill.notes,
+      items: bill.items.map(item => ({
+        id: item.id,
+        description: item.description,
+        amount: decimalToNumber(item.amount),
+        quantity: item.quantity,
+        totalAmount: decimalToNumber(item.totalAmount)
+      }))
     })),
   );
 
@@ -211,231 +224,14 @@ export default async function GuardianFeesPage({
         </Card>
       </div>
 
-      {/* Bills Table with Tabs */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Financial Records</CardTitle>
-          <CardDescription>
-            View and track bills and payments for all your children
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="all">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="all">
-                All Bills ({allBills.length})
-              </TabsTrigger>
-              <TabsTrigger value="overdue">
-                Overdue ({overdueBills.length})
-              </TabsTrigger>
-              <TabsTrigger value="pending">
-                Pending ({pendingBills.length})
-              </TabsTrigger>
-              <TabsTrigger value="paid">Paid ({paidBills.length})</TabsTrigger>
-              <TabsTrigger value="history" className="bg-primary/5">
-                Payment History ({allPayments.length})
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="all" className="mt-4">
-              <BillsTable bills={allBills} currency={school.currency} />
-            </TabsContent>
-
-            <TabsContent value="overdue" className="mt-4">
-              <BillsTable bills={overdueBills} currency={school.currency} />
-            </TabsContent>
-
-            <TabsContent value="pending" className="mt-4">
-              <BillsTable bills={pendingBills} currency={school.currency} />
-            </TabsContent>
-
-            <TabsContent value="paid" className="mt-4">
-              <BillsTable bills={paidBills} currency={school.currency} />
-            </TabsContent>
-
-            <TabsContent value="history" className="mt-4">
-              <PaymentsTable
-                payments={allPayments}
-                currency={school.currency}
-              />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-
-      {/* Payment Notice */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-semibold text-blue-900">
-                Payment Information
-              </h4>
-              <p className="text-sm text-blue-800 mt-1">
-                To make a payment, please contact the school administration or
-                visit the accounts office. Payment receipts will be updated
-                automatically in your portal.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <GuardianFeesClient 
+        allBills={allBills}
+        allPayments={allPayments}
+        currency={school.currency}
+        schoolSlug={schoolSlug}
+      />
     </div>
   );
 }
 
-// Bills Table Component
-function BillsTable({
-  bills,
-  currency,
-}: {
-  bills: Array<{
-    id: string;
-    billNumber: string;
-    studentName: string;
-    studentId: string;
-    totalAmount: number;
-    paidAmount: number;
-    balanceAmount: number;
-    status: string;
-    issuedAt: Date;
-    dueDate: Date | null;
-  }>;
-  currency: string;
-}) {
-  if (bills.length === 0) {
-    return (
-      <p className="text-center text-muted-foreground py-8">No bills found</p>
-    );
-  }
 
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Bill Number</TableHead>
-          <TableHead>Student</TableHead>
-          <TableHead>Issue Date</TableHead>
-          <TableHead>Due Date</TableHead>
-          <TableHead>Total Amount</TableHead>
-          <TableHead>Paid</TableHead>
-          <TableHead>Balance</TableHead>
-          <TableHead>Status</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {bills.map((bill) => (
-          <TableRow key={bill.id}>
-            <TableCell className="font-medium">{bill.billNumber}</TableCell>
-            <TableCell>
-              <div>
-                <p className="font-medium">{bill.studentName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {bill.studentId}
-                </p>
-              </div>
-            </TableCell>
-            <TableCell>
-              {new Date(bill.issuedAt).toLocaleDateString()}
-            </TableCell>
-            <TableCell>
-              {bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : "-"}
-            </TableCell>
-            <TableCell>
-              {currency} {bill.totalAmount.toFixed(2)}
-            </TableCell>
-            <TableCell>
-              {currency} {bill.paidAmount.toFixed(2)}
-            </TableCell>
-            <TableCell className="font-semibold">
-              {currency} {bill.balanceAmount.toFixed(2)}
-            </TableCell>
-            <TableCell>
-              <Badge
-                variant="outline"
-                className={billStatusColors[bill.status]}
-              >
-                {bill.status}
-              </Badge>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-// Payments Table Component
-function PaymentsTable({
-  payments,
-  currency,
-}: {
-  payments: Array<{
-    id: string;
-    paymentNumber: string;
-    studentName: string;
-    amount: number;
-    paymentMethod: string;
-    paymentDate: Date;
-    billNumber?: string;
-    feeName?: string;
-  }>;
-  currency: string;
-}) {
-  if (payments.length === 0) {
-    return (
-      <p className="text-center text-muted-foreground py-8">
-        No payment history found
-      </p>
-    );
-  }
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Receipt #</TableHead>
-          <TableHead>Student</TableHead>
-          <TableHead>Date</TableHead>
-          <TableHead>For</TableHead>
-          <TableHead>Method</TableHead>
-          <TableHead className="text-right">Amount</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {payments.map((payment) => (
-          <TableRow key={payment.id}>
-            <TableCell className="font-medium">
-              {payment.paymentNumber}
-            </TableCell>
-            <TableCell>{payment.studentName}</TableCell>
-            <TableCell>
-              {new Date(payment.paymentDate).toLocaleDateString()}
-            </TableCell>
-            <TableCell>
-              <div>
-                <p className="text-sm font-medium">
-                  {payment.feeName || "Custom Payment"}
-                </p>
-                {payment.billNumber && (
-                  <p className="text-xs text-muted-foreground">
-                    Bill: {payment.billNumber}
-                  </p>
-                )}
-              </div>
-            </TableCell>
-            <TableCell>
-              <Badge variant="outline">
-                {payment.paymentMethod.replace("_", " ")}
-              </Badge>
-            </TableCell>
-            <TableCell className="text-right font-bold text-green-600">
-              {currency} {payment.amount.toFixed(2)}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}

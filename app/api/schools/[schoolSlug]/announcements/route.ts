@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
-import { getSchoolRole } from "@/lib/auth/school-access";
+import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
 
 const announcementSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -126,17 +126,22 @@ export async function POST(
             ? ["student", "guardian"]
             : validatedData.target === "STAFF"
               ? ["staff"]
-              : [];
+              : validatedData.target === "GUARDIAN"
+                ? ["guardian"]
+                : [];
+
+    // Get relevant user IDs based on target roles
+    // We use a more precise query to find users with the specific profile roles
+    const memberQuery: any = {
+       organization: { school: { id: school.id } }
+    };
+
+    if (validatedData.target !== "ALL") {
+       memberQuery.OR = targetRoles.map(r => ({ role: { contains: r } }));
+    }
 
     const members = await prisma.member.findMany({
-      where: {
-        organizationId: (
-          await prisma.organization.findFirst({
-            where: { school: { id: school.id } },
-          })
-        )?.id as string,
-        role: { in: targetRoles },
-      },
+      where: memberQuery,
       select: { userId: true },
     });
 
@@ -177,7 +182,7 @@ export async function GET(
   try {
     const { schoolSlug } = await params;
     const session = await requireSchoolAccess(schoolSlug);
-    const role = getSchoolRole(session, schoolSlug);
+    const role = await getActiveSchoolRole(session, schoolSlug);
 
     if (!role) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -255,7 +260,34 @@ export async function GET(
       take: 20,
     });
 
-    return NextResponse.json(announcements);
+    // Fetch unique class and club IDs from announcements
+    const classIdList = [...new Set(announcements.filter((a: any) => a.target.startsWith("CLASS:")).map((a: any) => a.target.split(":")[1]))];
+    const clubIdList = [...new Set(announcements.filter((a: any) => a.target.startsWith("CLUB:")).map((a: any) => a.target.split(":")[1]))];
+
+    // Fetch names in bulk
+    const [classes, clubs] = await Promise.all([
+      prisma.class.findMany({ where: { id: { in: classIdList as string[] } }, select: { id: true, name: true } }),
+      prisma.club.findMany({ where: { id: { in: clubIdList as string[] } }, select: { id: true, name: true } })
+    ]);
+
+    const nameMap = new Map<string, string>();
+    classes.forEach(c => nameMap.set(`CLASS:${c.id}`, `Class: ${c.name}`));
+    clubs.forEach(c => nameMap.set(`CLUB:${c.id}`, `Club: ${c.name}`));
+
+    const labelMap: Record<string, string> = {
+      ALL: "Everyone",
+      TEACHER: "Teachers",
+      STUDENT: "Students & Parents",
+      STAFF: "Staff",
+      GUARDIAN: "Guardians"
+    };
+
+    const enhancedAnnouncements = announcements.map(a => ({
+      ...a,
+      targetName: nameMap.get(a.target) || labelMap[a.target] || a.target
+    }));
+
+    return NextResponse.json(enhancedAnnouncements);
   } catch (error) {
     console.error("[ANNOUNCEMENT_GET] Error:", error);
     return NextResponse.json(

@@ -13,54 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table/data-table";
-import { ColumnDef } from "@tanstack/react-table";
-import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
-
-interface StudentData {
-  id: string;
-  studentId: string;
-  firstName: string;
-  lastName: string;
-  className: string;
-  outstandingBalance: number;
-  status: string;
-}
-
-const columns: ColumnDef<StudentData>[] = [
-  {
-    accessorKey: "studentId",
-    header: "ID",
-  },
-  {
-    accessorKey: "fullName",
-    header: "Name",
-    cell: ({ row }) => `${row.original.firstName} ${row.original.lastName}`,
-  },
-  {
-    accessorKey: "className",
-    header: "Class",
-  },
-  {
-    accessorKey: "outstandingBalance",
-    header: "Outstanding Balance",
-    cell: ({ row }) => (
-      <span className={row.original.outstandingBalance > 0 ? "text-destructive font-semibold" : "text-green-600"}>
-        {formatCurrency(row.original.outstandingBalance)}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => (
-      <Badge variant={row.original.status === "ACTIVE" ? "default" : "secondary"}>
-        {row.original.status}
-      </Badge>
-    ),
-  },
-];
+import { StudentsClient, type StudentData } from "./students-client";
 
 export default async function AccountantStudentsPage({ 
   params 
@@ -149,11 +103,7 @@ export default async function AccountantStudentsPage({
 
       <Card className="bg-card/50 backdrop-blur-md border-border/50">
         <CardContent className="pt-6">
-          <DataTable 
-            columns={columns} 
-            data={students} 
-            searchKey="fullName"
-          />
+          <StudentsClient data={students} />
         </CardContent>
       </Card>
     </div>

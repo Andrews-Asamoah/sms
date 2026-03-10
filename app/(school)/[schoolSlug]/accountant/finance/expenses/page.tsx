@@ -167,7 +167,12 @@ export default function ExpensesPage() {
       </div>
 
       <div className="bg-background rounded-md border shadow-sm p-4">
-        <DataTable columns={columns} data={expenses} searchKey="description" />
+        <DataTable 
+          columns={columns} 
+          data={expenses} 
+          searchKey="description" 
+          exportTitle="Expenses Report"
+        />
       </div>
 
       {isAddOpen && (

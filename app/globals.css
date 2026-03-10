@@ -98,6 +98,13 @@
   --sidebar-accent-foreground: var(--theme-sidebar-accent-foreground, var(--theme-accent-foreground));
   --sidebar-border: var(--theme-sidebar-border, var(--theme-border));
   --sidebar-ring: var(--theme-sidebar-ring, var(--theme-ring));
+
+  /* Chart Colors - Light Mode */
+  --chart-1: 217 91% 60%;
+  --chart-2: 142 71% 45%;
+  --chart-3: 346 77% 50%;
+  --chart-4: 47 95% 55%;
+  --chart-5: 262 83% 58%;
 }
 
 .dark {
@@ -117,8 +124,8 @@
   --theme-accent: oklch(0.269 0 0);
   --theme-accent-foreground: oklch(0.985 0 0);
   --theme-destructive: oklch(0.704 0.191 22.216);
-  --theme-border: oklch(1 0 0 / 10%);
-  --theme-input: oklch(1 0 0 / 15%);
+  --theme-border: oklch(1 0 0 / 20%);
+  --theme-input: oklch(0.3 0 0);
   --theme-ring: oklch(0.556 0 0);
   --theme-sidebar: oklch(0.205 0 0);
   --theme-sidebar-foreground: oklch(0.985 0 0);
@@ -126,8 +133,15 @@
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --theme-sidebar-accent: oklch(0.269 0 0);
   --theme-sidebar-accent-foreground: oklch(0.985 0 0);
-  --theme-sidebar-border: oklch(1 0 0 / 10%);
+  --theme-sidebar-border: oklch(1 0 0 / 20%);
   --theme-sidebar-ring: oklch(0.556 0 0);
+
+  /* Chart Colors - Dark Mode */
+  --chart-1: 217 91% 65%;
+  --chart-2: 142 71% 55%;
+  --chart-3: 346 77% 60%;
+  --chart-4: 47 95% 65%;
+  --chart-5: 262 83% 68%;
 }
 
 @layer base {
@@ -142,42 +156,73 @@
     body {
       background: white !important;
       color: black !important;
+      overflow: visible !important;
+      height: auto !important;
     }
 
     /* Hide navigation, toolbars, and buttons */
     nav,
     aside,
-    header:not(.print-header),
+    header,
     footer,
     button,
     .no-print,
     .command-bar,
     .sidebar-trigger,
     [role="complementary"],
-    [data-radix-collection-item] {
+    [data-radix-collection-item],
+    .sidebar,
+    .site-header,
+    .dashboard-header,
+    .breadcrumb,
+    .data-table-pagination,
+    .data-table-view-options,
+    .data-table-export,
+    .plus-icon,
+    .mr-2 {
       display: none !important;
     }
 
     /* Ensure the main content takes full width */
-    main {
+    main,
+    .content,
+    .flex-1 {
+      display: block !important;
       width: 100% !important;
       margin: 0 !important;
       padding: 0 !important;
+      max-width: 100% !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Show only the title and the table */
+    h1,
+    h2,
+    .print-title {
+      display: block !important;
+      text-align: center !important;
+      margin-bottom: 2rem !important;
+      color: black !important;
     }
 
     /* Reset shadows and borders for printing */
     .border,
     .rounded-xl,
-    .shadow-sm {
+    .shadow-sm,
+    .bg-card,
+    .bg-background {
       border: 1px solid #e5e7eb !important;
       box-shadow: none !important;
       border-radius: 0 !important;
+      background: white !important;
     }
 
     /* Format table for printing */
     table {
       width: 100% !important;
       border-collapse: collapse !important;
+      border: 1px solid black !important;
     }
 
     th,
@@ -185,6 +230,12 @@
       border: 1px solid #e5e7eb !important;
       padding: 8px !important;
       font-size: 10pt !important;
+      color: black !important;
+    }
+
+    th {
+      background-color: #f3f4f6 !important;
+      font-weight: bold !important;
     }
 
     /* Ensure backgrounds and colors are printed */

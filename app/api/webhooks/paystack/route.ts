@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { getPlanById, getPlanByCode } from "@/lib/subscription-plans";
+import { processSequentialPayment } from "@/lib/finance/payment-processor";
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +31,8 @@ export async function POST(request: NextRequest) {
 
     switch (event.event) {
       case "charge.success":
+        await handleChargeSuccess(event.data);
+        break;
       case "subscription.create":
         await handleSubscriptionSuccess(event.data);
         break;
@@ -45,6 +48,33 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[Paystack Webhook] Error processing webhook:", error);
     return NextResponse.json({ error: "Webhook Error" }, { status: 500 });
+  }
+}
+
+async function handleChargeSuccess(data: any) {
+  const metadata = data.metadata;
+  if (metadata?.type === "student_fee") {
+    console.log(`[Paystack Webhook] Processing individual fee payment: Ref ${data.reference}`);
+    try {
+      if (!metadata.schoolId || !metadata.studentId || !metadata.billId) {
+        throw new Error("Missing required metadata for fee payment");
+      }
+      
+      await processSequentialPayment({
+        schoolId: metadata.schoolId,
+        studentId: metadata.studentId,
+        billId: metadata.billId,
+        amount: data.amount / 100,
+        reference: data.reference,
+        paymentMethod: "ONLINE",
+      });
+      console.log(`[Paystack Webhook] Successfully processed fee payment: Ref ${data.reference}`);
+    } catch (err) {
+      console.error(`[Paystack Webhook] Error processing fee payment:`, err);
+    }
+  } else {
+    // Treat as subscription
+    await handleSubscriptionSuccess(data);
   }
 }
 

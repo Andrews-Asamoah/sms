@@ -132,7 +132,7 @@ export default function PaymentsClient({ permissions }: PaymentsClientProps) {
         </Button>
       </div>
 
-      <DataTable columns={columns} data={data} searchKey="paymentNumber" />
+      <DataTable columns={columns} data={data} searchKey="paymentNumber" exportTitle="Payments Report" />
 
       {selectedStudent && (
         <RecordPaymentSheet

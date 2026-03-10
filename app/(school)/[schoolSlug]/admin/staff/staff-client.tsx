@@ -161,7 +161,7 @@ export function StaffClient({ schoolSlug, initialData }: StaffClientProps) {
       </div>
 
       <div className="bg-background rounded-md border shadow-sm p-4">
-        <DataTable columns={columns} data={data} searchKey="name" />
+        <DataTable columns={columns} data={data} searchKey="name" exportTitle="Staff List Report" />
       </div>
     </div>
   );

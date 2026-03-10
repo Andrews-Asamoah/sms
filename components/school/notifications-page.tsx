@@ -202,7 +202,13 @@ export function NotificationsPageContent() {
                         className="p-0 h-auto text-xs text-primary font-medium"
                         asChild
                       >
-                        <Link href={notification.link}>
+                        <Link
+                          href={
+                            notification.link.startsWith(`/${schoolSlug}`)
+                              ? notification.link
+                              : `/${schoolSlug}${notification.link.startsWith("/") ? "" : "/"}${notification.link}`
+                          }
+                        >
                           <ExternalLink className="mr-1 h-3 w-3" />
                           View Details
                         </Link>

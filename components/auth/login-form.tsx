@@ -133,7 +133,7 @@ export function LoginForm() {
               id="email"
               type="email"
               placeholder="you@school.edu"
-              className="pl-11 h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 transition-all duration-300 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 hover:border-slate-300 dark:hover:border-slate-700"
+              className="pl-11 h-12 bg-slate-50/50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-300 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 hover:border-slate-300 dark:hover:border-slate-600"
               disabled={isSubmitting}
               aria-invalid={!!errors.email}
               autoComplete="email"
@@ -165,7 +165,7 @@ export function LoginForm() {
               id="password"
               type={showPassword ? "text" : "password"}
               placeholder="••••••••"
-              className="pl-11 pr-11 h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 transition-all duration-300 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 hover:border-slate-300 dark:hover:border-slate-700 tracking-wider placeholder:tracking-normal"
+              className="pl-11 pr-11 h-12 bg-slate-50/50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-300 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 hover:border-slate-300 dark:hover:border-slate-600 tracking-wider placeholder:tracking-normal"
               disabled={isSubmitting}
               aria-invalid={!!errors.password}
               autoComplete="current-password"

@@ -63,5 +63,12 @@ export function ClassFeesTable({ data }: { data: StudentFinance[] }) {
     },
   ];
 
-  return <DataTable columns={columns} data={data} searchKey="name" />;
+  return (
+    <DataTable 
+      columns={columns} 
+      data={data} 
+      searchKey="name" 
+      exportTitle="Class Fees Report"
+    />
+  );
 }

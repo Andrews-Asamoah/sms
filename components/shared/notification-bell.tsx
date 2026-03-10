@@ -81,7 +81,7 @@ export function NotificationBell() {
           <Bell className="h-[1.2rem] w-[1.2rem] transition-all" />
           {unreadCount > 0 && (
             <Badge
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-destructive text-destructive-foreground border-2 border-background animate-in zoom-in"
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-destructive text-white border-2 border-background animate-in zoom-in"
               variant="destructive"
             >
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -134,19 +134,24 @@ export function NotificationBell() {
                   <p className="text-xs text-muted-foreground line-clamp-2">
                     {notification.message}
                   </p>
-                  {notification.link && (
-                    <Link
-                      href={
-                        notification.link.startsWith("/")
-                          ? `/${schoolSlug}${notification.link}`
-                          : `/${schoolSlug}/${notification.link}`
-                      }
-                      className="text-[10px] text-primary hover:underline mt-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View details
-                    </Link>
-                  )}
+                    {notification.link && (
+                      <Link
+                        href={
+                          notification.link.startsWith(`/${schoolSlug}`)
+                            ? notification.link
+                            : `/${schoolSlug}${notification.link.startsWith("/") ? "" : "/"}${notification.link}`
+                        }
+                        className="text-[10px] text-primary hover:underline mt-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!notification.isRead) {
+                            markAsRead(notification.id);
+                          }
+                        }}
+                      >
+                        View details
+                      </Link>
+                    )}
                 </div>
               ))}
             </div>
@@ -154,7 +159,7 @@ export function NotificationBell() {
         </ScrollArea>
         <div className="p-2 border-t text-center">
           <Button variant="ghost" size="sm" className="w-full text-xs" asChild>
-            <Link href={`/schools/${schoolSlug}/notifications`}>
+            <Link href={`/${schoolSlug}/notifications`}>
               View all notifications
             </Link>
           </Button>

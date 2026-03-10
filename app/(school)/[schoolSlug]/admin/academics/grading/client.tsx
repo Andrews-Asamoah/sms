@@ -93,7 +93,7 @@ export function GradingSystemsClient({
       <div className="space-y-4">
         <h2 className="text-xl font-bold tracking-tight">Active Grading Systems</h2>
         <div className="bg-background rounded-lg border shadow-sm p-4">
-          <DataTable columns={columns(schoolSlug)} data={data} searchKey="name" />
+          <DataTable columns={columns(schoolSlug)} data={data} searchKey="name" exportTitle="Grading Systems Report" />
         </div>
       </div>
     </div>

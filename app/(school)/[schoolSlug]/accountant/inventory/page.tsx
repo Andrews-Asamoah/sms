@@ -170,7 +170,12 @@ export default function InventoryPage() {
 
         <TabsContent value="items" className="space-y-4">
           <div className="bg-background rounded-md border shadow-sm p-4">
-            <DataTable columns={columns} data={items} searchKey="name" />
+            <DataTable 
+              columns={columns} 
+              data={items} 
+              searchKey="name" 
+              exportTitle="Inventory Items Report"
+            />
           </div>
         </TabsContent>
 

@@ -34,12 +34,16 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   searchKey: string;
+  exportTitle?: string;
+  exportOrientation?: "portrait" | "landscape";
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   searchKey,
+  exportTitle,
+  exportOrientation = "portrait",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -81,7 +85,11 @@ export function DataTable<TData, TValue>({
         />
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           <DataTableViewOptions table={table} />
-          <DataTableExport table={table} />
+          <DataTableExport 
+            table={table} 
+            exportTitle={exportTitle} 
+            orientation={exportOrientation}
+          />
         </div>
       </div>
       <div className="rounded-xl border shadow-sm overflow-hidden bg-card">

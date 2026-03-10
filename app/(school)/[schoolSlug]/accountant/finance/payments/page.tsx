@@ -10,6 +10,7 @@ import { Plus } from "lucide-react";
 import { format } from "date-fns";
 import { RecordPaymentDialog } from "./record-payment-dialog";
 import { DashboardPageHeader } from "@/components/layout/page-header";
+import { formatStudentName } from "@/lib/utils/name-formatter";
 
 type Payment = {
   id: string;
@@ -21,8 +22,10 @@ type Payment = {
     profile: {
       firstName: string;
       lastName: string;
+      otherNames?: string | null;
     };
   };
+  studentName?: string;
   bill?: {
     billNumber: string;
     feeStructure?: { name: string };
@@ -45,7 +48,11 @@ export default function PaymentsPage() {
         const mappedData = (json || []).map((p: any) => ({
           ...p,
           studentName: p.student?.profile 
-            ? `${p.student.profile.firstName} ${p.student.profile.lastName}`
+            ? formatStudentName(
+                p.student.profile.firstName,
+                p.student.profile.lastName,
+                p.student.profile.otherNames
+              )
             : "Unknown"
         }));
         setData(mappedData);
@@ -71,9 +78,7 @@ export default function PaymentsPage() {
       accessorKey: "studentName",
       header: "Student",
       cell: ({ row }) => {
-        const p = row.original.student?.profile;
-        if (!p) return "-";
-        return `${p.firstName} ${p.lastName}`;
+        return row.original.studentName || "-";
       },
     },
     {
@@ -131,7 +136,13 @@ export default function PaymentsPage() {
       </div>
 
       <div className="bg-background rounded-md border shadow-sm p-4">
-        <DataTable columns={columns} data={data} searchKey="studentName" />
+        <DataTable 
+          columns={columns} 
+          data={data} 
+          searchKey="studentName" 
+          exportTitle="Payments Report"
+          exportOrientation="landscape"
+        />
       </div>
 
       {isRecordOpen && (

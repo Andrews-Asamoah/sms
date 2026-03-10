@@ -19,6 +19,7 @@ export function SubjectsClient({
       columns={columns(schoolSlug, departments)}
       data={data}
       searchKey="name"
+      exportTitle="Subjects List Report"
     />
   );
 }

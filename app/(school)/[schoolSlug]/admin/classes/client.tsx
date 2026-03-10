@@ -10,6 +10,6 @@ interface ClassesClientProps {
 
 export function ClassesClient({ data, schoolSlug }: ClassesClientProps) {
   return (
-    <DataTable columns={columns(schoolSlug)} data={data} searchKey="name" />
+    <DataTable columns={columns(schoolSlug)} data={data} searchKey="name" exportTitle="Class List Report" />
   );
 }

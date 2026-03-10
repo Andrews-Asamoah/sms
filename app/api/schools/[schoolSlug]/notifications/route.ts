@@ -20,11 +20,29 @@ export async function GET(
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
+    const { getActiveSchoolRole } = await import("@/lib/auth/school-access");
+    const activeRole = await getActiveSchoolRole(session, schoolSlug);
+    const role = activeRole?.effectiveRole || "user";
+
+    // Role-based filtering logic
+    const where: any = {
+      schoolId: school.id,
+      userId: session.user.id,
+    };
+
+    // Filter by type or other metadata based on role
+    if (role === "guardian") {
+      where.type = {
+        in: ["FEE_REMINDER", "ONLINE_PAYMENT", "ANNOUNCEMENT", "RESULT_PUBLISHED", "GENERAL"],
+      };
+    } else if (role === "teacher") {
+      where.type = {
+        in: ["GENERAL", "ANNOUNCEMENT", "ATTENDANCE_ALERT"],
+      };
+    }
+
     const notifications = await prisma.notification.findMany({
-      where: {
-        schoolId: school.id,
-        userId: session.user.id,
-      },
+      where,
       orderBy: {
         createdAt: "desc",
       },
@@ -33,8 +51,7 @@ export async function GET(
 
     const unreadCount = await prisma.notification.count({
       where: {
-        schoolId: school.id,
-        userId: session.user.id,
+        ...where,
         isRead: false,
       },
     });

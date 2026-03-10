@@ -27,6 +27,10 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { formatStudentName } from "@/lib/utils/name-formatter";
+import { getActiveSchoolRole } from "@/lib/auth/school-access";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { GradebookReviewButton } from "@/components/school/marks/gradebook-review-button";
 
 interface GradebookTrackingPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -37,14 +41,27 @@ export default async function GradebookTrackingPage({
 }: GradebookTrackingPageProps) {
   const { schoolSlug } = await params;
   const session = await requireSchoolAccess(schoolSlug);
-  const role = getSchoolRole(session, schoolSlug);
+  const activeRole = await getActiveSchoolRole(session, schoolSlug);
+  const effectiveRole = activeRole?.effectiveRole || "teacher";
 
   if (
-    role?.effectiveRole !== "admin" &&
-    role?.effectiveRole !== "owner" &&
-    !session.isSuperAdmin
+    !["admin", "owner", "headteacher"].includes(effectiveRole) &&
+    !session.isSuperAdmin &&
+    effectiveRole !== "teacher" // We'll double check HOD status below
   ) {
-    redirect(`/${schoolSlug}/unauthorized`);
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
+  }
+
+  // If teacher, verify they are an HOD
+  const hodDepartmentIds = effectiveRole === "teacher" 
+    ? (await prisma.department.findMany({
+        where: { headOfDept: { profile: { userId: session.user.id } } },
+        select: { id: true }
+      })).map(d => d.id)
+    : [];
+
+  if (effectiveRole === "teacher" && hodDepartmentIds.length === 0) {
+    redirect(`/${schoolSlug}/teacher/unauthorized`);
   }
 
   // Get current term
@@ -73,7 +90,7 @@ export default async function GradebookTrackingPage({
     where: {
       school: { subdomain: schoolSlug },
       academicYearId: currentTerm.academicYearId,
-      isActive: true,
+      ...(hodDepartmentIds.length > 0 ? { departmentId: { in: hodDepartmentIds } } : {}),
     },
     include: {
       subjects: {
@@ -98,15 +115,26 @@ export default async function GradebookTrackingPage({
 
       const subjectStats = await Promise.all(
         cls.subjects.map(async (s) => {
-          const completedScores = await prisma.assessmentScore.count({
-            where: {
-              subjectId: s.subjectId,
-              termId: currentTerm.id,
-              student: { classId: cls.id, status: "ACTIVE" },
-              status: { in: ["SUBMITTED", "FINAL"] },
-            },
-          });
+          const [completedScores, firstScore] = await Promise.all([
+            prisma.assessmentScore.count({
+              where: {
+                subjectId: s.subjectId,
+                termId: currentTerm.id,
+                student: { classId: cls.id, status: "ACTIVE" },
+                status: { in: ["SUBMITTED", "REVIEWED", "FINAL"] },
+              },
+            }),
+            prisma.assessmentScore.findFirst({
+              where: {
+                subjectId: s.subjectId,
+                termId: currentTerm.id,
+                student: { classId: cls.id, status: "ACTIVE" },
+              },
+              select: { status: true },
+            })
+          ]);
 
+          const status = firstScore?.status || "DRAFT";
           const percentage =
             studentCount > 0 ? (completedScores / studentCount) * 100 : 0;
 
@@ -129,11 +157,13 @@ export default async function GradebookTrackingPage({
 
           return {
             id: s.id,
+            subjectId: s.subjectId,
             subjectName: s.subject.name,
             teacherName: teacherNameDisplay,
             completed: completedScores,
             total: studentCount,
             percentage: Math.round(percentage),
+            status: status as any,
           };
         }),
       );
@@ -213,6 +243,7 @@ export default async function GradebookTrackingPage({
                   <TableRow className="hover:bg-transparent border-b-none">
                     <TableHead className="pl-6">Subject</TableHead>
                     <TableHead>Teacher</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="text-right pr-6">Progress</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -228,8 +259,21 @@ export default async function GradebookTrackingPage({
                           {s.subjectName}
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-muted-foreground italic">
                         {s.teacherName}
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "text-[10px] uppercase font-bold px-2 py-0",
+                            s.status === "FINAL" || s.status === "REVIEWED" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
+                            s.status === "SUBMITTED" ? "bg-blue-500/10 text-blue-600 border-blue-500/20" :
+                            "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                          )}
+                        >
+                          {s.status}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right pr-6">
                         <div className="flex items-center justify-end gap-3">
@@ -244,16 +288,28 @@ export default async function GradebookTrackingPage({
                           <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
                             <div
                               className={`h-full transition-all duration-500 ${
-                                s.percentage === 100
-                                  ? "bg-green-500"
-                                  : s.percentage > 50
-                                    ? "bg-primary"
+                                s.status === "FINAL" || s.status === "REVIEWED"
+                                  ? "bg-emerald-500"
+                                  : s.status === "SUBMITTED"
+                                    ? "bg-blue-500"
                                     : "bg-orange-500"
                               }`}
                               style={{ width: `${s.percentage}%` }}
                             />
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-right pr-6">
+                        {s.status !== "DRAFT" && (
+                          <GradebookReviewButton
+                            schoolSlug={schoolSlug}
+                            classId={cls.id}
+                            subjectId={s.subjectId}
+                            termId={currentTerm.id}
+                            subjectName={s.subjectName}
+                            className={cls.name}
+                          />
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

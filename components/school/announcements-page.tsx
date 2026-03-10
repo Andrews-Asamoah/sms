@@ -53,7 +53,8 @@ interface Announcement {
   id: string;
   title: string;
   content: string;
-  target: "ALL" | "TEACHER" | "STUDENT" | "STAFF";
+  target: string;
+  targetName?: string;
   createdAt: string;
   expiresAt: string | null;
   author: {
@@ -202,7 +203,7 @@ export function AnnouncementsPageContent({
                         variant={hasExpired ? "secondary" : "outline"}
                         className="text-[10px] pointer-events-none"
                       >
-                        {announcement.target}
+                        {announcement.targetName || announcement.target}
                       </Badge>
 
                       <div className="flex items-center gap-2">

@@ -99,7 +99,12 @@ export function InventoryTransactionList() {
 
   return (
     <div className="bg-background rounded-md border shadow-sm p-4">
-      <DataTable columns={columns} data={transactions} searchKey="item_name" />
+      <DataTable 
+        columns={columns} 
+        data={transactions} 
+        searchKey="item_name" 
+        exportTitle="Inventory Transactions Report"
+      />
     </div>
   );
 }

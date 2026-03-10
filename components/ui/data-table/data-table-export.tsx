@@ -13,9 +13,15 @@ import {
 
 interface DataTableExportProps<TData> {
   table: Table<TData>;
+  exportTitle?: string;
+  orientation?: "portrait" | "landscape";
 }
 
-export function DataTableExport<TData>({ table }: DataTableExportProps<TData>) {
+export function DataTableExport<TData>({ 
+  table, 
+  exportTitle,
+  orientation = "portrait"
+}: DataTableExportProps<TData>) {
   const formatExportValue = (value: any): string => {
     if (value === null || value === undefined) return "";
 
@@ -43,7 +49,7 @@ export function DataTableExport<TData>({ table }: DataTableExportProps<TData>) {
       }
     }
 
-    // 2. Handle Objects (Profiles, Students, Categories)
+    // 2. Handle Objects (Profiles, Students, Categories, Bills)
     if (typeof value === "object") {
       // Priority 1: Full Name from Profile
       if (value.profile) {
@@ -52,20 +58,27 @@ export function DataTableExport<TData>({ table }: DataTableExportProps<TData>) {
           .filter(Boolean)
           .join(" ");
       }
-      
-      // Priority 2: Standard Name/Title fields
+
+      // Priority 2: Bill Item / Fee Structure
+      if ("billNumber" in value || "feeStructure" in value) {
+        return value.feeStructure?.name || value.billNumber || "N/A";
+      }
+
+      // Priority 3: Standard Name/Title fields
       if ("name" in value) return String(value.name);
       if ("title" in value) return String(value.title);
       if ("firstName" in value && "lastName" in value) {
         return `${value.firstName} ${value.lastName}`;
       }
 
-      // Fallback: Stringify but clean up
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return String(value);
-      }
+      // Priority 4: Search for any string field that looks like a label
+      const stringValues = Object.values(value).filter(
+        (v) => typeof v === "string" && v.length < 50,
+      );
+      if (stringValues.length > 0) return String(stringValues[0]);
+
+      // Fallback: Clean string representation
+      return "[Object]";
     }
 
     // 3. Handle Numbers (Currency/Amount)
@@ -126,8 +139,8 @@ export function DataTableExport<TData>({ table }: DataTableExportProps<TData>) {
         <DataTablePDFDocument
           data={data}
           columns={exportColumns}
-          title="Data Export"
-          orientation="portrait"
+          title={exportTitle || "Data Export"}
+          orientation={orientation}
         />,
       ).toBlob();
 

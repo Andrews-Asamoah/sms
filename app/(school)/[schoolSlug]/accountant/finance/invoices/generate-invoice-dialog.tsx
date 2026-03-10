@@ -21,7 +21,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -31,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 
 const generateSchema = z.object({
   feeStructureId: z.string().min(1, "Please select a fee structure"),
@@ -125,7 +125,7 @@ export function GenerateInvoiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md h-auto">
         <DialogHeader>
           <DialogTitle>Generate Batch Invoices</DialogTitle>
           <DialogDescription>
@@ -159,7 +159,7 @@ export function GenerateInvoiceDialog({
             <Field data-invalid={!!errors.targetClasses}>
               <FieldLabel>Target Classes</FieldLabel>
               <div className="border rounded-md p-4">
-                <ScrollArea className="h-48">
+                <ScrollArea className="h-36">
                   <div className="space-y-4">
                     {classes.length === 0 && (
                       <p className="text-sm text-muted-foreground">
@@ -201,9 +201,10 @@ export function GenerateInvoiceDialog({
 
             <Field data-invalid={!!errors.notes}>
               <FieldLabel>Additional Notes (Optional)</FieldLabel>
-              <Input
+              <Textarea
                 placeholder="Deadline, payment mode, etc. (Displayed on bill)"
                 {...register("notes")}
+                className="h-24 resize-none"
               />
               <FieldError errors={[errors.notes]} />
             </Field>

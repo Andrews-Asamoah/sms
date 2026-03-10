@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Wallet } from "lucide-react";
 import { RecordPaymentDialog } from "../payments/record-payment-dialog";
 import { Button } from "@/components/ui/button";
+import { formatStudentName } from "@/lib/utils/name-formatter";
 
 type StudentDebtor = {
   id: string;
@@ -15,8 +16,10 @@ type StudentDebtor = {
   profile: {
     firstName: string;
     lastName: string;
+    otherNames?: string | null;
     phone: string | null;
   };
+  studentName?: string;
   class: { name: string } | null;
   outstandingBalance: number;
   status: string;
@@ -39,7 +42,11 @@ export default function OutstandingFeesPage() {
         const mappedData = (json || []).map((s: any) => ({
           ...s,
           studentName: s.profile 
-            ? `${s.profile.firstName} ${s.profile.lastName}`
+            ? formatStudentName(
+                s.profile.firstName,
+                s.profile.lastName,
+                s.profile.otherNames
+              )
             : "Unknown"
         }));
         setData(mappedData);
@@ -60,7 +67,7 @@ export default function OutstandingFeesPage() {
       header: "Student Name",
       cell: ({ row }) => (
         <span className="font-medium text-primary">
-          {row.original.profile.firstName} {row.original.profile.lastName}
+          {row.original.studentName}
         </span>
       ),
     },
@@ -97,7 +104,7 @@ export default function OutstandingFeesPage() {
           onClick={() => {
             setSelectedStudent({
               id: row.original.id,
-              name: `${row.original.profile.firstName} ${row.original.profile.lastName}`,
+              name: row.original.studentName || "Unknown",
               balance: row.original.outstandingBalance,
             });
             setIsPayOpen(true);
@@ -130,7 +137,13 @@ export default function OutstandingFeesPage() {
         </div>
       </div>
 
-      <DataTable columns={columns} data={data} searchKey="studentName" />
+      <DataTable 
+        columns={columns} 
+        data={data} 
+        searchKey="studentName" 
+        exportTitle="Outstanding Fees Report"
+        exportOrientation="landscape"
+      />
 
       {selectedStudent && (
         <RecordPaymentDialog

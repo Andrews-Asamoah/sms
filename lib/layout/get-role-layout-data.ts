@@ -25,11 +25,7 @@ export async function getRoleLayoutData(
   }
 
   // Determine role-specific unauthorized route
-  const roleRoute =
-    schoolRole.effectiveRole === "member"
-      ? "teacher"
-      : schoolRole.effectiveRole;
-  const unauthorizedRedirect = `/${schoolSlug}/${roleRoute}/unauthorized`;
+  const unauthorizedRedirect = `/${schoolSlug}/unauthorized`;
 
   const allowedRoles = Array.isArray(requiredRole)
     ? requiredRole

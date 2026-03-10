@@ -78,7 +78,22 @@ export async function POST(
           status: "ACTIVE",
           classId: { in: targetClasses },
         },
-        select: { id: true, studentId: true, classId: true },
+        include: {
+          profile: {
+            select: { firstName: true, lastName: true, otherNames: true }
+          },
+          guardians: {
+            include: {
+              guardian: {
+                include: {
+                  profile: {
+                    select: { userId: true }
+                  }
+                }
+              }
+            }
+          }
+        }
       });
 
       if (studentsToBill.length === 0) {
@@ -106,6 +121,38 @@ export async function POST(
         });
 
         if (!existingBill) {
+          // Check for overpayment/credit (negative balance)
+          const credit = Number(student.outstandingBalance) < 0 
+            ? Math.abs(Number(student.outstandingBalance)) 
+            : 0;
+
+          const billItems = feeStructure.items.map((item) => ({
+            description: item.name,
+            amount: item.amount,
+            quantity: 1,
+            totalAmount: item.amount,
+            feeItemId: item.id,
+            paidAmount: 0,
+            balanceAmount: item.amount,
+            status: "UNPAID" as any,
+          }));
+
+          let finalBillTotal = totalAmount;
+
+          if (credit > 0) {
+            billItems.push({
+              description: "Credit Brought Forward",
+              amount: -credit as any,
+              quantity: 1,
+              totalAmount: -credit as any,
+              feeItemId: undefined as any,
+              paidAmount: 0,
+              balanceAmount: -credit as any,
+              status: "FULLY_PAID" as any, // Credit is already "paid"
+            });
+            finalBillTotal -= credit;
+          }
+
           const bill = await tx.bill.create({
             data: {
               schoolId: school.id,
@@ -113,24 +160,15 @@ export async function POST(
               academicYearId: currentYearId,
               termId: currentTermId,
               feeStructureId: feeStructure.id,
-              billNumber: `BILL-${billYear}-${termName}-${Math.floor(Math.random() * 10000)}`,
-              totalAmount: totalAmount,
-              balanceAmount: totalAmount,
+              billNumber: `BILL-${billYear}-${termName}-${Math.floor(100000 + Math.random() * 900000)}`,
+              totalAmount: finalBillTotal,
+              balanceAmount: finalBillTotal,
               paidAmount: 0,
-              status: "PENDING",
+              status: finalBillTotal <= 0 ? "PAID" : "PENDING",
               dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
               notes: body.notes || null,
               items: {
-                create: feeStructure.items.map((item) => ({
-                  description: item.name,
-                  amount: item.amount,
-                  quantity: 1,
-                  totalAmount: item.amount,
-                  feeItemId: item.id,
-                  paidAmount: 0,
-                  balanceAmount: item.amount,
-                  status: "UNPAID",
-                })),
+                create: billItems
               },
             },
           });
@@ -141,6 +179,35 @@ export async function POST(
               outstandingBalance: { increment: totalAmount },
             },
           });
+
+          // -----------------------------------------------------------------
+          // 4. Send Notifications to Guardians
+          // -----------------------------------------------------------------
+          const studentName = [student.profile.firstName, student.profile.otherNames, student.profile.lastName]
+            .filter(Boolean)
+            .join(" ");
+
+          const guardiansToNotify = student.guardians
+            .filter(gs => gs.guardian.canLogin && gs.guardian.profile?.userId)
+            .map(gs => gs.guardian.profile?.userId);
+
+          for (const userId of guardiansToNotify) {
+            if (userId) {
+              await tx.notification.create({
+                data: {
+                  schoolId: school.id,
+                  userId: userId,
+                  type: "FEE_REMINDER",
+                  title: "New Bill Generated",
+                  message: `A new bill ${bill.billNumber} has been generated for ${studentName}.`,
+                  link: `/${schoolSlug}/guardian/fees`,
+                  academicYearId: currentYearId,
+                  termId: currentTermId,
+                }
+              });
+            }
+          }
+
           createdBillsCount++;
         }
       }

@@ -34,7 +34,7 @@ import { Button } from "@/components/ui/button";
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   content: z.string().min(1, "Content is required"),
-  target: z.enum(["ALL", "TEACHER", "STUDENT", "STAFF", "CLASS", "CLUB"]),
+  target: z.enum(["ALL", "TEACHER", "STUDENT", "STAFF", "GUARDIAN", "CLASS", "CLUB"]),
   targetId: z.string().optional().nullable(),
   expiresAt: z.string().optional().nullable(),
 });
@@ -90,16 +90,32 @@ export function AnnouncementDialog({
 
   useEffect(() => {
     if (open) {
-      // Fetch teacher's classes and clubs
-      fetch(`/api/schools/${schoolSlug}/teacher/classes`)
+      const classEndpoint = `/api/schools/${schoolSlug}/classes`;
+      const clubEndpoint = `/api/schools/${schoolSlug}/teacher/clubs`; // Clubs are currently teacher-centric or need a common endpoint
+
+      fetch(classEndpoint)
         .then(res => res.json())
-        .then(data => setClasses(data))
-        .catch(console.error);
+        .then(data => {
+          if (Array.isArray(data)) {
+            setClasses(data);
+          } else {
+            console.error("Classes data is not an array:", data);
+            setClasses([]);
+          }
+        })
+        .catch(() => setClasses([]));
         
-      fetch(`/api/schools/${schoolSlug}/teacher/clubs`)
+      fetch(clubEndpoint)
         .then(res => res.json())
-        .then(data => setClubs(data))
-        .catch(console.error);
+        .then(data => {
+          if (Array.isArray(data)) {
+            setClubs(data);
+          } else {
+            console.error("Clubs data is not an array:", data);
+            setClubs([]);
+          }
+        })
+        .catch(() => setClubs([]));
 
       if (announcementToEdit) {
         let initialTarget = "ALL";
@@ -237,6 +253,7 @@ export function AnnouncementDialog({
                       Students & Parents
                     </SelectItem>
                     <SelectItem value="STAFF">Staff Only</SelectItem>
+                    <SelectItem value="GUARDIAN">Guardians Only</SelectItem>
                     <SelectItem value="CLASS">Specific Class</SelectItem>
                     <SelectItem value="CLUB">Specific Club</SelectItem>
                   </SelectContent>

@@ -116,7 +116,7 @@ export default function OutstandingFeesClient({
         </div>
       </div>
 
-      <DataTable columns={columns} data={data} searchKey="studentId" />
+      <DataTable columns={columns} data={data} searchKey="studentId" exportTitle="Outstanding Fees Report" />
 
       {selectedStudent && (
         <RecordPaymentSheet

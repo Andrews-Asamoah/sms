@@ -43,6 +43,7 @@ export interface ExistingScore {
   studentId: string;
   status: "DRAFT" | "SUBMITTED" | "REVIEWED" | "FINAL";
   isLocked: boolean;
+  remarks?: string | null;
   componentScores: {
     componentId: string;
     marksObtained: number;

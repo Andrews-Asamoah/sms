@@ -70,27 +70,6 @@ export function GradebookToolbar({
           </SelectContent>
         </Select>
       </div>
-
-      <div className="grid w-full max-w-xs items-center gap-1.5">
-        <Label htmlFor="term" className="text-xs text-muted-foreground">
-          Academic Term
-        </Label>
-        <Select
-          value={selectedTermId}
-          onValueChange={(val) => updateParams("termId", val)}
-        >
-          <SelectTrigger id="term" className="w-[180px] h-9 bg-background">
-            <SelectValue placeholder="Select term" />
-          </SelectTrigger>
-          <SelectContent>
-            {terms.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.name} {t.isCurrent && "(Current)"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
     </div>
   );
 }

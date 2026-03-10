@@ -121,7 +121,22 @@ export async function POST(
 
         const studentsToBill = await tx.student.findMany({
           where: whereClause,
-          select: { id: true, outstandingBalance: true },
+          include: {
+            profile: {
+              select: { firstName: true, lastName: true, otherNames: true }
+            },
+            guardians: {
+              include: {
+                guardian: {
+                  include: {
+                    profile: {
+                      select: { userId: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
         });
 
         // Read Working Context from cookies
@@ -154,19 +169,16 @@ export async function POST(
           const termCode = term ? `T${term.termNumber}` : "T1";
 
           for (const student of studentsToBill) {
-            // Generate Unique Bill Code: B-YEAR-TERM-STUDENT_ID_OR_RANDOM
-            const randomStr = Math.random()
-              .toString(36)
-              .substring(2, 6)
-              .toUpperCase();
-            const billCode = `B-${yearCode}-${termCode}-${randomStr}`;
+            // Generate Unique Bill Code: B-YEAR-TERM-NUMBERS
+            const randomNum = Math.floor(100000 + Math.random() * 900000);
+            const billCode = `B-${yearCode}-${termCode}-${randomNum}`;
 
-            await tx.bill.create({
+            const bill = await tx.bill.create({
               data: {
                 schoolId: school.id,
                 studentId: student.id,
-                academicYearId: effectiveYearId,
-                termId: effectiveTermId,
+                academicYearId: effectiveYearId as any,
+                termId: effectiveTermId as any,
                 feeStructureId: feeStructure.id,
                 billNumber: billCode, // Using billCode for billNumber as well for simplicity if unique
                 billCode: billCode,
@@ -197,6 +209,34 @@ export async function POST(
                 outstandingBalance: { increment: totalAmount },
               },
             });
+
+            // -----------------------------------------------------------------
+            // 4. Send Notifications to Guardians
+            // -----------------------------------------------------------------
+            const studentName = [student.profile.firstName, student.profile.otherNames, student.profile.lastName]
+              .filter(Boolean)
+              .join(" ");
+
+            const guardiansToNotify = student.guardians
+              .filter(gs => gs.guardian.canLogin && gs.guardian.profile?.userId)
+              .map(gs => gs.guardian.profile?.userId);
+
+            for (const userId of guardiansToNotify) {
+              if (userId) {
+                await tx.notification.create({
+                  data: {
+                    schoolId: school.id,
+                    userId: userId,
+                    type: "FEE_REMINDER",
+                    title: "New Bill Generated",
+                    message: `A new bill ${bill.billNumber} has been generated for ${studentName}.`,
+                    link: `/${schoolSlug}/guardian/fees`,
+                    academicYearId: effectiveYearId as any,
+                    termId: effectiveTermId as any,
+                  }
+                });
+              }
+            }
 
             createdBillsCount++;
           }

@@ -1,6 +1,7 @@
 // app/api/schools/[schoolId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { requireSchoolAccess } from "@/lib/auth/guards";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
@@ -15,13 +16,12 @@ type RouteContext = {
 // GET - Fetch single school
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session || session.user.role !== "superAdmin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
-
     const params = await context.params;
     const { schoolSlug } = params;
+    
+    // Use requireSchoolAccess to allow teachers/admins/accountants/etc with access to this school
+    // to fetch its metadata (logo, name, etc.)
+    await requireSchoolAccess(schoolSlug);
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },

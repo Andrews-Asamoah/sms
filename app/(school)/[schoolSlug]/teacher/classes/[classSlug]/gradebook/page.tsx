@@ -161,11 +161,11 @@ export default async function GradebookPage({
           id: s.id,
           admissionNumber: s.admissionNumber,
           user: {
-            firstName: s.profile.firstName,
-            lastName: s.profile.lastName,
-            otherNames: s.profile.otherNames,
-            email: s.profile.user.email,
-            image: s.profile.user.image,
+            firstName: s.user.firstName,
+            lastName: s.user.lastName,
+            otherNames: s.user.otherNames,
+            email: s.user.email,
+            image: s.user.image,
           },
         })),
         template: {
@@ -178,6 +178,8 @@ export default async function GradebookPage({
             name: c.name,
             maxMarks: Number(c.maxMarks),
             weight: Number(c.weight),
+            isRepeatable: c.isRepeatable,
+            expectedCount: c.expectedCount,
           })),
           gradingSystem: {
             gradeScales: rawData.template.gradingSystem.gradeScales.map(
@@ -196,6 +198,7 @@ export default async function GradebookPage({
           studentId: es.studentId,
           status: es.status,
           isLocked: es.isLocked,
+          remarks: es.remarks,
           componentScores: es.componentScores.map((cs) => ({
             componentId: cs.componentId,
             marksObtained: Number(cs.marksObtained),

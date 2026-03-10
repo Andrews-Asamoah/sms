@@ -72,6 +72,9 @@ export default async function GuardianDashboard({
                     in: ["PENDING", "PARTIALLY_PAID", "OVERDUE"],
                   },
                 },
+                include: {
+                  items: true
+                }
               },
               attendances: {
                 where: {
@@ -269,41 +272,56 @@ export default async function GuardianDashboard({
               <>
                 <div className="space-y-3">
                   {guardian.students.slice(0, 3).flatMap((gs) =>
-                    gs.student.bills.slice(0, 2).map((bill) => (
+                    gs.student.bills.slice(0, 3).map((bill: any) => (
                       <div
                         key={bill.id}
-                        className="flex items-center justify-between p-3 rounded-lg border"
+                        className="p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                       >
-                        <div>
-                          <p className="font-medium">{bill.billNumber}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {gs.student.profile.firstName}{" "}
-                            {gs.student.profile.lastName}
-                          </p>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{bill.billNumber}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {gs.student.profile.firstName}{" "}
+                              {gs.student.profile.lastName}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold">
+                              {school.currency}{" "}
+                              {decimalToNumber(bill.balanceAmount).toFixed(2)}
+                            </p>
+                            <Badge
+                              variant={
+                                bill.status === "OVERDUE"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                            >
+                              {bill.status}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold">
-                            {school.currency}{" "}
-                            {decimalToNumber(bill.balanceAmount).toFixed(2)}
-                          </p>
-                          <Badge
-                            variant={
-                              bill.status === "OVERDUE"
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {bill.status}
-                          </Badge>
+                        
+                        {/* Breakdown */}
+                        <div className="mt-3 pt-3 border-t border-dashed space-y-1">
+                          {bill.items.slice(0, 3).map((item: any) => (
+                            <div key={item.id} className="flex justify-between text-[11px] text-muted-foreground">
+                              <span>{item.description}</span>
+                              <span>{school.currency} {decimalToNumber(item.amount).toFixed(2)}</span>
+                            </div>
+                          ))}
+                          {bill.items.length > 3 && (
+                            <p className="text-[10px] text-primary italic">+{bill.items.length - 3} more items...</p>
+                          )}
                         </div>
                       </div>
                     )),
                   )}
                 </div>
 
-                <Link href={`/${schoolSlug}/guardian/bills`}>
+                <Link href={`/${schoolSlug}/guardian/fees`}>
                   <Button className="w-full" variant="outline">
-                    View All Bills
+                    View & Pay Bills
                   </Button>
                 </Link>
               </>
@@ -366,8 +384,10 @@ export default async function GuardianDashboard({
                 <p className="text-sm text-amber-800 mt-1">
                   You have {totalPendingBills} pending{" "}
                   {totalPendingBills === 1 ? "bill" : "bills"} totaling{" "}
-                  {school.currency} {totalOutstanding.toFixed(2)}. Please
-                  contact the accounts office to make payment.
+                  {school.currency} {totalOutstanding.toFixed(2)}. 
+                  <Link href={`/${schoolSlug}/guardian/fees`} className="ml-1 font-bold underline hover:text-amber-900">
+                    Pay securely online now
+                  </Link>
                 </p>
               </div>
             </div>

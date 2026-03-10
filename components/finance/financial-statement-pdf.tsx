@@ -112,10 +112,15 @@ interface FinancialStatementPDFProps {
 }
 
 export const FinancialStatementPDF = ({ data, schoolName }: FinancialStatementPDFProps) => {
-  const formatter = new Intl.NumberFormat("en-GH", {
-    style: "currency",
-    currency: data?.currency || "GHS",
-  });
+  const formatPDFCurrency = (amount: number) => {
+    // Standard Intl formatter might use a character that's not in the default PDF fonts
+    // We'll use a safer approach for the PDF export specifically
+    const value = Number(amount).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return `GH₵ ${value}`;
+  };
 
   const netIncome = (data?.revenue || 0) - (data?.expenses || 0);
 
@@ -134,27 +139,27 @@ export const FinancialStatementPDF = ({ data, schoolName }: FinancialStatementPD
         <Text style={styles.sectionTitle}>Revenue</Text>
         <View style={styles.row}>
           <Text style={styles.label}>Collected Fee Payments</Text>
-          <Text style={styles.revenueValue}>{formatter.format(data?.revenue || 0)}</Text>
+          <Text style={styles.revenueValue}>{formatPDFCurrency(data?.revenue || 0)}</Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Outstanding Balance (Receivables)</Text>
-          <Text style={styles.value}>{formatter.format(data?.outstanding || 0)}</Text>
+          <Text style={styles.value}>{formatPDFCurrency(data?.outstanding || 0)}</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Expenses & Payroll</Text>
         <View style={styles.row}>
           <Text style={styles.label}>Operating Expenses</Text>
-          <Text style={styles.expenseValue}>-{formatter.format(data?.expenses || 0)}</Text>
+          <Text style={styles.expenseValue}>-{formatPDFCurrency(data?.expenses || 0)}</Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Staff Payroll (Gross)</Text>
-          <Text style={styles.expenseValue}>-{formatter.format(data?.payroll?.gross || 0)}</Text>
+          <Text style={styles.expenseValue}>-{formatPDFCurrency(data?.payroll?.gross || 0)}</Text>
         </View>
 
         <View style={styles.netIncomeSection}>
           <Text style={styles.netIncomeLabel}>NET INCOME</Text>
           <Text style={[styles.netIncomeValue, { color: netIncome >= 0 ? "#059669" : "#dc2626" }]}>
-            {formatter.format(netIncome)}
+            {formatPDFCurrency(netIncome)}
           </Text>
         </View>
 
@@ -163,13 +168,13 @@ export const FinancialStatementPDF = ({ data, schoolName }: FinancialStatementPD
           {data?.revenueBreakdown?.map((rev: any, i: number) => (
             <View key={`rev-${i}`} style={styles.row}>
               <Text style={styles.label}>{rev.name} (Revenue)</Text>
-              <Text style={styles.revenueValue}>{formatter.format(rev.amount)}</Text>
+              <Text style={styles.revenueValue}>{formatPDFCurrency(rev.amount)}</Text>
             </View>
           ))}
           {data?.expenseBreakdown?.map((exp: any, i: number) => (
             <View key={`exp-${i}`} style={styles.row}>
               <Text style={styles.label}>{exp.name} (Expense)</Text>
-              <Text style={styles.expenseValue}>-{formatter.format(exp.amount)}</Text>
+              <Text style={styles.expenseValue}>-{formatPDFCurrency(exp.amount)}</Text>
             </View>
           ))}
         </View>

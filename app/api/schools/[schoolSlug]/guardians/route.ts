@@ -48,22 +48,65 @@ export async function POST(
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    // Use better-auth admin API to invite the guardian
-    // This creates the user and sends an invitation email
-    const invitation = await auth.api.createInvitation({
-      headers: request.headers,
-      body: {
-        email: data.email,
-        role: "guardian",
-        organizationId: school.organizationId,
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: data.email },
+      include: {
+        userProfile: true,
+        members: {
+          where: { organizationId: school.organizationId },
+        },
       },
     });
 
-    if (!invitation) {
-      return NextResponse.json(
-        { error: "Failed to create invitation" },
-        { status: 500 },
-      );
+    let profileId: string | undefined = undefined;
+
+    if (existingUser) {
+      const isMember = existingUser.members && existingUser.members.length > 0;
+
+      if (isMember) {
+        const member = existingUser.members[0];
+        const roles = member.role.split(",");
+        if (!roles.includes("guardian")) {
+          // Add guardian role
+          roles.push("guardian");
+          await prisma.member.update({
+            where: { id: member.id },
+            data: { role: roles.join(",") },
+          });
+        }
+      } else {
+        await auth.api.addMember({
+          headers: request.headers,
+          body: {
+            organizationId: school.organizationId,
+            userId: existingUser.id,
+            role: "guardian",
+          },
+        });
+      }
+
+      // If they have a profile, we can use it
+      if (existingUser.userProfile) {
+        profileId = existingUser.userProfile.id;
+      }
+    } else {
+      // Create user and invitation
+      const invitation = await auth.api.createInvitation({
+        headers: request.headers,
+        body: {
+          email: data.email,
+          role: "guardian",
+          organizationId: school.organizationId,
+        },
+      });
+
+      if (!invitation) {
+        return NextResponse.json(
+          { error: "Failed to create invitation" },
+          { status: 500 }
+        );
+      }
     }
 
     // Create the Guardian record and links in a transaction
@@ -72,6 +115,7 @@ export async function POST(
       const newGuardian = await tx.guardian.create({
         data: {
           schoolId: school.id,
+          profileId: profileId || null,
           guardianId: `G-${Date.now().toString().slice(-6)}`,
           firstName: data.firstName,
           lastName: data.lastName,

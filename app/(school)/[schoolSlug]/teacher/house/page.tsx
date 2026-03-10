@@ -116,6 +116,7 @@ export default function TeacherHousePage() {
                 columns={studentColumns} 
                 data={house.students || []} 
                 searchKey="studentId" 
+                exportTitle={`${house.name} House Students Report`}
              />
            </div>
         </TabsContent>

@@ -21,6 +21,7 @@ export function ExamsClient({
       columns={columns(schoolSlug, gradingSystems, classes)}
       data={data}
       searchKey="name"
+      exportTitle="Examinations Report"
     />
   );
 }

@@ -14,63 +14,68 @@ import {
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 40,
-    paddingBottom: 60,
-    paddingHorizontal: 30,
+    padding: 40,
     backgroundColor: "#ffffff",
   },
-  title: {
-    fontSize: 24,
+  header: {
     marginBottom: 20,
-    textAlign: "center",
-    color: "#1a1a1a",
+    borderBottomWidth: 2,
+    borderBottomColor: "#1a1a1a",
+    paddingBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 20,
     fontWeight: "bold",
+    color: "#1a1a1a",
+    textTransform: "uppercase",
+  },
+  meta: {
+    fontSize: 9,
+    color: "#6b7280",
   },
   table: {
     display: "flex",
     width: "auto",
-    borderStyle: "solid",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
+    marginTop: 10,
   },
   tableRow: {
-    margin: "auto",
     flexDirection: "row",
-    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    minHeight: 25,
+    alignItems: "center",
   },
   tableHeader: {
-    backgroundColor: "#f9fafb",
+    backgroundColor: "#f3f4f6",
+    borderBottomWidth: 2,
+    borderBottomColor: "#374151",
   },
   tableCol: {
-    borderStyle: "solid",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    padding: 8,
+    padding: 6,
   },
   tableCellHeader: {
     fontSize: 10,
     fontWeight: "bold",
-    color: "#374151",
+    color: "#1f2937",
   },
   tableCell: {
     fontSize: 9,
-    color: "#4b5563",
+    color: "#374151",
   },
   footer: {
     position: "absolute",
-    bottom: 20,
-    left: 30,
-    right: 30,
+    bottom: 30,
+    left: 40,
+    right: 40,
     textAlign: "center",
     fontSize: 8,
     color: "#9ca3af",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
     paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
   },
 });
 
@@ -87,43 +92,61 @@ export const DataTablePDFDocument = ({
   title = "Data Export",
   orientation = "portrait",
 }: PDFDocumentProps) => {
-  // Calculate column widths proportionately
-  const colWidth = 100 / columns.length;
+  // Calculate relative weights for columns
+  const getWeight = (header: string) => {
+    const h = header.toLowerCase();
+    if (h.includes("student") || h.includes("name") || h.includes("description") || h.includes("notes")) return 2;
+    if (h.includes("id") || h.includes("#") || h.includes("date") || h.includes("method")) return 0.8;
+    return 1;
+  };
+
+  const totalWeight = columns.reduce((acc, col) => acc + getWeight(col.header), 0);
 
   return (
     <Document>
       <Page size="A4" orientation={orientation} style={styles.page}>
-        <Text style={styles.title}>{title}</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.meta}>
+            Generated: {new Date().toLocaleDateString()}
+          </Text>
+        </View>
 
         <View style={styles.table}>
           {/* Header */}
           <View style={[styles.tableRow, styles.tableHeader]}>
-            {columns.map((col, i) => (
-              <View
-                key={i}
-                style={[styles.tableCol, { width: `${colWidth}%` }]}
-              >
-                <Text style={styles.tableCellHeader}>{col.header}</Text>
-              </View>
-            ))}
+            {columns.map((col, i) => {
+              const width = (getWeight(col.header) / totalWeight) * 100;
+              return (
+                <View
+                  key={i}
+                  style={[styles.tableCol, { width: `${width}%` }]}
+                >
+                  <Text style={styles.tableCellHeader}>{col.header}</Text>
+                </View>
+              );
+            })}
           </View>
 
           {/* Rows */}
           {data.map((row, rowIndex) => (
             <View key={rowIndex} style={styles.tableRow}>
-              {columns.map((col, colIndex) => (
-                <View
-                  key={colIndex}
-                  style={[styles.tableCol, { width: `${colWidth}%` }]}
-                >
-                  <Text style={styles.tableCell}>
-                    {row[col.accessor] !== undefined &&
-                    row[col.accessor] !== null
-                      ? String(row[col.accessor])
-                      : ""}
-                  </Text>
-                </View>
-              ))}
+              {columns.map((col, colIndex) => {
+                const width = (getWeight(col.header) / totalWeight) * 100;
+                return (
+                  <View
+                    key={colIndex}
+                    style={[styles.tableCol, { width: `${width}%` }]}
+                  >
+                    <Text style={[styles.tableCell, { flexWrap: "wrap" }]}>
+                      {row[col.accessor] !== undefined &&
+                      row[col.accessor] !== null
+                        ? String(row[col.accessor])
+                        : ""}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           ))}
         </View>
@@ -131,7 +154,7 @@ export const DataTablePDFDocument = ({
         <Text
           style={styles.footer}
           render={({ pageNumber, totalPages }) =>
-            `Page ${pageNumber} of ${totalPages} - Generated on ${new Date().toLocaleDateString()}`
+            `Page ${pageNumber} of ${totalPages}`
           }
           fixed
         />

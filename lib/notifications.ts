@@ -51,13 +51,24 @@ export async function notifyTeachersOfAssessment(
 
     if (teacherMap.size === 0) return { success: true, notified: 0 };
 
-    // 3. Get the user IDs for these teachers (Better Auth links Teacher to UserProfile to user)
+    // 3. Get school subdomain for links
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { subdomain: true },
+    });
+
+    const slug = school?.subdomain || "";
+
+    // 4. Get the user IDs for these teachers (Better Auth links Teacher to UserProfile to user)
     const teachers = await prisma.teacher.findMany({
-      where: { id: { in: Array.from(teacherMap.keys()) }, profile: { userId: { not: "" } } },
+      where: {
+        id: { in: Array.from(teacherMap.keys()) },
+        profile: { userId: { not: "" } },
+      },
       select: { id: true, profile: { select: { userId: true } } },
     });
 
-    // 4. Create notifications for each teacher
+    // 5. Create notifications for each teacher
     const notifications = teachers
       .filter((t) => t.profile?.userId)
       .map((t) => ({
@@ -66,9 +77,9 @@ export async function notifyTeachersOfAssessment(
         type: "GENERAL" as NotificationType,
         title: "New Assessment Template Created",
         message: `A new assessment template "${templateName}" has been created for ${Array.from(
-          teacherMap.get(t.id) || []
+          teacherMap.get(t.id) || [],
         ).join(", ")}. Please start recording marks.`,
-        link: `/teacher/gradebook`, // Generic link to gradebook
+        link: `/${slug}/teacher/gradebook`, // Include slug for consistency
       }));
 
     if (notifications.length > 0) {

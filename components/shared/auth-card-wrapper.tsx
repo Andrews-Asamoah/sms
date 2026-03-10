@@ -20,7 +20,7 @@ export function AuthCardWrapper({
   children,
 }: AuthCardWrapperProps) {
   return (
-    <Card className="w-full border-0 shadow-2xl bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl ring-1 ring-slate-200/50 dark:ring-slate-800/50 rounded-2xl overflow-hidden relative">
+    <Card className="w-full border-0 shadow-2xl bg-white/70 dark:bg-slate-800/90 backdrop-blur-2xl ring-1 ring-slate-200/50 dark:ring-slate-700/50 rounded-2xl overflow-hidden relative">
       {/* Decorative top gradient border edge */}
       <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 z-10" />
 

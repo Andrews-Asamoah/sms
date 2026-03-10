@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { Plus, Receipt } from "lucide-react";
+import { Plus, Printer } from "lucide-react";
 import { DashboardPageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table/data-table";
@@ -10,6 +10,8 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { GenerateInvoiceDialog } from "./generate-invoice-dialog";
+import { BatchPrintDialog } from "./batch-print-dialog";
+import { formatStudentName } from "@/lib/utils/name-formatter";
 
 type Invoice = {
   id: string;
@@ -21,9 +23,14 @@ type Invoice = {
   dueDate: string;
   createdAt: string;
   student: {
-    profile: { firstName: string; lastName: string };
+    profile: {
+      firstName: string;
+      lastName: string;
+      otherNames?: string | null;
+    };
     class?: { name: string };
   };
+  studentName?: string;
   feeStructure?: { name: string };
 };
 
@@ -32,6 +39,7 @@ export function InvoicesClient() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
+  const [isPrintOpen, setIsPrintOpen] = useState(false);
 
   const fetchInvoices = async () => {
     try {
@@ -40,9 +48,13 @@ export function InvoicesClient() {
       const data = await res.json();
       const mappedData = (data || []).map((inv: any) => ({
         ...inv,
-        studentName: inv.student?.profile 
-          ? `${inv.student.profile.firstName} ${inv.student.profile.lastName}`
-          : "Unknown"
+        studentName: inv.student?.profile
+          ? formatStudentName(
+              inv.student.profile.firstName,
+              inv.student.profile.lastName,
+              inv.student.profile.otherNames,
+            )
+          : "Unknown",
       }));
       setInvoices(mappedData);
     } catch (error) {
@@ -70,10 +82,7 @@ export function InvoicesClient() {
       header: "Student",
       cell: ({ row }) => (
         <div>
-          <p className="font-medium">
-            {row.original.student.profile.firstName}{" "}
-            {row.original.student.profile.lastName}
-          </p>
+          <p className="font-medium">{row.original.studentName}</p>
           <p className="text-xs text-muted-foreground">
             {row.original.student.class?.name}
           </p>
@@ -141,14 +150,23 @@ export function InvoicesClient() {
         title="Invoices"
         description="Manage generated student bills and track payment status."
       >
-        <Button onClick={() => setIsGenerateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Generate Batch Bills
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsPrintOpen(true)}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print Class Invoices
+          </Button>
+          <Button onClick={() => setIsGenerateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Generate Batch Bills
+          </Button>
+        </div>
       </DashboardPageHeader>
 
       <div className="flex items-center gap-2 bg-muted/30 p-2 px-4 rounded-lg w-fit">
-        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+        <Badge
+          variant="outline"
+          className="bg-primary/5 text-primary border-primary/20"
+        >
           Viewing: Selected Academic Period
         </Badge>
         <span className="text-xs text-muted-foreground italic">
@@ -157,7 +175,13 @@ export function InvoicesClient() {
       </div>
 
       <div className="bg-background rounded-md border shadow-sm p-4">
-        <DataTable columns={columns} data={invoices} searchKey="studentName" />
+        <DataTable
+          columns={columns}
+          data={invoices}
+          searchKey="studentName"
+          exportTitle="Invoices Report"
+          exportOrientation="landscape"
+        />
       </div>
 
       {isGenerateOpen && (
@@ -166,6 +190,10 @@ export function InvoicesClient() {
           onOpenChange={setIsGenerateOpen}
           onSuccess={fetchInvoices}
         />
+      )}
+
+      {isPrintOpen && (
+        <BatchPrintDialog open={isPrintOpen} onOpenChange={setIsPrintOpen} />
       )}
     </div>
   );

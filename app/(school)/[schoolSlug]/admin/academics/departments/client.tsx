@@ -13,6 +13,6 @@ export function DepartmentsClient({
   schoolSlug,
 }: DepartmentsClientProps) {
   return (
-    <DataTable columns={columns(schoolSlug)} data={data} searchKey="name" />
+    <DataTable columns={columns(schoolSlug)} data={data} searchKey="name" exportTitle="Departments List Report" />
   );
 }

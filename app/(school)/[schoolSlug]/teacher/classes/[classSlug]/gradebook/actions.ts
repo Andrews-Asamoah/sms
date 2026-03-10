@@ -24,18 +24,16 @@ interface SaveMarksRequest {
   marks: SaveMarksData[];
 }
 
-interface MarksDataResult {
+export interface MarksDataResult {
   students: {
     id: string;
     admissionNumber: string | null;
-    profile: {
+    user: {
       firstName: string;
       lastName: string;
       otherNames: string | null;
-      user: {
-        email: string | null;
-        image: string | null;
-      };
+      email: string | null;
+      image: string | null;
     };
   }[];
   template: {
@@ -46,8 +44,8 @@ interface MarksDataResult {
     components: {
       id: string;
       name: string;
-      maxMarks: number | { toNumber(): number };
-      weight: number | { toNumber(): number };
+      maxMarks: number;
+      weight: number;
       displayOrder: number;
       isRepeatable: boolean;
       expectedCount: number;
@@ -56,9 +54,9 @@ interface MarksDataResult {
       gradeScales: {
         id: string;
         grade: string;
-        minScore: number | { toNumber(): number };
-        maxScore: number | { toNumber(): number };
-        gradePoint: number | { toNumber(): number };
+        minScore: number;
+        maxScore: number;
+        gradePoint: number;
         description: string | null;
       }[];
     };
@@ -67,9 +65,10 @@ interface MarksDataResult {
     studentId: string;
     status: "DRAFT" | "SUBMITTED" | "REVIEWED" | "FINAL";
     isLocked: boolean;
+    remarks: string | null;
     componentScores: {
       componentId: string;
-      marksObtained: number | { toNumber(): number };
+      marksObtained: number;
       rawScores: any; // Prisma JsonValue maps to any in the frontend types
     }[];
   }[];
@@ -252,14 +251,12 @@ export async function getMarksData(
         students: students.map((s) => ({
           id: s.id,
           admissionNumber: s.admissionNumber,
-          profile: {
+          user: {
             firstName: s.profile.firstName,
             lastName: s.profile.lastName,
             otherNames: s.profile.otherNames,
-            user: {
-              email: s.profile.user.email,
-              image: s.profile.user.image,
-            },
+            email: s.profile.user.email,
+            image: s.profile.user.image,
           },
         })),
         template: {
@@ -291,6 +288,7 @@ export async function getMarksData(
           studentId: es.studentId,
           status: es.status as any,
           isLocked: es.isLocked,
+          remarks: es.remarks,
           componentScores: es.componentScores.map((cs) => ({
             componentId: cs.componentId,
             marksObtained: Number(cs.marksObtained),
@@ -479,6 +477,7 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
             grade,
             gradePoint,
             status: req.status || "DRAFT",
+            remarks: null,
             updatedAt: new Date(),
           },
         });
@@ -556,5 +555,159 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
       success: false,
       error: error instanceof Error ? error.message : "Failed to save marks",
     };
+  }
+}
+
+// ============================================================================
+// REVIEW GRADEBOOK SUBMISSION
+// ============================================================================
+
+export async function reviewGradebookSubmission(req: {
+  schoolSlug: string;
+  classId: string;
+  subjectId: string;
+  termId: string;
+  status: "DRAFT" | "REVIEWED" | "FINAL";
+  remarks?: string;
+}) {
+  try {
+    const { schoolSlug, classId, subjectId, termId, status, remarks } = req;
+
+    // Auth check
+    const session = await requireSchoolAccess(schoolSlug);
+    const activeRole = await getActiveSchoolRole(session, schoolSlug);
+    const effectiveRole = activeRole?.effectiveRole || "teacher";
+
+    // Admins, Owners, and Headteachers can always review
+    let isAuthorized = ["admin", "owner", "headteacher"].includes(effectiveRole) || session.isSuperAdmin;
+
+    // If not a global admin/headteacher, check if they are the HOD for this class's department
+    if (!isAuthorized && effectiveRole === "teacher") {
+      const hodDepartment = await prisma.department.findFirst({
+        where: {
+          headOfDept: { profile: { userId: session.user.id } },
+          classes: { some: { id: classId } }
+        }
+      });
+      if (hodDepartment) isAuthorized = true;
+    }
+
+    if (!isAuthorized) {
+      return { success: false, error: "Unauthorized to review gradebook submissions" };
+    }
+
+    // Update all assessment scores for this subject, class, and term
+    await prisma.assessmentScore.updateMany({
+      where: {
+        subjectId,
+        termId,
+        student: { classId }
+      },
+      data: {
+        status,
+        remarks: remarks || null,
+        updatedAt: new Date()
+      }
+    });
+
+    const clsFlat = await prisma.class.findUnique({
+      where: { id: classId },
+      select: { slug: true },
+    });
+
+    revalidatePath(
+      `/${schoolSlug}/teacher/classes/${clsFlat?.slug || classId}/gradebook`,
+    );
+    revalidatePath(`/${schoolSlug}/admin/reports/gradebook-tracking`);
+
+    return { 
+      success: true, 
+      message: status === "DRAFT" 
+        ? "Submission rejected and sent back to teacher" 
+        : `Gradebook ${status.toLowerCase()} successfully` 
+    };
+  } catch (error) {
+    console.error("[REVIEW_GRADEBOOK] Error:", error);
+    return { success: false, error: "Failed to review gradebook submission" };
+  }
+}
+
+export async function requestGradebookEdit(req: {
+  schoolSlug: string;
+  classId: string;
+  subjectId: string;
+  termId: string;
+  reason: string;
+}) {
+  try {
+    const { schoolSlug, classId, subjectId, termId, reason } = req;
+    const session = await requireSchoolAccess(schoolSlug);
+
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { id: true, name: true }
+    });
+
+    if (!school) return { success: false, error: "School not found" };
+
+    // 1. Find the Class, Subject, and HOD
+    const classData = await prisma.class.findUnique({
+      where: { id: classId },
+      include: {
+        department: {
+          select: {
+            headOfDept: {
+              select: { profile: { select: { userId: true } } }
+            }
+          }
+        }
+      }
+    });
+
+    const subject = await prisma.subject.findUnique({
+      where: { id: subjectId },
+      select: { name: true }
+    });
+
+    if (!classData || !subject) return { success: false, error: "Class or Subject not found" };
+
+    // 2. Identify Recipient User IDs
+    const recipientIds = new Set<string>();
+
+    // Add HOD if exists
+    const hodUserId = classData.department?.headOfDept?.profile?.userId;
+    if (hodUserId) recipientIds.add(hodUserId);
+
+    // Add School Admins & Owners
+    const administrators = await prisma.member.findMany({
+      where: {
+        organization: { school: { subdomain: schoolSlug } },
+        role: { in: ["admin", "owner"] }
+      },
+      select: { userId: true }
+    });
+
+    administrators.forEach(admin => recipientIds.add(admin.userId));
+
+    // 3. Create Notifications
+    const notificationTitle = `Gradebook Edit Request: ${classData.name}`;
+    const notificationMessage = `${session.user.name} is requesting to edit the finalized gradebook for ${subject.name}. Reason: ${reason}`;
+    const link = `/${schoolSlug}/admin/reports/gradebook-tracking/review?classId=${classId}&subjectId=${subjectId}&termId=${termId}`;
+
+    await prisma.notification.createMany({
+      data: Array.from(recipientIds).map(userId => ({
+        schoolId: school.id,
+        userId,
+        type: "GENERAL",
+        title: notificationTitle,
+        message: notificationMessage,
+        link,
+      }))
+    });
+
+    return { success: true, message: "Edit request sent to administrators" };
+  } catch (error) {
+    console.error("[REQUEST_EDIT] Error:", error);
+    return { success: false, error: "Failed to send edit request" };
   }
 }

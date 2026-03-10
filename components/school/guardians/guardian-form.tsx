@@ -22,6 +22,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Field,
   FieldError,
   FieldGroup,
@@ -30,7 +43,8 @@ import {
 } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const guardianSchema = z.object({
   firstName: z.string().min(2, "First name is required"),
@@ -243,21 +257,53 @@ export function GuardianForm({
               >
                 <Field data-invalid={!!errors.wards?.[index]?.studentId}>
                   <FieldLabel htmlFor={`ward-${index}`}>Student</FieldLabel>
-                  <Select
-                    onValueChange={(val) => setValue(`wards.${index}.studentId`, val)}
-                    value={wards[index]?.studentId}
-                  >
-                    <SelectTrigger id={`ward-${index}`}>
-                      <SelectValue placeholder="Select a student" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {students.map((student) => (
-                        <SelectItem key={student.id} value={student.id}>
-                          {student.name} ({student.class})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id={`ward-${index}`}
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                          "w-full justify-between font-normal",
+                          !wards[index]?.studentId && "text-muted-foreground"
+                        )}
+                      >
+                        {wards[index]?.studentId
+                          ? `${students.find((s) => s.id === wards[index]?.studentId)?.name} (${students.find((s) => s.id === wards[index]?.studentId)?.class})`
+                          : "Select a student"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search students..." />
+                        <CommandList>
+                          <CommandEmpty>No student found.</CommandEmpty>
+                          <CommandGroup>
+                            {students.map((student) => (
+                              <CommandItem
+                                value={`${student.name} ${student.studentId} ${student.class}`}
+                                key={student.id}
+                                onSelect={() => {
+                                  setValue(`wards.${index}.studentId`, student.id, { shouldValidate: true });
+                                }}
+                              >
+                                <span>{student.name} ({student.class})</span>
+                                <Check
+                                  className={cn(
+                                    "ml-auto h-4 w-4",
+                                    student.id === wards[index]?.studentId
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <FieldError errors={[errors.wards?.[index]?.studentId]} />
                 </Field>
 

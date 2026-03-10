@@ -52,7 +52,7 @@ export function ThemeProvider({
 
     // Apply CSS variables
     const root = document.documentElement;
-    const isDark = root.classList.contains("dark");
+    const isDark = resolvedTheme === "dark";
     const themeColors = isDark ? themes[theme].dark : themes[theme].light;
 
     // Apply all theme colors as CSS variables

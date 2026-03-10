@@ -92,7 +92,7 @@ const roleConfig = {
     icon: Users,
     color: "text-pink-600",
     badge: "pink",
-    route: "parent",
+    route: "guardian",
   },
   member: {
     label: "Member",
