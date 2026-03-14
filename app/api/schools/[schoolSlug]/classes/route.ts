@@ -29,6 +29,9 @@ const createClassSchema = z.object({
   schoolId: z.string().min(1, "School ID is required"),
   organizationId: z.string().min(1, "Organization ID is required"),
   isActive: z.boolean().default(true).optional(),
+  isGraduatingClass: z.boolean().default(false).optional(),
+  order: z.number().int().optional().nullable(),
+  nextPromotionClassId: z.string().nullable().optional(),
 });
 
 // ============================================================================
@@ -186,6 +189,9 @@ export async function POST(
         departmentId: validatedData.departmentId || null,
         schoolId: school.id,
         isActive: validatedData.isActive ?? true,
+        isGraduatingClass: validatedData.isGraduatingClass ?? false,
+        order: validatedData.order || null,
+        nextPromotionClassId: validatedData.nextPromotionClassId || null,
       },
       include: {
         classTeacher: {
@@ -210,6 +216,9 @@ export async function POST(
           classTeacherId: newClass.classTeacherId,
           departmentId: newClass.departmentId,
           schoolId: newClass.schoolId,
+          isGraduatingClass: newClass.isGraduatingClass,
+          order: newClass.order,
+          nextPromotionClassId: newClass.nextPromotionClassId,
         },
       },
     });

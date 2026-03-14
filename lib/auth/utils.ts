@@ -265,6 +265,7 @@ export function isEffectiveRole(role: string): role is EffectiveRole {
     "student",
     "guardian",
     "member",
+    "staff",
   ];
   return effectiveRoles.includes(role as EffectiveRole);
 }

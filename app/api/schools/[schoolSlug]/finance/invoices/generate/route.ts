@@ -21,7 +21,7 @@ export async function POST(
     return NextResponse.json({ error: "School not found" }, { status: 404 });
 
   const body = await request.json();
-  const { feeStructureId, targetClasses } = body;
+  const { feeStructureId, targetClasses, billType = "INVOICE", classId = null } = body;
 
   if (!feeStructureId || !targetClasses || !targetClasses.length) {
     return NextResponse.json(
@@ -126,30 +126,24 @@ export async function POST(
             ? Math.abs(Number(student.outstandingBalance)) 
             : 0;
 
-          const billItems = feeStructure.items.map((item) => ({
+          let finalBillTotal = totalAmount;
+
+          const createdBillItems = feeStructure.items.map((item) => ({
             description: item.name,
-            amount: item.amount,
-            quantity: 1,
-            totalAmount: item.amount,
             feeItemId: item.id,
+            quantity: 1,
+            unitAmount: item.amount,
+            amount: item.amount,
+            totalAmount: item.amount,
             paidAmount: 0,
             balanceAmount: item.amount,
             status: "UNPAID" as any,
           }));
 
-          let finalBillTotal = totalAmount;
-
           if (credit > 0) {
-            billItems.push({
-              description: "Credit Brought Forward",
-              amount: -credit as any,
-              quantity: 1,
-              totalAmount: -credit as any,
-              feeItemId: undefined as any,
-              paidAmount: 0,
-              balanceAmount: -credit as any,
-              status: "FULLY_PAID" as any, // Credit is already "paid"
-            });
+            // Note: Currently Prisma schema for BillItem doesn't seem to have a free-text description
+            // If credit needs to be a line item, it might require schema changes.
+            // For now, we just reduce the finalBillTotal
             finalBillTotal -= credit;
           }
 
@@ -157,9 +151,11 @@ export async function POST(
             data: {
               schoolId: school.id,
               studentId: student.id,
+              classId: classId || student.classId,
               academicYearId: currentYearId,
               termId: currentTermId,
               feeStructureId: feeStructure.id,
+              billType: billType,
               billNumber: `BILL-${billYear}-${termName}-${Math.floor(100000 + Math.random() * 900000)}`,
               totalAmount: finalBillTotal,
               balanceAmount: finalBillTotal,
@@ -168,17 +164,20 @@ export async function POST(
               dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
               notes: body.notes || null,
               items: {
-                create: billItems
+                create: createdBillItems
               },
             },
           });
 
-          await tx.student.update({
-            where: { id: student.id },
-            data: {
-              outstandingBalance: { increment: totalAmount },
-            },
-          });
+          // Only increment outstanding balance if it's an INVOICE, not PROFORMA
+          if (billType === "INVOICE") {
+            await tx.student.update({
+              where: { id: student.id },
+              data: {
+                outstandingBalance: { increment: totalAmount },
+              },
+            });
+          }
 
           // -----------------------------------------------------------------
           // 4. Send Notifications to Guardians

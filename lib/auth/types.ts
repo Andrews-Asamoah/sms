@@ -149,7 +149,8 @@ export type OrganizationRole =
   | "headteacher"
   | "accountant"
   | "guardian"
-  | "student";
+  | "student"
+  | "staff";
 
 export type ProfileRoleType =
   | "admin"
@@ -157,7 +158,8 @@ export type ProfileRoleType =
   | "headteacher"
   | "student"
   | "guardian"
-  | "accountant";
+  | "accountant"
+  | "staff";
 
 export type EffectiveRole =
   | "owner"
@@ -167,7 +169,8 @@ export type EffectiveRole =
   | "accountant"
   | "student"
   | "guardian"
-  | "member";
+  | "member"
+  | "staff";
 
 // ============================================================================
 // SCHOOL ACCESS TYPE
@@ -310,6 +313,7 @@ export const ROLE_PRIORITY: Record<EffectiveRole, number> = {
   headteacher: 85,
   accountant: 70,
   teacher: 60,
+  staff: 50,
   guardian: 40,
   student: 30,
   member: 10,

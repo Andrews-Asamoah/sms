@@ -9,9 +9,9 @@ import { DataTable } from "@/components/ui/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { GenerateInvoiceDialog } from "./generate-invoice-dialog";
 import { BatchPrintDialog } from "./batch-print-dialog";
 import { formatStudentName } from "@/lib/utils/name-formatter";
+import Link from "next/link";
 
 type Invoice = {
   id: string;
@@ -38,7 +38,6 @@ export function InvoicesClient() {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [isPrintOpen, setIsPrintOpen] = useState(false);
 
   const fetchInvoices = async () => {
@@ -155,10 +154,12 @@ export function InvoicesClient() {
             <Printer className="mr-2 h-4 w-4" />
             Print Class Invoices
           </Button>
-          <Button onClick={() => setIsGenerateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Generate Batch Bills
-          </Button>
+          <Link href={`/${schoolSlug}/accountant/finance/invoices/generate`}>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Generate Batch Bills
+            </Button>
+          </Link>
         </div>
       </DashboardPageHeader>
 
@@ -183,14 +184,6 @@ export function InvoicesClient() {
           exportOrientation="landscape"
         />
       </div>
-
-      {isGenerateOpen && (
-        <GenerateInvoiceDialog
-          open={isGenerateOpen}
-          onOpenChange={setIsGenerateOpen}
-          onSuccess={fetchInvoices}
-        />
-      )}
 
       {isPrintOpen && (
         <BatchPrintDialog open={isPrintOpen} onOpenChange={setIsPrintOpen} />

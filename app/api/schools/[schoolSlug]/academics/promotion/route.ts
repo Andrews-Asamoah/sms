@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { Prisma, EnrollmentStatus, PromotionType } from "@/lib/generated/prisma";
 
 export async function GET(
   req: NextRequest,
@@ -62,19 +63,32 @@ export async function GET(
             term: {
               academicYearId: currentAcademicYearId
             }
+          },
+          include: {
+            componentScores: {
+              select: {
+                marksObtained: true,
+                maxMarks: true,
+              }
+            }
           }
         }
       }
     });
 
     const studentData = students.map(student => {
-      // Calculate annual raw score (average of all assessments for the year)
-      let rawScore = 0;
-      if (student.assessmentScores.length > 0) {
-        const total = student.assessmentScores.reduce((acc, curr) => acc + Number(curr.percentage), 0);
-        rawScore = total / student.assessmentScores.length;
+      // Calculate total raw score (sum of all marksObtained across all component scores for this year)
+      let totalRawScore = 0;
+      let totalMaxScore = 0;
+      for (const score of student.assessmentScores) {
+        for (const cs of score.componentScores) {
+          totalRawScore += Number(cs.marksObtained);
+          totalMaxScore += Number(cs.maxMarks);
+        }
       }
 
+      // Use total score as percentage if maxScore is available (for comparison with passMark %)
+      const rawScore = totalMaxScore > 0 ? (totalRawScore / totalMaxScore) * 100 : 0;
       const hasPassed = passMark !== null ? rawScore >= passMark : false;
 
       return {
@@ -82,6 +96,8 @@ export async function GET(
         name: `${student.profile.firstName} ${student.profile.lastName}`,
         studentId: student.studentId,
         rawScore,
+        totalRawScore,
+        totalMaxScore,
         hasPassed,
         status: "PENDING"
       };
@@ -89,6 +105,7 @@ export async function GET(
 
     return NextResponse.json({
       passMark,
+      isGraduatingClass: classData.isGraduatingClass,
       nextClass: classData.nextPromotionClass,
       students: studentData.sort((a, b) => b.rawScore - a.rawScore), // Highest first
     });
@@ -108,26 +125,38 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const { 
-      sourceClassId, 
-      targetClassId, 
-      targetAcademicYearId, 
-      promotedStudentIds, 
-      repeatedStudentIds,
-      graduatedStudentIds = [] 
+    const {
+      sourceClassId,
+      targetAcademicYearId,
+      currentAcademicYearId,
+      // New format: per-student promotion assignments
+      // promotions: Array<{ studentId: string, type: "PROMOTED"|"REPEATED"|"GRADUATED"|"SKIPPED", targetClassId?: string }>
+      promotions,
     } = body;
+
+    if (!sourceClassId || !targetAcademicYearId || !Array.isArray(promotions) || promotions.length === 0) {
+      return NextResponse.json({ error: "sourceClassId, targetAcademicYearId, and promotions array are required" }, { status: 400 });
+    }
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      select: { id: true },
+      select: { id: true, settings: true },
     });
 
     if (!school) return NextResponse.json({ error: "School not found" }, { status: 404 });
 
-    // Execute in a transaction
-    await prisma.$transaction(async (tx) => {
-      const allStudentIds = [...promotedStudentIds, ...repeatedStudentIds, ...graduatedStudentIds];
+    const resolvedCurrentYearId = currentAcademicYearId || (school.settings as { currentAcademicYearId?: string } | null)?.currentAcademicYearId;
 
+    // Validate all non-graduating/repeating promotions have a targetClassId
+    const promotedStudents = promotions.filter((p: { type: string }) => p.type === "PROMOTED" || p.type === "SKIPPED");
+    const missingTarget = promotedStudents.filter((p: { targetClassId?: string }) => !p.targetClassId);
+    if (missingTarget.length > 0) {
+      return NextResponse.json({ error: "All PROMOTED and SKIPPED students require a targetClassId" }, { status: 400 });
+    }
+
+    const allStudentIds = promotions.map((p: { studentId: string }) => p.studentId);
+
+    await prisma.$transaction(async (tx) => {
       // 1. Mark existing active enrollments for the source class as COMPLETED
       await tx.enrollment.updateMany({
         where: {
@@ -135,73 +164,94 @@ export async function POST(
           studentId: { in: allStudentIds },
           status: "ACTIVE"
         },
-        data: {
-          status: "COMPLETED"
-        }
+        data: { status: "COMPLETED" }
       });
 
-      // 2. Create new Enrollments for Promoted Students -> targetClassId
-      if (promotedStudentIds?.length > 0) {
-        if (!targetClassId || !targetAcademicYearId) {
-          throw new Error("Target class and academic year are required for promotion.");
+      // 2. Build promotion records and new enrollments
+      const promotionRecords = [];
+      const enrollmentsToCreate: Prisma.EnrollmentCreateManyInput[] = [];
+      const graduatedStudentIds: string[] = [];
+
+      for (const p of promotions) {
+        const { studentId, type, targetClassId, notes, reason } = p;
+
+        promotionRecords.push({
+          schoolId: school.id,
+          studentId,
+          fromClassId: sourceClassId,
+          toClassId: type === "REPEATED" ? sourceClassId : (targetClassId || null),
+          fromYearId: resolvedCurrentYearId,
+          toYearId: targetAcademicYearId,
+          promotionType: type as PromotionType,
+          promotedById: session.user.id,
+          notes: notes || null,
+          reason: reason || null,
+        });
+
+        if (type === "PROMOTED" || type === "SKIPPED") {
+          enrollmentsToCreate.push({
+            studentId,
+            classId: targetClassId,
+            academicYearId: targetAcademicYearId,
+            status: EnrollmentStatus.ACTIVE,
+          });
+        } else if (type === "REPEATED") {
+          enrollmentsToCreate.push({
+            studentId,
+            classId: sourceClassId,
+            academicYearId: targetAcademicYearId,
+            status: EnrollmentStatus.ACTIVE,
+          });
+        } else if (type === "GRADUATED") {
+          graduatedStudentIds.push(studentId);
         }
-
-        const newEnrollments = promotedStudentIds.map((id: string) => ({
-          studentId: id,
-          classId: targetClassId,
-          academicYearId: targetAcademicYearId,
-          status: "ACTIVE",
-        }));
-
-        await tx.enrollment.createMany({ data: newEnrollments });
       }
 
-      // 3. Create new Enrollments for Repeated Students -> sourceClassId (but new year)
-      if (repeatedStudentIds?.length > 0) {
-        if (!targetAcademicYearId) {
-          throw new Error("Target academic year is required for repetition.");
-        }
+      // 3. Create PromotionRecords
+      await tx.promotionRecord.createMany({ data: promotionRecords });
 
-        const repeatEnrollments = repeatedStudentIds.map((id: string) => ({
-          studentId: id,
-          classId: sourceClassId,
-          academicYearId: targetAcademicYearId,
-          status: "ACTIVE",
-        }));
-        
-        await tx.enrollment.createMany({ data: repeatEnrollments });
+      // 4. Create new Enrollments
+      if (enrollmentsToCreate.length > 0) {
+        await tx.enrollment.createMany({ data: enrollmentsToCreate });
       }
 
-      // 4. Handle Graduated Students
-      if (graduatedStudentIds?.length > 0) {
-        // Update student status
+      // 5. Handle Graduated Students
+      if (graduatedStudentIds.length > 0) {
         await tx.student.updateMany({
           where: { id: { in: graduatedStudentIds } },
-          data: { 
+          data: {
             status: "GRADUATED",
             graduationDate: new Date(),
-            classId: null // No longer in a class
+            classId: null
           }
         });
 
-        // Suspend user accounts
-        const students = await tx.student.findMany({
+        const gradStudents = await tx.student.findMany({
           where: { id: { in: graduatedStudentIds } },
           select: { profile: { select: { userId: true } } }
         });
 
-        const userIds = students.map(s => s.profile.userId);
+        const userIds = gradStudents
+          .map(s => s.profile?.userId)
+          .filter((id): id is string => !!id);
 
-        await tx.member.updateMany({
-          where: { 
-            userId: { in: userIds },
-            organization: { school: { id: school.id } }
-          },
-          data: { banned: true, banReason: "Graduated" }
-        });
+        if (userIds.length > 0) {
+          await tx.member.updateMany({
+            where: {
+              userId: { in: userIds },
+              organization: { school: { id: school.id } }
+            },
+            data: { banned: true, banReason: "Graduated" }
+          });
+        }
       }
 
-      // Audit Log
+      // 6. Audit Log
+      const promotedCount = promotions.filter((p: { type: string }) => p.type === "PROMOTED").length;
+      const repeatedCount = promotions.filter((p: { type: string }) => p.type === "REPEATED").length;
+      const graduatedCount = promotions.filter((p: { type: string }) => p.type === "GRADUATED").length;
+      const skippedCount = promotions.filter((p: { type: string }) => p.type === "SKIPPED").length;
+
       await tx.auditLog.create({
         data: {
           userId: session.user.id,
@@ -210,9 +260,10 @@ export async function POST(
           entityId: sourceClassId,
           newValues: {
             event: "End of Year Promotions Executed",
-            promotedCount: promotedStudentIds.length,
-            repeatedCount: repeatedStudentIds.length,
-            graduatedCount: graduatedStudentIds.length,
+            promotedCount,
+            repeatedCount,
+            graduatedCount,
+            skippedCount,
             targetYearId: targetAcademicYearId
           }
         }

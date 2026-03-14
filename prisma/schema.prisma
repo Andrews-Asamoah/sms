@@ -26,19 +26,19 @@ datasource db {
 // ============================================================
 
 model user {
-  id                  String    @id
-  name                String
-  email               String    @unique
-  emailVerified       Boolean   @default(false)
-  image               String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   // Global role field — intentionally kept for superAdmin to manage all orgs.
   // All other role-based access is handled via Better Auth organization member roles.
-  role                String    @default("user")
-  banned              Boolean   @default(false)
-  banReason           String?
-  banExpires          DateTime?
+  role          String    @default("user")
+  banned        Boolean   @default(false)
+  banReason     String?
+  banExpires    DateTime?
 
   // Relations
   accounts           account[]
@@ -62,6 +62,7 @@ model user {
   assignedTickets    SupportTicket[]        @relation("AssignedTickets")
   ticketReplies      TicketReply[]
   payrollProcessed   PayrollRecord[]        @relation("PayrollProcessedBy")
+  promotionsApproved PromotionRecord[]      @relation("PromotedBy")
 
   @@index([banned])
   @@index([email])
@@ -267,6 +268,7 @@ model School {
   expenditureRegistry ExpenditureCategoryRegistry[]
   teacherAssignments  TeacherAssignment[]
   staffAssignments    StaffAssignment[]
+  promotionRecords    PromotionRecord[]
 
   @@index([code])
   @@index([subdomain])
@@ -357,6 +359,7 @@ model Student {
   transcripts      TranscriptRequest[]
   reportCards      ReportCard[]
   clubMembers      ClubMember[]
+  promotionRecords PromotionRecord[]
 
   @@unique([studentId, schoolId])
   @@unique([admissionNumber, schoolId])
@@ -669,6 +672,13 @@ model Class {
   nextPromotionClassId String?
   nextPromotionClass   Class?  @relation("ClassPromotion", fields: [nextPromotionClassId], references: [id])
   prevPromotionClasses Class[] @relation("ClassPromotion")
+
+  isGraduatingClass Boolean @default(false) // Last class in the school (e.g. JHS 3)
+  order             Int? // Hierarchy order for sorting (1=lowest, n=highest)
+
+  bills         Bill[]
+  promotionsSrc PromotionRecord[] @relation("PromotionFrom")
+  promotionsDst PromotionRecord[] @relation("PromotionTo")
 
   @@unique([name, academicYearId, schoolId])
   @@unique([slug, academicYearId, schoolId])
@@ -1271,8 +1281,12 @@ model Bill {
   academicYear AcademicYear  @relation("AcademicYearBills", fields: [academicYearId], references: [id])
   term         Term?         @relation(fields: [termId], references: [id])
   feeStructure FeeStructure? @relation(fields: [feeStructureId], references: [id])
+  class        Class?        @relation(fields: [classId], references: [id])
   items        BillItem[]
   payments     Payment[]
+
+  classId  String?
+  billType BillType @default(INVOICE)
 
   @@unique([billNumber, schoolId])
   @@unique([billCode, schoolId])
@@ -1284,6 +1298,8 @@ model Bill {
   @@index([academicYearId])
   @@index([termId])
   @@index([feeStructureId])
+  @@index([classId])
+  @@index([billType])
   @@map("bills")
 }
 
@@ -1404,6 +1420,46 @@ model Transaction {
   @@index([category])
   @@index([customCategoryId])
   @@map("transactions")
+}
+
+// ============================================================================
+// PROMOTION RECORDS
+// ============================================================================
+
+model PromotionRecord {
+  id            String        @id @default(cuid())
+  schoolId      String
+  studentId     String
+  fromClassId   String
+  toClassId     String?
+  fromYearId    String
+  toYearId      String?
+  promotionType PromotionType
+  promotedById  String
+  promotedAt    DateTime      @default(now())
+  notes         String?
+  reason        String?
+
+  school     School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fromClass  Class   @relation("PromotionFrom", fields: [fromClassId], references: [id])
+  toClass    Class?  @relation("PromotionTo", fields: [toClassId], references: [id])
+  promotedBy user    @relation("PromotedBy", fields: [promotedById], references: [id])
+
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([fromClassId])
+  @@index([toClassId])
+  @@index([fromYearId])
+  @@index([promotionType])
+  @@map("promotion_records")
+}
+
+enum PromotionType {
+  PROMOTED // Normal promotion to next class
+  REPEATED // Student repeats the same class
+  GRADUATED // Student completed the final class
+  SKIPPED // Special/accelerated — skipped one or more classes
 }
 
 // Custom Categories for Financial Flexibility
@@ -1887,6 +1943,11 @@ enum BillStatus {
   OVERDUE
   WAIVED
   CANCELLED
+}
+
+enum BillType {
+  PROFORMA // Estimate issued before class placement is confirmed
+  INVOICE // Final bill after student is enrolled/promoted
 }
 
 enum PaymentMethod {

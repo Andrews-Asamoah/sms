@@ -29,6 +29,9 @@ const updateClassSchema = z.object({
   departmentId: z.string().min(1).nullable().optional(),
   classTeacherId: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
+  isGraduatingClass: z.boolean().optional(),
+  order: z.number().int().optional().nullable(),
+  nextPromotionClassId: z.string().nullable().optional(),
   schoolId: z.string().min(1, "School ID is required"),
   organizationId: z.string().min(1, "Organization ID is required"),
 });
@@ -218,6 +221,15 @@ export async function PATCH(
         ...(validatedData.isActive !== undefined && {
           isActive: validatedData.isActive,
         }),
+        ...(validatedData.isGraduatingClass !== undefined && {
+          isGraduatingClass: validatedData.isGraduatingClass,
+        }),
+        ...(validatedData.order !== undefined && {
+          order: validatedData.order,
+        }),
+        ...(validatedData.nextPromotionClassId !== undefined && {
+          nextPromotionClassId: validatedData.nextPromotionClassId,
+        }),
       },
       include: {
         academicYear: true,
@@ -243,6 +255,9 @@ export async function PATCH(
           section: existingClass.section,
           capacity: existingClass.capacity,
           isActive: existingClass.isActive,
+          isGraduatingClass: existingClass.isGraduatingClass,
+          order: existingClass.order,
+          nextPromotionClassId: existingClass.nextPromotionClassId,
         },
         newValues: {
           name: updatedClass.name,
@@ -250,6 +265,9 @@ export async function PATCH(
           section: updatedClass.section,
           capacity: updatedClass.capacity,
           isActive: updatedClass.isActive,
+          isGraduatingClass: updatedClass.isGraduatingClass,
+          order: updatedClass.order,
+          nextPromotionClassId: updatedClass.nextPromotionClassId,
         },
       },
     });

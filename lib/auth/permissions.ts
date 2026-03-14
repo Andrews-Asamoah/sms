@@ -248,6 +248,14 @@ export const accountant = ac.newRole({
   communication: ["view"],
 });
 
+export const staff = ac.newRole({
+  school: ["view"],
+  student: ["view"],
+  document: ["create", "update", "view", "upload"],
+  communication: ["view", "send"],
+  announcement: ["create", "update", "view"],
+});
+
 
 export const student = ac.newRole({
   school: ["view"],
@@ -314,6 +322,7 @@ export const ROLES = [
   "student",
   "guardian",
   "member",
+  "staff",
   "user",
 ] as const;
 
@@ -339,6 +348,7 @@ export function getRoleDisplayName(role: RoleName): string {
     student: "Student",
     guardian: "Parent/Guardian",
     member: "Member",
+    staff: "Staff",
     user: "User",
   };
   return displayNames[role];
@@ -355,6 +365,7 @@ export function getRoleDescription(role: RoleName): string {
     student: "View own academic information",
     guardian: "View children's information and make payments",
     member: "Organization member",
+    staff: "Department-specific access",
     user: "Basic authenticated user",
   };
   return descriptions[role];

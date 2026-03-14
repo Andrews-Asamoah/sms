@@ -202,6 +202,7 @@ export default async function GradebookPage({
           componentScores: es.componentScores.map((cs) => ({
             componentId: cs.componentId,
             marksObtained: Number(cs.marksObtained),
+            rawScores: cs.rawScores ?? null,
           })),
         })),
         extension: rawData.extension,

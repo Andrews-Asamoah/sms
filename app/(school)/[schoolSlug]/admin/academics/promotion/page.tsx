@@ -14,7 +14,6 @@ export default async function AdminPromotionPage({ params }: AdminPromotionPageP
   const session = await requireSchoolAccess(schoolSlug);
   const role = getSchoolRole(session, schoolSlug);
 
-  // Check authorization
   if (
     role?.effectiveRole !== "admin" &&
     role?.effectiveRole !== "owner" &&
@@ -23,36 +22,37 @@ export default async function AdminPromotionPage({ params }: AdminPromotionPageP
     redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  // Fetch school to get global active year
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
   });
 
-  if (!school) {
-    redirect("/");
-  }
+  if (!school) redirect("/");
 
   interface SchoolSettings {
     nextAcademicYearId?: string;
+    currentAcademicYearId?: string;
     [key: string]: any;
   }
   const settings = (school.settings as unknown as SchoolSettings) || {};
   const nextAcademicYearId = settings.nextAcademicYearId;
+  const currentAcademicYearId = settings.currentAcademicYearId;
 
-  // Find the next academic year if it exists
   const nextAcademicYear = nextAcademicYearId
     ? await prisma.academicYear.findUnique({ where: { id: nextAcademicYearId } })
     : null;
 
-  // We fetch classes to feed into the dropdowns
-  const classes = (await prisma.class.findMany({
-    where: { 
+  // Fetch classes for the current academic year (source classes)
+  const currentClasses = await prisma.class.findMany({
+    where: {
       schoolId: school.id,
       isActive: true,
+      academicYearId: currentAcademicYearId,
     },
     select: {
       id: true,
       name: true,
+      isGraduatingClass: true,
+      nextPromotionClassId: true,
       department: {
         select: {
           id: true,
@@ -61,8 +61,27 @@ export default async function AdminPromotionPage({ params }: AdminPromotionPageP
         }
       }
     },
-    orderBy: { name: "asc" },
-  })).map(c => ({
+    orderBy: [{ order: "asc" }, { name: "asc" }],
+  });
+
+  // Fetch classes for the target academic year (destination classes)
+  const targetClasses = nextAcademicYearId
+    ? await prisma.class.findMany({
+        where: {
+          schoolId: school.id,
+          isActive: true,
+          academicYearId: nextAcademicYearId,
+        },
+        select: {
+          id: true,
+          name: true,
+          order: true,
+        },
+        orderBy: [{ order: "asc" }, { name: "asc" }],
+      })
+    : [];
+
+  const classes = currentClasses.map(c => ({
     ...c,
     department: c.department ? {
       ...c.department,
@@ -72,7 +91,6 @@ export default async function AdminPromotionPage({ params }: AdminPromotionPageP
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-3">
@@ -84,7 +102,7 @@ export default async function AdminPromotionPage({ params }: AdminPromotionPageP
                 End-of-Year Promotions
               </h1>
               <p className="text-muted-foreground mt-1">
-                Evaluate student raw scores against department pass marks to auto-promote or manually override.
+                Evaluate student scores and manage promotions, repetitions, graduations, and special promotions.
               </p>
             </div>
           </div>
@@ -95,16 +113,18 @@ export default async function AdminPromotionPage({ params }: AdminPromotionPageP
         <div className="rounded-2xl border border-destructive bg-destructive/5 p-6 text-center space-y-2">
           <h2 className="text-lg font-bold text-destructive">No Next Academic Year Configured</h2>
           <p className="text-muted-foreground text-sm">
-            Please configure a "Next Academic Year" in the system settings before running promotions.
+            Please configure a &quot;Next Academic Year&quot; in the system settings before running promotions.
             Promoted students need to be enrolled into an upcoming term.
           </p>
         </div>
       ) : (
-        <PromotionClient 
-          schoolSlug={schoolSlug} 
-          classes={classes} 
+        <PromotionClient
+          schoolSlug={schoolSlug}
+          classes={classes}
+          targetClasses={targetClasses}
           targetAcademicYearId={nextAcademicYear.id}
           targetAcademicYearName={nextAcademicYear.name}
+          currentAcademicYearId={currentAcademicYearId || ""}
         />
       )}
     </div>

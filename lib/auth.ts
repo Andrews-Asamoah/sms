@@ -17,6 +17,7 @@ import {
   guardian,
   member as memberRole,
   user as userRole,
+  staff,
 } from "@/lib/auth/permissions";
 import {
   sendAdminInvitationEmail,
@@ -142,6 +143,7 @@ export const auth = betterAuth({
         accountant,
         guardian,
         student,
+        staff,
       },
 
       // ======================================================================
@@ -659,6 +661,7 @@ export const auth = betterAuth({
         accountant,
         guardian,
         student,
+        staff,
         member: memberRole,
         user: userRole,
       },

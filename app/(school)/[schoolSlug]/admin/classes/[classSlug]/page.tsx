@@ -67,6 +67,17 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
           },
         },
       },
+      classes: {
+        select: {
+          id: true,
+          name: true,
+          level: true,
+        },
+        orderBy: [
+          { level: "asc" },
+          { name: "asc" },
+        ],
+      },
     },
   });
 
@@ -256,7 +267,11 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
                   classTeacherId: classData.classTeacherId,
                   departmentId: classData.departmentId,
                   isActive: classData.isActive,
+                  isGraduatingClass: classData.isGraduatingClass,
+                  order: classData.order,
+                  nextPromotionClassId: classData.nextPromotionClassId,
                 }}
+                classes={school.classes}
               />
             </CardContent>
           </Card>

@@ -44,6 +44,7 @@ interface ClassFormProps {
   academicYears: AcademicYear[];
   teachers: Teacher[];
   departments: Array<{ id: string; name: string }>;
+  classes: Array<{ id: string; name: string; level: string }>; // For nextPromotionClassId
   initialData?: {
     id: string;
     name: string;
@@ -54,6 +55,9 @@ interface ClassFormProps {
     classTeacherId: string | null;
     departmentId: string | null;
     isActive: boolean;
+    isGraduatingClass?: boolean;
+    order?: number | null;
+    nextPromotionClassId?: string | null;
   };
 }
 
@@ -66,6 +70,9 @@ interface FormData {
   classTeacherId: string;
   departmentId: string;
   isActive: boolean;
+  isGraduatingClass: boolean;
+  order: string;
+  nextPromotionClassId: string;
 }
 
 interface FormErrors {
@@ -84,6 +91,7 @@ export function ClassForm({
   academicYears,
   teachers,
   departments,
+  classes,
   initialData,
 }: ClassFormProps) {
   const router = useRouter();
@@ -103,6 +111,9 @@ export function ClassForm({
     classTeacherId: initialData?.classTeacherId || "",
     departmentId: initialData?.departmentId || "",
     isActive: initialData?.isActive ?? true,
+    isGraduatingClass: initialData?.isGraduatingClass ?? false,
+    order: initialData?.order?.toString() || "",
+    nextPromotionClassId: initialData?.nextPromotionClassId || "",
   });
 
   const handleChange = (field: keyof FormData, value: string | boolean) => {
@@ -189,6 +200,9 @@ export function ClassForm({
         classTeacherId: formData.classTeacherId || null,
         departmentId: formData.departmentId || null,
         isActive: formData.isActive,
+        isGraduatingClass: formData.isGraduatingClass,
+        order: formData.order ? parseInt(formData.order) : null,
+        nextPromotionClassId: formData.nextPromotionClassId || null,
         schoolId,
         organizationId, // Include organizationId in payload
       };
@@ -432,6 +446,81 @@ export function ClassForm({
             Link this class to a department
           </p>
         </Field>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Class Sort Order */}
+        <Field>
+          <FieldLabel htmlFor="order">
+            Sort Order (Optional)
+          </FieldLabel>
+          <FieldGroup>
+            <Input
+              id="order"
+              type="number"
+              min="0"
+              placeholder="e.g., 10"
+              value={formData.order}
+              onChange={(e) => handleChange("order", e.target.value)}
+              className="bg-background/50"
+              disabled={isSubmitting}
+            />
+          </FieldGroup>
+          <p className="text-sm text-muted-foreground mt-1.5">
+            Numerical order to sort the class list logically (e.g. 1 for Grade 1, 10 for Grade 10)
+          </p>
+        </Field>
+
+        {/* Next Promotion Class */}
+        <Field>
+          <FieldLabel htmlFor="nextPromotionClassId">
+            Next Promotion Class (Optional)
+          </FieldLabel>
+          <FieldGroup>
+            <Select
+              value={formData.nextPromotionClassId}
+              onValueChange={(value) =>
+                handleChange("nextPromotionClassId", value === "none" ? "" : value)
+              }
+              disabled={isSubmitting}
+            >
+              <SelectTrigger id="nextPromotionClassId" className="bg-background/50">
+                <SelectValue placeholder="Select next class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {classes
+                  .filter(c => c.id !== initialData?.id) // Prevent self-selection
+                  .map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.name} ({cls.level})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldGroup>
+          <p className="text-sm text-muted-foreground mt-1.5">
+            Default target class for student end-of-year promotions
+          </p>
+        </Field>
+      </div>
+
+      {/* Graduation Status */}
+      <div className="flex items-center justify-between rounded-lg border bg-card/50 p-4">
+        <div className="space-y-0.5">
+          <FieldLabel htmlFor="isGraduatingClass" className="text-base">
+            Graduation Class
+          </FieldLabel>
+          <p className="text-sm text-muted-foreground">
+            Students in this class will default to Graduated at the end of the year
+          </p>
+        </div>
+        <Switch
+          id="isGraduatingClass"
+          checked={formData.isGraduatingClass}
+          onCheckedChange={(checked) => handleChange("isGraduatingClass", checked)}
+          disabled={isSubmitting}
+        />
       </div>
 
       {/* Active Status */}

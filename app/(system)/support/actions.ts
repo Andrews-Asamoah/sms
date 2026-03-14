@@ -21,6 +21,20 @@ export async function updateTicketStatus(
       include: { school: { select: { subdomain: true } } },
     });
 
+    // Notify ticket creator
+    await prisma.notification.create({
+      data: {
+        schoolId: ticket.schoolId || "",
+        userId: ticket.submittedById,
+        type: "GENERAL",
+        title: "Ticket Status Updated",
+        message: `Your ticket "${ticket.subject}" status has been updated to ${status}.`,
+        link: ticket.school?.subdomain 
+          ? `/${ticket.school.subdomain}/admin/support/${ticketId}`
+          : `/support/${ticketId}`,
+      },
+    });
+
     revalidatePath("/support");
     revalidatePath(`/support/${ticketId}`);
     if (ticket.school?.subdomain) {
@@ -79,6 +93,22 @@ export async function addTicketReply(ticketId: string, message: string) {
       });
     }
 
+    // Notify ticket creator
+    if (ticket) {
+      await prisma.notification.create({
+        data: {
+          schoolId: ticket.schoolId || "",
+          userId: ticket.submittedById,
+          type: "GENERAL",
+          title: "New Ticket Reply",
+          message: `A superadmin has replied to your ticket: "${ticket.subject}"`,
+          link: ticket.school?.subdomain 
+            ? `/${ticket.school.subdomain}/admin/support/${ticketId}`
+            : `/support/${ticketId}`,
+        },
+      });
+    }
+
     revalidatePath(`/support/${ticketId}`);
     if (ticket?.school?.subdomain) {
       revalidatePath(`/${ticket.school.subdomain}/admin/support/${ticketId}`);
@@ -110,6 +140,25 @@ export async function createSupportTicket(data: {
         submittedById: session.user.id,
       },
     });
+
+    // Notify all superadmins
+    const superAdmins = await prisma.user.findMany({
+      where: { role: "superAdmin" },
+      select: { id: true },
+    });
+
+    if (superAdmins.length > 0) {
+      await prisma.notification.createMany({
+        data: superAdmins.map((admin) => ({
+          schoolId: data.schoolId,
+          userId: admin.id,
+          type: "GENERAL",
+          title: "New Support Ticket",
+          message: `A new ticket "${data.subject}" has been submitted.`,
+          link: `/support/${ticket.id}`,
+        })),
+      });
+    }
 
     revalidatePath(`/${data.schoolSlug}/admin/support`);
     return { success: true, ticketId: ticket.id };

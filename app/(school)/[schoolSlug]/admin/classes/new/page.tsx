@@ -59,6 +59,17 @@ export default async function NewClassPage({ params }: NewClassPageProps) {
           },
         },
       },
+      classes: {
+        select: {
+          id: true,
+          name: true,
+          level: true,
+        },
+        orderBy: [
+          { level: "asc" },
+          { name: "asc" },
+        ],
+      },
     },
   });
 
@@ -117,6 +128,7 @@ export default async function NewClassPage({ params }: NewClassPageProps) {
                 },
               }))}
             departments={school.departments}
+            classes={school.classes}
           />
         </CardContent>
       </Card>
