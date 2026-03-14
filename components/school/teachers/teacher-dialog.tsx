@@ -60,7 +60,6 @@ const teacherInviteSchema = z.object({
   ]),
   hireDate: z.string().min(1, "Hire date is required"),
   contractEndDate: z.string().optional().nullable(),
-  monthlySalary: z.string().optional().nullable(),
   isActive: z.boolean(),
 });
 
@@ -88,7 +87,6 @@ const teacherEditSchema = z.object({
   ]),
   hireDate: z.string().min(1, "Hire date is required"),
   contractEndDate: z.string().optional().nullable(),
-  monthlySalary: z.string().optional().nullable(),
   isActive: z.boolean(),
 });
 
@@ -179,7 +177,6 @@ export function TeacherDialog({
       employmentType: "FULL_TIME",
       hireDate: new Date().toISOString().split("T")[0],
       contractEndDate: null,
-      monthlySalary: null,
       isActive: true,
     },
   });
@@ -209,7 +206,6 @@ export function TeacherDialog({
           contractEndDate: teacher.contractEndDate
             ? new Date(teacher.contractEndDate).toISOString().split("T")[0]
             : null,
-          monthlySalary: teacher.monthlySalary?.toString() || null,
           isActive: teacher.isActive,
         }
       : undefined,
@@ -237,9 +233,6 @@ export function TeacherDialog({
         body: JSON.stringify({
           ...data,
           experience: data.experience ? parseInt(data.experience) : null,
-          monthlySalary: data.monthlySalary
-            ? parseFloat(data.monthlySalary)
-            : null,
           houseId: data.houseId === "none" ? null : data.houseId,
           force,
         }),
@@ -292,9 +285,6 @@ export function TeacherDialog({
           body: JSON.stringify({
             ...data,
             experience: data.experience ? parseInt(data.experience) : null,
-            monthlySalary: data.monthlySalary
-              ? parseFloat(data.monthlySalary)
-              : null,
             houseId: data.houseId === "none" ? null : data.houseId,
           }),
         },
@@ -357,7 +347,8 @@ export function TeacherDialog({
               <FieldLabel htmlFor="staffNumber">Staff Number</FieldLabel>
               <Input
                 id="staffNumber"
-                placeholder="Optional"
+                placeholder="Auto-generated"
+                disabled
                 {...registration("staffNumber")}
               />
             </FieldGroup>
@@ -470,20 +461,6 @@ export function TeacherDialog({
                 id="contractEndDate"
                 type="date"
                 {...registration("contractEndDate")}
-              />
-            </FieldGroup>
-
-            <FieldGroup>
-              <FieldLabel htmlFor="monthlySalary">
-                Monthly Salary (GHS)
-              </FieldLabel>
-              <Input
-                id="monthlySalary"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="e.g., 3500.00"
-                {...registration("monthlySalary")}
               />
             </FieldGroup>
           </div>

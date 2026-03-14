@@ -43,54 +43,24 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
     orderBy: { createdAt: "desc" },
   });
 
-  // Fetch Teachers
-  const teachers = await prisma.teacher.findMany({
-    where: { schoolId: school.id },
-    include: {
-      profile: {
-        include: { user: { select: { id: true, banned: true } } }
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  // Normalize data into a unified array
-  const unifiedStaff = [
-    ...nonTeachingStaff.map((s) => ({
-      id: s.id,
-      profileId: s.profileId,
-      schoolId: s.schoolId,
-      userId: s.profile?.user?.id,
-      isBanned: s.profile?.user?.banned ?? false,
-      employeeId: s.staffNumber || s.staffId,
-      firstName: s.profile?.firstName,
-      lastName: s.profile?.lastName,
-      email: null,
-      phone: s.profile?.phone,
-      type: s.staffType.replace("_", " "),
-      category: "NON_TEACHING" as const,
-      isActive: s.isActive,
-      hireDate: s.hireDate,
-      gender: s.profile?.gender,
-    })),
-    ...teachers.map((t) => ({
-      id: t.id,
-      profileId: t.profileId,
-      schoolId: t.schoolId,
-      userId: t.profile?.user?.id,
-      isBanned: t.profile?.user?.banned ?? false,
-      employeeId: t.teacherId,
-      firstName: t.profile?.firstName,
-      lastName: t.profile?.lastName,
-      email: null,
-      phone: t.profile?.phone,
-      type: "TEACHER",
-      category: "TEACHING" as const,
-      isActive: t.isActive,
-      hireDate: t.createdAt,
-      gender: t.profile?.gender,
-    })),
-  ].sort((a, b) => {
+  // Normalize data for StaffClient - Only non-teaching staff
+  const staffList = nonTeachingStaff.map((s) => ({
+    id: s.id,
+    profileId: s.profileId,
+    schoolId: s.schoolId,
+    userId: s.profile?.user?.id,
+    isBanned: s.profile?.user?.banned ?? false,
+    employeeId: s.staffNumber || s.staffId,
+    firstName: s.profile?.firstName,
+    lastName: s.profile?.lastName,
+    email: null,
+    phone: s.profile?.phone,
+    type: s.staffType.replace("_", " "),
+    category: "NON_TEACHING" as const,
+    isActive: s.isActive,
+    hireDate: s.hireDate,
+    gender: s.profile?.gender,
+  })).sort((a, b) => {
     // Sort by name alphabetically
     const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
     const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
@@ -101,7 +71,7 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
       <DashboardPageHeader
         title="Staff Directory"
-        description="A unified directory of all teaching and non-teaching employees."
+        description="Manage and view all non-teaching staff members."
       >
         <Link href={`/${schoolSlug}/admin/staff/new`}>
           <Button size="lg">
@@ -117,7 +87,7 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
           </div>
         }
       >
-        <StaffClient initialData={unifiedStaff} schoolSlug={schoolSlug} />
+        <StaffClient initialData={staffList} schoolSlug={schoolSlug} />
       </Suspense>
     </div>
   );

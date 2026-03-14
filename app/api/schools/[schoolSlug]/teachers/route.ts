@@ -26,7 +26,6 @@ const teacherInviteSchema = z.object({
   ]),
   hireDate: z.string().min(1, "Hire date is required"),
   contractEndDate: z.string().nullable().optional(),
-  monthlySalary: z.number().nullable().optional(),
   isActive: z.boolean().default(true),
   // When true, skip the confirmation prompt and directly add as teacher
   force: z.boolean().optional().default(false),
@@ -180,6 +179,7 @@ export async function POST(
     const year = new Date().getFullYear();
     const random = Math.floor(1000 + Math.random() * 9000);
     const teacherId = `T-${year}-${random}`;
+    const staffNumber = `SN-T-${year}-${random}`;
 
     // Reject if a fully linked teacher with this email already exists
     const existingUser = await prisma.user.findUnique({
@@ -272,7 +272,7 @@ export async function POST(
             schoolId: school.id,
             profileId: profileId,
             invitationEmail: null, // Fully linked immediately
-            staffNumber: data.staffNumber ?? null,
+            staffNumber: staffNumber,
             firstName: data.firstName,
             lastName: data.lastName,
             departmentId: data.departmentId,
@@ -285,7 +285,6 @@ export async function POST(
             contractEndDate: data.contractEndDate
               ? formatDate(data.contractEndDate)
               : null,
-            monthlySalary: data.monthlySalary ?? null,
             isActive: data.isActive,
           },
         });
@@ -330,7 +329,7 @@ export async function POST(
         invitationEmail: data.email,
         firstName: data.firstName,
         lastName: data.lastName,
-        staffNumber: data.staffNumber ?? null,
+        staffNumber: staffNumber,
         departmentId: data.departmentId,
         houseId: data.houseId ?? null,
         qualification: data.qualification ?? null,
@@ -341,7 +340,6 @@ export async function POST(
         contractEndDate: data.contractEndDate
           ? formatDate(data.contractEndDate)
           : null,
-        monthlySalary: data.monthlySalary ?? null,
         isActive: data.isActive,
       },
     });

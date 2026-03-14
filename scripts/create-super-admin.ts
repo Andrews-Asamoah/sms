@@ -151,7 +151,6 @@ async function createSuperAdmin(
           data: {
             role: "superAdmin",
             emailVerified: true,
-            onboardingCompleted: true,
           },
         });
 

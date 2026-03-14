@@ -94,7 +94,7 @@ function getPermissionsByRole(role: string): NavPermissions {
         canManageAnnouncements: true,
         canViewCommunications: true,
         canViewProfile: true,
-        canManageSettings: role === "owner", // Only owner can manage settings
+        canManageSettings: role === "owner" || role === "admin", // Owner and admin can manage settings
         canViewSupport: true,
       };
 

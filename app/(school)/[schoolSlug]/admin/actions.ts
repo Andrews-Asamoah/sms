@@ -20,7 +20,8 @@ export async function getAdminDashboardStats(schoolSlug: string) {
 
   if (!school) throw new Error("School not found");
 
-  const { currentAcademicYearId, currentTermId } = (school.settings as any) || {};
+  const { currentAcademicYearId, currentTermId } =
+    (school.settings as any) || {};
 
   // Get active student count based on enrollments in current term/year
   const activeStudentCount = await prisma.student.count({
@@ -31,10 +32,10 @@ export async function getAdminDashboardStats(schoolSlug: string) {
         some: {
           academicYearId: currentAcademicYearId || undefined,
           termId: currentTermId || undefined,
-          status: "ACTIVE"
-        }
-      }
-    }
+          status: "ACTIVE",
+        },
+      },
+    },
   });
 
   // Fetch Financial Totals (Revenue vs Expenses)
@@ -61,10 +62,7 @@ export async function getAdminDashboardStats(schoolSlug: string) {
   });
 
   const totalRevenue = bills.reduce((sum, b) => sum + Number(b.paidAmount), 0);
-  const totalExpenses = expenses.reduce(
-    (sum, e) => sum + Number(e.amount),
-    0,
-  );
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
   // Fetch Enrollment Data for Charts (Last 6 Months) - NEW students per month
   const enrollmentTrends = await Promise.all(

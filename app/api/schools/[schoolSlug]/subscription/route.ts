@@ -114,12 +114,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (trialEndsAt !== undefined)
       updateData.trialEndsAt = trialEndsAt ? new Date(trialEndsAt) : null;
 
-    // Handle "Grant Premium" shortcut
+    // Handle "Grant Premium" shortcut (typically for testing or special grants)
     if (planType === "PREMIUM" && !body.currentPeriodStart) {
       updateData.currentPeriodStart = new Date();
       if (!body.currentPeriodEnd) {
         const end = new Date();
-        end.setFullYear(end.getFullYear() + 1);
+        // Set to 6 months as requested by user (instead of 1 year)
+        end.setMonth(end.getMonth() + 6);
         updateData.currentPeriodEnd = end;
       }
       updateData.isOnTrial = false;
@@ -127,6 +128,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       updateData.trialEndsAt = null;
       updateData.cancelAtPeriodEnd = false;
       updateData.canceledAt = null;
+
+      // Also set default limits for Premium if not explicitly provided
+      if (maxStudents === undefined) updateData.maxStudents = 1000; // Standard Premium limit
+      if (maxTeachers === undefined) updateData.maxTeachers = 100;
+      if (maxStaff === undefined) updateData.maxStaff = 50;
     }
 
     const subscription = await prisma.subscription.upsert({

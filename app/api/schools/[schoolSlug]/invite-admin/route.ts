@@ -61,29 +61,20 @@ export async function POST(
   context: { params: Promise<{ schoolSlug: string }> },
 ) {
   try {
-    console.log("[INVITE_ADMIN] Starting invitation process");
-
     const { schoolSlug } = await context.params;
-    console.log(`[INVITE_ADMIN] School Slug: ${schoolSlug}`);
 
-    // ========================================================================
-    // Get session for authentication & authorization
-    // ========================================================================
+    // Authenticate
     const requestHeaders = await headers();
     const session = await auth.api.getSession({
       headers: requestHeaders,
     });
 
     if (!session) {
-      console.error("[INVITE_ADMIN] Unauthorized: No session");
       return NextResponse.json(
         { success: false, error: "Authentication required" },
         { status: 401 },
       );
     }
-
-    console.log(`[INVITE_ADMIN] User: ${session.user.email}`);
-    console.log(`[INVITE_ADMIN] User ID: ${session.user.id}`);
 
     // ========================================================================
     // Get school and check permissions
@@ -109,9 +100,6 @@ export async function POST(
       );
     }
 
-    console.log(`[INVITE_ADMIN] School: ${school.name}`);
-    console.log(`[INVITE_ADMIN] Organization ID: ${school.organizationId}`);
-
     // Check permissions via database
     const userRecord = await prisma.user.findUnique({
       where: { id: session.user.id },
@@ -124,9 +112,6 @@ export async function POST(
       membership &&
       (membership.role === "owner" || membership.role === "admin");
 
-    console.log(`[INVITE_ADMIN] Is SuperAdmin: ${isSuperAdmin}`);
-    console.log(`[INVITE_ADMIN] Is Owner/Admin: ${isOwnerOrAdmin}`);
-
     if (!isSuperAdmin && !isOwnerOrAdmin) {
       console.error("[INVITE_ADMIN] Insufficient permissions");
       return NextResponse.json(
@@ -138,11 +123,7 @@ export async function POST(
       );
     }
 
-    console.log("[INVITE_ADMIN] ✅ Permission check passed");
-
-    // ========================================================================
     // Validate request body
-    // ========================================================================
     const body = await request.json();
     const validation = inviteAdminSchema.safeParse(body);
 
@@ -159,11 +140,8 @@ export async function POST(
     }
 
     const data: InviteAdminData = validation.data;
-    console.log(`[INVITE_ADMIN] Inviting: ${data.email} as ${data.role}`);
 
-    // ========================================================================
     // Check for existing user
-    // ========================================================================
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
       include: {
@@ -174,8 +152,6 @@ export async function POST(
     });
 
     if (existingUser) {
-      console.log("[INVITE_ADMIN] User exists:", existingUser.id);
-
       if (existingUser.members.length > 0) {
         const existingMembership = existingUser.members[0];
         console.error(
@@ -194,8 +170,6 @@ export async function POST(
       }
 
       // Add existing user as member
-      console.log("[INVITE_ADMIN] Adding existing user as member");
-
       try {
         await auth.api.addMember({
           body: {
@@ -205,8 +179,6 @@ export async function POST(
           },
           headers: requestHeaders,
         });
-
-        console.log("[INVITE_ADMIN] ✅ Existing user added");
 
         return NextResponse.json({
           success: true,
@@ -245,20 +217,7 @@ export async function POST(
       );
     }
 
-    // ========================================================================
-    // CREATE INVITATION
-    // The issue is that Better Auth's permission check doesn't work properly
-    // when called from API routes. We've already done our permission check above.
-    //
-    // Since your allowUserToInviteUser is correctly checking superAdmin and
-    // owner/admin roles, but Better Auth is still blocking it, we need to
-    // ensure the session has the full user context.
-    // ========================================================================
-    console.log("[INVITE_ADMIN] Creating invitation via Better Auth...");
-    console.log(`[INVITE_ADMIN] Organization: ${school.organizationId}`);
-    console.log(`[INVITE_ADMIN] Email: ${data.email}`);
-    console.log(`[INVITE_ADMIN] Role: ${data.role.toLowerCase()}`);
-
+    // CREATE INVITATION via Better Auth
     let invitation: BetterAuthInvitation;
     try {
       const result = await auth.api.createInvitation({
@@ -271,11 +230,6 @@ export async function POST(
       });
 
       invitation = result as BetterAuthInvitation;
-
-      console.log(`[INVITE_ADMIN] ✅ Invitation created: ${invitation.id}`);
-      console.log(
-        "[INVITE_ADMIN] Email will be sent via afterCreateInvitation hook",
-      );
     } catch (inviteError) {
       console.error(
         "[INVITE_ADMIN] Better Auth createInvitation failed:",
@@ -283,26 +237,17 @@ export async function POST(
       );
 
       const error = inviteError as ApiError;
-      console.error("[INVITE_ADMIN] Error message:", error.message);
-      console.error("[INVITE_ADMIN] Error status:", error.status);
-
-      // If Better Auth still blocks it due to permission issues,
-      // the problem is in the allowUserToInviteUser function not being
-      // called or not receiving correct user data
       return NextResponse.json(
         {
           success: false,
           error: error.message || "Failed to send invitation",
           details: error.body || "Unknown error",
-          hint: "Check that allowUserToInviteUser function is being called with correct user data",
         },
         { status: error.statusCode || 500 },
       );
     }
 
-    // ========================================================================
     // Create audit log
-    // ========================================================================
     try {
       await prisma.auditLog.create({
         data: {
@@ -322,15 +267,9 @@ export async function POST(
           },
         },
       });
-      console.log("[INVITE_ADMIN] Audit log created");
     } catch (auditError) {
       console.error("[INVITE_ADMIN] Failed to create audit log:", auditError);
     }
-
-    // ========================================================================
-    // Success response
-    // ========================================================================
-    console.log("[INVITE_ADMIN] ✅ Invitation sent successfully");
 
     return NextResponse.json({
       success: true,
@@ -340,12 +279,9 @@ export async function POST(
       isNewUser: true,
     });
   } catch (error) {
-    console.error("[INVITE_ADMIN] ❌ Unhandled error:", error);
+    console.error("[INVITE_ADMIN] Unhandled error:", error);
 
     const err = error as Error;
-    console.error("[INVITE_ADMIN] Error message:", err.message);
-    console.error("[INVITE_ADMIN] Error stack:", err.stack);
-
     return NextResponse.json(
       {
         success: false,

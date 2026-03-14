@@ -65,7 +65,7 @@ export async function POST(
   }
 
   try {
-    const { month, year } = await req.json();
+    const { month, year, academicYearId, termId } = await req.json();
 
     if (!month || !year) {
       return NextResponse.json(
@@ -90,6 +90,22 @@ export async function POST(
 
     if (!school) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
+    }
+
+    // Fallback to current term/year if not provided
+    let finalAcademicYearId = academicYearId;
+    let finalTermId = termId;
+
+    if (!finalAcademicYearId || !finalTermId) {
+      const currentYear = await prisma.academicYear.findFirst({
+        where: { schoolId: school.id, isCurrent: true },
+        include: { terms: { where: { isCurrent: true }, take: 1 } },
+      });
+
+      if (currentYear) {
+        finalAcademicYearId = finalAcademicYearId || currentYear.id;
+        finalTermId = finalTermId || currentYear.terms[0]?.id;
+      }
     }
 
     // Check if payroll already exists for this period
@@ -151,6 +167,8 @@ export async function POST(
           schoolId: school.id,
           month,
           year,
+          academicYearId: finalAcademicYearId,
+          termId: finalTermId,
           status: "DRAFT",
           totalGross: new Prisma.Decimal(totalGross),
           totalNet: new Prisma.Decimal(totalNet),

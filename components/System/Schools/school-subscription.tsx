@@ -14,11 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Check,
-  X,
   Crown,
   Zap,
   TrendingUp,
@@ -26,15 +23,12 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { Prisma } from "@/lib/generated/prisma";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  SUBSCRIPTION_PLANS,
-  SubscriptionPlan,
-  getPlanById,
-} from "@/lib/subscription-plans";
+import { SUBSCRIPTION_PLANS, getPlanById } from "@/lib/subscription-plans";
 import { format } from "date-fns";
 import { Clock, AlertTriangle } from "lucide-react";
 
@@ -103,9 +97,14 @@ export function SchoolSubscription({
         : 0;
 
     const isPremium = subscription.planType !== "FREE";
-    const canAccessPremiumFeatures = isPremium || isOnTrial;
+    const canAccessPremiumFeatures =
+      (isPremium || isOnTrial) && subscription.status !== "EXPIRED";
     const isActive =
-      subscription.status === "ACTIVE" || subscription.status === "TRIALING";
+      subscription.status === "ACTIVE" ||
+      subscription.status === "TRIALING" ||
+      subscription.status === "PAST_DUE";
+    const isPastDue = subscription.status === "PAST_DUE";
+    const isExpired = subscription.status === "EXPIRED";
 
     // Attempt to match current subscription to a plan ID
     // Note: This is an approximation since we don't store planId directly in DB yet, only paystackSubscriptionCode
@@ -127,6 +126,9 @@ export function SchoolSubscription({
       planName: subscription.planName,
       currentPlanId,
       billingCycle: subscription.billingCycle,
+      status: subscription.status,
+      isExpired,
+      isPastDue,
     };
   }, [school.subscription]);
 
@@ -172,11 +174,9 @@ export function SchoolSubscription({
       // SuperAdmins can bypass payment (logic same as before but need API support for planId)
       // For now we assume SuperAdmin uses same flow or specific endpoint handling
       if (isSuperAdmin) {
-        toast.info(
-          "SuperAdmin upgrade not fully implemented via UI yet. Use API.",
-        );
-        setIsLoading(null);
-        return;
+        // Allow SuperAdmins to bypass if they choose, but for now we follow the same flow
+        // or we could add a direct 'Grant' logic. Let's keep the flow but don't block them.
+        console.log("SuperAdmin initiating upgrade...");
       }
 
       // Regular users go through Paystack checkout
@@ -337,21 +337,55 @@ export function SchoolSubscription({
             </div>
             <Badge
               variant={
-                subscriptionStatus.canAccessPremiumFeatures
-                  ? "default"
-                  : "secondary"
+                subscriptionStatus.isExpired
+                  ? "destructive"
+                  : subscriptionStatus.isPastDue
+                    ? "outline"
+                    : subscriptionStatus.canAccessPremiumFeatures
+                      ? "default"
+                      : "secondary"
               }
-              className="text-base px-4 py-2"
+              className={`text-base px-4 py-2 ${subscriptionStatus.isPastDue ? "border-yellow-500 text-yellow-600 bg-yellow-50" : ""}`}
             >
-              {subscriptionStatus.isActive
-                ? "Active"
-                : subscriptionStatus.isOnTrial
-                  ? "Trial"
-                  : "Free Tier"}
+              {subscriptionStatus.isExpired
+                ? "Expired"
+                : subscriptionStatus.isPastDue
+                  ? "Past Due"
+                  : subscriptionStatus.isActive
+                    ? "Active"
+                    : subscriptionStatus.isOnTrial
+                      ? "Trial"
+                      : "Free Tier"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Expiry Warning */}
+          {subscriptionStatus.isExpired && (
+            <Alert variant="destructive" className="bg-red-50 border-red-200">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Subscription Expired</AlertTitle>
+              <AlertDescription>
+                Your access to premium features has been restricted. Please
+                renew your subscription to restore service.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Past Due Warning */}
+          {subscriptionStatus.isPastDue && (
+            <Alert className="border-yellow-500/50 bg-yellow-50/50">
+              <Clock className="h-4 w-4 text-yellow-600" />
+              <AlertTitle className="text-yellow-800">
+                Payment Past Due
+              </AlertTitle>
+              <AlertDescription className="text-yellow-700">
+                Your last payment attempt failed. Your subscription is still
+                active for now, but please update your payment method to avoid
+                interruption.
+              </AlertDescription>
+            </Alert>
+          )}
           {/* Trial Warning */}
           {subscriptionStatus.isOnTrial && (
             <Alert
@@ -442,28 +476,41 @@ export function SchoolSubscription({
         </CardContent>
       </Card>
 
-      {/* Billing Cycle Toggle */}
-      <div className="flex justify-center items-center space-x-4">
-        <Label
-          htmlFor="billing-cycle"
-          className={`cursor-pointer ${billingCycle === "MONTHLY" ? "font-bold" : ""}`}
+      {/* Billing Cycle Selection Tabs */}
+      <div className="flex flex-col items-center space-y-4">
+        <Tabs
+          defaultValue="MONTHLY"
+          value={billingCycle}
+          onValueChange={(v) => setBillingCycle(v as "MONTHLY" | "YEARLY")}
+          className="w-full max-w-[400px]"
         >
-          Monthly
-        </Label>
-        <Switch
-          id="billing-cycle"
-          checked={billingCycle === "YEARLY"}
-          onCheckedChange={(checked) =>
-            setBillingCycle(checked ? "YEARLY" : "MONTHLY")
-          }
-        />
-        <Label
-          htmlFor="billing-cycle"
-          className={`cursor-pointer ${billingCycle === "YEARLY" ? "font-bold" : ""}`}
-        >
-          Yearly{" "}
-          <span className="text-green-600 text-xs ml-1">(2 Months Free)</span>
-        </Label>
+          <TabsList className="grid w-full grid-cols-2 h-12 p-1 bg-primary/5 border border-primary/10">
+            <TabsTrigger
+              value="MONTHLY"
+              className="rounded-md data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all"
+            >
+              Monthly billing
+            </TabsTrigger>
+            <TabsTrigger
+              value="YEARLY"
+              className="rounded-md data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all relative overflow-hidden"
+            >
+              Yearly billing
+              <Badge
+                variant="default"
+                className="ml-2 bg-green-500 hover:bg-green-600 text-[10px] px-1.5 h-4 border-none"
+              >
+                -20%
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {billingCycle === "YEARLY" && (
+          <p className="text-sm font-medium text-green-600 flex items-center gap-1 animate-pulse">
+            <Sparkles className="h-4 w-4" />
+            Get 2 months free with annual billing!
+          </p>
+        )}
       </div>
 
       {/* Pricing Plans */}
@@ -476,7 +523,13 @@ export function SchoolSubscription({
           const isActivePlan =
             school.subscription?.planType === plan.planType &&
             (plan.id === "FREE" ||
-              school.subscription?.billingCycle === plan.billingCycle);
+              school.subscription?.billingCycle === plan.billingCycle) &&
+            !subscriptionStatus.isExpired;
+
+          const isExpiredCurrentPlan =
+            subscriptionStatus.isExpired &&
+            school.subscription?.planType === plan.planType &&
+            school.subscription?.billingCycle === plan.billingCycle;
 
           return (
             <Card
@@ -489,19 +542,45 @@ export function SchoolSubscription({
             >
               <CardHeader>
                 <CardTitle className="flex flex-col gap-2">
-                  <span className="flex items-center gap-2 text-lg">
-                    {plan.planType === "PREMIUM" && (
-                      <Crown className="h-4 w-4 text-yellow-500" />
-                    )}
-                    {plan.name
-                      .replace(" (Monthly)", "")
-                      .replace(" (Yearly)", "")}
-                  </span>
-                  <div className="text-2xl font-bold">
-                    {plan.currency} {plan.price}
-                    <span className="text-sm font-normal text-muted-foreground">
-                      /{plan.billingCycle === "MONTHLY" ? "mo" : "yr"}
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-lg">
+                      {plan.planType === "PREMIUM" && (
+                        <Crown className="h-4 w-4 text-yellow-500" />
+                      )}
+                      {plan.name
+                        .replace(" (Monthly)", "")
+                        .replace(" (Yearly)", "")}
                     </span>
+                    {plan.billingCycle === "YEARLY" && plan.id !== "FREE" && (
+                      <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none text-[10px] font-bold">
+                        SAVE 20%
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="text-3xl font-bold flex items-baseline gap-1">
+                      {plan.currency} {plan.price}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        /{plan.billingCycle === "MONTHLY" ? "mo" : "yr"}
+                      </span>
+                    </div>
+                    {plan.billingCycle === "YEARLY" && plan.id !== "FREE" && (
+                      <span className="text-xs text-green-600 font-medium mt-1">
+                        Equivalent to {plan.currency}{" "}
+                        {Math.round(plan.price / 12)}/mo
+                      </span>
+                    )}
+                    {plan.billingCycle === "MONTHLY" && plan.id !== "FREE" && (
+                      <span className="text-xs text-muted-foreground mt-1">
+                        Switch to yearly to save {plan.currency}{" "}
+                        {plan.price * 2}
+                      </span>
+                    )}
+                    {plan.id === "FREE" && (
+                      <span className="text-xs text-muted-foreground mt-1">
+                        Forever free for small teams
+                      </span>
+                    )}
                   </div>
                 </CardTitle>
                 <CardDescription>{plan.description}</CardDescription>
@@ -534,7 +613,11 @@ export function SchoolSubscription({
                     ) : (
                       <TrendingUp className="mr-2 h-4 w-4" />
                     )}
-                    {plan.id === "FREE" ? "Downgrade" : "Upgrade"}
+                    {isExpiredCurrentPlan
+                      ? "Renew Plan"
+                      : plan.id === "FREE"
+                        ? "Downgrade"
+                        : "Upgrade"}
                   </Button>
                 )}
               </CardFooter>

@@ -24,7 +24,7 @@ export async function updateSchoolStatus(
     });
 
     revalidatePath("/schools");
-    revalidatePath(`/schools/${subdomain}/overview`);
+    revalidatePath(`/schools/${subdomain}`);
     revalidatePath("/schools/directory/active");
     revalidatePath("/schools/directory/suspended");
     revalidatePath("/schools/directory/archived");

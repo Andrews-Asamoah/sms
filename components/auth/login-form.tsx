@@ -106,7 +106,7 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <FieldGroup className="space-y-5">
+      <FieldGroup className="space-y-4">
         {error && (
           <Alert
             variant="destructive"
@@ -119,7 +119,7 @@ export function LoginForm() {
           </Alert>
         )}
 
-        <Field data-invalid={!!errors.email} className="space-y-2">
+        <Field data-invalid={!!errors.email} className="space-y-1.5">
           <FieldLabel
             htmlFor="email"
             className="text-slate-700 dark:text-slate-300 font-medium"
@@ -142,7 +142,7 @@ export function LoginForm() {
           <FieldError className="text-xs" errors={[errors.email]} />
         </Field>
 
-        <Field data-invalid={!!errors.password} className="space-y-2">
+        <Field data-invalid={!!errors.password} className="space-y-1.5">
           <div className="flex items-center justify-between">
             <FieldLabel
               htmlFor="password"
@@ -190,7 +190,7 @@ export function LoginForm() {
 
         <Button
           type="submit"
-          className={`w-full h-12 mt-2 font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-300 ${
+          className={`w-full h-11 sm:h-12 mt-1 sm:mt-2 font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-300 ${
             isSuccess
               ? "bg-green-500 hover:bg-green-600 text-white shadow-green-500/25"
               : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 shadow-purple-500/25"

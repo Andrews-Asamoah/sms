@@ -150,7 +150,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    scrollbar-gutter: stable;
   }
+
 
   @media print {
     body {

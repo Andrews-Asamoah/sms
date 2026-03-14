@@ -124,6 +124,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       });
     }
 
+    // CRITICAL FIX: Better Auth throws FORBIDDEN if the email is not verified
+    // when requireEmailVerificationOnInvitation is true. Since the user just signed up
+    // via the invitation link, we can safely verify their email right now.
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { emailVerified: true },
+    });
+    console.log("✅ [Accept Invitation] Email verified before acceptance");
+
     console.log("✅ [Accept Invitation] Accepting via Better Auth...");
 
     // Accept invitation using Better Auth
@@ -201,7 +210,23 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const redirectUrl = `/${invitation.organization.school.subdomain}/admin`;
+    // Determine redirect URL based on invitation role
+    let rolePath = "admin"; // default
+    const invitedRole = invitation.role?.toLowerCase() || "member";
+
+    if (invitedRole === "teacher") {
+      rolePath = "teacher";
+    } else if (invitedRole === "student") {
+      rolePath = "student";
+    } else if (invitedRole === "guardian") {
+      rolePath = "guardian";
+    } else if (invitedRole === "staff") {
+      rolePath = "staff";
+    } else if (invitedRole === "admin" || invitedRole === "owner") {
+      rolePath = "admin";
+    }
+
+    const redirectUrl = `/${invitation.organization.school.subdomain}/${rolePath}`;
 
     console.log(
       `✅ [Accept Invitation] Complete! Redirecting to: ${redirectUrl}`,

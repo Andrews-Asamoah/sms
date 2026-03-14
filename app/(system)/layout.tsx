@@ -28,7 +28,7 @@ export default async function SystemLayout({
   const userData = {
     name: session.user.name || "Super Admin",
     email: session.user.email,
-    avatar: session.user.image || "/wis-logo.png",
+    avatar: session.user.image || undefined,
     role: session.user.role,
   };
 
@@ -37,7 +37,7 @@ export default async function SystemLayout({
       <AppSidebarSystem user={userData} />
       <SidebarInset className="flex flex-col h-screen">
         <SiteHeaderSystem userName={userData.name} userRole={userData.role} />
-        <main className="flex-1 overflow-y-auto min-h-0">
+        <main className="flex-1 overflow-y-auto min-h-0 [scrollbar-gutter:stable]">
           <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
             {children}
           </div>

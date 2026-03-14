@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { EditSchoolForm } from "@/components/forms/edit-school-form";
 import { DeleteSchoolDialog } from "@/components/System/Schools/delete-school-dialog";
+import { SchoolLogoEditor } from "@/components/settings/school-logo-editor";
 
 interface SchoolSettingsPageProps {
   params: Promise<{
@@ -60,53 +61,63 @@ export default async function SchoolSettingsPage({
         </p>
       </div>
 
-      <div className="max-w-4xl space-y-6">
-        {/* School Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>School Information</CardTitle>
-            <CardDescription>
-              Update the school&apos;s basic information and configuration
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EditSchoolForm school={school} />
-          </CardContent>
-        </Card>
+      <div className="grid gap-6 md:grid-cols-3 items-start max-w-5xl">
+        {/* Left Column: Logo & Quick Stats */}
+        <div className="md:col-span-1 space-y-6">
+          <SchoolLogoEditor 
+            schoolId={school.id}
+            currentLogo={school.logo}
+            schoolName={school.name}
+          />
+        </div>
 
-        {/* Danger Zone */}
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Danger Zone</CardTitle>
-            <CardDescription>
-              Irreversible and destructive actions
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-medium">Delete this school</h4>
-                <p className="text-sm text-muted-foreground">
-                  Once deleted, the school and all its data will be permanently
-                  removed.
-                  {hasData && (
-                    <span className="block text-destructive mt-1">
-                      This school has {school._count.students} students,{" "}
-                      {school._count.teachers} teachers, and{" "}
-                      {school._count.staff} staff members.
-                    </span>
-                  )}
-                </p>
+        {/* Right Column: Main Settings */}
+        <div className="md:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>School Information</CardTitle>
+              <CardDescription>
+                Update the school&apos;s basic information and configuration
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EditSchoolForm school={school} />
+            </CardContent>
+          </Card>
+
+          {/* Danger Zone */}
+          <Card className="border-destructive">
+            <CardHeader>
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              <CardDescription>
+                Irreversible and destructive actions
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h4 className="font-medium">Delete this school</h4>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Once deleted, the school and all its data will be permanently removed.
+                    {hasData && (
+                      <span className="block text-destructive mt-2">
+                        This school has {school._count.students} students,{" "}
+                        {school._count.teachers} teachers, and{" "}
+                        {school._count.staff} staff members.
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <DeleteSchoolDialog
+                  schoolSlug={school.subdomain}
+                  schoolName={school.name}
+                  schoolCode={school.code}
+                  hasData={hasData}
+                />
               </div>
-              <DeleteSchoolDialog
-                schoolSlug={school.subdomain}
-                schoolName={school.name}
-                schoolCode={school.code}
-                hasData={hasData}
-              />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

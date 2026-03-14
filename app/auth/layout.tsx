@@ -1,13 +1,23 @@
 // app/auth/layout.tsx
 import { GraduationCap, School, ShieldCheck, Sparkles } from "lucide-react";
+import { getSession } from "@/lib/auth/session";
+import { getDefaultRoute } from "@/lib/auth/route-resolver";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await getSession();
+  
+  // If user is already logged in, redirect them away from auth pages
+  if (session) {
+    const defaultRoute = getDefaultRoute(session);
+    redirect(defaultRoute);
+  }
   return (
     <div className="min-h-screen flex bg-background selection:bg-primary/30">
       {/* Left Side - Modern Visual Branding */}
@@ -93,15 +103,20 @@ export default function AuthLayout({
       </div>
 
       {/* Right Side - Form Content */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-12 lg:p-16 xl:p-24 relative bg-slate-50 dark:bg-slate-950 max-h-screen overflow-y-auto">
+      <div className="flex-1 overflow-y-auto lg:overflow-hidden bg-slate-50 dark:bg-slate-950 relative">
         {/* Mobile-only background effects */}
         <div className="absolute inset-0 lg:hidden overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-[80px]" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px]" />
         </div>
 
-        <div className="w-full max-w-[420px] relative z-10">{children}</div>
+        <div className="min-h-full flex items-center justify-center p-4 sm:p-8 lg:p-12">
+          <div className="w-full max-w-[420px] relative z-10 flex flex-col justify-center">
+            {children}
+          </div>
+        </div>
       </div>
+
     </div>
   );
 }

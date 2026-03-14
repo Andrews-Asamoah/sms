@@ -327,8 +327,8 @@ export default async function SchoolsPage() {
                           size="sm"
                           className="flex-1 min-w-0 hover:bg-primary/10 hover:border-primary/30"
                         >
-                          <Link href={`/schools/${school.subdomain}/overview`}>
-                            <Eye className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                          <Link href={`/schools/${school.subdomain}`}>
+                            <Eye className="h-4 w-4 mr-2" />
                             <span className="truncate">View</span>
                           </Link>
                         </Button>
@@ -450,10 +450,9 @@ export default async function SchoolsPage() {
                                 asChild
                                 variant="ghost"
                                 size="sm"
-                                className="hover:bg-primary/10"
                               >
                                 <Link
-                                  href={`/schools/${school.subdomain}/overview`}
+                                  href={`/schools/${school.subdomain}`}
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Link>

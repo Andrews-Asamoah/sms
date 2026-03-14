@@ -191,9 +191,14 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
                 >
                   <div className="space-y-0.5">
                     <p className="font-medium text-sm">
-                      {pending.invitationEmail}
+                      {pending.firstName || pending.lastName
+                        ? `${pending.firstName ?? ""} ${pending.lastName ?? ""}`.trim()
+                        : pending.invitationEmail}
                     </p>
                     <p className="text-xs text-muted-foreground">
+                      {pending.invitationEmail && (pending.firstName || pending.lastName) && (
+                        <span className="mr-1">{pending.invitationEmail} •</span>
+                      )}
                       {pending.department.name} ·{" "}
                       {pending.employmentType.replace("_", " ")} · Invited{" "}
                       {new Date(pending.createdAt).toLocaleDateString("en-GB", {

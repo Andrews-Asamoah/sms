@@ -64,7 +64,7 @@ export function BaseSidebar({
   ...props
 }: BaseSidebarProps) {
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar collapsible="icon" id="app-sidebar" {...props}>
       <SidebarHeader>
         <SchoolLogo
           name={logoName}

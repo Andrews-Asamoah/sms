@@ -5,9 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,48 +14,57 @@ import {
   AlertCircle,
   ArrowRight,
   TicketIcon,
+  XCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 
 export const metadata = {
   title: "Support Tickets | SuperAdmin Dashboard",
-  description: "Manage support tickets from school admins and owners",
 };
 
 export const dynamic = "force-dynamic";
 
-const statusColors: Record<string, string> = {
-  OPEN: "border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-400",
-  IN_PROGRESS:
-    "border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
-  RESOLVED:
-    "border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400",
-  CLOSED: "border-muted bg-muted/50 text-muted-foreground",
+const statusConfig: Record<
+  string,
+  { label: string; className: string }
+> = {
+  OPEN: {
+    label: "Open",
+    className:
+      "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+  },
+  IN_PROGRESS: {
+    label: "In Progress",
+    className:
+      "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  },
+  RESOLVED: {
+    label: "Resolved",
+    className:
+      "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400",
+  },
+  CLOSED: {
+    label: "Closed",
+    className: "border-muted bg-muted/50 text-muted-foreground",
+  },
 };
 
-const priorityColors: Record<string, string> = {
-  LOW: "text-muted-foreground",
+const priorityBadge: Record<string, string> = {
+  LOW: "text-slate-500",
   MEDIUM: "text-blue-600 dark:text-blue-400",
   HIGH: "text-orange-600 dark:text-orange-400",
-  URGENT: "text-red-600 dark:text-red-400",
+  URGENT: "text-red-600 dark:text-red-400 font-bold",
 };
 
-export default async function SupportPage() {
+export default async function SupportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   await requireSuperAdmin();
+  const { status: filterStatus } = await searchParams;
 
-  const tickets = await prisma.supportTicket.findMany({
-    where: {
-      submittedBy: {
-        OR: [
-          { role: "superAdmin" },
-          {
-            members: {
-              some: { role: { in: ["admin", "owner"] } },
-            },
-          },
-        ],
-      },
-    },
+  const allTickets = await prisma.supportTicket.findMany({
     include: {
       submittedBy: {
         select: { id: true, name: true, email: true, image: true },
@@ -67,67 +73,85 @@ export default async function SupportPage() {
       assignedTo: { select: { name: true } },
       _count: { select: { replies: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { status: "asc" },
+      { createdAt: "desc" },
+    ],
   });
 
-  const openCount = tickets.filter((t) => t.status === "OPEN").length;
-  const inProgressCount = tickets.filter(
-    (t) => t.status === "IN_PROGRESS",
-  ).length;
-  const resolvedCount = tickets.filter((t) => t.status === "RESOLVED").length;
+  const openCount = allTickets.filter((t) => t.status === "OPEN").length;
+  const inProgressCount = allTickets.filter((t) => t.status === "IN_PROGRESS").length;
+  const resolvedCount = allTickets.filter((t) => t.status === "RESOLVED").length;
+  const closedCount = allTickets.filter((t) => t.status === "CLOSED").length;
+
+  const tickets = filterStatus
+    ? allTickets.filter((t) => t.status === filterStatus.toUpperCase())
+    : allTickets;
+
+  const filterTabs = [
+    { label: "All", value: undefined, count: allTickets.length },
+    { label: "Open", value: "OPEN", count: openCount, icon: AlertCircle, color: "text-blue-500" },
+    { label: "In Progress", value: "IN_PROGRESS", count: inProgressCount, icon: Clock, color: "text-amber-500" },
+    { label: "Resolved", value: "RESOLVED", count: resolvedCount, icon: CheckCircle, color: "text-green-500" },
+    { label: "Closed", value: "CLOSED", count: closedCount, icon: XCircle, color: "text-slate-400" },
+  ];
+
+  const activeFilter = filterStatus?.toUpperCase();
 
   return (
-    <div className="container mx-auto py-10 space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Support Tickets</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage support requests from school administrators and owners.
-          </p>
-        </div>
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Support Tickets</h1>
+        <p className="text-muted-foreground mt-1">
+          Manage support requests from school administrators.
+        </p>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-blue-500/10 p-2">
-                <AlertCircle className="h-5 w-5 text-blue-500" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "Open", count: openCount, icon: AlertCircle, color: "text-blue-500" },
+          { label: "In Progress", count: inProgressCount, icon: Clock, color: "text-amber-500" },
+          { label: "Resolved", count: resolvedCount, icon: CheckCircle, color: "text-green-500" },
+          { label: "Closed", count: closedCount, icon: XCircle, color: "text-slate-400" },
+        ].map((s) => (
+          <Card key={s.label}>
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-3">
+                <s.icon className={`h-5 w-5 ${s.color}`} />
+                <div>
+                  <div className="text-2xl font-bold">{s.count}</div>
+                  <p className="text-xs text-muted-foreground">{s.label}</p>
+                </div>
               </div>
-              <div>
-                <div className="text-2xl font-bold">{openCount}</div>
-                <p className="text-sm text-muted-foreground">Open</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-yellow-500/10 p-2">
-                <Clock className="h-5 w-5 text-yellow-500" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{inProgressCount}</div>
-                <p className="text-sm text-muted-foreground">In Progress</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-green-500/10 p-2">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{resolvedCount}</div>
-                <p className="text-sm text-muted-foreground">Resolved</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {filterTabs.map((tab) => {
+          const isActive = tab.value === undefined
+            ? !activeFilter
+            : activeFilter === tab.value;
+          const href = tab.value ? `/support?status=${tab.value.toLowerCase()}` : "/support";
+          return (
+            <Link key={tab.label} href={href}>
+              <Button
+                variant={isActive ? "default" : "outline"}
+                size="sm"
+                className="gap-1.5"
+              >
+                {tab.label}
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20" : "bg-muted"}`}>
+                  {tab.count}
+                </span>
+              </Button>
+            </Link>
+          );
+        })}
       </div>
 
       {/* Ticket List */}
@@ -137,76 +161,66 @@ export default async function SupportPage() {
             <div className="rounded-full bg-primary/10 p-6 mb-4">
               <HelpCircle className="h-12 w-12 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No support tickets</h3>
+            <h3 className="text-lg font-semibold mb-2">No tickets found</h3>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              When school admins or owners submit support requests, they will
-              appear here.
+              {activeFilter
+                ? `No ${activeFilter.toLowerCase().replace("_", " ")} tickets.`
+                : "When schools submit support requests, they will appear here."}
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {tickets.map((ticket) => (
-            <Card
-              key={ticket.id}
-              className="hover:shadow-md transition-shadow cursor-pointer group"
-            >
-              <CardContent className="pt-5 pb-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <TicketIcon className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="font-medium truncate">
-                          {ticket.subject}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={statusColors[ticket.status] || ""}
-                        >
-                          {ticket.status.replace("_", " ")}
-                        </Badge>
-                        <span
-                          className={`text-xs font-medium ${priorityColors[ticket.priority]}`}
-                        >
-                          {ticket.priority}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground line-clamp-1">
-                        {ticket.description}
-                      </p>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                        <span>
-                          By <strong>{ticket.submittedBy.name}</strong>
-                          {ticket.school && ` · ${ticket.school.name}`}
-                        </span>
-                        <span>·</span>
-                        <span>
-                          {format(new Date(ticket.createdAt), "MMM d, yyyy")}
-                        </span>
-                        {ticket._count.replies > 0 && (
-                          <>
+          {tickets.map((ticket) => {
+            const statusCfg = statusConfig[ticket.status] ?? statusConfig.OPEN;
+            return (
+              <Link key={ticket.id} href={`/support/${ticket.id}`}>
+                <Card className="hover:shadow-md transition-all cursor-pointer border-border/60 hover:border-primary/20 group">
+                  <CardContent className="pt-5 pb-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <TicketIcon className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="font-semibold truncate">
+                              {ticket.subject}
+                            </span>
+                            <Badge variant="outline" className={statusCfg.className}>
+                              {statusCfg.label}
+                            </Badge>
+                            <span className={`text-xs font-semibold ${priorityBadge[ticket.priority]}`}>
+                              {ticket.priority}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
+                            <span>
+                              By <strong>{ticket.submittedBy.name}</strong>
+                              {ticket.school && ` · ${ticket.school.name}`}
+                            </span>
                             <span>·</span>
-                            <span>{ticket._count.replies} replies</span>
-                          </>
-                        )}
+                            <span>{format(new Date(ticket.createdAt), "MMM d, yyyy")}</span>
+                            {ticket._count.replies > 0 && (
+                              <>
+                                <span>·</span>
+                                <span>{ticket._count.replies} {ticket._count.replies === 1 ? "reply" : "replies"}</span>
+                              </>
+                            )}
+                            {ticket.assignedTo && (
+                              <>
+                                <span>·</span>
+                                <span className="font-medium">Assigned: {ticket.assignedTo.name}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                  </div>
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Link href={`/support/${ticket.id}`}>
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

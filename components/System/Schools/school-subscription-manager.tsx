@@ -31,10 +31,13 @@ import {
   Briefcase,
   Shield,
   FileText,
+  AlertTriangle,
+  Settings2,
 } from "lucide-react";
 import { Prisma } from "@/lib/generated/prisma";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { SUBSCRIPTION_PLANS, getPlanById } from "@/lib/subscription-plans";
 
 type SchoolData = Prisma.SchoolGetPayload<{
   include: {
@@ -122,8 +125,32 @@ export function SchoolSubscriptionManager({
   const [maxStaff, setMaxStaff] = useState(
     String(school.subscription?.maxStaff || ""),
   );
+  const [manualOverride, setManualOverride] = useState(false);
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const handleApplyTemplate = (planId: string) => {
+    const plan = getPlanById(planId);
+    if (!plan) return;
+
+    setPlanType(plan.planType);
+    setPlanName(plan.name);
+    setAmount(String(plan.price));
+    setCurrency(plan.currency);
+    setBillingCycle(plan.billingCycle);
+
+    if (!manualOverride) {
+      setMaxStudents(
+        plan.limits.students === Infinity ? "" : String(plan.limits.students),
+      );
+      setMaxTeachers(
+        plan.limits.teachers === Infinity ? "" : String(plan.limits.teachers),
+      );
+      setMaxStaff(
+        plan.limits.staff === Infinity ? "" : String(plan.limits.staff),
+      );
+    }
+  };
 
   const handleGrantPremium = async () => {
     setIsLoading(true);
@@ -313,7 +340,7 @@ export function SchoolSubscriptionManager({
               ) : (
                 <Crown className="mr-2 h-4 w-4" />
               )}
-              Grant Premium (1 Year)
+              Grant Premium (6 Months)
             </Button>
             <Button
               variant={editMode ? "secondary" : "outline"}
@@ -340,173 +367,258 @@ export function SchoolSubscriptionManager({
                 e.preventDefault();
                 handleSave();
               }}
-              className="space-y-4"
             >
-              <div className="grid gap-4 md:grid-cols-2">
-                <FieldGroup>
-                  <FieldLabel htmlFor="planType">Plan Type</FieldLabel>
-                  <Select value={planType} onValueChange={setPlanType}>
-                    <SelectTrigger id="planType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FREE">Free</SelectItem>
-                      <SelectItem value="PREMIUM">Premium</SelectItem>
-                      <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {formErrors.planType && (
-                    <FieldError>{formErrors.planType}</FieldError>
-                  )}
-                </FieldGroup>
-
-                <FieldGroup>
-                  <FieldLabel htmlFor="planName">Plan Name</FieldLabel>
-                  <Input
-                    id="planName"
-                    value={planName}
-                    onChange={(e) => setPlanName(e.target.value)}
-                    placeholder="Premium Plan"
-                  />
-                </FieldGroup>
-
-                <FieldGroup>
-                  <FieldLabel htmlFor="status">Status</FieldLabel>
-                  <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger id="status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ACTIVE">Active</SelectItem>
-                      <SelectItem value="TRIALING">Trialing</SelectItem>
-                      <SelectItem value="PAST_DUE">Past Due</SelectItem>
-                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                      <SelectItem value="EXPIRED">Expired</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {formErrors.status && (
-                    <FieldError>{formErrors.status}</FieldError>
-                  )}
-                </FieldGroup>
-
-                <FieldGroup>
-                  <FieldLabel htmlFor="billingCycle">Billing Cycle</FieldLabel>
-                  <Select value={billingCycle} onValueChange={setBillingCycle}>
-                    <SelectTrigger id="billingCycle">
-                      <SelectValue placeholder="Select..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MONTHLY">Monthly</SelectItem>
-                      <SelectItem value="QUARTERLY">Quarterly</SelectItem>
-                      <SelectItem value="YEARLY">Yearly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FieldGroup>
-
-                <FieldGroup>
-                  <FieldLabel htmlFor="amount">Amount</FieldLabel>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                </FieldGroup>
-
-                <FieldGroup>
-                  <FieldLabel htmlFor="currency">Currency</FieldLabel>
-                  <Select value={currency} onValueChange={setCurrency}>
-                    <SelectTrigger id="currency">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="GHS">GHS (Ghana Cedi)</SelectItem>
-                      <SelectItem value="USD">USD (US Dollar)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FieldGroup>
-
-                <FieldGroup>
-                  <FieldLabel htmlFor="periodStart">Period Start</FieldLabel>
-                  <Input
-                    id="periodStart"
-                    type="date"
-                    value={periodStart}
-                    onChange={(e) => setPeriodStart(e.target.value)}
-                  />
-                </FieldGroup>
-
-                <FieldGroup>
-                  <FieldLabel htmlFor="periodEnd">Period End</FieldLabel>
-                  <Input
-                    id="periodEnd"
-                    type="date"
-                    value={periodEnd}
-                    onChange={(e) => setPeriodEnd(e.target.value)}
-                  />
-                </FieldGroup>
-              </div>
-
-              {/* Trial Settings */}
-              <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                <div className="space-y-0.5">
-                  <FieldLabel htmlFor="isOnTrial">On Trial</FieldLabel>
-                  <p className="text-sm text-muted-foreground">
-                    Toggle trial mode for this school.
-                  </p>
+              <div className="bg-muted/30 p-4 rounded-lg border border-dashed mb-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Settings2 className="h-4 w-4 text-primary" />
+                  <h3 className="font-medium text-sm">Plan Templates</h3>
                 </div>
-                <Switch
-                  id="isOnTrial"
-                  checked={isOnTrial}
-                  onCheckedChange={setIsOnTrial}
-                />
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <FieldGroup>
+                    <FieldLabel>Select a Plan Template</FieldLabel>
+                    <Select onValueChange={handleApplyTemplate}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Standard Plans..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SUBSCRIPTION_PLANS.map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            {plan.name} ({plan.currency} {plan.price})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FieldGroup>
+                </div>
               </div>
 
-              {isOnTrial && (
-                <FieldGroup>
-                  <FieldLabel htmlFor="trialEndsAt">Trial Ends At</FieldLabel>
-                  <Input
-                    id="trialEndsAt"
-                    type="date"
-                    value={trialEndsAt}
-                    onChange={(e) => setTrialEndsAt(e.target.value)}
-                  />
-                </FieldGroup>
-              )}
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    Core Details
+                  </h3>
+                  <div className="grid gap-4">
+                    <FieldGroup>
+                      <FieldLabel htmlFor="planType">Plan Type</FieldLabel>
+                      <Select value={planType} onValueChange={setPlanType}>
+                        <SelectTrigger id="planType">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="FREE">Free</SelectItem>
+                          <SelectItem value="BASIC">Basic</SelectItem>
+                          <SelectItem value="STANDARD">Standard</SelectItem>
+                          <SelectItem value="PREMIUM">Premium</SelectItem>
+                          <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {formErrors.planType && (
+                        <FieldError>{formErrors.planType}</FieldError>
+                      )}
+                    </FieldGroup>
 
-              {/* Limits */}
-              <div className="grid gap-4 md:grid-cols-3">
-                <FieldGroup>
-                  <FieldLabel htmlFor="maxStudents">Max Students</FieldLabel>
-                  <Input
-                    id="maxStudents"
-                    type="number"
-                    value={maxStudents}
-                    onChange={(e) => setMaxStudents(e.target.value)}
-                    placeholder="Unlimited"
-                  />
-                </FieldGroup>
-                <FieldGroup>
-                  <FieldLabel htmlFor="maxTeachers">Max Teachers</FieldLabel>
-                  <Input
-                    id="maxTeachers"
-                    type="number"
-                    value={maxTeachers}
-                    onChange={(e) => setMaxTeachers(e.target.value)}
-                    placeholder="Unlimited"
-                  />
-                </FieldGroup>
-                <FieldGroup>
-                  <FieldLabel htmlFor="maxStaff">Max Staff</FieldLabel>
-                  <Input
-                    id="maxStaff"
-                    type="number"
-                    value={maxStaff}
-                    onChange={(e) => setMaxStaff(e.target.value)}
-                    placeholder="Unlimited"
-                  />
-                </FieldGroup>
+                    <FieldGroup>
+                      <FieldLabel htmlFor="planName">Plan Name</FieldLabel>
+                      <Input
+                        id="planName"
+                        value={planName}
+                        onChange={(e) => setPlanName(e.target.value)}
+                        placeholder="Premium Plan"
+                      />
+                    </FieldGroup>
+
+                    <FieldGroup>
+                      <FieldLabel htmlFor="status">Status</FieldLabel>
+                      <Select value={status} onValueChange={setStatus}>
+                        <SelectTrigger id="status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Active</SelectItem>
+                          <SelectItem value="TRIALING">Trialing</SelectItem>
+                          <SelectItem value="PAST_DUE">Past Due</SelectItem>
+                          <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                          <SelectItem value="EXPIRED">Expired</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {formErrors.status && (
+                        <FieldError>{formErrors.status}</FieldError>
+                      )}
+                    </FieldGroup>
+
+                    <FieldGroup>
+                      <FieldLabel htmlFor="billingCycle">
+                        Billing Cycle
+                      </FieldLabel>
+                      <Select
+                        value={billingCycle}
+                        onValueChange={setBillingCycle}
+                      >
+                        <SelectTrigger id="billingCycle">
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MONTHLY">Monthly</SelectItem>
+                          <SelectItem value="YEARLY">Yearly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FieldGroup>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FieldGroup>
+                        <FieldLabel htmlFor="amount">Amount</FieldLabel>
+                        <Input
+                          id="amount"
+                          type="number"
+                          step="0.01"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                        />
+                      </FieldGroup>
+
+                      <FieldGroup>
+                        <FieldLabel htmlFor="currency">Currency</FieldLabel>
+                        <Select value={currency} onValueChange={setCurrency}>
+                          <SelectTrigger id="currency">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="GHS">GHS</SelectItem>
+                            <SelectItem value="USD">USD</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FieldGroup>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FieldGroup>
+                        <FieldLabel htmlFor="periodStart">
+                          Period Start
+                        </FieldLabel>
+                        <Input
+                          id="periodStart"
+                          type="date"
+                          value={periodStart}
+                          onChange={(e) => setPeriodStart(e.target.value)}
+                        />
+                      </FieldGroup>
+
+                      <FieldGroup>
+                        <FieldLabel htmlFor="periodEnd">Period End</FieldLabel>
+                        <Input
+                          id="periodEnd"
+                          type="date"
+                          value={periodEnd}
+                          onChange={(e) => setPeriodEnd(e.target.value)}
+                        />
+                      </FieldGroup>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    Resource Limits & Overrides
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="flex flex-row items-center justify-between rounded-lg border bg-yellow-50/50 p-3 shadow-sm dark:bg-yellow-950/20">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
+                          <FieldLabel htmlFor="manualOverride">
+                            Manual Limit Override
+                          </FieldLabel>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Allows custom limits independent of plan defaults.
+                        </p>
+                      </div>
+                      <Switch
+                        id="manualOverride"
+                        checked={manualOverride}
+                        onCheckedChange={setManualOverride}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <FieldGroup>
+                        <FieldLabel htmlFor="maxStudents">
+                          Students Limit
+                        </FieldLabel>
+                        <Input
+                          id="maxStudents"
+                          type="number"
+                          value={maxStudents}
+                          onChange={(e) => setMaxStudents(e.target.value)}
+                          placeholder="Unlimited"
+                          disabled={!manualOverride}
+                          className={!manualOverride ? "bg-muted" : ""}
+                        />
+                      </FieldGroup>
+                      <FieldGroup>
+                        <FieldLabel htmlFor="maxTeachers">
+                          Teachers Limit
+                        </FieldLabel>
+                        <Input
+                          id="maxTeachers"
+                          type="number"
+                          value={maxTeachers}
+                          onChange={(e) => setMaxTeachers(e.target.value)}
+                          placeholder="Unlimited"
+                          disabled={!manualOverride}
+                          className={!manualOverride ? "bg-muted" : ""}
+                        />
+                      </FieldGroup>
+                      <FieldGroup>
+                        <FieldLabel htmlFor="maxStaff">Staff Limit</FieldLabel>
+                        <Input
+                          id="maxStaff"
+                          type="number"
+                          value={maxStaff}
+                          onChange={(e) => setMaxStaff(e.target.value)}
+                          placeholder="Unlimited"
+                          disabled={!manualOverride}
+                          className={!manualOverride ? "bg-muted" : ""}
+                        />
+                      </FieldGroup>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+                        Trial Settings
+                      </h3>
+                      <div className="space-y-4">
+                        <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                          <div className="space-y-0.5">
+                            <FieldLabel htmlFor="isOnTrial">On Trial</FieldLabel>
+                            <p className="text-sm text-muted-foreground">
+                              Toggle trial mode for this school.
+                            </p>
+                          </div>
+                          <Switch
+                            id="isOnTrial"
+                            checked={isOnTrial}
+                            onCheckedChange={setIsOnTrial}
+                          />
+                        </div>
+
+                        {isOnTrial && (
+                          <FieldGroup>
+                            <FieldLabel htmlFor="trialEndsAt">
+                              Trial Ends At
+                            </FieldLabel>
+                            <Input
+                              id="trialEndsAt"
+                              type="date"
+                              value={trialEndsAt}
+                              onChange={(e) => setTrialEndsAt(e.target.value)}
+                            />
+                          </FieldGroup>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -527,6 +639,7 @@ export function SchoolSubscriptionManager({
             </form>
           </CardContent>
         </Card>
+
       )}
 
       {/* Invoice History */}

@@ -29,6 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { ProductTour } from "@/components/shared/product-tour";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard",
@@ -58,7 +59,7 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
   return (
     <div className="space-y-8 pb-10">
       {/* Header Section */}
-      <div className="relative overflow-hidden rounded-3xl bg-primary/5 p-8 border border-primary/10">
+      <div className="relative overflow-hidden rounded-3xl bg-primary/5 p-8 border border-primary/10" id="school-header">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
@@ -93,7 +94,7 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
       </div>
 
       {/* Primary KPI Ribbon */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" id="kpi-ribbon">
         {[
           {
             label: "Total Students",
@@ -153,7 +154,7 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
       </div>
 
       {/* Main Analysis Section */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3" id="analysis-charts">
         {/* Charts Column */}
         <div className="lg:col-span-2 space-y-6">
           <EnrollmentTrendChart data={stats.enrollmentTrends} />
@@ -168,7 +169,7 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
         </div>
 
         {/* Sidebar Column: Recent Activity & Quick Links */}
-        <div className="space-y-6">
+        <div className="space-y-6" id="school-sidebar-column">
           <AnnouncementWidget />
           <Card className="rounded-2xl border-primary/5 bg-card/50 backdrop-blur-md">
             <CardHeader>
@@ -226,12 +227,14 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
                 <Badge
                   variant="secondary"
                   className={`${
-                    stats.financials.totalRevenue >= stats.financials.totalExpenses
+                    stats.financials.totalRevenue >=
+                    stats.financials.totalExpenses
                       ? "bg-emerald-500/10 text-emerald-500"
                       : "bg-red-500/10 text-red-500"
                   } border-none px-2 py-0`}
                 >
-                  {stats.financials.totalRevenue >= stats.financials.totalExpenses
+                  {stats.financials.totalRevenue >=
+                  stats.financials.totalExpenses
                     ? "Healthy"
                     : "Deficit"}
                 </Badge>
@@ -293,6 +296,57 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
           </p>
         </div>
       )}
+
+      <ProductTour
+        tourId="school-admin-dashboard"
+        steps={[
+          {
+            element: "#school-header",
+            popover: {
+              title: "Institutional Overview",
+              description: "Welcome to your School Dashboard! This provides a comprehensive overview of your institution's health.",
+              side: "bottom",
+              align: "start"
+            }
+          },
+          {
+            element: "#kpi-ribbon",
+            popover: {
+              title: "Key Indicators",
+              description: "Monitor critical stats like total students, teachers, and active classes in real-time.",
+              side: "bottom",
+              align: "start"
+            }
+          },
+          {
+            element: "#analysis-charts",
+            popover: {
+              title: "Operations Analysis",
+              description: "Visualize trends in enrollment, financial summaries, and student demographics with interactive charts.",
+              side: "top",
+              align: "start"
+            }
+          },
+          {
+            element: "#school-sidebar-column",
+            popover: {
+              title: "Activity & Finance",
+              description: "Stay updated with recent activities and keep a close eye on your institution's financial health.",
+              side: "left",
+              align: "start"
+            }
+          },
+          {
+            element: "#app-sidebar",
+            popover: {
+              title: "Quick Navigation",
+              description: "Use the sidebar to manage Academics, Finance, Staff, and other school modules effortlessly.",
+              side: "right",
+              align: "start"
+            }
+          }
+        ]}
+      />
     </div>
   );
 }

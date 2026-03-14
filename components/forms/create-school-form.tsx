@@ -22,7 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, MapPin, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, MapPin, CheckCircle2, XCircle, ImagePlus, Upload, X } from "lucide-react";
+import { updateSchoolLogo } from "@/actions/school-logo";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const formSchema = z.object({
   name: z
@@ -81,6 +83,8 @@ export function CreateSchoolForm() {
       isAvailable: null,
       message: "",
     });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   const {
     register,
@@ -251,8 +255,26 @@ export function CreateSchoolForm() {
         duration: 5000,
       });
 
-      // Redirect to the school dashboard
-      router.push(`/schools/${result.data.subdomain}/overview`);
+      // 2. Upload Logo if selected
+      if (logoFile) {
+        const logoFormData = new FormData();
+        logoFormData.append("file", logoFile);
+        
+        try {
+          const logoResult = await updateSchoolLogo(result.data.id, logoFormData);
+          if (!logoResult.success) {
+            toast.error("School created, but logo upload failed", {
+              description: logoResult.error
+            });
+          }
+        } catch (logoError) {
+          console.error("Error uploading logo during creation:", logoError);
+          toast.error("School created, but logo upload failed");
+        }
+      }
+
+      // 3. Redirect to the school dashboard
+      router.push(`/schools/${result.data.subdomain}`);
       router.refresh();
     } catch (error) {
       console.error("Error creating school:", error);
@@ -304,6 +326,62 @@ export function CreateSchoolForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* School Logo Section */}
+      <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-xl bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 transition-colors">
+        <div className="relative group">
+          <Avatar className="h-32 w-32 border-4 border-white dark:border-slate-800 shadow-xl transition-transform duration-300 group-hover:scale-105">
+            <AvatarImage src={logoPreview || ""} />
+            <AvatarFallback className="bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900 dark:to-indigo-900 text-3xl font-bold text-blue-600 dark:text-blue-300">
+              {watch("name") ? watch("name").charAt(0).toUpperCase() : <ImagePlus className="h-10 w-10 text-slate-400" />}
+            </AvatarFallback>
+          </Avatar>
+          
+          <label 
+            htmlFor="logo-upload" 
+            className="absolute -bottom-1 -right-1 h-10 w-10 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center cursor-pointer shadow-lg transition-all hover:scale-110 active:scale-95 border-2 border-white dark:border-slate-800 icon-glow"
+          >
+            <Upload className="h-5 w-5" />
+          </label>
+          
+          <input 
+            id="logo-upload" 
+            type="file" 
+            className="hidden" 
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                setLogoFile(file);
+                const reader = new FileReader();
+                reader.onloadend = () => setLogoPreview(reader.result as string);
+                reader.readAsDataURL(file);
+              }
+            }}
+          />
+
+          {logoPreview && (
+            <button
+              type="button"
+              onClick={() => {
+                setLogoFile(null);
+                setLogoPreview(null);
+              }}
+              className="absolute -top-1 -right-1 h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors border-2 border-white dark:border-slate-800"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        
+        <div className="mt-4 text-center">
+          <h4 className="font-semibold text-slate-900 dark:text-white">School Logo</h4>
+          <p className="text-xs text-muted-foreground mt-1 px-4">
+            Upload a high-quality logo. Square aspect ratio recommended.
+            Max 2MB (JPG, PNG, WebP).
+          </p>
+        </div>
+      </div>
+
       <FieldGroup>
         <div className="grid gap-6 md:grid-cols-2">
           {/* School Name */}

@@ -3,58 +3,42 @@ import type { ExtendedSession, EffectiveRole, ProfileRoleType } from "./types";
 import { getPrimarySchool, hasRoleInSchool } from "./school-access";
 
 export function getDefaultRoute(session: ExtendedSession): string {
-  console.log("[Route Resolver] 🔍 Determining default route...");
-  console.log(`[Route Resolver] User: ${session.user.email}`);
-  console.log(`[Route Resolver] System Role: ${session.user.role}`);
-  console.log(`[Route Resolver] Is Super Admin: ${session.isSuperAdmin}`);
-
-  // ✅ CORRECT: Super Admin goes to / (system dashboard)
+  // Super Admin goes to / (system dashboard)
   if (session.isSuperAdmin) {
-    console.log("[Route Resolver] ✅ Super Admin → /");
     return "/";
   }
 
   const primarySchool = getPrimarySchool(session);
 
   if (!primarySchool) {
-    console.log("[Route Resolver] ❌ No school access → /onboarding");
-    return "/onboarding";
+    return "/no-access";
   }
 
   const { subdomain, effectiveRole } = primarySchool;
-  console.log(`[Route Resolver] Primary School: ${subdomain}`);
-  console.log(`[Route Resolver] Effective Role: ${effectiveRole}`);
 
   // Routes for school users (not super admin)
   switch (effectiveRole) {
     case "owner":
     case "admin":
-      console.log(`[Route Resolver] ✅ Admin/Owner → /${subdomain}/admin`);
       return `/${subdomain}/admin`;
 
     case "teacher":
-      console.log(`[Route Resolver] ✅ Teacher → /${subdomain}/teacher`);
       return `/${subdomain}/teacher`;
 
     case "accountant":
-      console.log(`[Route Resolver] ✅ Accountant → /${subdomain}/accountant`);
       return `/${subdomain}/accountant`;
 
     case "staff":
-      console.log(`[Route Resolver] ✅ Staff → /${subdomain}/staff`);
       return `/${subdomain}/staff`;
 
     case "student":
-      console.log(`[Route Resolver] ✅ Student → /${subdomain}/student`);
       return `/${subdomain}/student`;
 
     case "guardian":
-      console.log(`[Route Resolver] ✅ Guardian → /${subdomain}/guardian`);
       return `/${subdomain}/guardian`;
 
     default:
-      console.log("[Route Resolver] ⚠️ Unknown role → /onboarding");
-      return "/onboarding";
+      return "/no-access";
   }
 }
 

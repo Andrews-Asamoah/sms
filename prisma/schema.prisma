@@ -39,8 +39,6 @@ model user {
   banned              Boolean   @default(false)
   banReason           String?
   banExpires          DateTime?
-  // Tracks whether user has completed the onboarding wizard (shown once only)
-  onboardingCompleted Boolean   @default(false)
 
   // Relations
   accounts           account[]
@@ -570,6 +568,7 @@ model AcademicYear {
   announcements         Announcement[]
   expenses              Expense[]
   inventoryTransactions InventoryTransaction[]
+  payrollRecords        PayrollRecord[]
 
   @@unique([name, schoolId])
   @@index([schoolId, isCurrent])
@@ -598,6 +597,7 @@ model Term {
   announcements         Announcement[]
   expenses              Expense[]
   inventoryTransactions InventoryTransaction[]
+  payrollRecords        PayrollRecord[]
 
   @@unique([academicYearId, termNumber])
   @@index([academicYearId])
@@ -958,7 +958,7 @@ model ComponentScore {
   maxMarks          Decimal  @db.Decimal(6, 2)
   percentage        Decimal  @db.Decimal(5, 2)
   weightedScore     Decimal  @db.Decimal(6, 2)
-  rawScores         Json?    
+  rawScores         Json?
   recordedById      String?
   recordedAt        DateTime @default(now())
   createdAt         DateTime @default(now())
@@ -1973,6 +1973,7 @@ enum SubscriptionStatus {
   INCOMPLETE
   INCOMPLETE_EXPIRED
   UNPAID
+  EXPIRED
 }
 
 enum InvoiceStatus {
@@ -2122,11 +2123,18 @@ model PayrollRecord {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  processedBy user?     @relation("PayrollProcessedBy", fields: [processedById], references: [id], onDelete: SetNull)
-  payslips    Payslip[]
+  academicYearId String?
+  termId         String?
+
+  school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear? @relation(fields: [academicYearId], references: [id])
+  term         Term?         @relation(fields: [termId], references: [id])
+  processedBy  user?         @relation("PayrollProcessedBy", fields: [processedById], references: [id], onDelete: SetNull)
+  payslips     Payslip[]
 
   @@unique([schoolId, month, year])
+  @@index([academicYearId])
+  @@index([termId])
   @@map("payroll_records")
 }
 

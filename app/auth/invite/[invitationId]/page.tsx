@@ -1,6 +1,5 @@
 // app/auth/invite/[invitationId]/page.tsx - FIXED WITH PROPER TYPES
 
-import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { InviteAcceptForm } from "@/components/auth/invite-accept-form";
 import Link from "next/link";
@@ -86,7 +85,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
 
   // Check if invitation exists
   if (!invitation) {
-    notFound();
+    return <InvalidInvitationView />;
   }
 
   // Check if invitation has expired
@@ -260,6 +259,63 @@ function UsedInvitationView() {
           <p className="text-muted-foreground">
             This invitation has already been accepted. If you have an account,
             please sign in below.
+          </p>
+
+          {/* Actions */}
+          <div className="pt-4 space-y-2">
+            <Link
+              href="/auth/login"
+              className="block w-full px-4 py-2 text-center bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg transition-all"
+            >
+              Go to Login
+            </Link>
+            <Link
+              href="/"
+              className="block text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Return Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// INVALID INVITATION VIEW
+// ============================================================================
+
+function InvalidInvitationView() {
+  return (
+    <div className="w-full max-w-md">
+      <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border border-white/20 shadow-2xl rounded-lg p-8">
+        <div className="text-center space-y-4">
+          {/* Icon */}
+          <div className="h-16 w-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto">
+            <svg
+              className="h-8 w-8 text-red-600 dark:text-red-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+
+          {/* Title */}
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Invalid or Revoked Invitation
+          </h1>
+
+          {/* Message */}
+          <p className="text-muted-foreground">
+            This invitation link is invalid or has been revoked by the administrator. Please request a new invitation if you believe this is a mistake.
           </p>
 
           {/* Actions */}

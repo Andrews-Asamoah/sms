@@ -65,10 +65,7 @@ export function BaseHeader({
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-xl",
-        "supports-backdrop-filter:bg-background/60",
-        "transition-all duration-200 ease-in-out",
-        "shadow-sm dark:shadow-none",
+        "w-full border-b bg-background shadow-sm dark:shadow-none",
         className,
       )}
     >

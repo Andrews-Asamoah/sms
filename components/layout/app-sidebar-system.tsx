@@ -15,7 +15,7 @@ export function AppSidebarSystem({ user, ...props }: AppSidebarSystemProps) {
   return (
     <BaseSidebar
       logoName="SchoolMS"
-      logoImage="/wis-logo.png"
+      logoImage="/logo.png"
       logoPlan="Super Admin Portal"
       logoHref="/"
       navSections={systemNavSections}

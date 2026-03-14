@@ -75,7 +75,11 @@ export async function updateUserProfile(data: UpdateProfileInput) {
       image?: string | null;
     } = {};
 
-    if (data.name) userUpdateData.name = data.name;
+    // Construct composite name from parts
+    const nameParts = [data.firstName, data.otherNames, data.lastName].filter(Boolean);
+    const compositeName = nameParts.length > 0 ? nameParts.join(" ") : data.name;
+
+    if (compositeName) userUpdateData.name = compositeName;
     if (data.image !== undefined) userUpdateData.image = data.image;
 
     // Reject crucial updates for students - checking both global role and profile relations
@@ -187,7 +191,7 @@ export async function updateUserProfile(data: UpdateProfileInput) {
     }
 
     revalidatePath("/account");
-    revalidatePath("/");
+    revalidatePath("/", "layout");
 
     return { success: true };
   } catch (error) {

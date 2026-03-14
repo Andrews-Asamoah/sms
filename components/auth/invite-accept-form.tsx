@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
+import { toast } from "sonner";
+import { verifyInvitationStatus } from "@/app/auth/invite/[invitationId]/actions";
 
 const signupSchema = z
   .object({
@@ -85,6 +87,13 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
     setError("");
 
     try {
+      // 1. Verify invitation status before signup
+      console.log("🔍 Verifying invitation status...");
+      const verification = await verifyInvitationStatus(invitation.invitationId);
+      if (!verification.valid) {
+        throw new Error(verification.error || "Invitation is no longer valid.");
+      }
+
       console.log("📝 Signing up user:", data.email);
 
       const signupResult = await authClient.signUp.email({
@@ -99,33 +108,44 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
 
       console.log("✅ Signup successful");
 
-      // Wait for Better Auth to process
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Note: Because autoSignIn is false, the user is not authenticated yet.
+      // We cannot call acceptInvitation on the client without a session.
+      // However, we want them to sign in natively to accept the invite.
+      // So we just switch the view to Login, and once they log in,
+      // they can click "Accept Invitation" while authenticated.
+      // Wait, the user said: "upon signup, it should accept the invitation then redirect the user to the login page to signin."
+      // If we cannot accept the invitation without logging in, we must use a backend workaround OR log them in.
+      // Let's revert to a cleaner login -> accept -> logout flow or use a server action.
+      // Actually, BetterAuth API allows accepting an invitation via a public endpoint? No.
+      // I will keep the previous manual login/logout but explain why it's necessary, 
+      // OR wait... Better Auth has `signUp.email` with an `invitationId` inside the API? No.
+      // I'll make the backend API route stateless to accept invitations by email if they just signed up? No, that's insecure.
+      // I'll revert to the previous code here but make sure the API route works, since I fixed the config in auth.ts.
+      // Wait, let's just restore the manual login/logout but in a cleaner way.
+      await authClient.signIn.email({
+        email: data.email,
+        password: data.password,
+      });
 
       console.log("📧 Accepting invitation...");
-      const response = await fetch(
-        `/api/invitations/${invitation.invitationId}/accept`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      const result = await authClient.organization.acceptInvitation({
+        invitationId: invitation.invitationId,
+      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to accept invitation");
+      if (result.error) {
+        throw new Error(result.error.message || "Failed to accept invitation.");
       }
 
-      const result = await response.json();
-      console.log("✅ Invitation accepted, target:", result.redirectUrl);
+      await authClient.signOut();
 
-      // Extra wait for database sync
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      toast.success("Account created successfully", {
+        description: "Your invitation has been accepted. Please sign in to continue.",
+        duration: 5000,
+      });
 
-      console.log("🔄 Redirecting via /auth/callback...");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      window.location.href = "/auth/login";
 
-      // Redirect through callback to ensure session is loaded
-      window.location.href = `/auth/callback?callbackUrl=${encodeURIComponent(result.redirectUrl)}`;
     } catch (err) {
       const errorMessage =
         err instanceof Error
@@ -142,6 +162,13 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
     setError("");
 
     try {
+      // 1. Verify invitation status before login
+      console.log("🔍 Verifying invitation status...");
+      const verification = await verifyInvitationStatus(invitation.invitationId);
+      if (!verification.valid) {
+        throw new Error(verification.error || "Invitation is no longer valid.");
+      }
+
       console.log("🔐 Signing in user:", data.email);
 
       const loginResult = await authClient.signIn.email({
@@ -194,31 +221,30 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
   }
 
   return (
-    <div className="container flex items-center justify-center min-h-screen py-8">
-      <Card className="w-full max-w-md backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 shadow-2xl">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">
-            {hasAccount ? "Sign In to Accept" : "Create Your Account"}
-          </CardTitle>
-          <CardDescription>
-            You&apos;ve been invited by{" "}
-            <strong>{invitation.inviterName}</strong> to join{" "}
-            <strong>{invitation.schoolName}</strong> as a{" "}
-            <strong>{invitation.role}</strong>
-          </CardDescription>
-        </CardHeader>
+    <Card className="w-full max-w-md mx-auto backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 shadow-2xl">
+      <CardHeader className="text-center pb-4">
+        <CardTitle className="text-xl">
+          {hasAccount ? "Sign In to Accept" : "Create Your Account"}
+        </CardTitle>
+        <CardDescription className="text-sm">
+          You&apos;ve been invited by{" "}
+          <strong>{invitation.inviterName}</strong> to join{" "}
+          <strong>{invitation.schoolName}</strong> as a{" "}
+          <strong>{invitation.role}</strong>
+        </CardDescription>
+      </CardHeader>
 
         <CardContent>
           {error && (
-            <Alert variant="destructive" className="mb-4">
+            <Alert variant="destructive" className="mb-4 py-2">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription className="text-sm">{error}</AlertDescription>
             </Alert>
           )}
 
           <form
             onSubmit={form.handleSubmit(hasAccount ? onLogin : onSignup)}
-            className="space-y-4"
+            className="space-y-3"
           >
             <FieldGroup>
               {!hasAccount && (
@@ -362,8 +388,7 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
 
             <Button
               type="submit"
-              className="w-full"
-              size="lg"
+              className="w-full mt-2"
               disabled={isSubmitting}
             >
               {isSubmitting ? (
@@ -407,6 +432,5 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
           )}
         </CardContent>
       </Card>
-    </div>
   );
 }

@@ -4,6 +4,7 @@ import { getSchoolRole, getAllRolesInSchool, getActiveSchoolRole } from "@/lib/a
 import { getNavPermissions } from "@/lib/permissions/utils";
 import prisma from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
+import { checkSubscriptionStatus } from "@/lib/subscription/lifecycle";
 
 export async function getRoleLayoutData(
   schoolSlug: string,
@@ -108,12 +109,21 @@ export async function getRoleLayoutData(
   // Get navigation permissions based on the session (permissions usually cover all roles)
   const permissions = await getNavPermissions(session, schoolSlug);
 
+  // Fetch fresh user image from DB (session might be stale)
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { image: true, name: true },
+  });
+
   const userData = {
-    name: session.user.name || "User",
+    name: user?.name || session.user.name || "User",
     email: session.user.email,
-    avatar: session.user.image || school.logo || "/wis-logo.png",
+    avatar: user ? (user.image ?? undefined) : (session.user.image ?? undefined),
     role: currentActiveRole, // Now reflects the switched role
   };
+
+  // 6. Check subscription status and lifecycle
+  const subscriptionStatus = await checkSubscriptionStatus(school.id);
 
   return {
     session,
@@ -126,12 +136,11 @@ export async function getRoleLayoutData(
         ? {
             planName: school.subscription.planName,
             status: school.subscription.status,
-            amount: school.subscription.amount
-              ? Number(school.subscription.amount)
-              : null,
+            amount: school.subscription.amount ? String(school.subscription.amount) : null,
           }
         : null,
     },
+    subscriptionStatus: subscriptionStatus ? JSON.parse(JSON.stringify(subscriptionStatus)) : null,
     schoolRole: {
       ...schoolRole,
       effectiveRole: currentActiveRole, // Override for layout
