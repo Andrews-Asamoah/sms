@@ -139,11 +139,16 @@ export function ProfileForm({ userData }: ProfileFormProps) {
 
       if (result.success) {
         toast.success("Profile updated successfully");
-        
+
         // Derive composite name for instant UI feedback
-        const nameParts = [data.firstName, data.otherNames, data.lastName].filter(Boolean);
-        const compositeName = nameParts.length > 0 ? nameParts.join(" ") : data.name;
-        
+        const nameParts = [
+          data.firstName,
+          data.otherNames,
+          data.lastName,
+        ].filter(Boolean);
+        const compositeName =
+          nameParts.length > 0 ? nameParts.join(" ") : data.name;
+
         setDisplayName(compositeName);
         router.refresh();
       } else {
@@ -416,11 +421,12 @@ export function ProfileForm({ userData }: ProfileFormProps) {
                                 mode="single"
                                 selected={field.value}
                                 onSelect={field.onChange}
+                                captionLayout="dropdown"
                                 disabled={(date) =>
                                   date > new Date() ||
                                   date < new Date("1900-01-01")
                                 }
-                                className="bg-slate-900 text-white"
+                                // className="bg-slate-900 text-white"
                               />
                             </PopoverContent>
                           </Popover>
@@ -530,7 +536,7 @@ export function ProfileForm({ userData }: ProfileFormProps) {
                           {userData.email}
                         </p>
                         <p className="text-xs text-slate-500 mt-2 font-medium bg-slate-400/10 inline-block px-2 py-1 rounded-md">
-                          SECURITY PROTECTED — CONTACT IT TO MODIFY
+                          SECURITY PROTECTED — CONTACT IT DEPARTMENT TO MODIFY
                         </p>
                       </div>
                     </div>

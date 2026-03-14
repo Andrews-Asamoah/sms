@@ -103,12 +103,12 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-muted/50">
       <div className="space-y-6 p-6 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
               Academic Years & Terms
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-muted-foreground mt-1 text-sm sm:text-base">
               Manage academic years, terms, and system-wide settings
             </p>
           </div>
@@ -279,10 +279,10 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                   }`}
                 >
                   <CardHeader>
-                    <div className="flex items-start justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CardTitle className="text-2xl">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <CardTitle className="text-xl sm:text-2xl">
                             {year.name}
                           </CardTitle>
                         {isGlobal && (
@@ -312,7 +312,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                             return <Badge variant="outline">Past</Badge>;
                           })()}
                         </div>
-                        <CardDescription>
+                        <CardDescription className="text-xs sm:text-sm">
                           {new Date(year.startDate).toLocaleDateString(
                             "en-US",
                             {
@@ -329,14 +329,14 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                           })}
                         </CardDescription>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <AcademicYearDialog
                           schoolId={school.id}
                           schoolSlug={schoolSlug}
                           organizationId={school.organizationId}
                           initialData={year}
                         >
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
                             Edit Year
                           </Button>
                         </AcademicYearDialog>
@@ -384,7 +384,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
 
                       {/* Terms Section */}
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <h3 className="text-lg font-semibold">Terms</h3>
                           <TermDialog
                             academicYearId={year.id}
@@ -394,7 +394,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                             schoolSlug={schoolSlug}
                             existingTerms={year.terms}
                           >
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" className="w-full sm:w-auto">
                               <Plus className="mr-2 h-4 w-4" />
                               Add Term
                             </Button>

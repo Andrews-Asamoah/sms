@@ -1,7 +1,7 @@
 // ================
 // app/layout.tsx
 // ================
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeProvider as ColorThemeProvider } from "@/lib/themes/theme-provider";
@@ -22,6 +22,23 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { template: "%s | Edu-MS", default: "Edu-MS" },
   description: "The best SMS management system",
+  appleWebApp: {
+    title: "Edu-MS",
+    statusBarStyle: "default",
+    capable: true,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "white" },
+    { media: "(prefers-color-scheme: dark)", color: "#171717" }, // Closest to oklch(0.145 0 0)
+  ],
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  colorScheme: "dark light",
 };
 
 export default function RootLayout({
