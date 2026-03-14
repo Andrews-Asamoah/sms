@@ -73,13 +73,6 @@ const roleConfig = {
     badge: "amber",
     route: "accountant",
   },
-  staff: {
-    label: "Staff",
-    icon: UserCog,
-    color: "text-cyan-600",
-    badge: "cyan",
-    route: "staff",
-  },
   student: {
     label: "Student",
     icon: User,

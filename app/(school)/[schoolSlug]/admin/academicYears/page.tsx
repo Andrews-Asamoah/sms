@@ -105,7 +105,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight ">
               Academic Years & Terms
             </h1>
             <p className="text-muted-foreground mt-1 text-sm sm:text-base">
@@ -130,7 +130,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
         {/* Global Settings Card */}
         {canManageGlobal && (
           <Card className="border-2 border-primary/20 bg-card/80 backdrop-blur-xl shadow-2xl">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
+            <CardHeader className="">
               <div className="flex items-center gap-2">
                 <Settings2 className="h-5 w-5 text-primary" />
                 <CardTitle>Global System Settings</CardTitle>
@@ -191,9 +191,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
         )}
 
         {/* Term Transition Card */}
-        {canManageGlobal && (
-          <TermTransitionCard />
-        )}
+        {canManageGlobal && <TermTransitionCard />}
 
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="border-0 bg-card/60 backdrop-blur-xl shadow-xl">
@@ -285,7 +283,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                           <CardTitle className="text-xl sm:text-2xl">
                             {year.name}
                           </CardTitle>
-                        {isGlobal && (
+                          {isGlobal && (
                             <Badge className="bg-primary/20 text-primary border-primary/30">
                               Global Default
                             </Badge>
@@ -302,11 +300,20 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                             }
 
                             if (isUpcoming) {
-                              return <Badge variant="secondary">Upcoming</Badge>;
+                              return (
+                                <Badge variant="secondary">Upcoming</Badge>
+                              );
                             }
 
                             if (isActive) {
-                              return <Badge variant="outline" className="border-emerald-500 text-emerald-500">Active</Badge>;
+                              return (
+                                <Badge
+                                  variant="outline"
+                                  className="border-emerald-500 text-emerald-500"
+                                >
+                                  Active
+                                </Badge>
+                              );
                             }
 
                             return <Badge variant="outline">Past</Badge>;
@@ -336,7 +343,11 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                           organizationId={school.organizationId}
                           initialData={year}
                         >
-                          <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 sm:flex-none"
+                          >
                             Edit Year
                           </Button>
                         </AcademicYearDialog>
@@ -394,7 +405,11 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                             schoolSlug={schoolSlug}
                             existingTerms={year.terms}
                           >
-                            <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full sm:w-auto"
+                            >
                               <Plus className="mr-2 h-4 w-4" />
                               Add Term
                             </Button>

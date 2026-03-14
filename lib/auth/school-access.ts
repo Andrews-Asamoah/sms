@@ -91,14 +91,16 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
     if (staff && staff.isActive && staff.school) {
       const existing = schoolAccessMap.get(staff.school.id);
       const staffRole =
-        staff.staffType === StaffType.ACCOUNTANT ? "accountant" : "staff";
+        staff.staffType === StaffType.ACCOUNTANT ? "accountant" : "member";
 
       if (existing) {
-        existing.profileRoles.push(staffRole);
-        existing.effectiveRole = getHighestRole(
-          existing.effectiveRole,
-          staffRole,
-        );
+        if (staffRole !== "member") {
+          existing.profileRoles.push(staffRole as any);
+          existing.effectiveRole = getHighestRole(
+            existing.effectiveRole,
+            staffRole as any,
+          );
+        }
       } else {
         schoolAccessMap.set(staff.school.id, {
           schoolId: staff.school.id,
@@ -106,8 +108,8 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
           subdomain: staff.school.subdomain,
           organizationId: staff.school.organizationId,
           organizationRole: undefined,
-          profileRoles: [staffRole],
-          effectiveRole: staffRole,
+          profileRoles: staffRole !== "member" ? [staffRole as any] : [],
+          effectiveRole: staffRole as any,
           isActive: staff.isActive,
         });
       }
@@ -157,8 +159,6 @@ function mapOrgRoleToEffective(orgRole: OrganizationRole): EffectiveRole {
       return "teacher";
     case "accountant":
       return "accountant";
-    case "staff":
-      return "staff";
     case "guardian":
       return "guardian";
     case "student":

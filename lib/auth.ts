@@ -15,7 +15,6 @@ import {
   accountant,
   student,
   guardian,
-  staff,
   member as memberRole,
   user as userRole,
 } from "@/lib/auth/permissions";
@@ -141,7 +140,6 @@ export const auth = betterAuth({
         teacher,
         headteacher,
         accountant,
-        staff,
         guardian,
         student,
       },
@@ -373,6 +371,47 @@ export const auth = betterAuth({
                   invitationEmail: null,
                 },
               });
+
+              // STAFF LINKING — create Staff record for administrative roles
+              const role = member.role?.toUpperCase();
+              const isStaffRole = ["ACCOUNTANT", "ADMIN", "HEADTEACHER"].includes(role);
+
+              if (isStaffRole) {
+                // Check if staff record already exists
+                const existingStaff = await prisma.staff.findFirst({
+                  where: {
+                    schoolId: school.id,
+                    profileId: userProfile.id,
+                  },
+                });
+
+                if (!existingStaff) {
+                  const year = new Date().getFullYear();
+                  const random = Math.floor(1000 + Math.random() * 9000);
+                  const staffId = `S-${year}-${random}`;
+                  const staffNumber = `SN-S-${year}-${random}`;
+
+                  let staffType: StaffType = StaffType.OTHER;
+                  if (role === "ACCOUNTANT") {
+                    staffType = StaffType.ACCOUNTANT;
+                  } else if (role === "ADMIN") {
+                    staffType = StaffType.ADMIN;
+                  }
+                  else if (role === "HEADTEACHER") staffType = StaffType.OTHER; // No direct mapping, keep as OTHER or add to enum
+
+                  await prisma.staff.create({
+                    data: {
+                      schoolId: school.id,
+                      profileId: userProfile.id,
+                      staffId,
+                      staffNumber,
+                      staffType,
+                      employmentType: EmploymentType.FULL_TIME,
+                      isActive: true,
+                    },
+                  });
+                }
+              }
             }
 
             // AUDIT LOG
@@ -511,8 +550,8 @@ export const auth = betterAuth({
               }
 
               // STAFF LINKING — create Staff record for administrative roles
-              const invitedRole = invitation.role?.toUpperCase() || "MEMBER";
-              const isStaffRole = ["STAFF", "ACCOUNTANT", "ADMIN", "HEADTEACHER"].includes(invitedRole);
+              const invitedRole = invitation.role?.toUpperCase();
+              const isStaffRole = ["ACCOUNTANT", "ADMIN", "HEADTEACHER"].includes(invitedRole);
 
               if (isStaffRole) {
                 // Check if staff record already exists
@@ -528,7 +567,7 @@ export const auth = betterAuth({
                   const random = Math.floor(1000 + Math.random() * 9000);
                   const staffId = `S-${year}-${random}`;
                   const staffNumber = `SN-S-${year}-${random}`;
-                  
+
                   let staffType: StaffType = StaffType.OTHER;
                   if (invitedRole === "ACCOUNTANT") {
                     staffType = StaffType.ACCOUNTANT;
@@ -536,7 +575,7 @@ export const auth = betterAuth({
                     staffType = StaffType.ADMIN;
                   }
                   else if (invitedRole === "HEADTEACHER") staffType = StaffType.OTHER; // No direct mapping, keep as OTHER or add to enum
-                  
+
                   await prisma.staff.create({
                     data: {
                       schoolId: school.id,
@@ -618,9 +657,8 @@ export const auth = betterAuth({
         headteacher,
         teacher,
         accountant,
-        student,
         guardian,
-        staff,
+        student,
         member: memberRole,
         user: userRole,
       },

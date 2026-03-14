@@ -72,7 +72,7 @@ export function BaseHeader({
       <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
         {/* Left section - Sidebar trigger and breadcrumbs */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <SidebarTrigger className="-ml-1 hover:bg-accent/50 transition-colors" />
+          <SidebarTrigger className="-ml-1 hover:bg-accent/50 transition-colors shrink-0" />
           <Separator
             orientation="vertical"
             className="h-5 bg-border/60 hidden sm:block"

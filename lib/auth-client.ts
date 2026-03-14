@@ -17,7 +17,6 @@ import {
   accountant,
   student,
   guardian,
-  staff,
   member as memberRole,
   user as userRole,
 } from "@/lib/auth/permissions";
@@ -44,7 +43,6 @@ export const authClient = createAuthClient({
         accountant,
         student,
         guardian,
-        staff,
         member: memberRole,
         user: userRole,
       },
@@ -58,7 +56,6 @@ export const authClient = createAuthClient({
         teacher,
         headteacher,
         accountant,
-        staff,
         guardian,
         student,
       },

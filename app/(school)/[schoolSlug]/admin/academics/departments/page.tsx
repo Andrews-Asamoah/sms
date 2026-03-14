@@ -87,17 +87,19 @@ export default async function DepartmentsPage(props: DepartmentsPageProps) {
   return (
     <div className="min-h-screen bg-muted/30">
       <div className="space-y-6 p-6 max-w-7xl mx-auto">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Building2 className="h-8 w-8 text-primary" />
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+              <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
               Departments
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-sm sm:text-base text-muted-foreground mt-0.5 sm:mt-1">
               Manage academic departments and their heads
             </p>
           </div>
-          <DepartmentDialog schoolSlug={schoolSlug} />
+          <div className="flex items-center gap-2">
+            <DepartmentDialog schoolSlug={schoolSlug} />
+          </div>
         </div>
 
         <div className="bg-background rounded-lg border shadow-sm p-4">

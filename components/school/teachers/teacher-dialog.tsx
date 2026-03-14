@@ -176,7 +176,6 @@ export function TeacherDialog({
       experience: null,
       employmentType: "FULL_TIME",
       hireDate: new Date().toISOString().split("T")[0],
-      contractEndDate: null,
       isActive: true,
     },
   });
@@ -323,6 +322,7 @@ export function TeacherDialog({
     onActiveChange,
     registration,
     errors,
+    showContractEndDate,
   }: {
     employmentType: string;
     departmentId: string;
@@ -336,6 +336,7 @@ export function TeacherDialog({
     registration: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     errors: any;
+    showContractEndDate: boolean;
   }) {
     return (
       <>
@@ -453,16 +454,18 @@ export function TeacherDialog({
               )}
             </FieldGroup>
 
-            <FieldGroup>
-              <FieldLabel htmlFor="contractEndDate">
-                Contract End Date
-              </FieldLabel>
-              <Input
-                id="contractEndDate"
-                type="date"
-                {...registration("contractEndDate")}
-              />
-            </FieldGroup>
+            {showContractEndDate && (
+              <FieldGroup>
+                <FieldLabel htmlFor="contractEndDate">
+                  Contract End Date
+                </FieldLabel>
+                <Input
+                  id="contractEndDate"
+                  type="date"
+                  {...registration("contractEndDate")}
+                />
+              </FieldGroup>
+            )}
           </div>
         </div>
 
@@ -623,6 +626,7 @@ export function TeacherDialog({
                   onActiveChange={(v) => inviteForm.setValue("isActive", v)}
                   registration={inviteForm.register}
                   errors={inviteForm.formState.errors}
+                  showContractEndDate={false}
                 />
               </div>
 
@@ -770,6 +774,7 @@ export function TeacherDialog({
                   onActiveChange={(v) => editForm.setValue("isActive", v)}
                   registration={editForm.register}
                   errors={editForm.formState.errors}
+                  showContractEndDate={true}
                 />
               </div>
 

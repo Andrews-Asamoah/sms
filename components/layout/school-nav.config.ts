@@ -423,7 +423,6 @@ const ROLE_NAV_SECTIONS: Record<string, string[]> = {
     "Accountant Dashboard",
     "Communication",
   ],
-  staff: ["Communication"],
   student: ["Student Area", "Communication"],
   guardian: ["Guardian Area", "Communication"],
   member: ["Teacher Area"],
@@ -541,7 +540,6 @@ export function getPrefixedNavSections(
           url.includes("/admin/academicYears") ||
           url.includes("/admin/students") ||
           url.includes("/admin/teachers") ||
-          url.includes("/admin/staff") ||
           url.includes("/admin/guardians"))
       ) {
         url = url.replace("/admin", "/accountant");
@@ -577,7 +575,6 @@ export function getPrefixedNavSections(
               subUrl.includes("/admin/academicYears") ||
               subUrl.includes("/admin/students") ||
               subUrl.includes("/admin/teachers") ||
-              subUrl.includes("/admin/staff") ||
               subUrl.includes("/admin/guardians"))
           ) {
             subUrl = subUrl.replace("/admin", "/accountant");

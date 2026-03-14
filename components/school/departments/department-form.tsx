@@ -133,12 +133,11 @@ export function DepartmentForm({
           type="number" 
           step="0.01" 
           min="0" 
-          max="100" 
-          placeholder="e.g. 50.00" 
+          placeholder="e.g. 500" 
           {...register("promotionPassMark")} 
         />
         <p className="text-sm text-muted-foreground text-[0.8rem]">
-          Minimum raw score required for students to be promoted to the next academic year.
+          Minimum raw score required for promotion. Set based on the total marks across all subjects in this department (e.g. 10 subjects × 100 = 1000).
         </p>
         {errors.promotionPassMark && (
           <FieldError>{errors.promotionPassMark.message}</FieldError>

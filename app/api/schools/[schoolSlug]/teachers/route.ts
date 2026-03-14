@@ -25,7 +25,6 @@ const teacherInviteSchema = z.object({
     "INTERN",
   ]),
   hireDate: z.string().min(1, "Hire date is required"),
-  contractEndDate: z.string().nullable().optional(),
   isActive: z.boolean().default(true),
   // When true, skip the confirmation prompt and directly add as teacher
   force: z.boolean().optional().default(false),
@@ -238,7 +237,7 @@ export async function POST(
             body: {
               organizationId: school.organizationId,
               userId: existingUser.id,
-              role: "member",
+              role: "teacher",
             },
             headers: req.headers,
           });
@@ -282,9 +281,6 @@ export async function POST(
             experience: data.experience ?? null,
             employmentType: data.employmentType,
             hireDate: formatDate(data.hireDate),
-            contractEndDate: data.contractEndDate
-              ? formatDate(data.contractEndDate)
-              : null,
             isActive: data.isActive,
           },
         });
@@ -307,7 +303,7 @@ export async function POST(
     const inviteResponse = await auth.api.createInvitation({
       body: {
         email: data.email,
-        role: "member",
+        role: "teacher",
         organizationId: school.organizationId,
       },
       headers: req.headers,
@@ -337,9 +333,6 @@ export async function POST(
         experience: data.experience ?? null,
         employmentType: data.employmentType,
         hireDate: formatDate(data.hireDate),
-        contractEndDate: data.contractEndDate
-          ? formatDate(data.contractEndDate)
-          : null,
         isActive: data.isActive,
       },
     });

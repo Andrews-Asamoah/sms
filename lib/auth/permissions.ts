@@ -29,7 +29,6 @@ export const statement = {
   school: ["create", "update", "delete", "view", "manage"],
   student: ["create", "update", "delete", "view", "enroll"],
   teacher: ["create", "update", "delete", "view", "assign"],
-  staff: ["create", "update", "delete", "view"],
   parent: ["create", "update", "delete", "view"],
 
   // Academic
@@ -93,7 +92,6 @@ export const superAdmin = ac.newRole({
   school: ["create", "update", "delete", "view", "manage"],
   student: ["create", "update", "delete", "view", "enroll"],
   teacher: ["create", "update", "delete", "view", "assign"],
-  staff: ["create", "update", "delete", "view"],
   parent: ["create", "update", "delete", "view"],
   class: ["create", "update", "delete", "view", "manage"],
   subject: ["create", "update", "delete", "view"],
@@ -128,7 +126,6 @@ export const owner = ac.newRole({
   school: ["update", "view", "manage"],
   student: ["create", "update", "delete", "view", "enroll"],
   teacher: ["create", "update", "delete", "view", "assign"],
-  staff: ["create", "update", "delete", "view"],
   parent: ["create", "update", "delete", "view"],
   class: ["create", "update", "delete", "view", "manage"],
   subject: ["create", "update", "delete", "view"],
@@ -163,7 +160,6 @@ export const admin = ac.newRole({
   school: ["view", "update"],
   student: ["create", "update", "delete", "view", "enroll"],
   teacher: ["create", "update", "delete", "view", "assign"],
-  staff: ["create", "update", "delete", "view"],
   parent: ["create", "update", "delete", "view"],
   class: ["create", "update", "delete", "view", "manage"],
   subject: ["create", "update", "delete", "view"],
@@ -197,7 +193,6 @@ export const headteacher = ac.newRole({
   school: ["view", "update"],
   student: ["create", "update", "delete", "view", "enroll"],
   teacher: ["create", "update", "delete", "view", "assign"],
-  staff: ["create", "update", "delete", "view"],
   parent: ["create", "update", "delete", "view"],
   class: ["create", "update", "delete", "view", "manage"],
   subject: ["create", "update", "delete", "view"],
@@ -253,17 +248,6 @@ export const accountant = ac.newRole({
   communication: ["view"],
 });
 
-export const staff = ac.newRole({
-  school: ["view"],
-  student: ["view"],
-  document: ["view", "upload"],
-  hostel: ["view"],
-  library: ["view"],
-  inventory: ["view"],
-  transport: ["view"],
-  communication: ["view"],
-  announcement: ["view"],
-});
 
 export const student = ac.newRole({
   school: ["view"],
@@ -329,7 +313,6 @@ export const ROLES = [
   "accountant",
   "student",
   "guardian",
-  "staff",
   "member",
   "user",
 ] as const;
@@ -355,7 +338,6 @@ export function getRoleDisplayName(role: RoleName): string {
     accountant: "Accountant",
     student: "Student",
     guardian: "Parent/Guardian",
-    staff: "Staff",
     member: "Member",
     user: "User",
   };
@@ -372,7 +354,6 @@ export function getRoleDescription(role: RoleName): string {
     accountant: "Financial management and reporting",
     student: "View own academic information",
     guardian: "View children's information and make payments",
-    staff: "Department-specific access",
     member: "Organization member",
     user: "Basic authenticated user",
   };

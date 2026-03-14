@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -38,15 +37,18 @@ export function DepartmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         {children || (
-            <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Department
-            </Button>
+          <Button size="sm" className="sm:h-10 sm:px-4 sm:py-2 h-8 px-3 text-xs sm:text-sm">
+            <Plus className="mr-1 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Add Department</span>
+            <span className="sm:hidden">Add Dept</span>
+          </Button>
         )}
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-2">
-          <DialogTitle>{department ? "Edit Department" : "Add Department"}</DialogTitle>
+          <DialogTitle>
+            {department ? "Edit Department" : "Add Department"}
+          </DialogTitle>
           <DialogDescription>
             {department
               ? "Make changes to the department details below."
