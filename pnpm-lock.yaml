@@ -27,7 +27,7 @@ importers:
         specifier: ^7.2.0
         version: 7.5.0
       '@prisma/client':
-        specifier: ^7.3.0
+        specifier: ^7.5.0
         version: 7.5.0(prisma@7.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3))(typescript@5.9.3)
       '@prisma/extension-accelerate':
         specifier: ^3.0.1
@@ -205,7 +205,7 @@ importers:
         specifier: 16.1.1
         version: 16.1.1(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       prisma:
-        specifier: ^7.3.0
+        specifier: ^7.5.0
         version: 7.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
       tailwindcss:
         specifier: ^4
