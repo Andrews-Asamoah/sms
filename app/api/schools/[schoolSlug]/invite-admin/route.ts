@@ -15,7 +15,6 @@ const ALL_ORG_ROLES = [
   "TEACHER",
   "HEADTEACHER",
   "ACCOUNTANT",
-  "STAFF",
   "GUARDIAN",
 ] as const;
 
