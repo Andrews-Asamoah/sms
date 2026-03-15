@@ -50,6 +50,7 @@ interface ProcessResult {
   password?: string;
   status: "success" | "error";
   message?: string;
+  action?: "created" | "updated" | "skipped";
 }
 
 // ============================================================================
@@ -170,7 +171,7 @@ export async function POST(
       return NextResponse.json({ error: "No access to this school" }, { status: 403 });
     }
 
-    if (schoolAccess.effectiveRole !== "admin" && schoolAccess.effectiveRole !== "owner" && !session.isSuperAdmin) {
+    if (schoolAccess.effectiveRole !== "admin" && schoolAccess.effectiveRole !== "owner") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -211,18 +212,46 @@ export async function POST(
     // ========================================================================
     // STEP 2: Enforce Student Limits
     // ========================================================================
-    const studentCount = await prisma.student.count({
+    const existingActiveStudents = await prisma.student.findMany({
       where: { schoolId: school.id, status: "ACTIVE" },
+      include: { profile: true },
     });
 
+    const existingStudentKeys = new Set(
+      existingActiveStudents
+        .map((s) => {
+          try {
+            return `${s.profile.firstName.toLowerCase().trim()}_${s.profile.lastName.toLowerCase().trim()}_${new Date(s.profile.dateOfBirth).toISOString().split("T")[0]}`;
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean)
+    );
+
+    let newStudentsCount = 0;
+    for (const row of studentRows) {
+      if (!row.firstName || !row.lastName || !row.dateOfBirth) continue;
+      try {
+        const dob = new Date(row.dateOfBirth).toISOString().split("T")[0];
+        const key = `${String(row.firstName).toLowerCase().trim()}_${String(row.lastName).toLowerCase().trim()}_${dob}`;
+        if (!existingStudentKeys.has(key)) {
+          newStudentsCount++;
+        }
+      } catch {
+        newStudentsCount++;
+      }
+    }
+
+    const studentCount = existingActiveStudents.length;
     const maxStudents = school.subscription?.maxStudents || 50; // Default to 50 for Free Plan
     const remainingSlots = maxStudents - studentCount;
 
-    if (studentRows.length > remainingSlots) {
+    if (newStudentsCount > remainingSlots) {
       return NextResponse.json(
         {
           error: `Student limit exceeded for ${school.subscription?.planName || "Free Plan"}.`,
-          details: `Current students: ${studentCount}, Limit: ${maxStudents}. You are attempting to upload ${studentRows.length} students, but only ${remainingSlots} slots are available. Please upgrade your subscription to add more students.`,
+          details: `Current students: ${studentCount}, Limit: ${maxStudents}. You are attempting to add ${newStudentsCount} new students, but only ${remainingSlots} slots are available. Please upgrade your subscription to add more students.`,
         },
         { status: 403 },
       );
@@ -270,7 +299,7 @@ export async function POST(
         const admYearShort = admYear.toString().slice(-2);
 
         if (!yearSequences.has(admYear)) {
-          const lastStudentForYear = await prisma.student.findFirst({
+          const allYearStudents = await prisma.student.findMany({
             where: { 
               schoolId: school.id,
               OR: [
@@ -278,22 +307,22 @@ export async function POST(
                 { admissionNumber: { startsWith: `${schoolPrefix}-${admYearShort}-` } }
               ]
             },
-            orderBy: { createdAt: "desc" },
             select: { studentId: true, admissionNumber: true },
           });
 
           let nextS = 1;
           let nextA = 1;
-          if (lastStudentForYear) {
-            if (lastStudentForYear.studentId.startsWith(`STU-${admYear}-`)) {
-              const parts = lastStudentForYear.studentId.split("-");
+          
+          for (const s of allYearStudents) {
+            if (s.studentId.startsWith(`STU-${admYear}-`)) {
+              const parts = s.studentId.split("-");
               const lastNum = parseInt(parts[parts.length - 1]);
-              if (!isNaN(lastNum)) nextS = lastNum + 1;
+              if (!isNaN(lastNum) && lastNum >= nextS) nextS = lastNum + 1;
             }
-            if (lastStudentForYear.admissionNumber?.startsWith(`${schoolPrefix}-${admYearShort}-`)) {
-              const parts = lastStudentForYear.admissionNumber.split("-");
+            if (s.admissionNumber?.startsWith(`${schoolPrefix}-${admYearShort}-`)) {
+              const parts = s.admissionNumber.split("-");
               const lastNum = parseInt(parts[parts.length - 1]);
-              if (!isNaN(lastNum)) nextA = lastNum + 1;
+              if (!isNaN(lastNum) && lastNum >= nextA) nextA = lastNum + 1;
             }
           }
           yearSequences.set(admYear, { student: nextS, admission: nextA });
@@ -344,18 +373,24 @@ export async function POST(
                 dateOfBirth: new Date(row.dateOfBirth),
               },
             },
-            include: { profile: true },
+            include: { profile: { include: { user: true } } },
           });
   
+          if (existingStudent) {
+            return {
+              row: rowNumber,
+              studentId: existingStudent.studentId,
+              admissionNumber: existingStudent.admissionNumber || admissionNumber,
+              name: `${row.firstName} ${row.lastName}`,
+              email: existingStudent.profile?.user?.email || studentEmail,
+              status: "success" as const,
+              action: "skipped" as const,
+              message: "Student already exists, skipped.",
+            };
+          }
+
           let finalStudentId = studentId;
           let finalAdmissionNumber = admissionNumber;
-          let isExisting = false;
-  
-          if (existingStudent) {
-            finalStudentId = existingStudent.studentId;
-            finalAdmissionNumber = existingStudent.admissionNumber || "";
-            isExisting = true;
-          }
           const temporaryPassword = crypto.randomBytes(4).toString("hex");
   
           const classRecord = row.className ? school.classes.find((c: any) => c.name === row.className) : null;
@@ -373,18 +408,54 @@ export async function POST(
               throw new Error(`Student with email ${studentEmail} already exists`);
             }
             userId = existingUser.id;
-          } else {
-            const userResult = await (auth.api as any).createUser({
-              body: { email: studentEmail, password: temporaryPassword, name: `${row.firstName} ${row.lastName}`, role: "student" },
-              headers: await headers(),
+            
+            // Check if membership already exists, otherwise add via auth api
+            const existingMember = await prisma.member.findFirst({
+              where: {
+                organizationId: school.organizationId,
+                userId: userId,
+              }
             });
-            if (!userResult || !userResult.user) throw new Error("Failed to create user account");
-            userId = userResult.user.id;
+
+            if (!existingMember) {
+              await auth.api.addMember({
+                body: {
+                  organizationId: school.organizationId,
+                  userId: userId,
+                  role: "student",
+                },
+              });
+              // Wait a moment for the afterAddMember hook to complete
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+          } else {
+            // Create user directly via Prisma to bypass auth.api permission checks for school admins
+            const newUser = await prisma.user.create({
+              data: {
+                id: crypto.randomUUID(),
+                name: `${row.firstName} ${row.lastName}`,
+                email: studentEmail,
+                emailVerified: true,
+                role: "user", // The system role is "user", org role is "student"
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            });
+
+            userId = newUser.id;
+
+            // Add student to organization using better-auth api
+            await auth.api.addMember({
+              body: {
+                organizationId: school.organizationId,
+                userId: userId,
+                role: "student",
+              },
+            });
+
+            // Wait a moment for the afterAddMember hook to complete
+            await new Promise((resolve) => setTimeout(resolve, 100));
           }
-  
-          await auth.api.addMember({
-            body: { organizationId: school.organizationId, userId: userId, role: "student" },
-          });
   
           const userProfile = await prisma.userProfile.upsert({
             where: { userId },
@@ -506,6 +577,7 @@ export async function POST(
             email: studentEmail,
             password: temporaryPassword,
             status: "success" as const,
+            action: "created" as const,
           };
         } catch (error: any) {
           console.error(`❌ [Bulk Upload] Row ${rowNumber} failed:`, error);
@@ -525,6 +597,10 @@ export async function POST(
       results.push(...batchResults);
     }
 
+    const successful = results.filter((r) => r.status === "success" && r.action !== "skipped").length;
+    const skipped = results.filter((r) => r.action === "skipped").length;
+    const failed = results.filter((r) => r.status === "error").length;
+
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
@@ -534,21 +610,19 @@ export async function POST(
         newValues: {
           schoolId: school.id,
           totalStudents: results.length,
-          successful: results.filter((r) => r.status === "success").length,
-          failed: results.filter((r) => r.status === "error").length,
+          successful,
+          skipped,
+          failed,
           uploadedBy: session.user.email,
         },
       },
     });
 
-    const successful = results.filter((r) => r.status === "success").length;
-    const failed = results.filter((r) => r.status === "error").length;
-
     return NextResponse.json({
       success: true,
       results,
-      summary: { total: results.length, successful, failed },
-      message: `Bulk upload complete. ${successful} students processed.`,
+      summary: { total: results.length, successful, skipped, failed },
+      message: `Bulk upload complete. ${successful} new students created, ${skipped} existing students skipped, ${failed} failed.`,
     });
   } catch (error) {
     console.error("[Bulk Upload] Error:", error);

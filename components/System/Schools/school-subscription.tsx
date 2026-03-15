@@ -139,39 +139,56 @@ export function SchoolSubscription({
   }, [school.subscription]);
 
   const limits = useMemo(() => {
+    // If no subscription, use default Free Plan limits
+    if (!school.subscription) {
+      return { students: 50, teachers: 5, staff: 2 };
+    }
+
+    // Return the actual database values. null specifically means unlimited.
     return {
-      students: school.subscription?.maxStudents ?? 50,
-      teachers: school.subscription?.maxTeachers ?? 5,
-      staff: school.subscription?.maxStaff ?? 2,
+      students: school.subscription.maxStudents,
+      teachers: school.subscription.maxTeachers,
+      staff: school.subscription.maxStaff,
     };
   }, [school.subscription]);
 
   const studentUsagePercent = Math.min(
     (school._count.students /
-      (limits.students === Infinity ? 10000 : limits.students)) *
+      (limits.students === null || limits.students === Infinity
+        ? 10000
+        : limits.students)) *
       100,
     100,
   );
   const teacherUsagePercent = Math.min(
     (school._count.teachers /
-      (limits.teachers === Infinity ? 1000 : limits.teachers)) *
+      (limits.teachers === null || limits.teachers === Infinity
+        ? 1000
+        : limits.teachers)) *
       100,
     100,
   );
   const staffUsagePercent = Math.min(
-    (school._count.staff / (limits.staff === Infinity ? 500 : limits.staff)) *
+    (school._count.staff /
+      (limits.staff === null || limits.staff === Infinity
+        ? 500
+        : limits.staff)) *
       100,
     100,
   );
 
   const isApproachingStudentLimit =
+    limits.students !== null &&
     limits.students !== Infinity &&
-    school._count.students >= limits.students * 0.8;
+    school._count.students >= (limits.students as number) * 0.8;
   const isApproachingTeacherLimit =
+    limits.teachers !== null &&
     limits.teachers !== Infinity &&
-    school._count.teachers >= limits.teachers * 0.8;
+    school._count.teachers >= (limits.teachers as number) * 0.8;
   const isApproachingStaffLimit =
-    limits.staff !== Infinity && school._count.staff >= limits.staff * 0.8;
+    limits.staff !== null &&
+    limits.staff !== Infinity &&
+    school._count.staff >= (limits.staff as number) * 0.8;
 
   const handleUpgrade = async (planId: string) => {
     setIsLoading(planId);
@@ -250,7 +267,9 @@ export function SchoolSubscription({
     } catch (error) {
       console.error("Card update error:", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to initiate card update",
+        error instanceof Error
+          ? error.message
+          : "Failed to initiate card update",
       );
     } finally {
       setIsLoading(null);
@@ -351,7 +370,7 @@ export function SchoolSubscription({
               </CardTitle>
               <CardDescription className="mt-2">
                 {subscriptionStatus.canAccessPremiumFeatures
-                  ? `You are on the ${subscriptionStatus.planName} (${school.subscription?.billingCycle}).`
+                  ? `You are on the ${subscriptionStatus.planName}`
                   : "You're on the free plan with limited features."}
               </CardDescription>
             </div>
@@ -454,9 +473,12 @@ export function SchoolSubscription({
               <p className="text-2xl font-bold tabular-nums">
                 {school._count.students}
               </p>
-              <Progress value={studentUsagePercent} className="h-2" />
+              <Progress
+                value={limits.students === null ? 0 : studentUsagePercent}
+                className="h-2"
+              />
               <p className="text-xs text-muted-foreground">
-                {limits.students === Infinity
+                {limits.students === null || limits.students === Infinity
                   ? "Unlimited"
                   : `${school._count.students}/${limits.students} limit`}
               </p>
@@ -468,9 +490,12 @@ export function SchoolSubscription({
               <p className="text-2xl font-bold tabular-nums">
                 {school._count.teachers}
               </p>
-              <Progress value={teacherUsagePercent} className="h-2" />
+              <Progress
+                value={limits.teachers === null ? 0 : teacherUsagePercent}
+                className="h-2"
+              />
               <p className="text-xs text-muted-foreground">
-                {limits.teachers === Infinity
+                {limits.teachers === null || limits.teachers === Infinity
                   ? "Unlimited"
                   : `${school._count.teachers}/${limits.teachers} limit`}
               </p>
@@ -480,9 +505,12 @@ export function SchoolSubscription({
               <p className="text-2xl font-bold tabular-nums">
                 {school._count.staff}
               </p>
-              <Progress value={staffUsagePercent} className="h-2" />
+              <Progress
+                value={limits.staff === null ? 0 : staffUsagePercent}
+                className="h-2"
+              />
               <p className="text-xs text-muted-foreground">
-                {limits.staff === Infinity
+                {limits.staff === null || limits.staff === Infinity
                   ? "Unlimited"
                   : `${school._count.staff}/${limits.staff} limit`}
               </p>
@@ -579,12 +607,14 @@ export function SchoolSubscription({
               </CardHeader>
               <CardContent className="space-y-4 flex-grow">
                 <div className="space-y-2 text-sm">
-                  {plan.features.description.map((feature: string, index: number) => (
-                    <div key={index} className="flex items-start gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                      <span>{feature}</span>
-                    </div>
-                  ))}
+                  {plan.features.description.map(
+                    (feature: string, index: number) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                        <span>{feature}</span>
+                      </div>
+                    ),
+                  )}
                 </div>
               </CardContent>
               <CardFooter>
@@ -605,9 +635,7 @@ export function SchoolSubscription({
                     ) : (
                       <TrendingUp className="mr-2 h-4 w-4" />
                     )}
-                    {isExpiredCurrentPlan
-                      ? "Renew Plan"
-                      : "Upgrade"}
+                    {isExpiredCurrentPlan ? "Renew Plan" : "Upgrade"}
                   </Button>
                 )}
               </CardFooter>
@@ -640,19 +668,24 @@ export function SchoolSubscription({
                   })}
                 </span>
               </div>
-              
+
               <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 p-4 rounded-xl flex gap-3">
                 <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-400">How Card Updates Work</p>
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                    How Card Updates Work
+                  </p>
                   <p className="text-xs text-amber-700/80 dark:text-amber-400/60 mt-1 leading-relaxed">
-                    Paystack requires a minimal verification charge of <span className="font-bold">GH₵ 0.10</span> to securely link your new card. This is a one-time card verification fee, not part of your subscription.
+                    Paystack requires a minimal verification charge of{" "}
+                    <span className="font-bold">GH₵ 0.10</span> to securely link
+                    your new card. This is a one-time card verification fee, not
+                    part of your subscription.
                   </p>
                 </div>
               </div>
               <div className="pt-4 space-y-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full"
                   onClick={handleUpdateCard}
                   disabled={!!isLoading}
@@ -662,8 +695,11 @@ export function SchoolSubscription({
                   ) : null}
                   Update Payment Method
                 </Button>
-                
-                <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+
+                <AlertDialog
+                  open={isCancelDialogOpen}
+                  onOpenChange={setIsCancelDialogOpen}
+                >
                   <Button
                     variant="ghost"
                     className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
@@ -677,20 +713,30 @@ export function SchoolSubscription({
                   </Button>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        Are you absolutely sure?
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will cancel your premium subscription. You will lose access to premium features at the end of your current billing period on {new Date(school.subscription.currentPeriodEnd).toLocaleDateString()}.
+                        This will cancel your premium subscription. You will
+                        lose access to premium features at the end of your
+                        current billing period on{" "}
+                        {new Date(
+                          school.subscription.currentPeriodEnd,
+                        ).toLocaleDateString()}
+                        .
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
-                      <AlertDialogAction 
+                      <AlertDialogAction
                         onClick={handleCancelSubscription}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
                         {isLoading === "CANCEL" ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : "Cancel Subscription"}
+                        ) : (
+                          "Cancel Subscription"
+                        )}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

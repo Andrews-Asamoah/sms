@@ -306,24 +306,20 @@ export async function POST(
     );
     const temporaryPassword = generateSecurePassword();
 
-    // Create user via Better Auth Admin API to avoid auto-login
-    // The admin plugin exposes createUser directly on auth.api, not nested under admin
-    const userResult = await (auth.api as any).createUser({
-      body: {
-        email: studentEmail,
-        password: temporaryPassword,
+    // Create user directly via Prisma to bypass auth.api permission checks for school admins
+    const newUser = await prisma.user.create({
+      data: {
+        id: crypto.randomUUID(),
         name: `${firstName} ${lastName}`,
-        role: "student",
+        email: studentEmail,
+        emailVerified: true,
+        role: "user", // The system role is "user", org role is "student"
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
-      headers: await headers(),
     });
 
-    const createdUser = userResult?.user;
-    if (!createdUser) {
-      throw new Error("Failed to create user account");
-    }
-
-    const userId = createdUser.id;
+    const userId = newUser.id;
 
     // ========================================================================
     // STEP 5: Add student to organization

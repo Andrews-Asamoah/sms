@@ -125,7 +125,7 @@ export default function NavCollapsible({
                       className={cn(
                         "w-full transition-colors",
                         isParentActive &&
-                          "bg-sidebar-accent text-sidebar-accent-foreground",
+                          "bg-sidebar-primary/10 text-sidebar-primary font-medium",
                       )}
                     >
                       {item.icon && <item.icon className="h-4 w-4" />}
@@ -154,11 +154,8 @@ export default function NavCollapsible({
                           <SidebarMenuSubItem key={subItem.title}>
                             <SidebarMenuSubButton
                               asChild
-                              className={cn(
-                                "w-full transition-colors",
-                                isActive &&
-                                  "bg-sidebar-accent text-sidebar-accent-foreground font-medium",
-                              )}
+                              isActive={isActive}
+                              className="w-full transition-colors"
                             >
                               <Link href={subItem.url}>
                                 <span>{subItem.title}</span>

@@ -10,15 +10,15 @@ export type SubscriptionPlan = {
   currency: string;
   paystackPlanCode: string; // The Plan Code from Paystack Dashboard (e.g. PLN_gx2...)
   features: {
-    maxStudents: number;
-    maxTeachers: number;
-    maxStaff: number;
+    maxStudents: number | null;
+    maxTeachers: number | null;
+    maxStaff: number | null;
     description: string[];
   };
   limits: {
-    students: number;
-    teachers: number;
-    staff: number;
+    students: number | null;
+    teachers: number | null;
+    staff: number | null;
   };
 };
 
@@ -194,9 +194,9 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     currency: "GHS",
     paystackPlanCode: PAYSTACK_PLAN_CODES.PREMIUM_MONTHLY,
     features: {
-      maxStudents: Infinity,
-      maxTeachers: Infinity,
-      maxStaff: Infinity,
+      maxStudents: null,
+      maxTeachers: null,
+      maxStaff: null,
       description: [
         "Unlimited students",
         "Unlimited teachers",
@@ -208,9 +208,9 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       ],
     },
     limits: {
-      students: Infinity,
-      teachers: Infinity,
-      staff: Infinity,
+      students: null,
+      teachers: null,
+      staff: null,
     },
   },
   {
@@ -224,9 +224,9 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     currency: "GHS",
     paystackPlanCode: PAYSTACK_PLAN_CODES.PREMIUM_YEARLY,
     features: {
-      maxStudents: Infinity,
-      maxTeachers: Infinity,
-      maxStaff: Infinity,
+      maxStudents: null,
+      maxTeachers: null,
+      maxStaff: null,
       description: [
         "Unlimited students",
         "Unlimited teachers",
@@ -239,9 +239,9 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       ],
     },
     limits: {
-      students: Infinity,
-      teachers: Infinity,
-      staff: Infinity,
+      students: null,
+      teachers: null,
+      staff: null,
     },
   },
 ];
