@@ -41,6 +41,16 @@ export const getSession = cache(async (): Promise<ExtendedSession | null> => {
       }),
     ]);
 
+    // Determine active organization status if available
+    let activeOrgStatus: string | null = null;
+    if (session.session.activeOrganizationId) {
+       const activeOrg = await prisma.organization.findUnique({
+         where: { id: session.session.activeOrganizationId },
+         select: { subscriptionStatus: true }
+       });
+       activeOrgStatus = activeOrg?.subscriptionStatus ?? null;
+    }
+
     // Determine roles
     const isSuperAdmin = session.user.role === "superAdmin";
     const isAdmin =
@@ -78,6 +88,7 @@ export const getSession = cache(async (): Promise<ExtendedSession | null> => {
       isSuperAdmin,
       isAdmin,
       isOwner: memberships.some((m) => m.role === "owner"),
+      subscriptionStatus: activeOrgStatus as any,
     };
 
     return enhancedSession;

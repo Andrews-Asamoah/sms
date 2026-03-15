@@ -424,12 +424,35 @@ export async function getActiveOrganization() {
 
 /**
  * Check if user has Better Auth permission
+ * REFACTORED: Subscription-aware permission check
  */
 export async function checkPermission(
   userId: string,
   permissions: Record<string, string[]>,
 ): Promise<boolean> {
   try {
+    // 1. Get session to check subscription status
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    // 2. If organization is suspended, restrict permissions
+    if (session?.session.activeOrganizationId) {
+       const org = await prisma.organization.findUnique({
+         where: { id: session.session.activeOrganizationId },
+         select: { subscriptionStatus: true }
+       });
+
+       if (org && org.subscriptionStatus !== "ACTIVE") {
+          // If suspended, only allow 'organization:view', 'organization:update' (billing), 'school:view'
+          const allowedResources = ["organization", "school"];
+          const requestedResources = Object.keys(permissions);
+          
+          const isAllowed = requestedResources.every(res => allowedResources.includes(res));
+          if (!isAllowed) return false;
+       }
+    }
+
     const result = await auth.api.userHasPermission({
       body: {
         userId,

@@ -386,8 +386,6 @@ export default async function SubjectDetailPage(props: SubjectDetailPageProps) {
                           </div>
                           <p className="text-sm text-muted-foreground">
                             {cs.class.academicYear.name}
-                            {cs.class.section &&
-                              ` • Section ${cs.class.section}`}
                           </p>
                         </div>
                       ))}

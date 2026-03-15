@@ -257,6 +257,15 @@ export function hasRoleInSchool(
 ): boolean {
   if (session.isSuperAdmin) return true;
 
+  // If school is suspended, only allow admins/owners to access specific roles/actions
+  if (session.subscriptionStatus && session.subscriptionStatus !== "ACTIVE") {
+    const isAdmin = ["owner", "admin"].includes(session.user.role);
+    if (!isAdmin) return false;
+    
+    // Admins can only access 'owner' or 'admin' roles during suspension
+    if (!["owner", "admin"].includes(role)) return false;
+  }
+
   const access = getSchoolRole(session, subdomain);
   if (!access) return false;
 

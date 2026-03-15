@@ -308,6 +308,16 @@ export const member = ac.newRole({
   communication: ["view"],
 });
 
+/**
+ * Restricted role for suspended schools
+ * Only allows critical billing and member viewing
+ */
+export const suspended = ac.newRole({
+  organization: ["update", "view"],
+  invitation: ["view"],
+  school: ["view"],
+});
+
 // ============================================================================
 // UTILITIES (Keep your existing utilities)
 // ============================================================================

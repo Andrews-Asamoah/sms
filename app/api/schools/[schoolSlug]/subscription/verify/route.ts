@@ -80,9 +80,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const metaSchoolId = data.metadata?.schoolId;
     const metaPlanId = data.metadata?.planId;
     const isUpgrade = data.metadata?.isUpgrade === true;
+    const isCardUpdate = data.metadata?.type === "CARD_UPDATE";
 
     console.log(
-      `[Paystack Verify] Metadata: schoolId=${metaSchoolId}, planId=${metaPlanId}, isUpgrade=${isUpgrade}`,
+      `[Paystack Verify] Metadata: schoolId=${metaSchoolId}, planId=${metaPlanId}, isUpgrade=${isUpgrade}, isCardUpdate=${isCardUpdate}`,
     );
 
     if (!metaSchoolId) {
@@ -94,6 +95,27 @@ export async function GET(request: NextRequest, context: RouteContext) {
           `/${schoolSlug}/admin/subscription?error=invalid_metadata`,
           request.url,
         ),
+      );
+    }
+
+    // --- CARD UPDATE FLOW ---
+    if (isCardUpdate) {
+      console.log(`[Paystack Verify] 💳 Handling Card Update for schoolId: ${metaSchoolId}`);
+      await prisma.subscription.update({
+        where: { schoolId: metaSchoolId },
+        data: {
+          paystackTransactionId: String(data.id),
+          paystackCustomerCode: data.customer?.customer_code,
+          paystackEmail: data.customer?.email,
+          settings: {
+            ...((await prisma.subscription.findUnique({ where: { schoolId: metaSchoolId } }))?.settings as any || {}),
+            authCode: data.authorization?.authorization_code,
+          }
+        },
+      });
+
+      return NextResponse.redirect(
+        new URL(`/${schoolSlug}/admin/subscription?success=card_updated`, request.url),
       );
     }
 

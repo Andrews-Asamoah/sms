@@ -149,7 +149,12 @@ model organization {
   invitations invitation[]
   school      School?
 
+  // Subscription State (Better Auth Customization)
+  subscriptionStatus String    @default("TRIALING") // Use String for Better Auth compatibility if needed, else Enum
+  expiresAt          DateTime?
+
   @@index([slug])
+  @@index([subscriptionStatus])
   @@map("organizations")
 }
 
@@ -644,7 +649,6 @@ model Class {
   name     String
   slug     String?
   level    String
-  section  String?
   capacity Int?
 
   classTeacherId String?
@@ -2035,6 +2039,7 @@ enum SubscriptionStatus {
   INCOMPLETE_EXPIRED
   UNPAID
   EXPIRED
+  SUSPENDED
 }
 
 enum InvoiceStatus {

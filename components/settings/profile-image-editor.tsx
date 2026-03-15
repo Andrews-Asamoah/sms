@@ -8,6 +8,17 @@ import { Camera, Loader2, Trash2, Upload, User } from "lucide-react";
 import { toast } from "sonner";
 import { updateProfileImage, deleteProfileImage } from "@/actions/profile-image";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 import { useParams } from "next/navigation";
 
@@ -62,8 +73,6 @@ export function ProfileImageEditor({
   }
 
   async function handleRemoveImage() {
-    if (!confirm("Are you sure you want to remove your profile picture?")) return;
-
     setIsDeleting(true);
     try {
       const result = await deleteProfileImage();
@@ -116,16 +125,36 @@ export function ProfileImageEditor({
       </div>
 
       {currentImage && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRemoveImage}
-          disabled={isUploading || isDeleting}
-          className="mt-4 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-        >
-          <Trash2 className="mr-1 h-3 w-3" />
-          Remove Image
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={isUploading || isDeleting}
+              className="mt-4 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+            >
+              <Trash2 className="mr-1 h-3 w-3" />
+              Remove Image
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Profile Picture?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove your profile picture? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleRemoveImage}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Remove Image"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );

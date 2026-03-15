@@ -21,7 +21,6 @@ const createClassSchema = z.object({
     .min(1, "Level is required")
     .max(20, "Level must not exceed 20 characters")
     .trim(),
-  section: z.string().trim().nullable().optional(),
   capacity: z.number().int().positive().max(500).nullable().optional(),
   classTeacherId: z.string().min(1).nullable().optional(),
   academicYearId: z.string().min(1, "Academic year is required"),
@@ -182,7 +181,6 @@ export async function POST(
         name: validatedData.name,
         slug: slugify(validatedData.name),
         level: validatedData.level,
-        section: validatedData.section || null,
         capacity: validatedData.capacity || null,
         classTeacherId: validatedData.classTeacherId || null,
         academicYearId: validatedData.academicYearId,

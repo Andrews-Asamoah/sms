@@ -35,6 +35,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { TimeSlotManager } from "@/components/school/timetable/time-slot-manager";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface TimeSlot {
   id: string;
@@ -224,8 +235,6 @@ export function TimetableClient() {
   };
 
   const handleDeleteEntry = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this timetable entry?"))
-      return;
     try {
       const res = await fetch(`/api/schools/${schoolSlug}/timetable/${id}`, {
         method: "DELETE",
@@ -433,16 +442,34 @@ export function TimetableClient() {
                                         >
                                           <Settings className="w-3 h-3" />
                                         </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-5 w-5 text-destructive"
-                                          onClick={() =>
-                                            handleDeleteEntry(entry.id)
-                                          }
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 text-destructive"
+                                              >
+                                                <Trash2 className="w-4 h-4" />
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Remove Timetable Entry?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to remove this timetable entry? This action cannot be undone.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction 
+                                                  onClick={() => handleDeleteEntry(entry.id)}
+                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                >
+                                                  Remove
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
                                       </div>
                                     </div>
                                     <p className="text-xs font-bold leading-tight">

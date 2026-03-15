@@ -21,7 +21,57 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const body = await request.json();
-    const { planId, billingCycle } = body;
+    const { planId, billingCycle, requestType } = body;
+
+    const params = await context.params;
+    const { schoolSlug } = params;
+
+    if (requestType === "CARD_UPDATE") {
+      // Find school to get owner email
+      const school = await prisma.school.findFirst({
+        where: {
+          OR: [{ id: schoolSlug }, { subdomain: schoolSlug }],
+        },
+        include: {
+          organization: {
+            include: {
+              members: {
+                where: { userId: session.user.id },
+              },
+            },
+          },
+        },
+      });
+
+      if (!school) {
+        return NextResponse.json({ error: "School not found" }, { status: 404 });
+      }
+
+      const isSuperAdmin = session.user.role === "superAdmin";
+      const isOwnerOrAdmin = school.organization.members.some(
+        (m) => m.role === "owner" || m.role === "admin",
+      );
+
+      if (!isSuperAdmin && !isOwnerOrAdmin) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+
+      // Initialize a minimal transaction (GH₵0.10 = 10 pesewas) just to verify and tokenise card
+      // Paystack requires a minimum charge to tokenize a card for future use.
+      // The amount is not added to the subscription, it's a card verification fee.
+      return await initializePaystackTransaction({
+        email: session.user.email,
+        amount: 10, // GH₵0.10 minimum for card verification
+        school,
+        plan: { id: "CARD_UPDATE", name: "Card Update", planType: "NONE", billingCycle: "NONE" },
+        isUpgrade: false,
+        schoolSlug,
+        metadata: {
+          type: "CARD_UPDATE",
+          schoolId: school.id,
+        }
+      });
+    }
 
     if (!planId) {
       return NextResponse.json(
@@ -34,9 +84,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!plan) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
-
-    const params = await context.params;
-    const { schoolSlug } = params;
 
     // Try to find school by ID first, then subdomain
     let school = await prisma.school.findFirst({
@@ -221,6 +268,7 @@ async function initializePaystackTransaction({
   plan,
   isUpgrade,
   schoolSlug,
+  metadata = {},
 }: {
   email: string;
   amount: number;
@@ -228,6 +276,7 @@ async function initializePaystackTransaction({
   plan: any;
   isUpgrade: boolean;
   schoolSlug: string;
+  metadata?: any;
 }) {
   const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
   if (!paystackSecretKey) throw new Error("PAYSTACK_SECRET_KEY missing");
@@ -243,6 +292,7 @@ async function initializePaystackTransaction({
       planType: plan.planType,
       billingCycle: plan.billingCycle,
       isUpgrade,
+      ...metadata,
       custom_fields: [
         {
           display_name: "School Name",
@@ -257,7 +307,7 @@ async function initializePaystackTransaction({
         {
           display_name: "Type",
           variable_name: "type",
-          value: isUpgrade ? "Upgrade" : "New Subscription",
+          value: metadata.type === "CARD_UPDATE" ? "Card Update" : (isUpgrade ? "Upgrade" : "New Subscription"),
         },
       ],
     },

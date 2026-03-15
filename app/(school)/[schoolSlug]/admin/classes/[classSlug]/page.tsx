@@ -261,7 +261,6 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
                   id: classData.id,
                   name: classData.name,
                   level: classData.level,
-                  section: classData.section,
                   capacity: classData.capacity,
                   academicYearId: classData.academicYearId,
                   classTeacherId: classData.classTeacherId,

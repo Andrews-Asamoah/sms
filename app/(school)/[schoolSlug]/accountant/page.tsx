@@ -161,7 +161,7 @@ export default function AccountantDashboardPage() {
                 <DollarSign className="h-4 w-4 text-emerald-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-xl sm:text-2xl font-bold truncate" title={formatter.format(stats?.revenue || 0)}>
                   {formatter.format(stats?.revenue || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 flex items-center">
@@ -182,7 +182,7 @@ export default function AccountantDashboardPage() {
                 <AlertCircle className="h-4 w-4 text-red-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-xl sm:text-2xl font-bold truncate" title={formatter.format(stats?.outstanding || 0)}>
                   {formatter.format(stats?.outstanding || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 text-red-600 font-medium">
@@ -202,7 +202,7 @@ export default function AccountantDashboardPage() {
                 <TrendingDown className="h-4 w-4 text-orange-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-xl sm:text-2xl font-bold truncate" title={formatter.format(stats?.expenses || 0)}>
                   {formatter.format(stats?.expenses || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -222,7 +222,7 @@ export default function AccountantDashboardPage() {
                 <Users className="h-4 w-4 text-purple-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-xl sm:text-2xl font-bold truncate" title={formatter.format(stats?.payroll?.gross || 0)}>
                   {formatter.format(stats?.payroll?.gross || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">

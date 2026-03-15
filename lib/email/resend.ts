@@ -226,35 +226,46 @@ export async function sendStudentCredentialsEmail(
 }
 
 /**
- * Send welcome email to new user
- * TODO: Create WelcomeEmail React component for consistency
+ * Send subscription expiration alert email
  */
-export async function sendWelcomeEmail(
-  params: WelcomeEmailParams,
-): Promise<void> {
-  const { to, userName, schoolName, loginUrl } = params;
+export async function sendSubscriptionAlertEmail(params: {
+  to: string;
+  schoolName: string;
+  daysRemaining: number;
+  expiryDate: Date;
+  billingUrl: string;
+}): Promise<void> {
+  const { to, schoolName, daysRemaining, expiryDate, billingUrl } = params;
 
   try {
     await resend.emails.send({
       from: FROM_EMAIL,
       to,
-      subject: `Welcome to ${schoolName}!`,
+      subject: `Action Required: Subscription Expiration in ${daysRemaining} Days`,
       html: `
         <!DOCTYPE html>
         <html>
-          <body>
-            <h1>Welcome ${userName}!</h1>
-            <p>Your account has been created for ${schoolName}.</p>
-            <p><a href="${loginUrl}">Login to your account</a></p>
+          <body style="font-family: sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+              <h2 style="color: #d97706;">Subscription Reminder</h2>
+              <p>Hello,</p>
+              <p>This is a reminder that the subscription for <strong>${schoolName}</strong> is set to expire in <strong>${daysRemaining} days</strong> (on ${expiryDate.toLocaleDateString()}).</p>
+              <p>To ensure uninterrupted access to your school management system, please renew your subscription or update your payment details.</p>
+              <div style="margin: 30px 0; text-align: center;">
+                <a href="${billingUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Renew Subscription</a>
+              </div>
+              <p>If you have already renewed, please ignore this email.</p>
+              <p>Regards,<br>${APP_NAME} Team</p>
+            </div>
           </body>
         </html>
       `,
     });
 
-    console.log(`✅ [Email] Welcome email sent to ${to}`);
+    console.log(`✅ [Email] Subscription alert sent to ${to}`);
   } catch (error) {
-    console.error(`❌ [Email] Failed to send welcome email to ${to}:`, error);
-    throw new Error("Failed to send welcome email");
+    console.error(`❌ [Email] Failed to send subscription alert to ${to}:`, error);
+    throw new Error("Failed to send subscription alert email");
   }
 }
 

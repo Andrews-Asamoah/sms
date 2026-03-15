@@ -34,7 +34,6 @@ export type ClassItem = {
   name: string;
   slug: string | null;
   level: string;
-  section?: string | null;
   isActive: boolean;
   capacity?: number | null;
   academicYear: {
@@ -73,9 +72,9 @@ export const columns = (schoolSlug: string): ColumnDef<ClassItem>[] => [
       return (
         <div>
           <div className="font-medium">{item.name}</div>
-          {(item.level || item.section) && (
+          {item.level && (
             <div className="text-xs text-muted-foreground">
-              {item.level} {item.section ? `- ${item.section}` : ""}
+              {item.level}
             </div>
           )}
         </div>

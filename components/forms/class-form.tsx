@@ -49,7 +49,6 @@ interface ClassFormProps {
     id: string;
     name: string;
     level: string;
-    section: string | null;
     capacity: number | null;
     academicYearId: string;
     classTeacherId: string | null;
@@ -64,7 +63,6 @@ interface ClassFormProps {
 interface FormData {
   name: string;
   level: string;
-  section: string;
   capacity: string;
   academicYearId: string;
   classTeacherId: string;
@@ -102,7 +100,6 @@ export function ClassForm({
   const [formData, setFormData] = useState<FormData>({
     name: initialData?.name || "",
     level: initialData?.level || "",
-    section: initialData?.section || "",
     capacity: initialData?.capacity?.toString() || "",
     academicYearId:
       initialData?.academicYearId ||
@@ -117,7 +114,16 @@ export function ClassForm({
   });
 
   const handleChange = (field: keyof FormData, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const newData = { ...prev, [field]: value };
+      
+      // If isGraduatingClass is toggled to true, clear nextPromotionClassId
+      if (field === "isGraduatingClass" && value === true) {
+        newData.nextPromotionClassId = "";
+      }
+      
+      return newData;
+    });
     setTouched((prev) => ({ ...prev, [field]: true }));
 
     // Clear error for this field
@@ -194,7 +200,6 @@ export function ClassForm({
       const payload = {
         name: formData.name.trim(),
         level: formData.level.trim(),
-        section: formData.section.trim() || null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         academicYearId: formData.academicYearId,
         classTeacherId: formData.classTeacherId || null,
@@ -305,24 +310,6 @@ export function ClassForm({
           )}
           <p className="text-sm text-muted-foreground mt-1.5">
             The grade or form level
-          </p>
-        </Field>
-
-        {/* Section */}
-        <Field>
-          <FieldLabel htmlFor="section">Section (Optional)</FieldLabel>
-          <FieldGroup>
-            <Input
-              id="section"
-              placeholder="e.g., A, B, Science, Arts"
-              value={formData.section}
-              onChange={(e) => handleChange("section", e.target.value)}
-              className="bg-background/50"
-              disabled={isSubmitting}
-            />
-          </FieldGroup>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            The section or stream (if applicable)
           </p>
         </Field>
 
@@ -482,7 +469,7 @@ export function ClassForm({
               onValueChange={(value) =>
                 handleChange("nextPromotionClassId", value === "none" ? "" : value)
               }
-              disabled={isSubmitting}
+              disabled={isSubmitting || formData.isGraduatingClass}
             >
               <SelectTrigger id="nextPromotionClassId" className="bg-background/50">
                 <SelectValue placeholder="Select next class" />

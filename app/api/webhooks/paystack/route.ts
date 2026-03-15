@@ -158,6 +158,14 @@ async function handleSubscriptionSuccess(data: any) {
     },
   });
 
+  // Fetch school to get organizationId
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: { organizationId: true }
+  });
+
+  if (!school) return;
+
   // Create invoice
   await prisma.invoiceRecord.create({
     data: {
@@ -173,8 +181,17 @@ async function handleSubscriptionSuccess(data: any) {
     },
   });
 
+  // Sync to organization for global middleware checks
+  await prisma.organization.update({
+    where: { id: school.organizationId },
+    data: {
+      subscriptionStatus: "ACTIVE",
+      expiresAt: expiryDate,
+    },
+  });
+
   console.log(
-    `[Paystack Webhook] ✅ Subscription and invoice updated for school: ${schoolId}`,
+    `[Paystack Webhook] ✅ Subscription, invoice, and organization status updated for school: ${schoolId}`,
   );
 }
 
@@ -194,7 +211,20 @@ async function handleSubscriptionDisabled(data: any) {
     },
   });
 
+  // Sync to organization
+  const sub = await prisma.subscription.findFirst({
+    where: { paystackSubscriptionCode: subscriptionCode },
+    select: { school: { select: { organizationId: true } } }
+  });
+
+  if (sub?.school?.organizationId) {
+    await prisma.organization.update({
+      where: { id: sub.school.organizationId },
+      data: { subscriptionStatus: "CANCELED" }
+    });
+  }
+
   console.log(
-    `[Paystack Webhook] ✅ Subscription marked as CANCELED: ${subscriptionCode}`,
+    `[Paystack Webhook] ✅ Subscription and organization marked as CANCELED: ${subscriptionCode}`,
   );
 }

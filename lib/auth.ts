@@ -18,6 +18,7 @@ import {
   member as memberRole,
   user as userRole,
   staff,
+  suspended,
 } from "@/lib/auth/permissions";
 import {
   sendAdminInvitationEmail,

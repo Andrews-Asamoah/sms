@@ -1,4 +1,3 @@
-// components/System/Schools/school-subscription.tsx
 "use client";
 
 import { useState, useMemo } from "react";
@@ -30,7 +29,17 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { SUBSCRIPTION_PLANS, getPlanById } from "@/lib/subscription-plans";
 import { format } from "date-fns";
-import { Clock, AlertTriangle } from "lucide-react";
+import { Clock, AlertTriangle, Info } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type SchoolWithSubscriptionData = Prisma.SchoolGetPayload<{
   include: {
@@ -64,6 +73,7 @@ export function SchoolSubscription({
   const [billingCycle, setBillingCycle] = useState<"MONTHLY" | "YEARLY">(
     "MONTHLY",
   );
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
   const subscriptionStatus = useMemo(() => {
     const subscription = school.subscription;
@@ -106,13 +116,9 @@ export function SchoolSubscription({
     const isPastDue = subscription.status === "PAST_DUE";
     const isExpired = subscription.status === "EXPIRED";
 
-    // Attempt to match current subscription to a plan ID
-    // Note: This is an approximation since we don't store planId directly in DB yet, only paystackSubscriptionCode
-    // But we can infer from PlanType + BillingCycle
-    // Ideally we should store planId on Subscription model for exact match
     const currentPlanId =
       SUBSCRIPTION_PLANS.find(
-        (p) =>
+        (p: any) =>
           p.planType === subscription.planType &&
           p.billingCycle === subscription.billingCycle,
       )?.id || (isPremium ? "CUSTOM" : "FREE");
@@ -132,7 +138,6 @@ export function SchoolSubscription({
     };
   }, [school.subscription]);
 
-  // Determine effective limits (from subscription or default to Free)
   const limits = useMemo(() => {
     return {
       students: school.subscription?.maxStudents ?? 50,
@@ -171,15 +176,6 @@ export function SchoolSubscription({
   const handleUpgrade = async (planId: string) => {
     setIsLoading(planId);
     try {
-      // SuperAdmins can bypass payment (logic same as before but need API support for planId)
-      // For now we assume SuperAdmin uses same flow or specific endpoint handling
-      if (isSuperAdmin) {
-        // Allow SuperAdmins to bypass if they choose, but for now we follow the same flow
-        // or we could add a direct 'Grant' logic. Let's keep the flow but don't block them.
-        console.log("SuperAdmin initiating upgrade...");
-      }
-
-      // Regular users go through Paystack checkout
       const initResponse = await fetch(
         `/api/schools/${school.subdomain}/subscription/initialize`,
         {
@@ -207,9 +203,7 @@ export function SchoolSubscription({
         return;
       }
 
-      // Redirect to Paystack checkout page
       if (paymentData.authorization_url) {
-        // Store reference for verification after redirect
         sessionStorage.setItem("paystack_reference", paymentData.reference);
         sessionStorage.setItem("paystack_school_subdomain", school.subdomain);
         window.location.href = paymentData.authorization_url;
@@ -228,15 +222,42 @@ export function SchoolSubscription({
     }
   };
 
-  const handleCancelSubscription = async () => {
-    if (
-      !confirm(
-        "Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your billing period.",
-      )
-    ) {
-      return;
-    }
+  const handleUpdateCard = async () => {
+    setIsLoading("UPDATE_CARD");
+    try {
+      const response = await fetch(
+        `/api/schools/${school.subdomain}/subscription/initialize`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requestType: "CARD_UPDATE",
+          }),
+        },
+      );
 
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to initialize card update");
+      }
+
+      const data = await response.json();
+      if (data.authorization_url) {
+        window.location.href = data.authorization_url;
+      } else {
+        throw new Error("No authorization URL received");
+      }
+    } catch (error) {
+      console.error("Card update error:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to initiate card update",
+      );
+    } finally {
+      setIsLoading(null);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
     setIsLoading("CANCEL");
     try {
       const response = await fetch(
@@ -258,12 +279,12 @@ export function SchoolSubscription({
       toast.error("Failed to cancel subscription. Please try again.");
     } finally {
       setIsLoading(null);
+      setIsCancelDialogOpen(false);
     }
   };
 
-  // Filter plans based on billing cycle
   const availablePlans = SUBSCRIPTION_PLANS.filter(
-    (plan) => plan.id === "FREE" || plan.billingCycle === billingCycle,
+    (plan: any) => plan.id === "FREE" || plan.billingCycle === billingCycle,
   );
 
   const pendingPlanId = (school.subscription?.settings as any)?.pendingPlanId;
@@ -272,7 +293,7 @@ export function SchoolSubscription({
   return (
     <div className="space-y-8">
       {pendingPlan && (
-        <Alert className="border-yellow-500/50 bg-yellow-500/5">
+        <Alert className="border-yellow-500/50 bg-yellow-50/5">
           <Clock className="h-4 w-4 text-yellow-600" />
           <AlertTitle className="text-yellow-800">
             Plan Change Scheduled
@@ -307,7 +328,6 @@ export function SchoolSubscription({
         </Alert>
       )}
 
-      {/* Current Plan Status */}
       <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -360,7 +380,6 @@ export function SchoolSubscription({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Expiry Warning */}
           {subscriptionStatus.isExpired && (
             <Alert variant="destructive" className="bg-red-50 border-red-200">
               <AlertTriangle className="h-4 w-4" />
@@ -372,7 +391,6 @@ export function SchoolSubscription({
             </Alert>
           )}
 
-          {/* Past Due Warning */}
           {subscriptionStatus.isPastDue && (
             <Alert className="border-yellow-500/50 bg-yellow-50/50">
               <Clock className="h-4 w-4 text-yellow-600" />
@@ -386,7 +404,6 @@ export function SchoolSubscription({
               </AlertDescription>
             </Alert>
           )}
-          {/* Trial Warning */}
           {subscriptionStatus.isOnTrial && (
             <Alert
               variant={
@@ -411,7 +428,6 @@ export function SchoolSubscription({
             </Alert>
           )}
 
-          {/* Usage Warnings */}
           {(isApproachingStudentLimit ||
             isApproachingTeacherLimit ||
             isApproachingStaffLimit) && (
@@ -430,7 +446,6 @@ export function SchoolSubscription({
             </Alert>
           )}
 
-          {/* Usage Stats */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2 p-4 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors">
               <p className="text-sm text-muted-foreground font-medium">
@@ -476,7 +491,6 @@ export function SchoolSubscription({
         </CardContent>
       </Card>
 
-      {/* Billing Cycle Selection Tabs */}
       <div className="flex flex-col items-center space-y-4">
         <Tabs
           defaultValue="MONTHLY"
@@ -513,13 +527,8 @@ export function SchoolSubscription({
         )}
       </div>
 
-      {/* Pricing Plans */}
       <div className="grid gap-6 lg:grid-cols-4">
-        {availablePlans.map((plan) => {
-          const isCurrentPlan = subscriptionStatus.currentPlanId === plan.id; // Simple ID match might fail if switching cycles, but 'Free' is special.
-          // Actually, if I am on Basic Monthly, and viewing Yearly, 'Basic Yearly' is effectively an 'Upgrade' (or switch).
-          // But 'Free' is always 'Free'.
-          // Let's rely on planType match for "Current" badge if cycle matches.
+        {availablePlans.map((plan: any) => {
           const isActivePlan =
             school.subscription?.planType === plan.planType &&
             (plan.id === "FREE" ||
@@ -564,30 +573,13 @@ export function SchoolSubscription({
                         /{plan.billingCycle === "MONTHLY" ? "mo" : "yr"}
                       </span>
                     </div>
-                    {plan.billingCycle === "YEARLY" && plan.id !== "FREE" && (
-                      <span className="text-xs text-green-600 font-medium mt-1">
-                        Equivalent to {plan.currency}{" "}
-                        {Math.round(plan.price / 12)}/mo
-                      </span>
-                    )}
-                    {plan.billingCycle === "MONTHLY" && plan.id !== "FREE" && (
-                      <span className="text-xs text-muted-foreground mt-1">
-                        Switch to yearly to save {plan.currency}{" "}
-                        {plan.price * 2}
-                      </span>
-                    )}
-                    {plan.id === "FREE" && (
-                      <span className="text-xs text-muted-foreground mt-1">
-                        Forever free for small teams
-                      </span>
-                    )}
                   </div>
                 </CardTitle>
                 <CardDescription>{plan.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 flex-grow">
                 <div className="space-y-2 text-sm">
-                  {plan.features.description.map((feature, index) => (
+                  {plan.features.description.map((feature: string, index: number) => (
                     <div key={index} className="flex items-start gap-2">
                       <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
                       <span>{feature}</span>
@@ -615,9 +607,7 @@ export function SchoolSubscription({
                     )}
                     {isExpiredCurrentPlan
                       ? "Renew Plan"
-                      : plan.id === "FREE"
-                        ? "Downgrade"
-                        : "Upgrade"}
+                      : "Upgrade"}
                   </Button>
                 )}
               </CardFooter>
@@ -626,7 +616,6 @@ export function SchoolSubscription({
         })}
       </div>
 
-      {/* Billing Information */}
       <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
         <CardHeader>
           <CardTitle>Billing Information</CardTitle>
@@ -651,21 +640,61 @@ export function SchoolSubscription({
                   })}
                 </span>
               </div>
+              
+              <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 p-4 rounded-xl flex gap-3">
+                <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-400">How Card Updates Work</p>
+                  <p className="text-xs text-amber-700/80 dark:text-amber-400/60 mt-1 leading-relaxed">
+                    Paystack requires a minimal verification charge of <span className="font-bold">GH₵ 0.10</span> to securely link your new card. This is a one-time card verification fee, not part of your subscription.
+                  </p>
+                </div>
+              </div>
               <div className="pt-4 space-y-2">
-                <Button variant="outline" className="w-full">
-                  Update Payment Method via Paystack
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={handleCancelSubscription}
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleUpdateCard}
                   disabled={!!isLoading}
                 >
-                  {isLoading === "CANCEL" ? (
+                  {isLoading === "UPDATE_CARD" ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  Cancel Subscription
+                  Update Payment Method
                 </Button>
+                
+                <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+                  <Button
+                    variant="ghost"
+                    className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setIsCancelDialogOpen(true)}
+                    disabled={!!isLoading}
+                  >
+                    {isLoading === "CANCEL" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Cancel Subscription
+                  </Button>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will cancel your premium subscription. You will lose access to premium features at the end of your current billing period on {new Date(school.subscription.currentPeriodEnd).toLocaleDateString()}.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleCancelSubscription}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {isLoading === "CANCEL" ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : "Cancel Subscription"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </>
           ) : (

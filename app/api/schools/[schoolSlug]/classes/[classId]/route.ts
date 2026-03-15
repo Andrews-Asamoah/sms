@@ -23,7 +23,6 @@ const updateClassSchema = z.object({
     .max(20, "Level must not exceed 20 characters")
     .trim()
     .optional(),
-  section: z.string().trim().nullable().optional(),
   capacity: z.number().int().positive().max(500).nullable().optional(),
   academicYearId: z.string().min(1).optional(),
   departmentId: z.string().min(1).nullable().optional(),
@@ -203,9 +202,6 @@ export async function PATCH(
           slug: slugify(validatedData.name),
         }),
         ...(validatedData.level && { level: validatedData.level }),
-        ...(validatedData.section !== undefined && {
-          section: validatedData.section,
-        }),
         ...(validatedData.capacity !== undefined && {
           capacity: validatedData.capacity,
         }),
@@ -252,7 +248,6 @@ export async function PATCH(
         oldValues: {
           name: existingClass.name,
           level: existingClass.level,
-          section: existingClass.section,
           capacity: existingClass.capacity,
           isActive: existingClass.isActive,
           isGraduatingClass: existingClass.isGraduatingClass,
@@ -262,7 +257,6 @@ export async function PATCH(
         newValues: {
           name: updatedClass.name,
           level: updatedClass.level,
-          section: updatedClass.section,
           capacity: updatedClass.capacity,
           isActive: updatedClass.isActive,
           isGraduatingClass: updatedClass.isGraduatingClass,
@@ -409,7 +403,6 @@ export async function DELETE(
         oldValues: {
           name: existingClass.name,
           level: existingClass.level,
-          section: existingClass.section,
           schoolId: existingClass.schoolId,
         },
       },

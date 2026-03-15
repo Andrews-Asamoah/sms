@@ -71,7 +71,9 @@ export function DepartmentForm({
         },
         body: JSON.stringify({
           ...values,
-          promotionPassMark: values.promotionPassMark ? parseFloat(values.promotionPassMark) : null,
+          promotionPassMark: values.promotionPassMark
+            ? parseFloat(values.promotionPassMark)
+            : null,
         }),
       });
 
@@ -101,13 +103,13 @@ export function DepartmentForm({
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <FieldGroup>
         <FieldLabel htmlFor="name">Name</FieldLabel>
-        <Input id="name" placeholder="Mathematics" {...register("name")} />
+        <Input id="name" placeholder="Upper Primary" {...register("name")} />
         {errors.name && <FieldError>{errors.name.message}</FieldError>}
       </FieldGroup>
 
       <FieldGroup className="space-y-1">
         <FieldLabel htmlFor="code">Code</FieldLabel>
-        <Input id="code" placeholder="MATH" {...register("code")} />
+        <Input id="code" placeholder="UP" {...register("code")} />
         <p className="text-sm text-muted-foreground text-[0.8rem]">
           unique code for the department (max 10 characters).
         </p>
@@ -118,7 +120,7 @@ export function DepartmentForm({
         <FieldLabel htmlFor="description">Description</FieldLabel>
         <Textarea
           id="description"
-          placeholder="Department of Mathematics..."
+          placeholder="This is the Upper Primary Department..."
           {...register("description")}
         />
         {errors.description && (
@@ -128,16 +130,18 @@ export function DepartmentForm({
 
       <FieldGroup className="space-y-1">
         <FieldLabel htmlFor="promotionPassMark">Promotion Pass Mark</FieldLabel>
-        <Input 
-          id="promotionPassMark" 
-          type="number" 
-          step="0.01" 
-          min="0" 
-          placeholder="e.g. 500" 
-          {...register("promotionPassMark")} 
+        <Input
+          id="promotionPassMark"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="e.g. 500"
+          {...register("promotionPassMark")}
         />
         <p className="text-sm text-muted-foreground text-[0.8rem]">
-          Minimum raw score required for promotion. Set based on the total marks across all subjects in this department (e.g. 10 subjects × 100 = 1000).
+          Minimum raw score required for promotion. Set based on the total marks
+          across all subjects in this department (e.g. 10 subjects × 100 =
+          1000).
         </p>
         {errors.promotionPassMark && (
           <FieldError>{errors.promotionPassMark.message}</FieldError>

@@ -7,6 +7,17 @@ import { Button } from "@/components/ui/button";
 import { ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { updateSchoolLogo, deleteSchoolLogo } from "@/actions/school-logo";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface SchoolLogoEditorProps {
   schoolId: string;
@@ -45,8 +56,6 @@ export function SchoolLogoEditor({
   }
 
   async function handleRemoveLogo() {
-    if (!confirm("Are you sure you want to remove the school logo?")) return;
-
     setIsDeleting(true);
     try {
       const result = await deleteSchoolLogo(schoolId);
@@ -109,15 +118,35 @@ export function SchoolLogoEditor({
           </Button>
 
           {currentLogo && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleRemoveLogo}
-              disabled={isUploading || isDeleting}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Remove
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isUploading || isDeleting}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Remove
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove School Logo?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to remove the school logo? This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleRemoveLogo}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Remove Logo"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </div>

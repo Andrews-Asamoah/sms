@@ -133,6 +133,7 @@ export interface ExtendedSession {
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isOwner: boolean;
+  subscriptionStatus: "ACTIVE" | "SUSPENDED" | "EXPIRED" | "TRIALING" | "CANCELED" | null;
 }
 
 // ============================================================================
