@@ -63,18 +63,24 @@ async function generateUniqueStudentEmail(
   schoolSubdomain: string,
   generatedEmails: Set<string>,
 ): Promise<string> {
-  const cleanFirst = firstName.trim().toLowerCase().replace(/[^a-z]/g, "");
+  const cleanFirst = firstName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
   const firstInitial = cleanFirst.charAt(0) || "s";
   const cleanLast =
-    lastName.trim().toLowerCase().replace(/[^a-z]/g, "") || "student";
+    lastName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z]/g, "") || "student";
   const baseEmailPrefix = `${firstInitial}.${cleanLast}`;
 
-  let currentEmail = `${baseEmailPrefix}@${schoolSubdomain}.sms`;
+  let currentEmail = `${baseEmailPrefix}@${schoolSubdomain}.edu.gh`;
   let counter = 1;
 
   while (true) {
     if (generatedEmails.has(currentEmail)) {
-      currentEmail = `${baseEmailPrefix}${counter}@${schoolSubdomain}.sms`;
+      currentEmail = `${baseEmailPrefix}${counter}@${schoolSubdomain}.edu.gh`;
       counter++;
       continue;
     }
@@ -87,7 +93,7 @@ async function generateUniqueStudentEmail(
       break;
     }
 
-    currentEmail = `${baseEmailPrefix}${counter}@${schoolSubdomain}.sms`;
+    currentEmail = `${baseEmailPrefix}${counter}@${schoolSubdomain}.edu.gh`;
     counter++;
   }
 
@@ -124,31 +130,77 @@ function parseExcelFile(buffer: Buffer): StudentRow[] {
 
   return rows.map((row) => {
     return {
-      firstName: String(getVal(row, "First Name*", "First Name", "FirstName") || "").trim(),
-      lastName: String(getVal(row, "Last Name*", "Last Name", "LastName") || "").trim(),
-      otherNames: getVal(row, "Other Names") ? String(getVal(row, "Other Names")).trim() : null,
-      gender: (String(getVal(row, "Gender*", "Gender") || "").toUpperCase() as Gender),
-      dateOfBirth: String(getVal(row, "Date of Birth*", "Date of Birth", "DOB") || ""),
-      nationality: getVal(row, "Nationality") ? String(getVal(row, "Nationality")).trim() : null,
+      firstName: String(
+        getVal(row, "First Name*", "First Name", "FirstName") || "",
+      ).trim(),
+      lastName: String(
+        getVal(row, "Last Name*", "Last Name", "LastName") || "",
+      ).trim(),
+      otherNames: getVal(row, "Other Names")
+        ? String(getVal(row, "Other Names")).trim()
+        : null,
+      gender: String(
+        getVal(row, "Gender*", "Gender") || "",
+      ).toUpperCase() as Gender,
+      dateOfBirth: String(
+        getVal(row, "Date of Birth*", "Date of Birth", "DOB") || "",
+      ),
+      nationality: getVal(row, "Nationality")
+        ? String(getVal(row, "Nationality")).trim()
+        : null,
       phone: getVal(row, "Phone") ? String(getVal(row, "Phone")).trim() : null,
-      alternatePhone: getVal(row, "Alternate Phone") ? String(getVal(row, "Alternate Phone")).trim() : null,
-      residentialAddress: getVal(row, "Residential Address") ? String(getVal(row, "Residential Address")).trim() : null,
-      postalAddress: getVal(row, "Postal Address") ? String(getVal(row, "Postal Address")).trim() : null,
+      alternatePhone: getVal(row, "Alternate Phone")
+        ? String(getVal(row, "Alternate Phone")).trim()
+        : null,
+      residentialAddress: getVal(row, "Residential Address")
+        ? String(getVal(row, "Residential Address")).trim()
+        : null,
+      postalAddress: getVal(row, "Postal Address")
+        ? String(getVal(row, "Postal Address")).trim()
+        : null,
       city: getVal(row, "City") ? String(getVal(row, "City")).trim() : null,
-      region: getVal(row, "Region") ? String(getVal(row, "Region")).trim() : null,
-      country: getVal(row, "Country") ? String(getVal(row, "Country")).trim() : null,
-      admissionDate: String(getVal(row, "Admission Date*", "Admission Date") || ""),
-      className: getVal(row, "Class Name", "Class") ? String(getVal(row, "Class Name", "Class")).trim() : null,
-      departmentName: getVal(row, "Department Name", "Department") ? String(getVal(row, "Department Name", "Department")).trim() : null,
-      houseName: getVal(row, "House Name", "House") ? String(getVal(row, "House Name", "House")).trim() : null,
-      previousSchool: getVal(row, "Previous School") ? String(getVal(row, "Previous School")).trim() : null,
-      previousClass: getVal(row, "Previous Class") ? String(getVal(row, "Previous Class")).trim() : null,
-      bloodGroup: getVal(row, "Blood Group") ? String(getVal(row, "Blood Group")).trim() : null,
-      allergies: getVal(row, "Allergies") ? String(getVal(row, "Allergies")).trim() : null,
-      medicalConditions: getVal(row, "Medical Conditions") ? String(getVal(row, "Medical Conditions")).trim() : null,
-      emergencyContactName: getVal(row, "Emergency Contact Name") ? String(getVal(row, "Emergency Contact Name")).trim() : null,
-      emergencyContactPhone: getVal(row, "Emergency Contact Phone") ? String(getVal(row, "Emergency Contact Phone")).trim() : null,
-      emergencyRelationship: getVal(row, "Emergency Relationship") ? String(getVal(row, "Emergency Relationship")).trim() : null,
+      region: getVal(row, "Region")
+        ? String(getVal(row, "Region")).trim()
+        : null,
+      country: getVal(row, "Country")
+        ? String(getVal(row, "Country")).trim()
+        : null,
+      admissionDate: String(
+        getVal(row, "Admission Date*", "Admission Date") || "",
+      ),
+      className: getVal(row, "Class Name", "Class")
+        ? String(getVal(row, "Class Name", "Class")).trim()
+        : null,
+      departmentName: getVal(row, "Department Name", "Department")
+        ? String(getVal(row, "Department Name", "Department")).trim()
+        : null,
+      houseName: getVal(row, "House Name", "House")
+        ? String(getVal(row, "House Name", "House")).trim()
+        : null,
+      previousSchool: getVal(row, "Previous School")
+        ? String(getVal(row, "Previous School")).trim()
+        : null,
+      previousClass: getVal(row, "Previous Class")
+        ? String(getVal(row, "Previous Class")).trim()
+        : null,
+      bloodGroup: getVal(row, "Blood Group")
+        ? String(getVal(row, "Blood Group")).trim()
+        : null,
+      allergies: getVal(row, "Allergies")
+        ? String(getVal(row, "Allergies")).trim()
+        : null,
+      medicalConditions: getVal(row, "Medical Conditions")
+        ? String(getVal(row, "Medical Conditions")).trim()
+        : null,
+      emergencyContactName: getVal(row, "Emergency Contact Name")
+        ? String(getVal(row, "Emergency Contact Name")).trim()
+        : null,
+      emergencyContactPhone: getVal(row, "Emergency Contact Phone")
+        ? String(getVal(row, "Emergency Contact Phone")).trim()
+        : null,
+      emergencyRelationship: getVal(row, "Emergency Relationship")
+        ? String(getVal(row, "Emergency Relationship")).trim()
+        : null,
     };
   });
 }
@@ -168,10 +220,16 @@ export async function POST(
     const schoolAccess = getSchoolRole(session, schoolSlug);
 
     if (!schoolAccess) {
-      return NextResponse.json({ error: "No access to this school" }, { status: 403 });
+      return NextResponse.json(
+        { error: "No access to this school" },
+        { status: 403 },
+      );
     }
 
-    if (schoolAccess.effectiveRole !== "admin" && schoolAccess.effectiveRole !== "owner") {
+    if (
+      schoolAccess.effectiveRole !== "admin" &&
+      schoolAccess.effectiveRole !== "owner"
+    ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -185,14 +243,20 @@ export async function POST(
       const formData = await req.formData();
       const file = formData.get("file") as File;
       if (!file) {
-        return NextResponse.json({ error: "No file provided" }, { status: 400 });
+        return NextResponse.json(
+          { error: "No file provided" },
+          { status: 400 },
+        );
       }
       const buffer = Buffer.from(await file.arrayBuffer());
       studentRows = parseExcelFile(buffer);
     }
 
     if (studentRows.length === 0) {
-      return NextResponse.json({ error: "No student data found" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No student data found" },
+        { status: 400 },
+      );
     }
 
     const school = await prisma.school.findUnique({
@@ -217,6 +281,9 @@ export async function POST(
       include: { profile: true },
     });
 
+    const studentCount = existingActiveStudents.length;
+    const maxStudents = school.subscription?.maxStudents ?? null; // null means unlimited
+
     const existingStudentKeys = new Set(
       existingActiveStudents
         .map((s) => {
@@ -226,7 +293,7 @@ export async function POST(
             return null;
           }
         })
-        .filter(Boolean)
+        .filter(Boolean),
     );
 
     let newStudentsCount = 0;
@@ -243,46 +310,57 @@ export async function POST(
       }
     }
 
-    const studentCount = existingActiveStudents.length;
-    const maxStudents = school.subscription?.maxStudents || 50; // Default to 50 for Free Plan
-    const remainingSlots = maxStudents - studentCount;
+    if (maxStudents !== null) {
+      const remainingSlots = maxStudents - studentCount;
 
-    if (newStudentsCount > remainingSlots) {
-      return NextResponse.json(
-        {
-          error: `Student limit exceeded for ${school.subscription?.planName || "Free Plan"}.`,
-          details: `Current students: ${studentCount}, Limit: ${maxStudents}. You are attempting to add ${newStudentsCount} new students, but only ${remainingSlots} slots are available. Please upgrade your subscription to add more students.`,
-        },
-        { status: 403 },
-      );
+      if (newStudentsCount > remainingSlots) {
+        return NextResponse.json(
+          {
+            error: `Student limit exceeded for ${school.subscription?.planName || "Free Plan"}.`,
+            details: `Current students: ${studentCount}, Limit: ${maxStudents}. You are attempting to add ${newStudentsCount} new students, but only ${remainingSlots} slots are available. Please upgrade your subscription to add more students.`,
+          },
+          { status: 403 },
+        );
+      }
     }
 
-    const { currentAcademicYearId, currentTermId } = (school.settings as any) || {};
+
+    const { currentAcademicYearId, currentTermId } =
+      (school.settings as any) || {};
 
     if (!currentAcademicYearId) {
-      return NextResponse.json({ error: "Global Academic Year not set. Please set it in system settings first." }, { status: 400 });
+      return NextResponse.json(
+        {
+          error:
+            "Global Academic Year not set. Please set it in system settings first.",
+        },
+        { status: 400 },
+      );
     }
 
     const results: ProcessResult[] = [];
     const generatedStudentEmails = new Set<string>();
     const schoolPrefix = schoolSlug.toUpperCase();
-    const yearSequences = new Map<number, { student: number; admission: number }>();
+    const yearSequences = new Map<
+      number,
+      { student: number; admission: number }
+    >();
 
     // Process rows in parallel batches of 5 to speed up but avoid overwhelming resources
     const BATCH_SIZE = 5;
     for (let i = 0; i < studentRows.length; i += BATCH_SIZE) {
       const batch = studentRows.slice(i, i + BATCH_SIZE);
-      
+
       // Reserve sequences and emails sequentially to avoid race conditions
-      const preparedBatch: Array<{ 
-        firstName: string; 
-        lastName: string; 
-        dateOfBirth: string; 
-        studentId: string; 
-        admissionNumber: string; 
-        studentEmail: string; 
+      const preparedBatch: Array<{
+        firstName: string;
+        lastName: string;
+        dateOfBirth: string;
+        studentId: string;
+        admissionNumber: string;
+        studentEmail: string;
       }> = [];
-      
+
       for (const row of batch) {
         const missingFields = [];
         if (!row.firstName) missingFields.push("First Name");
@@ -300,26 +378,32 @@ export async function POST(
 
         if (!yearSequences.has(admYear)) {
           const allYearStudents = await prisma.student.findMany({
-            where: { 
+            where: {
               schoolId: school.id,
               OR: [
                 { studentId: { startsWith: `STU-${admYear}-` } },
-                { admissionNumber: { startsWith: `${schoolPrefix}-${admYearShort}-` } }
-              ]
+                {
+                  admissionNumber: {
+                    startsWith: `${schoolPrefix}-${admYearShort}-`,
+                  },
+                },
+              ],
             },
             select: { studentId: true, admissionNumber: true },
           });
 
           let nextS = 1;
           let nextA = 1;
-          
+
           for (const s of allYearStudents) {
             if (s.studentId.startsWith(`STU-${admYear}-`)) {
               const parts = s.studentId.split("-");
               const lastNum = parseInt(parts[parts.length - 1]);
               if (!isNaN(lastNum) && lastNum >= nextS) nextS = lastNum + 1;
             }
-            if (s.admissionNumber?.startsWith(`${schoolPrefix}-${admYearShort}-`)) {
+            if (
+              s.admissionNumber?.startsWith(`${schoolPrefix}-${admYearShort}-`)
+            ) {
               const parts = s.admissionNumber.split("-");
               const lastNum = parseInt(parts[parts.length - 1]);
               if (!isNaN(lastNum) && lastNum >= nextA) nextA = lastNum + 1;
@@ -331,39 +415,51 @@ export async function POST(
         const sequences = yearSequences.get(admYear)!;
         const studentId = `STU-${admYear}-${sequences.student.toString().padStart(4, "0")}`;
         const admissionNumber = `${schoolPrefix}-${admYearShort}-${sequences.admission.toString().padStart(4, "0")}`;
-        
+
         sequences.student++;
         sequences.admission++;
 
-        const studentEmail = await generateUniqueStudentEmail(row.firstName, row.lastName, school.subdomain, generatedStudentEmails);
-        preparedBatch.push({ 
-          firstName: row.firstName, 
-          lastName: row.lastName, 
-          dateOfBirth: row.dateOfBirth, 
-          studentId, 
-          admissionNumber, 
-          studentEmail 
+        const studentEmail = await generateUniqueStudentEmail(
+          row.firstName,
+          row.lastName,
+          school.subdomain,
+          generatedStudentEmails,
+        );
+        preparedBatch.push({
+          firstName: row.firstName,
+          lastName: row.lastName,
+          dateOfBirth: row.dateOfBirth,
+          studentId,
+          admissionNumber,
+          studentEmail,
         });
       }
 
       const batchPromises = batch.map(async (row, index) => {
         const rowNumber = i + index + 2;
-        const prepared = preparedBatch.find(p => 
-          p.firstName === row.firstName && 
-          p.lastName === row.lastName && 
-          p.dateOfBirth === row.dateOfBirth
+        const prepared = preparedBatch.find(
+          (p) =>
+            p.firstName === row.firstName &&
+            p.lastName === row.lastName &&
+            p.dateOfBirth === row.dateOfBirth,
         );
-  
+
         try {
           if (!prepared) {
-            if (!row.firstName || !row.lastName || !row.gender || !row.dateOfBirth || !row.admissionDate) {
+            if (
+              !row.firstName ||
+              !row.lastName ||
+              !row.gender ||
+              !row.dateOfBirth ||
+              !row.admissionDate
+            ) {
               throw new Error("Missing required fields");
             }
             throw new Error("Invalid data format in row");
           }
 
           const { studentId, admissionNumber, studentEmail } = prepared;
-          
+
           const existingStudent = await prisma.student.findFirst({
             where: {
               schoolId: school.id,
@@ -375,12 +471,13 @@ export async function POST(
             },
             include: { profile: { include: { user: true } } },
           });
-  
+
           if (existingStudent) {
             return {
               row: rowNumber,
               studentId: existingStudent.studentId,
-              admissionNumber: existingStudent.admissionNumber || admissionNumber,
+              admissionNumber:
+                existingStudent.admissionNumber || admissionNumber,
               name: `${row.firstName} ${row.lastName}`,
               email: existingStudent.profile?.user?.email || studentEmail,
               status: "success" as const,
@@ -392,29 +489,42 @@ export async function POST(
           let finalStudentId = studentId;
           let finalAdmissionNumber = admissionNumber;
           const temporaryPassword = crypto.randomBytes(4).toString("hex");
-  
-          const classRecord = row.className ? school.classes.find((c: any) => c.name === row.className) : null;
-          const department = row.departmentName ? school.departments.find((d: any) => d.name === row.departmentName) : null;
-          const house = row.houseName ? school.houses.find((h: any) => h.name === row.houseName) : null;
-  
-          const existingUser = await prisma.user.findUnique({ where: { email: studentEmail } });
+
+          const classRecord = row.className
+            ? school.classes.find((c: any) => c.name === row.className)
+            : null;
+          const department = row.departmentName
+            ? school.departments.find((d: any) => d.name === row.departmentName)
+            : null;
+          const house = row.houseName
+            ? school.houses.find((h: any) => h.name === row.houseName)
+            : null;
+
+          const existingUser = await prisma.user.findUnique({
+            where: { email: studentEmail },
+          });
           let userId: string;
-  
+
           if (existingUser) {
             const studentExists = await prisma.student.findFirst({
-              where: { schoolId: school.id, profile: { userId: existingUser.id } },
+              where: {
+                schoolId: school.id,
+                profile: { userId: existingUser.id },
+              },
             });
             if (studentExists) {
-              throw new Error(`Student with email ${studentEmail} already exists`);
+              throw new Error(
+                `Student with email ${studentEmail} already exists`,
+              );
             }
             userId = existingUser.id;
-            
+
             // Check if membership already exists, otherwise add via auth api
             const existingMember = await prisma.member.findFirst({
               where: {
                 organizationId: school.organizationId,
                 userId: userId,
-              }
+              },
             });
 
             if (!existingMember) {
@@ -456,7 +566,7 @@ export async function POST(
             // Wait a moment for the afterAddMember hook to complete
             await new Promise((resolve) => setTimeout(resolve, 100));
           }
-  
+
           const userProfile = await prisma.userProfile.upsert({
             where: { userId },
             update: {
@@ -497,9 +607,11 @@ export async function POST(
               emergencyRelationship: row.emergencyRelationship,
             },
           });
-  
-          let student = await prisma.student.findFirst({ where: { schoolId: school.id, profileId: userProfile.id } });
-  
+
+          let student = await prisma.student.findFirst({
+            where: { schoolId: school.id, profileId: userProfile.id },
+          });
+
           if (!student) {
             student = await prisma.student.create({
               data: {
@@ -520,7 +632,7 @@ export async function POST(
                 plainTextPassword: temporaryPassword,
               },
             });
-  
+
             if (classRecord) {
               await prisma.enrollment.create({
                 data: {
@@ -543,10 +655,11 @@ export async function POST(
                 previousClass: row.previousClass || student.previousClass,
                 bloodGroup: row.bloodGroup || student.bloodGroup,
                 allergies: row.allergies || student.allergies,
-                medicalConditions: row.medicalConditions || student.medicalConditions,
+                medicalConditions:
+                  row.medicalConditions || student.medicalConditions,
               },
             });
-  
+
             if (classRecord) {
               await prisma.enrollment.upsert({
                 where: {
@@ -568,7 +681,7 @@ export async function POST(
               });
             }
           }
-  
+
           return {
             row: rowNumber,
             studentId,
@@ -585,19 +698,24 @@ export async function POST(
             row: rowNumber,
             studentId: "",
             admissionNumber: "",
-            name: row.firstName && row.lastName ? `${row.firstName} ${row.lastName}` : "Unknown",
+            name:
+              row.firstName && row.lastName
+                ? `${row.firstName} ${row.lastName}`
+                : "Unknown",
             email: "",
             status: "error" as const,
             message: error instanceof Error ? error.message : "Unknown error",
           };
         }
       });
-      
+
       const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
     }
 
-    const successful = results.filter((r) => r.status === "success" && r.action !== "skipped").length;
+    const successful = results.filter(
+      (r) => r.status === "success" && r.action !== "skipped",
+    ).length;
     const skipped = results.filter((r) => r.action === "skipped").length;
     const failed = results.filter((r) => r.status === "error").length;
 
@@ -626,6 +744,9 @@ export async function POST(
     });
   } catch (error) {
     console.error("[Bulk Upload] Error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

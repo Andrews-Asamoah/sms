@@ -46,24 +46,31 @@ async function generateUniqueStudentEmail(
   lastName: string,
   schoolSubdomain: string,
 ): Promise<string> {
-  const cleanFirst = firstName.trim().toLowerCase().replace(/[^a-z]/g, "");
+  const cleanFirst = firstName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
   const firstInitial = cleanFirst.charAt(0) || "s";
-  const cleanLast = lastName.trim().toLowerCase().replace(/[^a-z]/g, "") || "student";
+  const cleanLast =
+    lastName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z]/g, "") || "student";
   const baseEmailPrefix = `${firstInitial}.${cleanLast}`;
-  
-  let currentEmail = `${baseEmailPrefix}@${schoolSubdomain}.sms`;
+
+  let currentEmail = `${baseEmailPrefix}@${schoolSubdomain}.edu.gh`;
   let counter = 1;
 
   while (true) {
     const existingUser = await prisma.user.findUnique({
       where: { email: currentEmail },
     });
-    
+
     if (!existingUser) {
       break;
     }
-    
-    currentEmail = `${baseEmailPrefix}${counter}@${schoolSubdomain}.sms`;
+
+    currentEmail = `${baseEmailPrefix}${counter}@${schoolSubdomain}.edu.gh`;
     counter++;
   }
 
@@ -198,10 +205,17 @@ export async function POST(
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    const { currentAcademicYearId, currentTermId } = (school.settings as unknown as SchoolSettings) || {};
+    const { currentAcademicYearId, currentTermId } =
+      (school.settings as unknown as SchoolSettings) || {};
 
     if (!currentAcademicYearId) {
-      return NextResponse.json({ error: "Global Academic Year not set. Please set it in system settings first." }, { status: 400 });
+      return NextResponse.json(
+        {
+          error:
+            "Global Academic Year not set. Please set it in system settings first.",
+        },
+        { status: 400 },
+      );
     }
 
     // ========================================================================
@@ -209,24 +223,26 @@ export async function POST(
     // ========================================================================
     const subscription = await prisma.subscription.findUnique({
       where: { schoolId: school.id },
-      select: { maxStudents: true, planName: true }
+      select: { maxStudents: true, planName: true },
     });
 
     const studentCount = await prisma.student.count({
-      where: { schoolId: school.id, status: "ACTIVE" }
+      where: { schoolId: school.id, status: "ACTIVE" },
     });
 
-    const maxStudents = subscription?.maxStudents || 50; // Default to 50 for Free Plan
+    const maxStudents =
+      subscription?.maxStudents === undefined ? 50 : subscription.maxStudents; // null = unlimited, undefined = fallback to 50
 
-    if (studentCount >= maxStudents) {
+    if (maxStudents !== null && studentCount >= maxStudents) {
       return NextResponse.json(
-        { 
+        {
           error: `Student limit reached for ${subscription?.planName || "Free Plan"}.`,
-          details: `Current students: ${studentCount}, Limit: ${maxStudents}. Please upgrade your subscription to add more students.` 
+          details: `Current students: ${studentCount}, Limit: ${maxStudents}. Please upgrade your subscription to add more students.`,
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
+
 
     // ========================================================================
     // STEP 3.5: Generate Student ID and Admission Number if not provided
@@ -242,12 +258,16 @@ export async function POST(
       const admYearShort = admYear.toString().slice(-2);
 
       const lastStudent = await prisma.student.findFirst({
-        where: { 
+        where: {
           schoolId: school.id,
           OR: [
             { studentId: { startsWith: `STU-${admYear}-` } },
-            { admissionNumber: { startsWith: `${schoolPrefix}-${admYearShort}-` } }
-          ]
+            {
+              admissionNumber: {
+                startsWith: `${schoolPrefix}-${admYearShort}-`,
+              },
+            },
+          ],
         },
         orderBy: { createdAt: "desc" },
         select: { studentId: true, admissionNumber: true },
@@ -262,7 +282,11 @@ export async function POST(
           const lastNum = parseInt(parts[parts.length - 1]);
           if (!isNaN(lastNum)) nextStudentNumber = lastNum + 1;
         }
-        if (lastStudent.admissionNumber?.startsWith(`${schoolPrefix}-${admYearShort}-`)) {
+        if (
+          lastStudent.admissionNumber?.startsWith(
+            `${schoolPrefix}-${admYearShort}-`,
+          )
+        ) {
           const parts = lastStudent.admissionNumber.split("-");
           const lastNum = parseInt(parts[parts.length - 1]);
           if (!isNaN(lastNum)) nextAdmissionNumber = lastNum + 1;
@@ -278,7 +302,13 @@ export async function POST(
 
       // Check for collisions
       let collision = await prisma.student.findFirst({
-        where: { schoolId: school.id, OR: [{ studentId: finalStudentId }, { admissionNumber: finalAdmissionNumber }] },
+        where: {
+          schoolId: school.id,
+          OR: [
+            { studentId: finalStudentId },
+            { admissionNumber: finalAdmissionNumber },
+          ],
+        },
       });
 
       while (collision) {
@@ -291,7 +321,13 @@ export async function POST(
           finalAdmissionNumber = `${schoolPrefix}-${admYearShort}-${nextAdmissionNumber.toString().padStart(4, "0")}`;
         }
         collision = await prisma.student.findFirst({
-          where: { schoolId: school.id, OR: [{ studentId: finalStudentId }, { admissionNumber: finalAdmissionNumber }] },
+          where: {
+            schoolId: school.id,
+            OR: [
+              { studentId: finalStudentId },
+              { admissionNumber: finalAdmissionNumber },
+            ],
+          },
         });
       }
     }
@@ -439,9 +475,11 @@ export async function POST(
           academicYearId: currentAcademicYearId,
           termId: currentTermId || null,
           status: "ACTIVE",
-        }
+        },
       });
-      console.log(`✅ [Students] Enrolled student in class ${otherData.classId} for year ${currentAcademicYearId}`);
+      console.log(
+        `✅ [Students] Enrolled student in class ${otherData.classId} for year ${currentAcademicYearId}`,
+      );
     }
 
     // ========================================================================
