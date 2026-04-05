@@ -76,47 +76,6 @@ A comprehensive, multi-tenant School Management System built with modern web tec
 
 ---
 
-## 📁 Project Structure
-
-```
-project-root/
-├── app/
-│   ├── (system)/          # System admin portal
-│   ├── (auth)/            # Authentication pages
-│   └── (school)/          # School portals (tenant-scoped)
-│       └── [schoolSlug]/  # Dynamic school routes
-│           ├── admin/     # School administrator
-│           ├── accountant/# Finance management
-│           ├── teacher/   # Teacher portal
-│           ├── parent/    # Parent portal
-│           └── student/   # Student portal
-│
-├── features/              # Domain business logic
-│   ├── students/
-│   ├── teachers/
-│   ├── attendance/
-│   ├── grades/
-│   ├── finance/
-│   └── ...
-│
-├── components/
-│   ├── ui/               # shadcn/ui components
-│   ├── layout/           # Navigation, sidebar
-│   ├── auth/             # Auth components
-│   └── shared/           # Reusable components
-│
-├── lib/
-│   ├── auth/             # Authentication utilities
-│   ├── tenant/           # Multi-tenant logic
-│   ├── permissions/      # RBAC system
-│   └── db/               # Database client
-│
-└── prisma/
-    ├── schema.prisma     # Database schema
-    └── migrations/       # Database migrations
-```
-
----
 
 ## 🚀 Getting Started
 
@@ -160,10 +119,7 @@ project-root/
    BETTER_AUTH_URL="http://localhost:3000"
 
    # Email (Optional)
-   SMTP_HOST="smtp.gmail.com"
-   SMTP_PORT="587"
-   SMTP_USER="your-email@gmail.com"
-   SMTP_PASSWORD="your-app-password"
+  
 
    # App
    NEXT_PUBLIC_APP_URL="http://localhost:3000"
@@ -187,26 +143,6 @@ project-root/
    ```bash
    pnpm dev
    ```
-
-6. **Open your browser**
-   - System Admin: `http://admin.localhost:3000`
-   - School Portal: `http://school1.localhost:3000`
-
-### Local Development with Subdomains
-
-To test subdomain routing locally:
-
-1. **Edit your hosts file** (`/etc/hosts` on Mac/Linux, `C:\Windows\System32\drivers\etc\hosts` on Windows):
-
-   ```
-   127.0.0.1  admin.localhost
-   127.0.0.1  school1.localhost
-   127.0.0.1  school2.localhost
-   ```
-
-2. **Access via subdomains**:
-   - `http://admin.localhost:3000` - System admin
-   - `http://school1.localhost:3000` - School 1 portal
 
 ---
 
