@@ -34,7 +34,17 @@ export default async function AccountantParentsPage({ params }: ParentsPageProps
   const guardians = await prisma.guardian.findMany({
     where: { schoolId: school.id },
     include: {
-      profile: true,
+      profile: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              banned: true,
+              banReason: true,
+            },
+          },
+        },
+      },
       students: {
         include: {
           student: {
@@ -48,6 +58,7 @@ export default async function AccountantParentsPage({ params }: ParentsPageProps
     },
     orderBy: { createdAt: "desc" },
   });
+
 
   // Normalize data for the UI
   const normalizedGuardians = guardians.map((g) => {
@@ -69,8 +80,11 @@ export default async function AccountantParentsPage({ params }: ParentsPageProps
       altPhone: g.alternatePhone,
       occupation: g.occupation,
       isActive: g.isActive,
+      userId: g.profile?.user?.id ?? null,
+      isBanned: g.profile?.user?.banned ?? false,
       wards,
     };
+
   });
 
   return (

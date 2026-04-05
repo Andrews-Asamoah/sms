@@ -47,7 +47,7 @@ export const profileInclude = {
       },
     },
   },
-  guardian: {
+  guardians: {
     include: {
       school: {
         select: {

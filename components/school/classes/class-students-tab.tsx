@@ -8,7 +8,10 @@ import {
   CheckCircle2,
   Loader2,
   ArrowRightLeft,
+  ShieldBan,
+  ShieldCheck,
 } from "lucide-react";
+import { BanUserButton } from "@/components/school/ban-user-button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -40,6 +43,10 @@ interface StudentProfile {
   firstName: string;
   lastName: string;
   image: string | null;
+  user?: {
+    id: string;
+    banned: boolean;
+  } | null;
 }
 
 interface EnrolledStudent {
@@ -66,6 +73,7 @@ interface ClassStudentsTabProps {
   students: EnrolledStudent[];
   unassignedStudents: AvailableStudent[];
   studentsInOtherClasses: StudentInOtherClass[];
+  isOwner: boolean;
 }
 
 export function ClassStudentsTab({
@@ -74,6 +82,7 @@ export function ClassStudentsTab({
   students,
   unassignedStudents,
   studentsInOtherClasses,
+  isOwner,
 }: ClassStudentsTabProps) {
   const [search, setSearch] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -391,14 +400,39 @@ export function ClassStudentsTab({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleUnenroll(student.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {student.profile.user?.id && (
+                          <BanUserButton
+                            schoolSlug={schoolSlug}
+                            userId={student.profile.user.id}
+                            isBanned={student.profile.user.banned}
+                            userName={`${student.profile.firstName} ${student.profile.lastName}`}
+                            trigger={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={student.profile.user.banned 
+                                  ? "text-green-600 hover:text-green-700 hover:bg-green-50" 
+                                  : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"}
+                                title={student.profile.user.banned ? "Unban student" : "Ban student"}
+                              >
+                                {student.profile.user.banned ? <ShieldCheck className="h-4 w-4" /> : <ShieldBan className="h-4 w-4" />}
+                              </Button>
+                            }
+                          />
+                        )}
+                        {isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleUnenroll(student.id)}
+                            title="Unenroll student"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

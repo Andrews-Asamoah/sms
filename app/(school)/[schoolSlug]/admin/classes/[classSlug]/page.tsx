@@ -53,7 +53,12 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
       },
       subjects: {
         where: { isActive: true },
-        select: { id: true, name: true, code: true },
+        select: { 
+          id: true, 
+          name: true, 
+          code: true,
+          departments: { select: { id: true } }
+        },
         orderBy: { name: "asc" },
       },
       teachers: {
@@ -102,7 +107,9 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
       },
       students: {
         include: {
-          profile: true,
+          profile: {
+            include: { user: { select: { id: true, banned: true } } }
+          },
         },
         orderBy: {
           profile: {
@@ -137,11 +144,20 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
     },
   });
 
+  const isOwner = role?.effectiveRole === "owner" || session.isSuperAdmin;
+
   // Serialize students to convert Decimal fields (outstandingBalance) to numbers for Client Components
   const serializedClassStudents = classData.students.map((s) => ({
     ...s,
     outstandingBalance: Number(s.outstandingBalance),
   }));
+
+  // Filter available subjects to only show those assigned to the class's department
+  const availableSubjects = classData.departmentId 
+    ? school.subjects.filter(subject => 
+        subject.departments.some(d => d.id === classData.departmentId)
+      )
+    : school.subjects;
 
   // Split into unassigned (no class) and students who need to be moved from another class
   const unassignedStudents = otherStudents
@@ -198,14 +214,14 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
           value="subjects"
           className="animate-in fade-in-50 duration-300"
         >
-          <ClassSubjectsTab
-            schoolSlug={schoolSlug}
-            classId={classData.id}
-            level={classData.level}
-            academicYearId={classData.academicYearId}
-            currentSubjects={classData.subjects as any}
-            allSubjects={school.subjects}
-            schoolTeachers={school.teachers
+            <ClassSubjectsTab
+              schoolSlug={schoolSlug}
+              classId={classData.id}
+              level={classData.level}
+              academicYearId={classData.academicYearId}
+              currentSubjects={classData.subjects as any}
+              allSubjects={availableSubjects}
+              schoolTeachers={school.teachers
               .filter((t) => t.profile !== null)
               .map((t) => ({
                 id: t.id,
@@ -227,6 +243,7 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
             students={serializedClassStudents as any}
             unassignedStudents={unassignedStudents as any}
             studentsInOtherClasses={studentsInOtherClasses as any}
+            isOwner={isOwner}
           />
         </TabsContent>
 

@@ -10,7 +10,7 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     include: {
       _count: {
         select: {
-          teachers: { where: { isActive: true } },
+          teachers: { where: { isActive: true, profileId: { not: null } } },
           staff: { where: { isActive: true } },
           classes: { where: { isActive: true } },
         },
@@ -23,20 +23,42 @@ export async function getAdminDashboardStats(schoolSlug: string) {
   const { currentAcademicYearId, currentTermId } =
     (school.settings as any) || {};
 
-  // Get active student count based on enrollments in current term/year
-  const activeStudentCount = await prisma.student.count({
-    where: {
-      schoolId: school.id,
-      status: "ACTIVE",
-      enrollments: {
-        some: {
-          academicYearId: currentAcademicYearId || undefined,
-          termId: currentTermId || undefined,
-          status: "ACTIVE",
+  // Get counts accurately including only those with profiles (accepted invitations)
+  const [activeStudentCount, activeTeacherCount, activeStaffCount, activeClassCount] = await Promise.all([
+    prisma.student.count({
+      where: {
+        schoolId: school.id,
+        status: "ACTIVE",
+        enrollments: {
+          some: {
+            academicYearId: currentAcademicYearId || undefined,
+            termId: currentTermId || undefined,
+            status: "ACTIVE",
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.teacher.count({
+      where: {
+        schoolId: school.id,
+        isActive: true,
+        profileId: { not: null },
+      },
+    }),
+    prisma.staff.count({
+      where: {
+        schoolId: school.id,
+        isActive: true,
+        // profileId is required for Staff so this effectively excludes non-existent profiles
+      },
+    }),
+    prisma.class.count({
+      where: {
+        schoolId: school.id,
+        isActive: true,
+      },
+    }),
+  ]);
 
   // Fetch Financial Totals (Revenue vs Expenses)
   const bills = await prisma.bill.findMany({
@@ -147,9 +169,9 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     currency: school.currency,
     counts: {
       students: activeStudentCount,
-      teachers: school._count.teachers,
-      staff: school._count.staff,
-      classes: school._count.classes,
+      teachers: activeTeacherCount,
+      staff: activeStaffCount,
+      classes: activeClassCount,
     },
     financials: {
       totalRevenue,

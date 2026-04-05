@@ -141,7 +141,7 @@ export function GuardianForm({
       toast.success("Success", {
         description: "Guardian created and linked successfully",
       });
-      router.push(`/schools/${schoolSlug}/admin/guardians`);
+      router.push(`/${schoolSlug}/admin/guardians`);
       router.refresh();
     } catch (error) {
       toast.error("Error", {

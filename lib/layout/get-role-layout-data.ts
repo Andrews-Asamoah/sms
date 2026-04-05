@@ -1,52 +1,105 @@
 // lib/layout/get-role-layout-data.ts
-import { getSession } from "@/lib/auth/session";
-import { getSchoolRole, getAllRolesInSchool, getActiveSchoolRole } from "@/lib/auth/school-access";
-import { getNavPermissions } from "@/lib/permissions/utils";
-import prisma from "@/lib/prisma";
+
+import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
+import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/auth/session";
+import {
+  getSchoolRole,
+  getAllRolesInSchool,
+  getActiveSchoolRole,
+} from "@/lib/auth/school-access";
+import { getNavPermissions } from "@/lib/permissions/utils";
 import { checkSubscriptionStatus } from "@/lib/subscription/lifecycle";
+import type { SubscriptionLifecycleStatus } from "@/lib/subscription/lifecycle";
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+interface SchoolSettings {
+  currentAcademicYearId?: string;
+  currentTermId?: string;
+}
+
+export interface RoleLayoutData {
+  session: Awaited<ReturnType<typeof getSession>>;
+  school: {
+    id: string;
+    name: string;
+    logo: string | null;
+    subdomain: string;
+    subscription: {
+      planName: string;
+      status: string;
+      amount: string | null;
+    } | null;
+  };
+  subscriptionStatus: SubscriptionLifecycleStatus | null;
+  schoolRole: ReturnType<typeof getSchoolRole> & { effectiveRole: string };
+  academicYear: string;
+  currentTerm: string | null;
+  allRoles: ReturnType<typeof getAllRolesInSchool>;
+  permissions: Awaited<ReturnType<typeof getNavPermissions>>;
+  userData: {
+    name: string;
+    email: string;
+    avatar: string | undefined;
+    role: string;
+  };
+}
+
+// ============================================================================
+// MAIN EXPORT
+// ============================================================================
 
 export async function getRoleLayoutData(
   schoolSlug: string,
   requiredRole: string | string[],
-) {
+): Promise<RoleLayoutData> {
+  // ── 1. Auth ────────────────────────────────────────────────────────────────
   const session = await getSession();
 
   if (!session) {
-    redirect(
-      `/auth/login?callbackUrl=/${schoolSlug}/${typeof requiredRole === "string" ? requiredRole : requiredRole[0]}`,
-    );
+    const firstRole = Array.isArray(requiredRole)
+      ? requiredRole[0]
+      : requiredRole;
+    redirect(`/auth/login?callbackUrl=/${schoolSlug}/${firstRole}`);
   }
 
-  // Verify user has required role
   const schoolRole = getSchoolRole(session, schoolSlug);
-
   if (!schoolRole) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
-
-  // Determine role-specific unauthorized route
-  const unauthorizedRedirect = `/${schoolSlug}/unauthorized`;
 
   const allowedRoles = Array.isArray(requiredRole)
     ? requiredRole
     : [requiredRole];
 
-  // Check if user has one of the allowed roles
   const hasRequiredRole =
     allowedRoles.includes(schoolRole.effectiveRole) ||
     schoolRole.profileRoles.some((role) => allowedRoles.includes(role));
 
   if (!hasRequiredRole) {
-    redirect(unauthorizedRedirect);
+    redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  // Get school details
+  // ── 2. Load school — select only fields that are used below ────────────────
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
-    include: {
-      subscription: true,
-      organization: true,
+    select: {
+      id: true,
+      name: true,
+      logo: true,
+      subdomain: true,
+      settings: true,
+      subscription: {
+        select: {
+          planName: true,
+          status: true,
+          amount: true,
+        },
+      },
     },
   });
 
@@ -54,77 +107,97 @@ export async function getRoleLayoutData(
     notFound();
   }
 
-  // Get current academic year and term from cookies (Working Context) or system defaults
-  const cookieStore = await import("next/headers").then(mod => mod.cookies());
-  const workingYearId = cookieStore.get(`sms_working_year_${schoolSlug}`)?.value;
-  const workingTermId = cookieStore.get(`sms_working_term_${schoolSlug}`)?.value;
+  // ── 3. Resolve working context from cookies (user preference) or settings ──
+  //
+  // Priority: 1. Cookie (user explicitly switched) 2. School settings (default)
+  //
+  const cookieStore = await cookies();
+  const workingYearId = cookieStore.get(
+    `sms_working_year_${schoolSlug}`,
+  )?.value;
+  const workingTermId = cookieStore.get(
+    `sms_working_term_${schoolSlug}`,
+  )?.value;
 
-  interface SchoolSettings {
-    currentAcademicYearId?: string;
-    currentTermId?: string;
-  }
+  const settings = (school.settings as SchoolSettings) ?? {};
+  const effectiveYearId = workingYearId ?? settings.currentAcademicYearId;
+  const effectiveTermId = workingTermId ?? settings.currentTermId;
 
-  const settings = (school.settings as SchoolSettings) || {};
-  
-  // Priority: 1. Cookie, 2. School Settings
-  const effectiveYearId = workingYearId || settings.currentAcademicYearId;
-  const effectiveTermId = workingTermId || settings.currentTermId;
-
+  // ── 4. Load academic year + terms ─────────────────────────────────────────
   const academicYear = effectiveYearId
     ? await prisma.academicYear.findUnique({
         where: { id: effectiveYearId },
-        include: {
+        select: {
+          name: true,
           terms: {
             orderBy: { termNumber: "asc" },
+            select: { id: true, name: true, isCurrent: true },
           },
         },
       })
     : null;
 
-  // Find the term:
-  // 1. If cookie term exists and belongs to this year, use it.
-  // 2. Otherwise use school settings term if it belongs to this year.
-  // 3. Otherwise use the current term of the year (isCurrent=true).
-  // 4. Otherwise use the first term.
-  let activeTerm = null;
+  // Term resolution priority:
+  //   1. Cookie term (if it belongs to the resolved year)
+  //   2. School settings term (if it belongs to the resolved year)
+  //   3. The term flagged isCurrent on the year
+  //   4. The first term on the year
+  let activeTerm: { id: string; name: string } | null = null;
   if (academicYear && academicYear.terms.length > 0) {
     if (workingTermId) {
-      activeTerm = academicYear.terms.find((t) => t.id === workingTermId) || null;
+      activeTerm =
+        academicYear.terms.find((t) => t.id === workingTermId) ?? null;
     }
-    
     if (!activeTerm && settings.currentTermId) {
-      activeTerm = academicYear.terms.find((t) => t.id === settings.currentTermId) || null;
+      activeTerm =
+        academicYear.terms.find((t) => t.id === settings.currentTermId) ?? null;
     }
-
     if (!activeTerm) {
-      activeTerm = academicYear.terms.find((t) => t.isCurrent) || academicYear.terms[0];
+      activeTerm =
+        academicYear.terms.find((t) => t.isCurrent) ??
+        academicYear.terms[0] ??
+        null;
     }
   }
 
-  // Get the active school role (respects cookies)
+  // ── 5. Role resolution ─────────────────────────────────────────────────────
   const activeSchoolRole = await getActiveSchoolRole(session, schoolSlug);
-  const currentActiveRole = activeSchoolRole?.effectiveRole || schoolRole.effectiveRole;
+  const currentActiveRole =
+    activeSchoolRole?.effectiveRole ?? schoolRole.effectiveRole;
   const allRoles = getAllRolesInSchool(session, schoolSlug);
 
-  // Get navigation permissions based on the session (permissions usually cover all roles)
-  const permissions = await getNavPermissions(session, schoolSlug);
-
-  // Fetch fresh user image from DB (session might be stale)
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { image: true, name: true },
-  });
+  // ── 6. Permissions + user data ─────────────────────────────────────────────
+  const [permissions, freshUser] = await Promise.all([
+    getNavPermissions(session, schoolSlug),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { image: true, name: true },
+    }),
+  ]);
 
   const userData = {
-    name: user?.name || session.user.name || "User",
+    name: freshUser?.name ?? session.user.name ?? "User",
     email: session.user.email,
-    avatar: user ? (user.image ?? undefined) : (session.user.image ?? undefined),
-    role: currentActiveRole, // Now reflects the switched role
+    avatar: freshUser?.image ?? session.user.image ?? undefined,
+    role: currentActiveRole,
   };
 
-  // 6. Check subscription status and lifecycle
-  const subscriptionStatus = await checkSubscriptionStatus(school.id);
+  // ── 7. Subscription lifecycle check ───────────────────────────────────────
+  const rawSubscriptionStatus = await checkSubscriptionStatus(school.id);
 
+  // Serialize the Date field explicitly — avoids the JSON.parse(JSON.stringify())
+  // antipattern while still producing a plain object safe to pass as a prop.
+  const subscriptionStatus: SubscriptionLifecycleStatus | null =
+    rawSubscriptionStatus
+      ? {
+          ...rawSubscriptionStatus,
+          currentPeriodEnd: rawSubscriptionStatus.currentPeriodEnd
+            ? new Date(rawSubscriptionStatus.currentPeriodEnd)
+            : null,
+        }
+      : null;
+
+  // ── 8. Return ──────────────────────────────────────────────────────────────
   return {
     session,
     school: {
@@ -136,17 +209,21 @@ export async function getRoleLayoutData(
         ? {
             planName: school.subscription.planName,
             status: school.subscription.status,
-            amount: school.subscription.amount ? String(school.subscription.amount) : null,
+            // Decimal → string safely (handles null and Prisma Decimal objects)
+            amount:
+              school.subscription.amount != null
+                ? Number(school.subscription.amount).toFixed(2)
+                : null,
           }
         : null,
     },
-    subscriptionStatus: subscriptionStatus ? JSON.parse(JSON.stringify(subscriptionStatus)) : null,
+    subscriptionStatus,
     schoolRole: {
       ...schoolRole,
-      effectiveRole: currentActiveRole, // Override for layout
+      effectiveRole: currentActiveRole,
     },
-    academicYear: academicYear?.name || "No Active Year",
-    currentTerm: activeTerm?.name || null,
+    academicYear: academicYear?.name ?? "No Active Year",
+    currentTerm: activeTerm?.name ?? null,
     allRoles,
     permissions,
     userData,

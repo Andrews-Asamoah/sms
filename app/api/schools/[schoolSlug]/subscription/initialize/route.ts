@@ -1,17 +1,21 @@
+// app/api/schools/[schoolSlug]/subscription/initialize/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
 import {
   getPlanById,
   SUBSCRIPTION_PLANS,
-  SubscriptionPlan,
+  type SubscriptionPlan,
 } from "@/lib/subscription-plans";
 
 type RouteContext = {
-  params: Promise<{
-    schoolSlug: string;
-  }>;
+  params: Promise<{ schoolSlug: string }>;
 };
+
+// ============================================================================
+// POST — initialize a Paystack payment
+// ============================================================================
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
@@ -22,71 +26,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const body = await request.json();
     const { planId, billingCycle, requestType } = body;
+    const { schoolSlug } = await context.params;
 
-    const params = await context.params;
-    const { schoolSlug } = params;
-
-    if (requestType === "CARD_UPDATE") {
-      // Find school to get owner email
-      const school = await prisma.school.findFirst({
-        where: {
-          OR: [{ id: schoolSlug }, { subdomain: schoolSlug }],
-        },
-        include: {
-          organization: {
-            include: {
-              members: {
-                where: { userId: session.user.id },
-              },
-            },
-          },
-        },
-      });
-
-      if (!school) {
-        return NextResponse.json({ error: "School not found" }, { status: 404 });
-      }
-
-      const isSuperAdmin = session.user.role === "superAdmin";
-      const isOwnerOrAdmin = school.organization.members.some(
-        (m) => m.role === "owner" || m.role === "admin",
-      );
-
-      if (!isSuperAdmin && !isOwnerOrAdmin) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-      }
-
-      // Initialize a minimal transaction (GH₵0.10 = 10 pesewas) just to verify and tokenise card
-      // Paystack requires a minimum charge to tokenize a card for future use.
-      // The amount is not added to the subscription, it's a card verification fee.
-      return await initializePaystackTransaction({
-        email: session.user.email,
-        amount: 10, // GH₵0.10 minimum for card verification
-        school,
-        plan: { id: "CARD_UPDATE", name: "Card Update", planType: "NONE", billingCycle: "NONE" },
-        isUpgrade: false,
-        schoolSlug,
-        metadata: {
-          type: "CARD_UPDATE",
-          schoolId: school.id,
-        }
-      });
-    }
-
-    if (!planId) {
-      return NextResponse.json(
-        { error: "Plan ID is required" },
-        { status: 400 },
-      );
-    }
-
-    const plan = getPlanById(planId);
-    if (!plan) {
-      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
-    }
-
-    // Try to find school by ID first, then subdomain
-    let school = await prisma.school.findFirst({
+    // ── Load school once — used for all flows ────────────────────────────────
+    const school = await prisma.school.findFirst({
       where: {
         OR: [{ id: schoolSlug }, { subdomain: schoolSlug }],
       },
@@ -95,39 +38,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         organization: {
           include: {
             members: {
-              where: {
-                userId: session.user.id,
-              },
+              where: { userId: session.user.id },
+              select: { role: true },
             },
           },
         },
       },
     });
-
-    if (!school) {
-      // Fallback: check if organization slug matches
-      const org = await prisma.organization.findUnique({
-        where: { slug: schoolSlug },
-        include: { school: true },
-      });
-      if (org && org.school) {
-        school = await prisma.school.findUnique({
-          where: { id: org.school.id },
-          include: {
-            subscription: true,
-            organization: {
-              include: {
-                members: {
-                  where: {
-                    userId: session.user.id,
-                  },
-                },
-              },
-            },
-          },
-        });
-      }
-    }
 
     if (!school) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
@@ -142,40 +59,70 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // 1. Check for existing active subscription to handle Upgrade/Downgrade
+    // ── Card update flow ──────────────────────────────────────────────────────
+    //
+    // Initializes a minimal GH₵0.10 transaction to verify and tokenize a new
+    // card. This is a Paystack requirement — no subscription plan is attached.
+    //
+    if (requestType === "CARD_UPDATE") {
+      return initializePaystackTransaction({
+        email: session.user.email,
+        amount: 10, // 10 pesewas = GH₵0.10 minimum
+        school,
+        planId: null,
+        planName: "Card Update",
+        isUpgrade: false,
+        schoolSlug,
+        extraMetadata: {
+          type: "CARD_UPDATE",
+          schoolId: school.id,
+        },
+      });
+    }
+
+    // ── Subscription flow ─────────────────────────────────────────────────────
+    if (!planId) {
+      return NextResponse.json(
+        { error: "Plan ID is required" },
+        { status: 400 },
+      );
+    }
+
+    const plan = getPlanById(planId);
+    if (!plan) {
+      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+    }
+
     const currentSubscription = school.subscription;
-    const planPriority = { FREE: 0, BASIC: 1, STANDARD: 2, PREMIUM: 3 };
+    const planPriority: Record<string, number> = {
+      FREE: 0,
+      BASIC: 1,
+      STANDARD: 2,
+      PREMIUM: 3,
+    };
 
     if (
       currentSubscription &&
       currentSubscription.status === "ACTIVE" &&
       planId !== "FREE"
     ) {
-      const currentPlanType = currentSubscription.planType;
-      const newPlanType = plan.planType;
+      const currentPriority = planPriority[currentSubscription.planType] ?? 0;
+      const newPriority = planPriority[plan.planType] ?? 0;
 
-      const currentPriority =
-        planPriority[currentPlanType as keyof typeof planPriority] || 0;
-      const newPriority =
-        planPriority[newPlanType as keyof typeof planPriority] || 0;
-
-      // --- DOWNGRADE LOGIC ---
+      // ── Downgrade: schedule for end of billing period ────────────────────
       if (
         newPriority < currentPriority ||
         (newPriority === currentPriority &&
           plan.billingCycle === "MONTHLY" &&
           currentSubscription.billingCycle === "YEARLY")
       ) {
-        console.log(
-          `[Subscription] Scheduling downgrade from ${currentPlanType} to ${newPlanType}`,
-        );
-
         await prisma.subscription.update({
           where: { id: currentSubscription.id },
           data: {
             cancelAtPeriodEnd: true,
             settings: {
-              ...((currentSubscription.settings as any) || {}),
+              ...((currentSubscription.settings as Record<string, unknown>) ??
+                {}),
               pendingPlanId: plan.id,
               switchType: "DOWNGRADE",
             },
@@ -190,109 +137,112 @@ export async function POST(request: NextRequest, context: RouteContext) {
         });
       }
 
-      // --- UPGRADE LOGIC ---
+      // ── Upgrade: charge the prorated difference now ───────────────────────
       if (
         newPriority > currentPriority ||
         (newPriority === currentPriority &&
           plan.billingCycle === "YEARLY" &&
           currentSubscription.billingCycle === "MONTHLY")
       ) {
-        console.log(
-          `[Subscription] Calculating proration for upgrade from ${currentPlanType} to ${newPlanType}`,
-        );
-
         const now = new Date();
         const periodEnd = currentSubscription.currentPeriodEnd
           ? new Date(currentSubscription.currentPeriodEnd)
-          : new Date();
+          : now;
         const periodStart = currentSubscription.currentPeriodStart
           ? new Date(currentSubscription.currentPeriodStart)
-          : new Date();
+          : now;
 
         const totalDuration = periodEnd.getTime() - periodStart.getTime();
-        const remainingDuration = periodEnd.getTime() - now.getTime();
-
-        const prorationRatio = Math.max(
+        const remainingDuration = Math.max(
           0,
-          Math.min(1, remainingDuration / (totalDuration || 1)),
+          periodEnd.getTime() - now.getTime(),
         );
+        const prorationRatio = remainingDuration / (totalDuration || 1);
 
-        // Find current plan to get its price (approximate if not stored)
         const currentPlan = SUBSCRIPTION_PLANS.find(
           (p: SubscriptionPlan) =>
-            p.planType === currentPlanType &&
+            p.planType === currentSubscription.planType &&
             p.billingCycle === currentSubscription.billingCycle,
-        ) || { price: 0 };
-
-        const remainingValue = currentPlan.price * prorationRatio;
-        const upgradeDifference = Math.max(0, plan.price - remainingValue);
-
-        console.log(
-          `[Subscription] Proration: Remaining=${remainingValue.toFixed(2)}, Diff=${upgradeDifference.toFixed(2)}`,
         );
 
-        // Initialize transaction for the difference
-        return await initializePaystackTransaction({
+        const remainingValue = (currentPlan?.price ?? 0) * prorationRatio;
+        const upgradeDifference = Math.max(0, plan.price - remainingValue);
+
+        return initializePaystackTransaction({
           email: session.user.email,
           amount: Math.round(upgradeDifference * 100),
           school,
-          plan,
+          planId: plan.id,
+          planName: plan.name,
+          paystackPlanCode: plan.paystackPlanCode,
           isUpgrade: true,
           schoolSlug,
         });
       }
     }
 
-    // --- NORMAL SUBSCRIPTION FLOW ---
-    return await initializePaystackTransaction({
+    // ── Normal new subscription ───────────────────────────────────────────────
+    return initializePaystackTransaction({
       email: session.user.email,
       amount: Math.round(plan.price * 100),
       school,
-      plan,
+      planId: plan.id,
+      planName: plan.name,
+      paystackPlanCode: plan.paystackPlanCode,
       isUpgrade: false,
       schoolSlug,
     });
   } catch (error) {
-    console.error("Error initializing subscription:", error);
+    console.error("[Initialize] Error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }
 }
 
+// ============================================================================
+// HELPER — call Paystack transaction/initialize
+// ============================================================================
+
 async function initializePaystackTransaction({
   email,
   amount,
   school,
-  plan,
+  planId,
+  planName,
+  paystackPlanCode,
   isUpgrade,
   schoolSlug,
-  metadata = {},
+  extraMetadata = {},
 }: {
   email: string;
   amount: number;
-  school: any;
-  plan: any;
+  school: { id: string; name: string };
+  planId: string | null;
+  planName: string;
+  paystackPlanCode?: string;
   isUpgrade: boolean;
   schoolSlug: string;
-  metadata?: any;
+  extraMetadata?: Record<string, unknown>;
 }) {
   const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
-  if (!paystackSecretKey) throw new Error("PAYSTACK_SECRET_KEY missing");
+  if (!paystackSecretKey) {
+    throw new Error("PAYSTACK_SECRET_KEY is not configured");
+  }
 
-  const payload: any = {
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+
+  const payload: Record<string, unknown> = {
     email,
-    amount: amount,
+    amount,
     currency: "GHS",
-    callback_url: `${(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")}/api/schools/${schoolSlug}/subscription/verify`,
+    callback_url: `${appUrl}/api/schools/${schoolSlug}/subscription/verify`,
     metadata: {
       schoolId: school.id,
-      planId: plan.id,
-      planType: plan.planType,
-      billingCycle: plan.billingCycle,
+      planId,
       isUpgrade,
-      ...metadata,
+      ...extraMetadata,
       custom_fields: [
         {
           display_name: "School Name",
@@ -302,21 +252,26 @@ async function initializePaystackTransaction({
         {
           display_name: "Plan Name",
           variable_name: "plan_name",
-          value: plan.name,
+          value: planName,
         },
         {
           display_name: "Type",
           variable_name: "type",
-          value: metadata.type === "CARD_UPDATE" ? "Card Update" : (isUpgrade ? "Upgrade" : "New Subscription"),
+          value:
+            extraMetadata.type === "CARD_UPDATE"
+              ? "Card Update"
+              : isUpgrade
+                ? "Upgrade"
+                : "New Subscription",
         },
       ],
     },
   };
 
-  // Only use plan code for NEW subscriptions or if we want Paystack to handle the recurring amount
-  // If it's a prorated upgrade, we charge a one-time amount and then update the subscription code later
-  if (!isUpgrade && plan.paystackPlanCode) {
-    payload.plan = plan.paystackPlanCode;
+  // Attach Paystack plan code for new (non-upgrade, non-card-update) subscriptions.
+  // For upgrades, the plan code is updated after the prorated payment via PUT.
+  if (!isUpgrade && paystackPlanCode) {
+    payload.plan = paystackPlanCode;
   }
 
   const response = await fetch(
@@ -332,8 +287,8 @@ async function initializePaystackTransaction({
   );
 
   if (!response.ok) {
-    const errorData = await response.json();
-    console.error("Paystack initialization failed:", errorData);
+    const errorData = await response.json().catch(() => ({}));
+    console.error("[Initialize] Paystack error:", errorData);
     return NextResponse.json(
       { error: "Payment initialization failed" },
       { status: 500 },

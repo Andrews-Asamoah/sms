@@ -180,7 +180,7 @@ export function SchoolOverview({
               <div className="h-16 w-16 rounded-lg border-2 border-border overflow-hidden shrink-0 bg-muted">
                 {school.logo ? (
                   <Image
-                    src={school.logo}
+                    src={`${school.logo}?t=${new Date(school.updatedAt).getTime()}`}
                     alt={school.name}
                     width={64}
                     height={64}

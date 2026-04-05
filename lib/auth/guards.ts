@@ -1,7 +1,7 @@
 // lib/auth/guards.ts - REFACTORED Route Guards
 
 import { redirect } from "next/navigation";
-import { getSession } from "./session";
+import { requireAuth } from "./session";
 import { hasSchoolAccess } from "./school-access";
 import { checkPermission } from "./api";
 import type { ExtendedSession } from "./types";
@@ -11,16 +11,16 @@ import type { ExtendedSession } from "./types";
 // ============================================================================
 
 /**
- * Require school access or redirect to unauthorized
+ * Require school access or redirect to unauthorized.
+ * Calls requireAuth() so banned users are caught and redirected to login
+ * before any school-level authorization check runs.
  */
 export async function requireSchoolAccess(
   subdomain: string,
 ): Promise<ExtendedSession> {
-  const session = await getSession();
-
-  if (!session) {
-    redirect("/auth/login");
-  }
+  // requireAuth() handles: no session → redirect /auth/login
+  //                        banned user → throws error (caught by error boundary)
+  const session = await requireAuth();
 
   const hasAccess = session.isSuperAdmin || hasSchoolAccess(session, subdomain);
 
@@ -41,11 +41,7 @@ export async function requireSchoolAccess(
 export async function requirePermission(
   permissions: Record<string, string[]>,
 ): Promise<ExtendedSession> {
-  const session = await getSession();
-
-  if (!session) {
-    redirect("/auth/login");
-  }
+  const session = await requireAuth();
 
   const hasPermission = await checkPermission(session.user.id, permissions);
 

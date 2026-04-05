@@ -72,8 +72,34 @@ export function LoginForm() {
       });
 
       if (result.error) {
-        console.error("❌ [Login] Error:", result.error);
-        throw new Error(result.error.message || "Invalid email or password");
+        const msg = result.error.message || "Invalid email or password";
+
+        // BetterAuth banned check — handle directly without re-throwing
+        if (msg.toLowerCase().includes("banned")) {
+          try {
+            const res = await fetch(`/api/auth/ban-reason?email=${encodeURIComponent(data.email)}`);
+            if (res.ok) {
+              const json = await res.json();
+              if (json.reason) {
+                setError(`Your account has been suspended. Reason: ${json.reason}`);
+                return;
+              }
+            }
+          } catch (e) {
+            console.error("Failed to fetch ban reason", e);
+          }
+          setError("Your account has been suspended. Please contact support.");
+          return;
+        }
+
+        if (msg.includes("Invalid email or password")) {
+          setError("Invalid email or password. Please try again.");
+        } else if (msg.includes("User not found")) {
+          setError("No account found with this email address.");
+        } else {
+          setError(msg);
+        }
+        return;
       }
 
       console.log("✅ [Login] Success!");
@@ -83,34 +109,22 @@ export function LoginForm() {
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
       // Always redirect to /auth/callback
-      // The callback page will handle role-based routing
       console.log("🔄 [Login] Redirecting to /auth/callback");
-
       window.location.href = "/auth/callback";
     } catch (err) {
-      console.error("❌ [Login] Failed:", err);
-
+      console.error("❌ [Login] Unexpected error:", err);
       const authError = err as AuthError;
-
-      if (authError.message?.includes("Invalid email or password")) {
-        setError("Invalid email or password. Please try again.");
-      } else if (authError.message?.includes("User not found")) {
-        setError("No account found with this email address.");
-      } else if (authError.message?.includes("Account is banned")) {
-        setError("Your account has been suspended. Please contact support.");
-      } else {
-        setError(authError.message || "Failed to sign in. Please try again.");
-      }
+      setError(authError.message || "Failed to sign in. Please try again.");
     }
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <FieldGroup className="space-y-4">
+      <FieldGroup className="space-y-3">
         {error && (
           <Alert
             variant="destructive"
-            className="bg-destructive/10 border-destructive/20 text-destructive dark:text-red-400"
+            className="bg-destructive/10 border-destructive/20 text-destructive dark:text-red-400 py-2"
           >
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-sm font-medium">

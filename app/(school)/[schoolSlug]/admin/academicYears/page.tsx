@@ -1,4 +1,5 @@
 // app/(school)/[schoolSlug]/admin/academic-years/page.tsx
+import { Suspense } from "react";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
@@ -191,7 +192,20 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
         )}
 
         {/* Term Transition Card */}
-        {canManageGlobal && <TermTransitionCard />}
+        {canManageGlobal && (
+          <Suspense
+            fallback={
+              <Card className="border-amber-200 bg-amber-50/30 animate-pulse">
+                <CardContent className="py-6">
+                  <div className="h-4 bg-amber-200/40 rounded w-1/3 mb-3" />
+                  <div className="h-3 bg-amber-200/30 rounded w-2/3" />
+                </CardContent>
+              </Card>
+            }
+          >
+            <TermTransitionCard />
+          </Suspense>
+        )}
 
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="border-0 bg-card/60 backdrop-blur-xl shadow-xl">

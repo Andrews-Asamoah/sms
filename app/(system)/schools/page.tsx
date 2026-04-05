@@ -242,7 +242,7 @@ export default async function SchoolsPage() {
                       <div className="flex items-start gap-3 min-w-0">
                         <Avatar className="h-12 w-12 border-2 border-primary/20 shrink-0 ring-2 ring-primary/5 group-hover:ring-primary/20 transition-all">
                           <AvatarImage
-                            src={school.logo || undefined}
+                            src={school.logo ? `${school.logo}?t=${new Date(school.updatedAt).getTime()}` : undefined}
                             alt={school.name}
                           />
                           <AvatarFallback className="text-base font-semibold bg-primary/10 text-primary">
@@ -397,7 +397,7 @@ export default async function SchoolsPage() {
                             <div className="flex items-center gap-3 min-w-0">
                               <Avatar className="h-10 w-10 shrink-0 ring-2 ring-primary/5 group-hover:ring-primary/20 transition-all">
                                 <AvatarImage
-                                  src={school.logo || undefined}
+                                  src={school.logo ? `${school.logo}?t=${new Date(school.updatedAt).getTime()}` : undefined}
                                   alt={school.name}
                                 />
                                 <AvatarFallback className="bg-primary/10 text-primary">

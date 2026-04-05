@@ -39,6 +39,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { SUBSCRIPTION_PLANS, getPlanById } from "@/lib/subscription-plans";
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
 type SchoolData = Prisma.SchoolGetPayload<{
   include: {
     subscription: {
@@ -67,6 +71,10 @@ interface SchoolSubscriptionManagerProps {
   isSuperAdmin: boolean;
 }
 
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
 export function SchoolSubscriptionManager({
   school,
   isSuperAdmin,
@@ -85,8 +93,8 @@ export function SchoolSubscriptionManager({
   const [status, setStatus] = useState<string>(
     school.subscription?.status || "ACTIVE",
   );
-  const [billingCycle, setBillingCycle] = useState(
-    school.subscription?.billingCycle || "",
+  const [billingCycle, setBillingCycle] = useState<string>(
+    school.subscription?.billingCycle ?? "",
   );
   const [amount, setAmount] = useState(
     String(school.subscription?.amount || "0"),
@@ -116,19 +124,31 @@ export function SchoolSubscriptionManager({
       ? new Date(school.subscription.trialEndsAt).toISOString().split("T")[0]
       : "",
   );
+
+  // Limit fields — empty string means "unlimited" (null in DB).
   const [maxStudents, setMaxStudents] = useState(
-    String(school.subscription?.maxStudents || ""),
+    school.subscription?.maxStudents != null
+      ? String(school.subscription.maxStudents)
+      : "",
   );
   const [maxTeachers, setMaxTeachers] = useState(
-    String(school.subscription?.maxTeachers || ""),
+    school.subscription?.maxTeachers != null
+      ? String(school.subscription.maxTeachers)
+      : "",
   );
   const [maxStaff, setMaxStaff] = useState(
-    String(school.subscription?.maxStaff || ""),
+    school.subscription?.maxStaff != null
+      ? String(school.subscription.maxStaff)
+      : "",
   );
-  const [manualOverride, setManualOverride] = useState(false);
 
+  // When manualOverride is off, limits are auto-derived from planType on save.
+  const [manualOverride, setManualOverride] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Applies a plan template to the form fields. */
   const handleApplyTemplate = (planId: string) => {
     const plan = getPlanById(planId);
     if (!plan) return;
@@ -137,21 +157,29 @@ export function SchoolSubscriptionManager({
     setPlanName(plan.name);
     setAmount(String(plan.price));
     setCurrency(plan.currency);
-    setBillingCycle(plan.billingCycle);
+    setBillingCycle(plan.billingCycle ?? "");
 
     if (!manualOverride) {
+      // null in plan.limits means unlimited — represent as empty string in the input.
       setMaxStudents(
-        plan.limits.students === Infinity ? "" : String(plan.limits.students),
+        plan.limits.students === null ? "" : String(plan.limits.students),
       );
       setMaxTeachers(
-        plan.limits.teachers === Infinity ? "" : String(plan.limits.teachers),
+        plan.limits.teachers === null ? "" : String(plan.limits.teachers),
       );
-      setMaxStaff(
-        plan.limits.staff === Infinity ? "" : String(plan.limits.staff),
-      );
+      setMaxStaff(plan.limits.staff === null ? "" : String(plan.limits.staff));
     }
   };
 
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  /**
+   * Grant Premium — sets planType PREMIUM with null limits (unlimited).
+   *
+   * The PATCH endpoint auto-derives limits from planType when no explicit
+   * limits are sent. For PREMIUM, getDefaultLimitsForPlan returns
+   * { students: null, teachers: null, staff: null } (unlimited).
+   */
   const handleGrantPremium = async () => {
     setIsLoading(true);
     try {
@@ -167,19 +195,28 @@ export function SchoolSubscriptionManager({
             billingCycle: "YEARLY",
             amount: "0",
             currency: "GHS",
+            // Deliberately NOT sending maxStudents/maxTeachers/maxStaff here.
+            // The server will call getDefaultLimitsForPlan("PREMIUM") which
+            // returns null (unlimited) for all three. This is the correct
+            // behaviour — premium schools should never hit a student limit.
           }),
         },
       );
 
       if (!response.ok) {
-        throw new Error("Failed to grant premium");
+        const err = await response.json();
+        throw new Error(err.error || "Failed to grant premium");
       }
 
-      toast.success("Premium plan granted successfully!");
+      toast.success("Premium plan granted successfully! All limits removed.");
       router.refresh();
     } catch (error) {
       console.error("Grant premium error:", error);
-      toast.error("Failed to grant premium plan.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to grant premium plan.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -189,15 +226,25 @@ export function SchoolSubscriptionManager({
     const errors: Record<string, string> = {};
     if (!planType) errors.planType = "Plan type is required";
     if (!status) errors.status = "Status is required";
-
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
     }
     setFormErrors({});
-
     setIsLoading(true);
+
     try {
+      // When manualOverride is off, don't send limit fields at all —
+      // the server will auto-derive them from planType. This prevents the bug
+      // where stale limits from a previous plan linger after a plan type change.
+      const limitFields = manualOverride
+        ? {
+            maxStudents: maxStudents || null, // "" → null (unlimited)
+            maxTeachers: maxTeachers || null,
+            maxStaff: maxStaff || null,
+          }
+        : {};
+
       const response = await fetch(
         `/api/schools/${school.subdomain}/subscription`,
         {
@@ -214,15 +261,14 @@ export function SchoolSubscriptionManager({
             currentPeriodEnd: periodEnd || null,
             isOnTrial,
             trialEndsAt: trialEndsAt || null,
-            maxStudents: maxStudents || null,
-            maxTeachers: maxTeachers || null,
-            maxStaff: maxStaff || null,
+            ...limitFields,
           }),
         },
       );
 
       if (!response.ok) {
-        throw new Error("Failed to update subscription");
+        const err = await response.json();
+        throw new Error(err.error || "Failed to update subscription");
       }
 
       toast.success("Subscription updated successfully!");
@@ -230,13 +276,19 @@ export function SchoolSubscriptionManager({
       router.refresh();
     } catch (error) {
       console.error("Save error:", error);
-      toast.error("Failed to update subscription.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to update subscription.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   const sub = school.subscription;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -302,15 +354,30 @@ export function SchoolSubscriptionManager({
             <div className="space-y-1 text-sm">
               <div className="flex items-center gap-2">
                 <GraduationCap className="h-3 w-3" />
-                <span>{school._count.students} students</span>
+                <span>
+                  {school._count.students} students
+                  {sub?.maxStudents != null
+                    ? ` / ${sub.maxStudents}`
+                    : " (unlimited)"}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Users className="h-3 w-3" />
-                <span>{school._count.teachers} teachers</span>
+                <span>
+                  {school._count.teachers} teachers
+                  {sub?.maxTeachers != null
+                    ? ` / ${sub.maxTeachers}`
+                    : " (unlimited)"}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Briefcase className="h-3 w-3" />
-                <span>{school._count.staff} staff</span>
+                <span>
+                  {school._count.staff} staff
+                  {sub?.maxStaff != null
+                    ? ` / ${sub.maxStaff}`
+                    : " (unlimited)"}
+                </span>
               </div>
             </div>
           </CardContent>
@@ -340,7 +407,7 @@ export function SchoolSubscriptionManager({
               ) : (
                 <Crown className="mr-2 h-4 w-4" />
               )}
-              Grant Premium (6 Months)
+              Grant Premium (6 Months, Unlimited)
             </Button>
             <Button
               variant={editMode ? "secondary" : "outline"}
@@ -368,6 +435,7 @@ export function SchoolSubscriptionManager({
                 handleSave();
               }}
             >
+              {/* Plan Templates */}
               <div className="bg-muted/30 p-4 rounded-lg border border-dashed mb-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Settings2 className="h-4 w-4 text-primary" />
@@ -393,6 +461,7 @@ export function SchoolSubscriptionManager({
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">
+                {/* Core Details */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                     Core Details
@@ -437,7 +506,7 @@ export function SchoolSubscriptionManager({
                           <SelectItem value="ACTIVE">Active</SelectItem>
                           <SelectItem value="TRIALING">Trialing</SelectItem>
                           <SelectItem value="PAST_DUE">Past Due</SelectItem>
-                          <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                          <SelectItem value="CANCELED">Canceled</SelectItem>
                           <SelectItem value="EXPIRED">Expired</SelectItem>
                         </SelectContent>
                       </Select>
@@ -475,7 +544,6 @@ export function SchoolSubscriptionManager({
                           onChange={(e) => setAmount(e.target.value)}
                         />
                       </FieldGroup>
-
                       <FieldGroup>
                         <FieldLabel htmlFor="currency">Currency</FieldLabel>
                         <Select value={currency} onValueChange={setCurrency}>
@@ -502,7 +570,6 @@ export function SchoolSubscriptionManager({
                           onChange={(e) => setPeriodStart(e.target.value)}
                         />
                       </FieldGroup>
-
                       <FieldGroup>
                         <FieldLabel htmlFor="periodEnd">Period End</FieldLabel>
                         <Input
@@ -516,6 +583,7 @@ export function SchoolSubscriptionManager({
                   </div>
                 </div>
 
+                {/* Resource Limits */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                     Resource Limits & Overrides
@@ -530,7 +598,7 @@ export function SchoolSubscriptionManager({
                           </FieldLabel>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Allows custom limits independent of plan defaults.
+                          When off, limits are auto-set from the plan type.
                         </p>
                       </div>
                       <Switch
@@ -583,6 +651,7 @@ export function SchoolSubscriptionManager({
                       </FieldGroup>
                     </div>
 
+                    {/* Trial Settings */}
                     <div className="border-t pt-4">
                       <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
                         Trial Settings
@@ -590,7 +659,9 @@ export function SchoolSubscriptionManager({
                       <div className="space-y-4">
                         <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                           <div className="space-y-0.5">
-                            <FieldLabel htmlFor="isOnTrial">On Trial</FieldLabel>
+                            <FieldLabel htmlFor="isOnTrial">
+                              On Trial
+                            </FieldLabel>
                             <p className="text-sm text-muted-foreground">
                               Toggle trial mode for this school.
                             </p>
@@ -601,7 +672,6 @@ export function SchoolSubscriptionManager({
                             onCheckedChange={setIsOnTrial}
                           />
                         </div>
-
                         {isOnTrial && (
                           <FieldGroup>
                             <FieldLabel htmlFor="trialEndsAt">
@@ -639,7 +709,6 @@ export function SchoolSubscriptionManager({
             </form>
           </CardContent>
         </Card>
-
       )}
 
       {/* Invoice History */}
@@ -660,7 +729,7 @@ export function SchoolSubscriptionManager({
                     <th className="pb-3 pr-4 font-medium">Amount</th>
                     <th className="pb-3 pr-4 font-medium">Status</th>
                     <th className="pb-3 pr-4 font-medium">Period</th>
-                    <th className="pb-3 pr-4 font-medium">Payment Method</th>
+                    <th className="pb-3 pr-4 font-medium">Method</th>
                     <th className="pb-3 font-medium">Paid At</th>
                   </tr>
                 </thead>
@@ -685,19 +754,12 @@ export function SchoolSubscriptionManager({
                       <td className="py-3 pr-4 text-sm">
                         {new Date(invoice.periodStart).toLocaleDateString(
                           "en-US",
-                          {
-                            month: "short",
-                            day: "numeric",
-                          },
+                          { month: "short", day: "numeric" },
                         )}{" "}
                         –{" "}
                         {new Date(invoice.periodEnd).toLocaleDateString(
                           "en-US",
-                          {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          },
+                          { month: "short", day: "numeric", year: "numeric" },
                         )}
                       </td>
                       <td className="py-3 pr-4 text-sm capitalize">

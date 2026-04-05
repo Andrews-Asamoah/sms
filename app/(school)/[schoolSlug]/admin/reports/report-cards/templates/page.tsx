@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { initializeDefaultTemplates } from "./actions";
+import { TemplatePropertiesDialog } from "./template-properties-dialog";
 
 interface TemplatesPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -46,6 +47,12 @@ export default async function TemplatesPage(props: TemplatesPageProps) {
   const templates = await prisma.reportCardTemplate.findMany({
     where: { schoolId: school.id },
     orderBy: { createdAt: "asc" },
+    include: { department: true },
+  });
+
+  const departments = await prisma.department.findMany({
+    where: { schoolId: school.id },
+    orderBy: { name: "asc" },
   });
 
   return (
@@ -130,8 +137,11 @@ export default async function TemplatesPage(props: TemplatesPageProps) {
                         </Badge>
                       )}
                     </div>
-                    <CardDescription className="mt-2 text-sm">
-                      {template.description || "System-standardized layout"}
+                    <CardDescription className="mt-2 text-sm flex flex-col gap-1">
+                      <span>{template.description || "System-standardized layout"}</span>
+                      {template.department && (
+                        <span className="text-primary font-medium">Mapped to: {template.department.name}</span>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -150,13 +160,20 @@ export default async function TemplatesPage(props: TemplatesPageProps) {
                       >
                         View Layout
                       </Button>
-                      <Button
-                        variant="ghost"
-                        className="flex-1 text-xs"
-                        disabled
-                      >
-                        Properties
-                      </Button>
+                      <TemplatePropertiesDialog 
+                        template={{
+                          ...template,
+                          department: template.department ? {
+                            ...template.department,
+                            promotionPassMark: template.department.promotionPassMark?.toNumber() ?? null
+                          } : null
+                        }} 
+                        departments={departments.map(d => ({
+                          ...d,
+                          promotionPassMark: d.promotionPassMark?.toNumber() ?? null
+                        }))} 
+                        schoolSlug={schoolSlug} 
+                      />
                     </div>
                   </CardContent>
                 </Card>

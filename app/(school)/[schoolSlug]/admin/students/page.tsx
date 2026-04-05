@@ -22,13 +22,21 @@ import {
 } from "@/components/ui/card";
 import { StudentsDataTable } from "@/components/school/students/students-table";
 import { columns } from "@/components/school/students/columns";
+import { PurgeStudentsButton } from "@/components/school/students/purge-students-button";
+import { StudentClassFilter } from "@/components/school/students/student-class-filter";
+import { StatCard } from "@/components/ui/stat-card";
+import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface StudentsPageProps {
   params: Promise<{ schoolSlug: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function StudentsPage({ params }: StudentsPageProps) {
+export default async function StudentsPage({ params, searchParams }: StudentsPageProps) {
   const { schoolSlug } = await params;
+  const resolvedSearchParams = await searchParams;
+  const classId = resolvedSearchParams.classId as string | undefined;
 
   const session = await requireSchoolAccess(schoolSlug);
   const role = getSchoolRole(session, schoolSlug);
@@ -51,32 +59,11 @@ export default async function StudentsPage({ params }: StudentsPageProps) {
     redirect("/");
   }
 
-  // Fetch students
-  const [rawStudents, activeCount, graduatedCount, withdrawnCount] =
+  // Fetch students stats
+  const [totalCount, activeCount, graduatedCount, withdrawnCount] =
     await Promise.all([
-      prisma.student.findMany({
+      prisma.student.count({
         where: { schoolId: school.id },
-        include: {
-          profile: {
-            include: {
-              user: true,
-            },
-          },
-          class: {
-            include: {
-              academicYear: true,
-            },
-          },
-          department: true,
-          house: true,
-          _count: {
-            select: {
-              guardians: true,
-              bills: true,
-            },
-          },
-        },
-        orderBy: [{ createdAt: "desc" }],
       }),
       prisma.student.count({
         where: { schoolId: school.id, status: "ACTIVE" },
@@ -89,7 +76,150 @@ export default async function StudentsPage({ params }: StudentsPageProps) {
       }),
     ]);
 
-  // Serialize students to convert Decimal fields to numbers
+  // Fetch all classes for the filter dropdown
+  const classes = await prisma.class.findMany({
+    where: { schoolId: school.id },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
+  if (!classId && classes.length > 0) {
+    redirect(`/${schoolSlug}/admin/students?classId=${classes[0].id}`);
+  }
+
+  const effectiveClassId = classId || "all";
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Students Management
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Manage student records, enrollments, and information
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={`/${schoolSlug}/admin/students/credentials`}>
+            <Button variant="outline" size="lg">
+              <UserCheck className="mr-2 h-5 w-5" />
+              <span className="hidden sm:inline">Credentials</span>
+            </Button>
+          </Link>
+          <Link href={`/${schoolSlug}/admin/students/bulk-upload`}>
+            <Button variant="outline" size="lg">
+              <Upload className="mr-2 h-5 w-5" />
+              <span className="hidden sm:inline">Bulk Upload</span>
+            </Button>
+          </Link>
+          <Link href={`/${schoolSlug}/admin/students/new`}>
+            <Button size="lg">
+              <Plus className="mr-2 h-5 w-5" />
+              <span className="hidden sm:inline">New Student</span>
+            </Button>
+          </Link>
+          {(role?.effectiveRole === "owner" || session.isSuperAdmin) && (
+            <PurgeStudentsButton schoolSlug={schoolSlug} />
+          )}
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-4">
+        <StatCard
+          title="Total Students"
+          value={totalCount}
+          icon={Users}
+        />
+        <StatCard
+          title="Active"
+          value={activeCount}
+          icon={UserCheck}
+          iconClassName="text-green-600"
+        />
+        <StatCard
+          title="Graduated"
+          value={graduatedCount}
+          icon={GraduationCap}
+          iconClassName="text-blue-600"
+        />
+        <StatCard
+          title="Withdrawn"
+          value={withdrawnCount}
+          icon={UserX}
+          iconClassName="text-orange-600"
+        />
+      </div>
+
+      {/* Students Table inside Suspense */}
+      <Suspense fallback={<StudentsTableSkeleton />}>
+      <StudentsListContent
+          schoolId={school.id}
+          schoolSlug={schoolSlug}
+          classId={effectiveClassId}
+          classes={classes}
+        />
+
+      </Suspense>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Async Server Component for fetching students
+// ----------------------------------------------------------------------------
+async function StudentsListContent({
+  schoolId,
+  schoolSlug,
+  classId,
+  classes,
+}: {
+  schoolId: string;
+  schoolSlug: string;
+  classId: string;
+  classes: { id: string; name: string }[];
+}) {
+
+  const whereClause: any = { schoolId };
+  if (classId !== "all") {
+    whereClause.classId = classId;
+  }
+
+  const rawStudents = await prisma.student.findMany({
+    where: whereClause,
+    include: {
+      profile: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              banned: true,
+              banReason: true,
+            },
+          },
+        },
+      },
+      class: {
+        include: {
+          academicYear: true,
+        },
+      },
+      department: true,
+      house: true,
+      _count: {
+        select: {
+          guardians: true,
+          bills: true,
+        },
+      },
+    },
+    orderBy: [{ createdAt: "desc" }],
+  });
+
+
   const students = rawStudents.map((s) => ({
     ...s,
     outstandingBalance: Number(s.outstandingBalance),
@@ -104,98 +234,53 @@ export default async function StudentsPage({ params }: StudentsPageProps) {
   }));
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <Card className="backdrop-blur-sm bg-card/50 border-border/50">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>{classId === "all" ? "All Students" : "Class Students"}</CardTitle>
+          <CardDescription>
+            {classId === "all"
+              ? "View and manage all student records"
+              : `Viewing students for selected class`}
+          </CardDescription>
+        </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Students Management
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage student records, enrollments, and information
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Link href={`/${schoolSlug}/admin/students/credentials`}>
-            <Button variant="outline" size="lg">
-              <UserCheck className="mr-2 h-5 w-5" />
-              Credentials
-            </Button>
-          </Link>
-          <Link href={`/${schoolSlug}/admin/students/bulk-upload`}>
-            <Button variant="outline" size="lg">
-              <Upload className="mr-2 h-5 w-5" />
-              Bulk Upload
-            </Button>
-          </Link>
-          <Link href={`/${schoolSlug}/admin/students/new`}>
-            <Button size="lg">
-              <Plus className="mr-2 h-5 w-5" />
-              New Student
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Students
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{students.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active</CardTitle>
-            <UserCheck className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeCount}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Graduated</CardTitle>
-            <GraduationCap className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{graduatedCount}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Withdrawn</CardTitle>
-            <UserX className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{withdrawnCount}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Students Table */}
-      <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-        <CardHeader>
-          <CardTitle>All Students</CardTitle>
-          <CardDescription>View and manage all student records</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <StudentsDataTable
-            columns={columns}
-            data={students}
-            schoolSlug={schoolSlug}
+          <StudentClassFilter
+            classes={classes}
+            currentClassId={classId}
           />
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <StudentsDataTable
+          columns={columns}
+          data={students}
+          schoolSlug={schoolSlug}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function StudentsTableSkeleton() {
+  return (
+    <Card className="backdrop-blur-sm bg-card/50 border-border/50">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
+        <div className="space-y-1.5">
+          <Skeleton className="h-8 w-[200px]" />
+          <Skeleton className="h-4 w-[350px]" />
+        </div>
+        <Skeleton className="h-11 w-[200px]" />
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

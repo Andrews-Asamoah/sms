@@ -1,3 +1,4 @@
+// components/school/users/school-subscription.tsx
 "use client";
 
 import { useState, useMemo } from "react";
@@ -23,13 +24,15 @@ import {
   CheckCircle2,
   Loader2,
   Sparkles,
+  Clock,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
 import { Prisma } from "@/lib/generated/prisma";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { SUBSCRIPTION_PLANS, getPlanById } from "@/lib/subscription-plans";
 import { format } from "date-fns";
-import { Clock, AlertTriangle, Info } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,6 +43,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+// ============================================================================
+// TYPES
+// ============================================================================
 
 type SchoolWithSubscriptionData = Prisma.SchoolGetPayload<{
   include: {
@@ -64,6 +71,23 @@ interface SchoolSubscriptionProps {
   isSuperAdmin?: boolean;
 }
 
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/**
+ * Calculates a usage percentage for display in Progress bars.
+ * When limit is null (unlimited), returns 0 so the bar stays empty.
+ */
+function usagePercent(current: number, limit: number | null): number {
+  if (limit === null) return 0;
+  return Math.min((current / limit) * 100, 100);
+}
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
 export function SchoolSubscription({
   school,
   isSuperAdmin = false,
@@ -75,6 +99,8 @@ export function SchoolSubscription({
   );
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
+  // ── Subscription status derivation ────────────────────────────────────────
+
   const subscriptionStatus = useMemo(() => {
     const subscription = school.subscription;
 
@@ -85,43 +111,47 @@ export function SchoolSubscription({
         trialDaysRemaining: 0,
         canAccessPremiumFeatures: false,
         isActive: false,
+        isPastDue: false,
+        isExpired: false,
         planName: "Free Plan",
         currentPlanId: "FREE",
+        billingCycle: null,
+        status: null,
       };
     }
 
     const now = new Date();
-    const trialEndsAt = subscription.trialEndsAt;
+    const trialEndsAt = subscription.trialEndsAt
+      ? new Date(subscription.trialEndsAt)
+      : null;
     const isOnTrial =
-      subscription.isOnTrial && trialEndsAt && now < new Date(trialEndsAt);
+      subscription.isOnTrial && trialEndsAt != null && now < trialEndsAt;
 
     const trialDaysRemaining =
       isOnTrial && trialEndsAt
         ? Math.max(
             0,
             Math.ceil(
-              (new Date(trialEndsAt).getTime() - now.getTime()) /
-                (1000 * 60 * 60 * 24),
+              (trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
             ),
           )
         : 0;
 
     const isPremium = subscription.planType !== "FREE";
-    const canAccessPremiumFeatures =
-      (isPremium || isOnTrial) && subscription.status !== "EXPIRED";
+    const isExpired = subscription.status === "EXPIRED";
+    const canAccessPremiumFeatures = (isPremium || isOnTrial) && !isExpired;
     const isActive =
       subscription.status === "ACTIVE" ||
       subscription.status === "TRIALING" ||
       subscription.status === "PAST_DUE";
     const isPastDue = subscription.status === "PAST_DUE";
-    const isExpired = subscription.status === "EXPIRED";
 
     const currentPlanId =
       SUBSCRIPTION_PLANS.find(
-        (p: any) =>
+        (p) =>
           p.planType === subscription.planType &&
           p.billingCycle === subscription.billingCycle,
-      )?.id || (isPremium ? "CUSTOM" : "FREE");
+      )?.id ?? (isPremium ? "CUSTOM" : "FREE");
 
     return {
       isPremium,
@@ -129,106 +159,74 @@ export function SchoolSubscription({
       trialDaysRemaining,
       canAccessPremiumFeatures,
       isActive,
+      isPastDue,
+      isExpired,
       planName: subscription.planName,
       currentPlanId,
       billingCycle: subscription.billingCycle,
       status: subscription.status,
-      isExpired,
-      isPastDue,
     };
   }, [school.subscription]);
 
-  const limits = useMemo(() => {
-    // If no subscription, use default Free Plan limits
-    if (!school.subscription) {
-      return { students: 50, teachers: 5, staff: 2 };
-    }
-
-    // Return the actual database values. null specifically means unlimited.
-    return {
-      students: school.subscription.maxStudents,
-      teachers: school.subscription.maxTeachers,
-      staff: school.subscription.maxStaff,
-    };
-  }, [school.subscription]);
-
-  const studentUsagePercent = Math.min(
-    (school._count.students /
-      (limits.students === null || limits.students === Infinity
-        ? 10000
-        : limits.students)) *
-      100,
-    100,
-  );
-  const teacherUsagePercent = Math.min(
-    (school._count.teachers /
-      (limits.teachers === null || limits.teachers === Infinity
-        ? 1000
-        : limits.teachers)) *
-      100,
-    100,
-  );
-  const staffUsagePercent = Math.min(
-    (school._count.staff /
-      (limits.staff === null || limits.staff === Infinity
-        ? 500
-        : limits.staff)) *
-      100,
-    100,
+  // ── Resource limits ────────────────────────────────────────────────────────
+  //
+  // null in the DB means unlimited. The Infinity comparisons in the original
+  // were dead code — Prisma never returns Infinity. Removed entirely.
+  //
+  const limits = useMemo(
+    () =>
+      school.subscription
+        ? {
+            students: school.subscription.maxStudents,
+            teachers: school.subscription.maxTeachers,
+            staff: school.subscription.maxStaff,
+          }
+        : { students: 50, teachers: 5, staff: 2 },
+    [school.subscription],
   );
 
   const isApproachingStudentLimit =
-    limits.students !== null &&
-    limits.students !== Infinity &&
-    school._count.students >= (limits.students as number) * 0.8;
+    limits.students !== null && school._count.students >= limits.students * 0.8;
   const isApproachingTeacherLimit =
-    limits.teachers !== null &&
-    limits.teachers !== Infinity &&
-    school._count.teachers >= (limits.teachers as number) * 0.8;
+    limits.teachers !== null && school._count.teachers >= limits.teachers * 0.8;
   const isApproachingStaffLimit =
-    limits.staff !== null &&
-    limits.staff !== Infinity &&
-    school._count.staff >= (limits.staff as number) * 0.8;
+    limits.staff !== null && school._count.staff >= limits.staff * 0.8;
+
+  // ── Actions ────────────────────────────────────────────────────────────────
 
   const handleUpgrade = async (planId: string) => {
     setIsLoading(planId);
     try {
-      const initResponse = await fetch(
+      const response = await fetch(
         `/api/schools/${school.subdomain}/subscription/initialize`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            planId,
-            billingCycle,
-          }),
+          body: JSON.stringify({ planId, billingCycle }),
         },
       );
 
-      if (!initResponse.ok) {
-        const err = await initResponse.json();
-        throw new Error(err.error || "Failed to initialize payment");
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error ?? "Failed to initialize payment");
       }
 
-      const paymentData = await initResponse.json();
+      const paymentData = await response.json();
 
       if (paymentData.scheduled) {
         toast.success(
-          paymentData.message || "Plan change scheduled successfully.",
+          paymentData.message ?? "Plan change scheduled successfully.",
         );
         router.refresh();
         return;
       }
 
       if (paymentData.authorization_url) {
-        sessionStorage.setItem("paystack_reference", paymentData.reference);
-        sessionStorage.setItem("paystack_school_subdomain", school.subdomain);
         window.location.href = paymentData.authorization_url;
       } else {
         throw new Error("No authorization URL received");
       }
     } catch (error) {
-      console.error("Upgrade error:", error);
       toast.error(
         error instanceof Error
           ? error.message
@@ -247,15 +245,13 @@ export function SchoolSubscription({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            requestType: "CARD_UPDATE",
-          }),
+          body: JSON.stringify({ requestType: "CARD_UPDATE" }),
         },
       );
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error || "Failed to initialize card update");
+        throw new Error(err.error ?? "Failed to initialize card update");
       }
 
       const data = await response.json();
@@ -265,7 +261,6 @@ export function SchoolSubscription({
         throw new Error("No authorization URL received");
       }
     } catch (error) {
-      console.error("Card update error:", error);
       toast.error(
         error instanceof Error
           ? error.message
@@ -291,10 +286,10 @@ export function SchoolSubscription({
         throw new Error("Failed to cancel subscription");
       }
 
-      toast.success("Subscription cancelled successfully");
+      const data = await response.json();
+      toast.success(data.message ?? "Subscription cancelled successfully.");
       router.refresh();
     } catch (error) {
-      console.error("Cancel error:", error);
       toast.error("Failed to cancel subscription. Please try again.");
     } finally {
       setIsLoading(null);
@@ -303,14 +298,17 @@ export function SchoolSubscription({
   };
 
   const availablePlans = SUBSCRIPTION_PLANS.filter(
-    (plan: any) => plan.id === "FREE" || plan.billingCycle === billingCycle,
+    (plan) => plan.id === "FREE" || plan.billingCycle === billingCycle,
   );
 
   const pendingPlanId = (school.subscription?.settings as any)?.pendingPlanId;
   const pendingPlan = pendingPlanId ? getPlanById(pendingPlanId) : null;
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-8">
+      {/* Pending downgrade notice */}
       {pendingPlan && (
         <Alert className="border-yellow-500/50 bg-yellow-50/5">
           <Clock className="h-4 w-4 text-yellow-600" />
@@ -318,17 +316,18 @@ export function SchoolSubscription({
             Plan Change Scheduled
           </AlertTitle>
           <AlertDescription className="text-yellow-700">
-            Your plan will automatically switch to{" "}
+            Your plan will switch to{" "}
             <span className="font-bold">{pendingPlan.name}</span> at the end of
-            your current billing period (
+            your current billing period
             {school.subscription?.currentPeriodEnd
-              ? format(new Date(school.subscription.currentPeriodEnd), "PPP")
-              : "soon"}
-            ).
+              ? ` (${format(new Date(school.subscription.currentPeriodEnd), "PPP")})`
+              : ""}
+            .
           </AlertDescription>
         </Alert>
       )}
 
+      {/* Cancellation notice */}
       {school.subscription?.cancelAtPeriodEnd && !pendingPlan && (
         <Alert className="border-red-500/50 bg-red-500/5">
           <AlertTriangle className="h-4 w-4 text-red-600" />
@@ -340,13 +339,14 @@ export function SchoolSubscription({
             <span className="font-bold">
               {school.subscription.currentPeriodEnd
                 ? format(new Date(school.subscription.currentPeriodEnd), "PPP")
-                : "soon"}
+                : "the end of the billing period"}
             </span>
-            .
+            . You retain access until then.
           </AlertDescription>
         </Alert>
       )}
 
+      {/* Current plan card */}
       <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -384,7 +384,11 @@ export function SchoolSubscription({
                       ? "default"
                       : "secondary"
               }
-              className={`text-base px-4 py-2 ${subscriptionStatus.isPastDue ? "border-yellow-500 text-yellow-600 bg-yellow-50" : ""}`}
+              className={`text-base px-4 py-2 ${
+                subscriptionStatus.isPastDue
+                  ? "border-yellow-500 text-yellow-600 bg-yellow-50"
+                  : ""
+              }`}
             >
               {subscriptionStatus.isExpired
                 ? "Expired"
@@ -417,12 +421,12 @@ export function SchoolSubscription({
                 Payment Past Due
               </AlertTitle>
               <AlertDescription className="text-yellow-700">
-                Your last payment attempt failed. Your subscription is still
-                active for now, but please update your payment method to avoid
+                Your last payment failed. Update your payment method to avoid
                 interruption.
               </AlertDescription>
             </Alert>
           )}
+
           {subscriptionStatus.isOnTrial && (
             <Alert
               variant={
@@ -430,18 +434,17 @@ export function SchoolSubscription({
                   ? "destructive"
                   : "default"
               }
-              className="backdrop-blur-sm bg-background/80"
             >
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>
                 {subscriptionStatus.trialDaysRemaining <= 7
-                  ? "Trial Ending Soon!"
-                  : "Trial Period Active"}
+                  ? "Trial ending soon"
+                  : "Trial period active"}
               </AlertTitle>
               <AlertDescription>
                 Your premium trial ends in{" "}
-                {subscriptionStatus.trialDaysRemaining} day
-                {subscriptionStatus.trialDaysRemaining !== 1 ? "s" : ""}.
+                {subscriptionStatus.trialDaysRemaining}{" "}
+                {subscriptionStatus.trialDaysRemaining === 1 ? "day" : "days"}.
                 Upgrade to continue enjoying premium features.
               </AlertDescription>
             </Alert>
@@ -450,75 +453,61 @@ export function SchoolSubscription({
           {(isApproachingStudentLimit ||
             isApproachingTeacherLimit ||
             isApproachingStaffLimit) && (
-            <Alert className="backdrop-blur-sm bg-background/80 border-yellow-500/50">
+            <Alert className="border-yellow-500/50">
               <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <AlertTitle>Approaching Plan Limits</AlertTitle>
+              <AlertTitle>Approaching plan limits</AlertTitle>
               <AlertDescription>
                 {isApproachingStudentLimit &&
-                  `You're using ${school._count.students} of ${limits.students} students. `}
+                  `${school._count.students} / ${limits.students} students. `}
                 {isApproachingTeacherLimit &&
-                  `You're using ${school._count.teachers} of ${limits.teachers} teachers. `}
+                  `${school._count.teachers} / ${limits.teachers} teachers. `}
                 {isApproachingStaffLimit &&
-                  `You're using ${school._count.staff} of ${limits.staff} staff members. `}
-                Consider upgrading to a higher plan for more capacity.
+                  `${school._count.staff} / ${limits.staff} staff. `}
+                Consider upgrading for more capacity.
               </AlertDescription>
             </Alert>
           )}
 
+          {/* Usage meters */}
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2 p-4 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors">
-              <p className="text-sm text-muted-foreground font-medium">
-                Students
-              </p>
-              <p className="text-2xl font-bold tabular-nums">
-                {school._count.students}
-              </p>
-              <Progress
-                value={limits.students === null ? 0 : studentUsagePercent}
-                className="h-2"
-              />
-              <p className="text-xs text-muted-foreground">
-                {limits.students === null || limits.students === Infinity
-                  ? "Unlimited"
-                  : `${school._count.students}/${limits.students} limit`}
-              </p>
-            </div>
-            <div className="space-y-2 p-4 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors">
-              <p className="text-sm text-muted-foreground font-medium">
-                Teachers
-              </p>
-              <p className="text-2xl font-bold tabular-nums">
-                {school._count.teachers}
-              </p>
-              <Progress
-                value={limits.teachers === null ? 0 : teacherUsagePercent}
-                className="h-2"
-              />
-              <p className="text-xs text-muted-foreground">
-                {limits.teachers === null || limits.teachers === Infinity
-                  ? "Unlimited"
-                  : `${school._count.teachers}/${limits.teachers} limit`}
-              </p>
-            </div>
-            <div className="space-y-2 p-4 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors">
-              <p className="text-sm text-muted-foreground font-medium">Staff</p>
-              <p className="text-2xl font-bold tabular-nums">
-                {school._count.staff}
-              </p>
-              <Progress
-                value={limits.staff === null ? 0 : staffUsagePercent}
-                className="h-2"
-              />
-              <p className="text-xs text-muted-foreground">
-                {limits.staff === null || limits.staff === Infinity
-                  ? "Unlimited"
-                  : `${school._count.staff}/${limits.staff} limit`}
-              </p>
-            </div>
+            {(
+              [
+                {
+                  label: "Students",
+                  count: school._count.students,
+                  limit: limits.students,
+                },
+                {
+                  label: "Teachers",
+                  count: school._count.teachers,
+                  limit: limits.teachers,
+                },
+                {
+                  label: "Staff",
+                  count: school._count.staff,
+                  limit: limits.staff,
+                },
+              ] as const
+            ).map(({ label, count, limit }) => (
+              <div
+                key={label}
+                className="space-y-2 p-4 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors"
+              >
+                <p className="text-sm text-muted-foreground font-medium">
+                  {label}
+                </p>
+                <p className="text-2xl font-bold tabular-nums">{count}</p>
+                <Progress value={usagePercent(count, limit)} className="h-2" />
+                <p className="text-xs text-muted-foreground">
+                  {limit === null ? "Unlimited" : `${count} / ${limit} limit`}
+                </p>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
+      {/* Billing cycle toggle */}
       <div className="flex flex-col items-center space-y-4">
         <Tabs
           defaultValue="MONTHLY"
@@ -535,28 +524,26 @@ export function SchoolSubscription({
             </TabsTrigger>
             <TabsTrigger
               value="YEARLY"
-              className="rounded-md data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all relative overflow-hidden"
+              className="rounded-md data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all"
             >
               Yearly billing
-              <Badge
-                variant="default"
-                className="ml-2 bg-green-500 hover:bg-green-600 text-[10px] px-1.5 h-4 border-none"
-              >
+              <Badge className="ml-2 bg-green-500 hover:bg-green-600 text-[10px] px-1.5 h-4 border-none">
                 -20%
               </Badge>
             </TabsTrigger>
           </TabsList>
         </Tabs>
         {billingCycle === "YEARLY" && (
-          <p className="text-sm font-medium text-green-600 flex items-center gap-1 animate-pulse">
+          <p className="text-sm font-medium text-green-600 flex items-center gap-1">
             <Sparkles className="h-4 w-4" />
             Get 2 months free with annual billing!
           </p>
         )}
       </div>
 
+      {/* Plan cards */}
       <div className="grid gap-6 lg:grid-cols-4">
-        {availablePlans.map((plan: any) => {
+        {availablePlans.map((plan) => {
           const isActivePlan =
             school.subscription?.planType === plan.planType &&
             (plan.id === "FREE" ||
@@ -594,27 +581,23 @@ export function SchoolSubscription({
                       </Badge>
                     )}
                   </div>
-                  <div className="flex flex-col">
-                    <div className="text-3xl font-bold flex items-baseline gap-1">
-                      {plan.currency} {plan.price}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        /{plan.billingCycle === "MONTHLY" ? "mo" : "yr"}
-                      </span>
-                    </div>
+                  <div className="text-3xl font-bold flex items-baseline gap-1">
+                    {plan.currency} {plan.price}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      /{plan.billingCycle === "MONTHLY" ? "mo" : "yr"}
+                    </span>
                   </div>
                 </CardTitle>
                 <CardDescription>{plan.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 flex-grow">
                 <div className="space-y-2 text-sm">
-                  {plan.features.description.map(
-                    (feature: string, index: number) => (
-                      <div key={index} className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>{feature}</span>
-                      </div>
-                    ),
-                  )}
+                  {plan.features.description.map((feature, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
               <CardFooter>
@@ -625,7 +608,11 @@ export function SchoolSubscription({
                   </Button>
                 ) : (
                   <Button
-                    className={`w-full ${plan.planType === "PREMIUM" ? "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600" : ""}`}
+                    className={`w-full ${
+                      plan.planType === "PREMIUM"
+                        ? "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
+                        : ""
+                    }`}
                     onClick={() => handleUpgrade(plan.id)}
                     disabled={!!isLoading}
                     variant={plan.id === "FREE" ? "outline" : "default"}
@@ -644,6 +631,7 @@ export function SchoolSubscription({
         })}
       </div>
 
+      {/* Billing information */}
       <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
         <CardHeader>
           <CardTitle>Billing Information</CardTitle>
@@ -673,16 +661,17 @@ export function SchoolSubscription({
                 <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
-                    How Card Updates Work
+                    How card updates work
                   </p>
                   <p className="text-xs text-amber-700/80 dark:text-amber-400/60 mt-1 leading-relaxed">
                     Paystack requires a minimal verification charge of{" "}
                     <span className="font-bold">GH₵ 0.10</span> to securely link
-                    your new card. This is a one-time card verification fee, not
-                    part of your subscription.
+                    your new card. This is a one-time verification fee, not part
+                    of your subscription.
                   </p>
                 </div>
               </div>
+
               <div className="pt-4 space-y-2">
                 <Button
                   variant="outline"
@@ -690,9 +679,9 @@ export function SchoolSubscription({
                   onClick={handleUpdateCard}
                   disabled={!!isLoading}
                 >
-                  {isLoading === "UPDATE_CARD" ? (
+                  {isLoading === "UPDATE_CARD" && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
+                  )}
                   Update Payment Method
                 </Button>
 
@@ -706,24 +695,21 @@ export function SchoolSubscription({
                     onClick={() => setIsCancelDialogOpen(true)}
                     disabled={!!isLoading}
                   >
-                    {isLoading === "CANCEL" ? (
+                    {isLoading === "CANCEL" && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
+                    )}
                     Cancel Subscription
                   </Button>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Are you absolutely sure?
-                      </AlertDialogTitle>
+                      <AlertDialogTitle>Cancel subscription?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will cancel your premium subscription. You will
-                        lose access to premium features at the end of your
-                        current billing period on{" "}
+                        Your subscription will be cancelled but you will retain
+                        access until{" "}
                         {new Date(
                           school.subscription.currentPeriodEnd,
                         ).toLocaleDateString()}
-                        .
+                        . No further charges will be made.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -745,7 +731,7 @@ export function SchoolSubscription({
             </>
           ) : (
             <div className="text-center py-8">
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground">
                 No active recurring subscription.
               </p>
             </div>

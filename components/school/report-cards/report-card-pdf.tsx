@@ -136,10 +136,11 @@ const styles = StyleSheet.create({
     height: "100%",
     justifyContent: "center",
   },
-  colSubject: { width: "35%" },
-  colScore: { width: "15%", textAlign: "center" },
+  colSubject: { width: "30%" },
+  colClassScore: { width: "10%", textAlign: "center" },
+  colExamScore: { width: "10%", textAlign: "center" },
+  colTotal: { width: "10%", textAlign: "center" },
   colGrade: { width: "10%", textAlign: "center" },
-  colPosition: { width: "10%", textAlign: "center" },
   colRemarks: { width: "30%" },
 
   summaryBar: {
@@ -372,7 +373,8 @@ export const ReportCardPDF = ({ data, school }: ReportCardPDFProps) => {
                 Class Teacher's Remarks:
               </Text>
               <Text>
-                {data.behavioral?.remarks ||
+                {data.behavioral?.general ||
+                  data.behavioral?.remarks ||
                   "Should be more attentive in class."}
               </Text>
             </View>
@@ -385,14 +387,17 @@ export const ReportCardPDF = ({ data, school }: ReportCardPDFProps) => {
             <View style={[styles.tableCol, styles.colSubject]}>
               <Text>Subject</Text>
             </View>
-            <View style={[styles.tableCol, styles.colScore]}>
-              <Text>Total Score (100%)</Text>
+            <View style={[styles.tableCol, styles.colClassScore]}>
+              <Text>Class Score</Text>
+            </View>
+            <View style={[styles.tableCol, styles.colExamScore]}>
+              <Text>Exam Score</Text>
+            </View>
+            <View style={[styles.tableCol, styles.colTotal]}>
+              <Text>Total</Text>
             </View>
             <View style={[styles.tableCol, styles.colGrade]}>
               <Text>Grade</Text>
-            </View>
-            <View style={[styles.tableCol, styles.colPosition]}>
-              <Text>Position</Text>
             </View>
             <View style={[styles.tableCol, styles.colRemarks]}>
               <Text>Remarks</Text>
@@ -404,25 +409,17 @@ export const ReportCardPDF = ({ data, school }: ReportCardPDFProps) => {
               <View style={[styles.tableCol, styles.colSubject]}>
                 <Text>{s.subjectName}</Text>
               </View>
-              <View style={[styles.tableCol, styles.colScore]}>
+              <View style={[styles.tableCol, styles.colClassScore]}>
+                <Text>{Number(s.classWorkScore || 0).toFixed(1)}</Text>
+              </View>
+              <View style={[styles.tableCol, styles.colExamScore]}>
+                <Text>{Number(s.examScore || 0).toFixed(1)}</Text>
+              </View>
+              <View style={[styles.tableCol, styles.colTotal]}>
                 <Text>{s.totalScore}</Text>
               </View>
               <View style={[styles.tableCol, styles.colGrade]}>
                 <Text>{s.grade}</Text>
-              </View>
-              <View style={[styles.tableCol, styles.colPosition]}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "center",
-                    alignItems: "flex-end",
-                  }}
-                >
-                  <Text>{s.position || i + 1}</Text>
-                  <Text style={styles.superscript}>
-                    {getOrdinalSuffix(s.position || i + 1)}
-                  </Text>
-                </View>
               </View>
               <View style={[styles.tableCol, styles.colRemarks]}>
                 <Text>{s.remarks || "Excellent"}</Text>
@@ -611,7 +608,8 @@ export const BulkReportPDF = ({
                 Class Teacher's Remarks:
               </Text>
               <Text>
-                {rc.data.behavioral?.remarks ||
+                {rc.data.behavioral?.general ||
+                  rc.data.behavioral?.remarks ||
                   "Should be more attentive in class."}
               </Text>
             </View>
@@ -624,14 +622,17 @@ export const BulkReportPDF = ({
             <View style={[styles.tableCol, styles.colSubject]}>
               <Text>Subject</Text>
             </View>
-            <View style={[styles.tableCol, styles.colScore]}>
-              <Text>Total Score (100%)</Text>
+            <View style={[styles.tableCol, styles.colClassScore]}>
+              <Text>Class Score</Text>
+            </View>
+            <View style={[styles.tableCol, styles.colExamScore]}>
+              <Text>Exam Score</Text>
+            </View>
+            <View style={[styles.tableCol, styles.colTotal]}>
+              <Text>Total</Text>
             </View>
             <View style={[styles.tableCol, styles.colGrade]}>
               <Text>Grade</Text>
-            </View>
-            <View style={[styles.tableCol, styles.colPosition]}>
-              <Text>Position</Text>
             </View>
             <View style={[styles.tableCol, styles.colRemarks]}>
               <Text>Remarks</Text>
@@ -643,25 +644,17 @@ export const BulkReportPDF = ({
               <View style={[styles.tableCol, styles.colSubject]}>
                 <Text>{s.subjectName}</Text>
               </View>
-              <View style={[styles.tableCol, styles.colScore]}>
+              <View style={[styles.tableCol, styles.colClassScore]}>
+                <Text>{Number(s.classWorkScore || 0).toFixed(1)}</Text>
+              </View>
+              <View style={[styles.tableCol, styles.colExamScore]}>
+                <Text>{Number(s.examScore || 0).toFixed(1)}</Text>
+              </View>
+              <View style={[styles.tableCol, styles.colTotal]}>
                 <Text>{s.totalScore}</Text>
               </View>
               <View style={[styles.tableCol, styles.colGrade]}>
                 <Text>{s.grade}</Text>
-              </View>
-              <View style={[styles.tableCol, styles.colPosition]}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "center",
-                    alignItems: "flex-end",
-                  }}
-                >
-                  <Text>{s.position || i + 1}</Text>
-                  <Text style={styles.superscript}>
-                    {getOrdinalSuffix(s.position || i + 1)}
-                  </Text>
-                </View>
               </View>
               <View style={[styles.tableCol, styles.colRemarks]}>
                 <Text>{s.remarks || "Excellent"}</Text>

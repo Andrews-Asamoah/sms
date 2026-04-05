@@ -38,7 +38,8 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { studentId, termId, remarkType, content } = writeRemarkSchema.parse(body);
+    const { studentId, termId, remarkType, content } =
+      writeRemarkSchema.parse(body);
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
@@ -47,6 +48,22 @@ export async function POST(
 
     if (!school) {
       return new NextResponse("School not found", { status: 404 });
+    }
+
+    // Resolve teacher record from the current user
+    const teacher = await prisma.teacher.findFirst({
+      where: {
+        schoolId: school.id,
+        profile: { userId: session.user.id },
+      },
+      select: { id: true },
+    });
+
+    if (!teacher) {
+      return new NextResponse(
+        "Teacher record not found for the current user",
+        { status: 404 },
+      );
     }
 
     // Manual upsert since Remark model lacks composite unique constraint
@@ -64,7 +81,7 @@ export async function POST(
         where: { id: existingRemark.id },
         data: {
           content,
-          teacherId: session.user.id,
+          teacherId: teacher.id,
         },
       });
     } else {
@@ -74,7 +91,7 @@ export async function POST(
           termId,
           remarkType: remarkType as any,
           content,
-          teacherId: session.user.id,
+          teacherId: teacher.id,
         },
       });
     }

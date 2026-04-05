@@ -252,3 +252,44 @@
     }
   }
 }
+
+/* Tiptap Editor Styles */
+.tiptap {
+  outline: none !important;
+}
+
+.tiptap ul {
+  list-style-type: disc !important;
+  margin-left: 1.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.tiptap ol {
+  list-style-type: decimal !important;
+  margin-left: 1.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.tiptap blockquote {
+  border-left: 3px solid var(--border) !important;
+  padding-left: 1rem !important;
+  font-style: italic !important;
+  margin-bottom: 1rem !important;
+}
+
+.tiptap h1 {
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.tiptap h2 {
+  font-size: 1.25rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.tiptap p {
+  margin-bottom: 0.5rem !important;
+}
+

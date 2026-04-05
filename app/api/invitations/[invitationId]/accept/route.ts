@@ -1,4 +1,4 @@
-// app/api/invitations/[invitationId]/accept/route.ts - FIXED VERSION
+// app/api/invitations/[invitationId]/accept/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";

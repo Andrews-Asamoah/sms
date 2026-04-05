@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ClipboardList, FileText, CheckCircle2, Clock, Calendar, ChevronRight, MoreVertical, Trash2, Pencil, Eye,
+  ClipboardList, FileText, CheckCircle2, Clock, Calendar, ChevronRight, MoreVertical, Trash2, Eye, EyeOff, Pencil,
 } from "lucide-react";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -9,16 +9,21 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { deleteReportCardSet } from "./sets/[setId]/actions";
+import { deleteReportCardSet, unpublishReportCardSet, updateReportCardSet } from "./sets/[setId]/actions";
 import { toast } from "sonner";
 import { ReportCardSetDialog } from "@/components/school/reports/report-card-set-dialog"; // Note: Adjust import if not valid, but standard is passed down or used in page. Wait, page handles "New Set", I'll just keep the list.
 
@@ -50,6 +55,11 @@ export function ReportCardsClient({
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [unpublishId, setUnpublishId] = useState<string | null>(null);
+  const [unpublishing, setUnpublishing] = useState(false);
+  const [editSet, setEditSet] = useState<ReportCardSet | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -64,6 +74,40 @@ export function ReportCardsClient({
     } finally {
       setDeleting(false);
       setDeleteId(null);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!unpublishId) return;
+    setUnpublishing(true);
+    try {
+      const result = await unpublishReportCardSet(schoolSlug, unpublishId);
+      if (result.success) {
+        toast.success("Report card set unpublished — results are now hidden from parents.");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Failed to unpublish");
+      }
+    } finally {
+      setUnpublishing(false);
+      setUnpublishId(null);
+    }
+  };
+
+  const handleEditSet = async () => {
+    if (!editSet || !editName.trim()) return;
+    setEditing(true);
+    try {
+      const result = await updateReportCardSet(schoolSlug, editSet.id, { name: editName });
+      if (result.success) {
+        toast.success("Report card set updated");
+        router.refresh();
+        setEditSet(null);
+      } else {
+        toast.error(result.error ?? "Failed to update report card set");
+      }
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -138,6 +182,27 @@ export function ReportCardsClient({
                       <DropdownMenuItem onClick={() => router.push(`/${schoolSlug}/admin/reports/report-cards/sets/${set.id}`)}>
                         <Eye className="w-4 h-4 mr-2" /> View Details
                       </DropdownMenuItem>
+                      {/* Edit — available for DRAFT and GENERATED */}
+                      {(set.status === "DRAFT" || set.status === "GENERATED") && (
+                        <DropdownMenuItem onClick={() => {
+                          setEditSet(set);
+                          setEditName(set.name);
+                        }}>
+                          <Pencil className="w-4 h-4 mr-2" /> Edit Name
+                        </DropdownMenuItem>
+                      )}
+                      {/* Unpublish — only for PUBLISHED */}
+                      {set.status === "PUBLISHED" && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-amber-600 focus:text-amber-700 focus:bg-amber-50"
+                            onClick={() => setUnpublishId(set.id)}
+                          >
+                            <EyeOff className="w-4 h-4 mr-2" /> Unpublish
+                          </DropdownMenuItem>
+                        </>
+                      )}
                       {set.status === "DRAFT" && (
                         <>
                           <DropdownMenuSeparator />
@@ -257,6 +322,57 @@ export function ReportCardsClient({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Unpublish Confirmation */}
+      <AlertDialog open={!!unpublishId} onOpenChange={(open) => !open && setUnpublishId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unpublish Report Card Set?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will hide the results from parents and guardians. The report cards will remain
+              in <strong>Generated</strong> status and can be re-published at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={handleUnpublish}
+              disabled={unpublishing}
+            >
+              {unpublishing ? "Unpublishing..." : "Yes, unpublish"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Set Dialog */}
+      <Dialog open={!!editSet} onOpenChange={(open) => !open && setEditSet(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Report Card Set</DialogTitle>
+            <DialogDescription>
+              Rename this report card set. Results are not regenerated.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label>Name</Label>
+            <Input 
+              value={editName} 
+              onChange={(e) => setEditName(e.target.value)} 
+              disabled={editing}
+              placeholder="e.g. End of First Term Report"
+              className="mt-1.5"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditSet(null)} disabled={editing}>Cancel</Button>
+            <Button onClick={handleEditSet} disabled={editing || !editName.trim()}>
+              {editing ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

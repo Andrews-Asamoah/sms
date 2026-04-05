@@ -1,4 +1,5 @@
 // app/(school)/[schoolSlug]/admin/students/bulk-upload/page.tsx
+
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
@@ -23,9 +24,23 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { InfoIcon } from "lucide-react";
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
 interface BulkUploadPageProps {
   params: Promise<{ schoolSlug: string }>;
 }
+
+interface SchoolSettings {
+  currentAcademicYearId?: string | null;
+  currentTermId?: string | null;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// PAGE
+// ============================================================================
 
 export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
   const { schoolSlug } = await params;
@@ -33,7 +48,6 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
   const session = await requireSchoolAccess(schoolSlug);
   const role = getSchoolRole(session, schoolSlug);
 
-  // Check authorization
   if (
     role?.effectiveRole !== "admin" &&
     role?.effectiveRole !== "owner" &&
@@ -42,7 +56,6 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  // Fetch school
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
   });
@@ -51,10 +64,22 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
     redirect("/");
   }
 
-  // Fetch form options
-  const [classes, departments, houses] = await Promise.all([
+  // Resolve the current academic year so classes can be filtered to it.
+  // This keeps the form in sync with the template download and the API route —
+  // all three show the same set of classes the admin would actually assign new
+  // students to.
+  const { currentAcademicYearId } =
+    (school.settings as unknown as SchoolSettings) ?? {};
+
+  const [classes, rawDepartments, houses] = await Promise.all([
     prisma.class.findMany({
-      where: { schoolId: school.id, isActive: true },
+      where: {
+        schoolId: school.id,
+        isActive: true,
+        ...(currentAcademicYearId
+          ? { academicYearId: currentAcademicYearId }
+          : {}),
+      },
       include: { academicYear: true },
       orderBy: { name: "asc" },
     }),
@@ -67,6 +92,13 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
       orderBy: { name: "asc" },
     }),
   ]);
+
+  // Serialize Decimal fields so they can safely be passed to Client Components.
+  const departments = rawDepartments.map((d) => ({
+    ...d,
+    promotionPassMark:
+      d.promotionPassMark !== null ? Number(d.promotionPassMark) : null,
+  }));
 
   return (
     <div className="space-y-6">
@@ -110,16 +142,20 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
         <AlertDescription className="text-blue-800">
           <div className="space-y-1 mt-2">
             <p>
-              <strong>Student IDs:</strong> Will be auto-generated as <strong>STU-YYYY-NNNN</strong> (e.g., STU-2025-0001).
+              <strong>Student IDs:</strong> Will be auto-generated as{" "}
+              <strong>STU-YYYY-NNNN</strong> (e.g., STU-2025-0001).
             </p>
             <p>
-              <strong>Admission Numbers:</strong> Will be auto-generated as <strong>{schoolSlug.toUpperCase()}-YY-NNNN</strong> (e.g., {schoolSlug.toUpperCase()}-25-0001).
+              <strong>Admission Numbers:</strong> Will be auto-generated as{" "}
+              <strong>{schoolSlug.toUpperCase()}-YY-NNNN</strong> (e.g.,{" "}
+              {schoolSlug.toUpperCase()}-25-0001).
             </p>
             <p className="text-sm font-medium text-blue-900 mt-2 bg-blue-100/50 p-2 rounded border border-blue-200">
-              Note: The year (YYYY/YY) is automatically derived from the student&apos;s <strong>Admission Date</strong>.
+              Note: The year (YYYY/YY) is automatically derived from the
+              student&apos;s <strong>Admission Date</strong>.
             </p>
             <p className="text-sm mt-2">
-              Do NOT include these columns in your Excel file - they will be
+              Do NOT include these columns in your Excel file — they will be
               created automatically.
             </p>
           </div>
@@ -202,7 +238,7 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>First Name</li>
                 <li>Last Name</li>
-                <li>Gender (MALE/FEMALE/OTHER - case sensitive)</li>
+                <li>Gender (MALE/FEMALE/OTHER — uppercase)</li>
                 <li>Date of Birth (YYYY-MM-DD format)</li>
                 <li>Admission Date (YYYY-MM-DD format)</li>
               </ul>
@@ -211,10 +247,13 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
               <h4 className="font-semibold mb-2">Auto-Generated Fields</h4>
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>
-                  Student ID - Automatically generated (e.g., STU-2025-0001). Year is derived from Admission Date.
+                  Student ID — automatically generated (e.g., STU-2025-0001).
+                  Year is derived from Admission Date.
                 </li>
                 <li>
-                  Admission Number - Automatically generated (e.g., WIS-25-0001). Year is derived from Admission Date.
+                  Admission Number — automatically generated (e.g.,{" "}
+                  {schoolSlug.toUpperCase()}-25-0001). Year is derived from
+                  Admission Date.
                 </li>
               </ul>
             </div>
@@ -241,6 +280,12 @@ export default async function BulkUploadPage({ params }: BulkUploadPageProps) {
                 <li>Dates must be in YYYY-MM-DD format (e.g., 2010-01-15)</li>
                 <li>Class, Department, and House names must match exactly</li>
                 <li>Delete the sample data row before adding your data</li>
+                {!currentAcademicYearId && (
+                  <li className="text-amber-900 font-medium">
+                    No current academic year is set — class assignment will not
+                    work until you configure it in school settings.
+                  </li>
+                )}
               </ul>
             </div>
           </div>

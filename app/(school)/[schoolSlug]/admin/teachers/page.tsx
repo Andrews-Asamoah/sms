@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { TeachersClient } from "./client";
 import { TeacherDialog } from "@/components/school/teachers/teacher-dialog";
 import { CancelInvitationButton } from "@/components/school/teachers/cancel-invitation-button";
+import { StatCard } from "@/components/ui/stat-card";
 
 interface TeachersPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -49,7 +50,18 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
       prisma.teacher.findMany({
         where: { schoolId: school.id, profileId: { not: null } },
         include: {
-          profile: true,
+          profile: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  banned: true,
+                  banReason: true,
+                },
+              },
+            },
+          },
           department: true,
           house: true,
           _count: {
@@ -61,6 +73,7 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
         },
         orderBy: { createdAt: "desc" },
       }),
+
       prisma.teacher.count({
         where: {
           schoolId: school.id,
@@ -105,7 +118,12 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
         <TeacherDialog
           schoolId={school.id}
           schoolSlug={schoolSlug}
-          departments={departments}
+          departments={departments.map((d) => ({
+            ...d,
+            promotionPassMark: d.promotionPassMark
+              ? d.promotionPassMark.toNumber()
+              : null,
+          }))}
           houses={houses}
         >
           <Button size="lg">
@@ -116,56 +134,30 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Teachers
-            </CardTitle>
-            <GraduationCap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalActive}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Active Teachers
-            </CardTitle>
-            <Users className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeCount}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Inactive Teachers
-            </CardTitle>
-            <Users className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{inactiveCount}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Pending Invitations
-            </CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {pendingInvitations.length}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-4">
+        <StatCard
+          title="Total Teachers"
+          value={totalActive}
+          icon={GraduationCap}
+        />
+        <StatCard
+          title="Active Teachers"
+          value={activeCount}
+          icon={Users}
+          iconClassName="text-green-600"
+        />
+        <StatCard
+          title="Inactive Teachers"
+          value={inactiveCount}
+          icon={Users}
+          iconClassName="text-orange-600"
+        />
+        <StatCard
+          title="Pending Invitations"
+          value={pendingInvitations.length}
+          icon={Clock}
+          iconClassName="text-yellow-600"
+        />
       </div>
 
       {/* Pending Invitations */}
@@ -246,9 +238,20 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
                 monthlySalary: teacher.monthlySalary
                   ? teacher.monthlySalary.toNumber()
                   : null,
+                department: {
+                  ...teacher.department,
+                  promotionPassMark: teacher.department.promotionPassMark
+                    ? teacher.department.promotionPassMark.toNumber()
+                    : null,
+                },
               }))}
             schoolSlug={schoolSlug}
-            departments={departments}
+            departments={departments.map((dept) => ({
+              ...dept,
+              promotionPassMark: dept.promotionPassMark
+                ? dept.promotionPassMark.toNumber()
+                : null,
+            }))}
             houses={houses}
           />
         </CardContent>

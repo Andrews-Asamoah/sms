@@ -32,16 +32,19 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (signal?: AbortSignal) => {
     if (!schoolSlug) return;
     try {
-      const res = await fetch(`/api/schools/${schoolSlug}/notifications`);
+      const res = await fetch(`/api/schools/${schoolSlug}/notifications`, { signal });
+      if (!res.ok) return;
       const data = await res.json();
       if (data.notifications) {
         setNotifications(data.notifications);
         setUnreadCount(data.unreadCount);
       }
     } catch (error) {
+      // Ignore AbortError — these are expected during cleanup
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Failed to fetch notifications:", error);
     } finally {
       setLoading(false);
@@ -49,10 +52,14 @@ export function NotificationBell() {
   };
 
   useEffect(() => {
-    fetchNotifications();
-    // Refresh every minute
-    const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
+    const controller = new AbortController();
+    fetchNotifications(controller.signal);
+    // Refresh every 60 seconds
+    const interval = setInterval(() => fetchNotifications(controller.signal), 60000);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [schoolSlug]);
 
   const markAsRead = async (id: string) => {
@@ -67,6 +74,19 @@ export function NotificationBell() {
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    if (unreadCount === 0) return;
+    try {
+      await fetch(`/api/schools/${schoolSlug}/notifications`, {
+        method: "PUT",
+      });
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Failed to clear notifications:", error);
     }
   };
 
@@ -92,11 +112,23 @@ export function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0 mr-4" align="end">
         <div className="flex items-center justify-between p-4 border-b">
-          <h4 className="text-sm font-semibold">Notifications</h4>
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-semibold">Notifications</h4>
+            {unreadCount > 0 && (
+              <span className="text-xs text-muted-foreground bg-secondary px-2 rounded-full">
+                {unreadCount} unread
+              </span>
+            )}
+          </div>
           {unreadCount > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {unreadCount} unread
-            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-8 text-primary hover:bg-primary/10"
+              onClick={clearAllNotifications}
+            >
+              Clear All
+            </Button>
           )}
         </div>
         <ScrollArea className="h-[350px]">

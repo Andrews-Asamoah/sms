@@ -1,4 +1,5 @@
 // app/(school)/[schoolSlug]/admin/students/new/page.tsx
+
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
@@ -15,9 +16,22 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
 interface NewStudentPageProps {
   params: Promise<{ schoolSlug: string }>;
 }
+
+interface SchoolSettings {
+  currentAcademicYearId?: string | null;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// PAGE
+// ============================================================================
 
 export default async function NewStudentPage({ params }: NewStudentPageProps) {
   const { schoolSlug } = await params;
@@ -25,7 +39,6 @@ export default async function NewStudentPage({ params }: NewStudentPageProps) {
   const session = await requireSchoolAccess(schoolSlug);
   const role = getSchoolRole(session, schoolSlug);
 
-  // Check authorization
   if (
     role?.effectiveRole !== "admin" &&
     role?.effectiveRole !== "owner" &&
@@ -34,7 +47,6 @@ export default async function NewStudentPage({ params }: NewStudentPageProps) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  // Fetch school and related data
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
   });
@@ -43,10 +55,20 @@ export default async function NewStudentPage({ params }: NewStudentPageProps) {
     redirect("/");
   }
 
-  // Fetch form options
-  const [classes, departments, houses] = await Promise.all([
+  // Filter classes to the current academic year — consistent with bulk upload
+  // and edit pages so the admin always sees the same set of classes.
+  const { currentAcademicYearId } =
+    (school.settings as unknown as SchoolSettings) ?? {};
+
+  const [classes, rawDepartments, houses] = await Promise.all([
     prisma.class.findMany({
-      where: { schoolId: school.id, isActive: true },
+      where: {
+        schoolId: school.id,
+        isActive: true,
+        ...(currentAcademicYearId
+          ? { academicYearId: currentAcademicYearId }
+          : {}),
+      },
       include: { academicYear: true },
       orderBy: { name: "asc" },
     }),
@@ -60,47 +82,63 @@ export default async function NewStudentPage({ params }: NewStudentPageProps) {
     }),
   ]);
 
-  // Generate next student ID and Admission Number
+  // Serialize Decimal fields so they can safely be passed to Client Components.
+  const departments = rawDepartments.map((d) => ({
+    ...d,
+    promotionPassMark:
+      d.promotionPassMark !== null ? Number(d.promotionPassMark) : null,
+  }));
+
+  // Generate suggested IDs to pre-fill the form.
+  //
+  // NOTE: These are suggestions only — the API route runs its own
+  // collision-resolving generateStudentIdentifiers() on submission, so there
+  // is no risk of a duplicate even if two admins open this page simultaneously.
+  // The suggestions here are purely UX (the admin can see what the ID will
+  // look like before saving).
   const currentYear = new Date().getFullYear();
-  const yearShort = currentYear.toString().slice(-2);
-
+  const yy = currentYear.toString().slice(-2);
   const schoolPrefix = schoolSlug.toUpperCase();
+  const stuPrefix = `${schoolPrefix}-${yy}-`;
+  const admPrefix = yy;
 
-  // Suggested Student ID: STU-YYYY-NNNN
-  const lastStudent = await prisma.student.findFirst({
-    where: { 
-      schoolId: school.id,
-      studentId: { startsWith: `STU-${currentYear}-` }
-    },
-    orderBy: { createdAt: "desc" },
-    select: { studentId: true },
-  });
+  const [lastStudentByYear, lastAdmissionByYear] = await Promise.all([
+    prisma.student.findFirst({
+      where: {
+        schoolId: school.id,
+        studentId: { startsWith: stuPrefix },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { studentId: true },
+    }),
+    prisma.student.findFirst({
+      where: {
+        schoolId: school.id,
+        admissionNumber: { startsWith: admPrefix },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { admissionNumber: true },
+    }),
+  ]);
 
-  let nextStudentNumber = 1;
-  if (lastStudent?.studentId.startsWith(`STU-${currentYear}-`)) {
-    const parts = lastStudent.studentId.split("-");
-    nextStudentNumber = parseInt(parts[parts.length - 1]) + 1;
+  let nextStudentSeq = 1;
+  if (lastStudentByYear?.studentId) {
+    const n = parseInt(lastStudentByYear.studentId.slice(stuPrefix.length));
+    if (!isNaN(n)) nextStudentSeq = n + 1;
   }
 
-  const suggestedStudentId = `STU-${currentYear}-${nextStudentNumber.toString().padStart(4, "0")}`;
-
-  // Suggested Admission Number: {SCHOOL_PREFIX}-YY-NNNN
-  const lastAdmission = await prisma.student.findFirst({
-    where: {
-      schoolId: school.id,
-      admissionNumber: { startsWith: `${schoolPrefix}-${yearShort}-` },
-    },
-    orderBy: { createdAt: "desc" },
-    select: { admissionNumber: true },
-  });
-
-  let nextAdmissionNumber = 1;
-  if (lastAdmission?.admissionNumber?.startsWith(`${schoolPrefix}-${yearShort}-`)) {
-    const parts = lastAdmission.admissionNumber.split("-");
-    nextAdmissionNumber = parseInt(parts[parts.length - 1]) + 1;
+  let nextAdmissionSeq = 1;
+  if (lastAdmissionByYear?.admissionNumber) {
+    const n = parseInt(lastAdmissionByYear.admissionNumber.slice(admPrefix.length));
+    if (!isNaN(n)) nextAdmissionSeq = n + 1;
   }
 
-  const suggestedAdmissionNumber = `${schoolPrefix}-${yearShort}-${nextAdmissionNumber.toString().padStart(4, "0")}`;
+  const suggestedStudentId = `${stuPrefix}${nextStudentSeq
+    .toString()
+    .padStart(4, "0")}`;
+  const suggestedAdmissionNumber = `${admPrefix}${nextAdmissionSeq
+    .toString()
+    .padStart(4, "0")}`;
 
   return (
     <div className="space-y-6">

@@ -2,6 +2,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 const createSubjectSchema = z.object({
@@ -140,6 +141,9 @@ export async function POST(
         departments: true,
       },
     });
+
+    // Clear the Next.js router cache for all admin pages to ensure the new subject appears in dropdowns immediately
+    revalidatePath(`/${schoolSlug}/admin`, "layout");
 
     return NextResponse.json(subject);
   } catch (error) {

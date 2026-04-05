@@ -37,9 +37,10 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
     where: { schoolId: school.id },
     include: {
       profile: {
-        include: { user: { select: { id: true, banned: true } } }
+        include: { user: { select: { id: true, banned: true, email: true } } }
       },
     },
+
     orderBy: { createdAt: "desc" },
   });
 
@@ -53,8 +54,8 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
     employeeId: s.staffNumber || s.staffId,
     firstName: s.profile?.firstName,
     lastName: s.profile?.lastName,
-    email: null,
-    phone: s.profile?.phone,
+    email: s.profile?.user?.email || null,
+    phone: s.profile?.phone || null,
     type: s.staffType.replace("_", " "),
     category: "NON_TEACHING" as const,
     isActive: s.isActive,

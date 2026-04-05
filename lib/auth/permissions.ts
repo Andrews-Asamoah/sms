@@ -116,7 +116,7 @@ export const superAdmin = ac.newRole({
 });
 
 export const owner = ac.newRole({
-  user: ["list", "ban", "set-role"],
+  user: ["list", "ban", "set-role", "set-password", "update", "get"],
   session: ["list", "revoke"],
 
   // Organization permissions (owners can invite)
@@ -150,7 +150,7 @@ export const owner = ac.newRole({
 });
 
 export const admin = ac.newRole({
-  user: ["list", "ban", "set-role"],
+  user: ["list", "ban", "set-role", "set-password", "update", "get"],
   session: ["list", "revoke"],
 
   // Organization permissions
@@ -184,7 +184,7 @@ export const admin = ac.newRole({
 });
 
 export const headteacher = ac.newRole({
-  user: ["list", "ban", "set-role"],
+  user: ["list", "ban", "set-role", "set-password", "update", "get"],
   session: ["list", "revoke"],
 
   // Organization permissions

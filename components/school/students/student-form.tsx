@@ -1,11 +1,10 @@
 // components/school/students/student-form.tsx
-// THIS FILE REPLACES YOUR EXISTING student-form.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
 import {
   Loader2,
@@ -14,11 +13,6 @@ import {
   MapPin,
   Heart,
   GraduationCap,
-  Users,
-  Plus,
-  Trash2,
-  Mail,
-  Phone as PhoneIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -33,16 +27,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
-
 
 const studentFormSchema = z.object({
   // Personal Information
@@ -70,7 +54,7 @@ const studentFormSchema = z.object({
   admissionDate: z.string().min(1, "Admission date is required"),
   classId: z.string().optional().nullable(),
   departmentId: z.string().optional().nullable(),
-  houseId: z.string().optional().nullable(),
+  // houseId is auto-assigned by the server (school-level balanced distribution).
 
   // Previous School
   previousSchool: z.string().optional().nullable(),
@@ -85,7 +69,6 @@ const studentFormSchema = z.object({
   emergencyContactName: z.string().optional().nullable(),
   emergencyContactPhone: z.string().optional().nullable(),
   emergencyRelationship: z.string().optional().nullable(),
-
 });
 
 type StudentFormValues = z.infer<typeof studentFormSchema>;
@@ -95,7 +78,7 @@ interface StudentFormProps {
   schoolSlug: string;
   classes: Array<{ id: string; name: string; academicYear: { name: string } }>;
   departments: Array<{ id: string; name: string }>;
-  houses: Array<{ id: string; name: string }>;
+  houses?: Array<{ id: string; name: string }>; // kept for future use
   suggestedStudentId: string;
   suggestedAdmissionNumber?: string;
   initialData?: Partial<StudentFormValues>;
@@ -341,7 +324,7 @@ export function StudentForm({
               id="studentId"
               placeholder={`STU-${new Date().getFullYear()}-0001`}
               {...register("studentId")}
-              readOnly
+              disabled
               className="bg-muted"
             />
             <p className="text-sm text-muted-foreground">
@@ -359,7 +342,7 @@ export function StudentForm({
               id="admissionNumber"
               placeholder={`${schoolSlug.toUpperCase()}-${new Date().getFullYear().toString().slice(-2)}-0001`}
               {...register("admissionNumber")}
-              readOnly
+              disabled
               className="bg-muted"
             />
             <p className="text-sm text-muted-foreground">
@@ -381,7 +364,7 @@ export function StudentForm({
             )}
           </FieldGroup>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <FieldGroup>
             <FieldLabel htmlFor="classId">Class</FieldLabel>
             <Select
@@ -400,42 +383,31 @@ export function StudentForm({
               </SelectContent>
             </Select>
           </FieldGroup>
-          <FieldGroup>
-            <FieldLabel htmlFor="departmentId">Department</FieldLabel>
-            <Select
-              value={watch("departmentId") || ""}
-              onValueChange={(value) => setValue("departmentId", value)}
-            >
-              <SelectTrigger id="departmentId">
-                <SelectValue placeholder="Select department" />
-              </SelectTrigger>
-              <SelectContent>
-                {departments.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FieldGroup>
-          <FieldGroup>
-            <FieldLabel htmlFor="houseId">House</FieldLabel>
-            <Select
-              value={watch("houseId") || ""}
-              onValueChange={(value) => setValue("houseId", value)}
-            >
-              <SelectTrigger id="houseId">
-                <SelectValue placeholder="Select house" />
-              </SelectTrigger>
-              <SelectContent>
-                {houses.map((house) => (
-                  <SelectItem key={house.id} value={house.id}>
-                    {house.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FieldGroup>
+          {/* House is auto-assigned by the server */}
+          <div className="flex items-start gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-4 py-3">
+            <span className="mt-0.5 text-muted-foreground">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            </span>
+            <div>
+              <p className="text-sm font-medium">House (Auto-assigned)</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                A house will be automatically assigned based on balanced school
+                distribution once a class is selected.
+              </p>
+            </div>
+          </div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <FieldGroup>
@@ -544,8 +516,6 @@ export function StudentForm({
         </div>
       </div>
 
-
-
       {/* Submit Button */}
       <div className="flex justify-end gap-4">
         <Button
@@ -559,9 +529,7 @@ export function StudentForm({
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <Save className="mr-2 h-4 w-4" />
-          {studentProfileId
-            ? "Update Student"
-            : "Create Student"}
+          {studentProfileId ? "Update Student" : "Create Student"}
         </Button>
       </div>
     </form>

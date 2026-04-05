@@ -1,14 +1,22 @@
-import { PlanType, BillingCycle } from "@/lib/generated/prisma/client";
+// lib/subscription-plans.ts
 
-export type SubscriptionPlan = {
-  id: string; // Composite key: PLAN_TYPE_CYCLE (e.g. BASIC_MONTHLY)
+import type { PlanType, BillingCycle } from "@/lib/generated/prisma/client";
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface SubscriptionPlan {
+  /** Composite key: e.g. "BASIC_MONTHLY", "PREMIUM_YEARLY", "FREE" */
+  id: string;
   name: string;
   description: string;
   planType: PlanType;
-  billingCycle: BillingCycle;
+  billingCycle: BillingCycle | null;
   price: number;
   currency: string;
-  paystackPlanCode: string; // The Plan Code from Paystack Dashboard (e.g. PLN_gx2...)
+  /** Paystack Plan Code from the Paystack Dashboard (e.g. PLN_gx2...) */
+  paystackPlanCode: string;
   features: {
     maxStudents: number | null;
     maxTeachers: number | null;
@@ -16,34 +24,44 @@ export type SubscriptionPlan = {
     description: string[];
   };
   limits: {
+    /** null = unlimited */
     students: number | null;
     teachers: number | null;
     staff: number | null;
   };
-};
+}
 
-// Placeholder codes - User needs to update these with actual Paystack Plan Codes
+// ============================================================================
+// PAYSTACK PLAN CODES
+// Set via environment variables — update with your actual codes from the
+// Paystack Dashboard before going live.
+// ============================================================================
+
 const PAYSTACK_PLAN_CODES = {
-  BASIC_MONTHLY: process.env.PAYSTACK_PLAN_BASIC_MONTHLY || "PLN_basic_monthly",
-  BASIC_YEARLY: process.env.PAYSTACK_PLAN_BASIC_YEARLY || "PLN_basic_yearly",
+  BASIC_MONTHLY: process.env.PAYSTACK_PLAN_BASIC_MONTHLY ?? "PLN_basic_monthly",
+  BASIC_YEARLY: process.env.PAYSTACK_PLAN_BASIC_YEARLY ?? "PLN_basic_yearly",
   STANDARD_MONTHLY:
-    process.env.PAYSTACK_PLAN_STANDARD_MONTHLY || "PLN_standard_monthly",
+    process.env.PAYSTACK_PLAN_STANDARD_MONTHLY ?? "PLN_standard_monthly",
   STANDARD_YEARLY:
-    process.env.PAYSTACK_PLAN_STANDARD_YEARLY || "PLN_standard_yearly",
+    process.env.PAYSTACK_PLAN_STANDARD_YEARLY ?? "PLN_standard_yearly",
   PREMIUM_MONTHLY:
-    process.env.PAYSTACK_PLAN_PREMIUM_MONTHLY || "PLN_premium_monthly",
+    process.env.PAYSTACK_PLAN_PREMIUM_MONTHLY ?? "PLN_premium_monthly",
   PREMIUM_YEARLY:
-    process.env.PAYSTACK_PLAN_PREMIUM_YEARLY || "PLN_premium_yearly",
-};
+    process.env.PAYSTACK_PLAN_PREMIUM_YEARLY ?? "PLN_premium_yearly",
+} as const;
+
+// ============================================================================
+// PLAN DEFINITIONS
+// ============================================================================
 
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
-  // FREE PLAN
+  // ── Free ──────────────────────────────────────────────────────────────────
   {
     id: "FREE",
     name: "Free Plan",
     description: "Perfect for small schools getting started",
     planType: "FREE",
-    billingCycle: "MONTHLY", // Free is always monthly effectively
+    billingCycle: null,
     price: 0,
     currency: "GHS",
     paystackPlanCode: "",
@@ -60,14 +78,10 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
         "Attendance tracking",
       ],
     },
-    limits: {
-      students: 50,
-      teachers: 5,
-      staff: 2,
-    },
+    limits: { students: 50, teachers: 5, staff: 2 },
   },
 
-  // BASIC PLANS
+  // ── Basic ─────────────────────────────────────────────────────────────────
   {
     id: "BASIC_MONTHLY",
     name: "Basic Plan (Monthly)",
@@ -89,11 +103,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
         "Email Support",
       ],
     },
-    limits: {
-      students: 200,
-      teachers: 15,
-      staff: 5,
-    },
+    limits: { students: 200, teachers: 15, staff: 5 },
   },
   {
     id: "BASIC_YEARLY",
@@ -117,14 +127,10 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
         "2 Months Free",
       ],
     },
-    limits: {
-      students: 200,
-      teachers: 15,
-      staff: 5,
-    },
+    limits: { students: 200, teachers: 15, staff: 5 },
   },
 
-  // STANDARD PLANS
+  // ── Standard ──────────────────────────────────────────────────────────────
   {
     id: "STANDARD_MONTHLY",
     name: "Standard Plan (Monthly)",
@@ -147,11 +153,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
         "Advanced Reports",
       ],
     },
-    limits: {
-      students: 500,
-      teachers: 40,
-      staff: 15,
-    },
+    limits: { students: 500, teachers: 40, staff: 15 },
   },
   {
     id: "STANDARD_YEARLY",
@@ -176,14 +178,10 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
         "2 Months Free",
       ],
     },
-    limits: {
-      students: 500,
-      teachers: 40,
-      staff: 15,
-    },
+    limits: { students: 500, teachers: 40, staff: 15 },
   },
 
-  // PREMIUM PLANS
+  // ── Premium ───────────────────────────────────────────────────────────────
   {
     id: "PREMIUM_MONTHLY",
     name: "Premium Plan (Monthly)",
@@ -207,11 +205,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
         "API Access",
       ],
     },
-    limits: {
-      students: null,
-      teachers: null,
-      staff: null,
-    },
+    limits: { students: null, teachers: null, staff: null },
   },
   {
     id: "PREMIUM_YEARLY",
@@ -238,18 +232,26 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
         "2 Months Free",
       ],
     },
-    limits: {
-      students: null,
-      teachers: null,
-      staff: null,
-    },
+    limits: { students: null, teachers: null, staff: null },
   },
 ];
 
+// ============================================================================
+// LOOKUP HELPERS
+// ============================================================================
+
+/**
+ * Finds a plan by its composite ID (e.g. "BASIC_MONTHLY", "FREE").
+ * Returns undefined if not found — callers should handle this case.
+ */
 export function getPlanById(id: string): SubscriptionPlan | undefined {
   return SUBSCRIPTION_PLANS.find((plan) => plan.id === id);
 }
 
+/**
+ * Finds a plan by its Paystack plan code.
+ * Returns undefined if not found.
+ */
 export function getPlanByCode(code: string): SubscriptionPlan | undefined {
   return SUBSCRIPTION_PLANS.find((plan) => plan.paystackPlanCode === code);
 }

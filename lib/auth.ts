@@ -25,7 +25,11 @@ import {
   sendGuardianInvitationEmail,
   sendPasswordResetEmail,
 } from "@/lib/email/resend";
-import { Gender, StaffType, EmploymentType } from "@/lib/generated/prisma/client";
+import {
+  Gender,
+  StaffType,
+  EmploymentType,
+} from "@/lib/generated/prisma/client";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -124,7 +128,8 @@ export const auth = betterAuth({
     magicLink({
       sendMagicLink: async ({ email, url }) => {
         // Wire up Resend here when needed.
-        void email; void url;
+        void email;
+        void url;
       },
     }),
     // ------------------------------------------------------------------------
@@ -335,24 +340,34 @@ export const auth = betterAuth({
               where: { identifier: user.email },
             });
 
-            // GUARDIAN LINKING
-            const guardianRecord = await prisma.guardian.findFirst({
-              where: { email: user.email, profileId: null },
-            });
-
-            if (guardianRecord) {
-              const userProfile = await prisma.userProfile.findUnique({
-                where: { userId: user.id },
+            // GLOBAL ROLE SYNC —————————————————————————————————
+            // Better Auth's admin plugin reads session.user.role (the global
+            // `user.role` DB field) to check admin permissions like
+            // setUserPassword. School-level roles live in member.role, so we
+            // sync elevated roles to user.role so those checks pass.
+            const memberRole = member.role?.toLowerCase();
+            const elevatedRoles = [
+              "owner",
+              "admin",
+              "headteacher",
+              "superAdmin",
+            ];
+            if (memberRole && elevatedRoles.includes(memberRole)) {
+              const currentUser = await prisma.user.findUnique({
+                where: { id: user.id },
+                select: { role: true },
               });
-              if (userProfile) {
-                await prisma.guardian.update({
-                  where: { id: guardianRecord.id },
-                  data: { profileId: userProfile.id },
+              // Only upgrade if not already superAdmin
+              if (currentUser?.role !== "superAdmin") {
+                await prisma.user.update({
+                  where: { id: user.id },
+                  data: { role: memberRole },
                 });
               }
             }
 
-            // TEACHER LINKING — link pending Teacher record on invite acceptance
+            // SCHOOL LOOKUP — must be done before guardian linking so we can
+            // scope the query to this school only and avoid cross-school linking.
             const school = await prisma.school.findUnique({
               where: { organizationId: organization.id },
               select: { id: true },
@@ -362,65 +377,112 @@ export const auth = betterAuth({
               where: { userId: user.id },
             });
 
+            // GUARDIAN LINKING — scoped to this school to prevent cross-school linking
             if (school && userProfile) {
-              await prisma.teacher.updateMany({
+              const guardianRecord = await prisma.guardian.findFirst({
                 where: {
-                  invitationEmail: user.email,
-                  schoolId: school.id,
+                  email: user.email,
+                  schoolId: school.id, // ✅ Scoped to this org's school
                   profileId: null,
-                },
-                data: {
-                  profileId: userProfile.id,
-                  invitationEmail: null,
                 },
               });
 
-              // STAFF LINKING — create Staff record for administrative roles
-              const role = member.role?.toUpperCase();
-              const isStaffRole = ["ACCOUNTANT", "ADMIN", "HEADTEACHER"].includes(role);
+              if (guardianRecord) {
+                await prisma.guardian.update({
+                  where: { id: guardianRecord.id },
+                  data: { profileId: userProfile.id },
+                });
+              }
+            }
 
-              if (isStaffRole) {
-                // Check if staff record already exists
-                const existingStaff = await prisma.staff.findFirst({
+            if (school && userProfile) {
+              // Get subscription limits
+              const subscription = await prisma.subscription.findUnique({
+                where: { schoolId: school.id },
+                select: { maxTeachers: true, maxStaff: true },
+              });
+
+              const maxTeachers = subscription?.maxTeachers ?? 5;
+              const maxStaff = subscription?.maxStaff ?? 2;
+
+              // TEACHER LINKING
+              const teacherCount = await prisma.teacher.count({
+                where: {
+                  schoolId: school.id,
+                  isActive: true,
+                  profileId: { not: null },
+                },
+              });
+
+              if (maxTeachers === null || teacherCount < maxTeachers) {
+                await prisma.teacher.updateMany({
                   where: {
+                    invitationEmail: user.email,
                     schoolId: school.id,
+                    profileId: null,
+                  },
+                  data: {
                     profileId: userProfile.id,
+                    invitationEmail: null,
                   },
                 });
+              }
 
-                if (!existingStaff) {
-                  const year = new Date().getFullYear();
-                  const random = Math.floor(1000 + Math.random() * 9000);
-                  const staffId = `S-${year}-${random}`;
-                  const staffNumber = `SN-S-${year}-${random}`;
+              // STAFF LINKING
+              const role = member.role?.toUpperCase();
+              const isStaffRole = [
+                "ACCOUNTANT",
+                "ADMIN",
+                "HEADTEACHER",
+              ].includes(role);
 
-                  let staffType: StaffType = StaffType.OTHER;
-                  if (role === "ACCOUNTANT") {
-                    staffType = StaffType.ACCOUNTANT;
-                  } else if (role === "ADMIN") {
-                    staffType = StaffType.ADMIN;
-                  }
-                  else if (role === "HEADTEACHER") staffType = StaffType.OTHER; // No direct mapping, keep as OTHER or add to enum
+              if (isStaffRole) {
+                const staffCount = await prisma.staff.count({
+                  where: { schoolId: school.id, isActive: true },
+                });
 
-                  await prisma.staff.create({
-                    data: {
+                if (maxStaff === null || staffCount < maxStaff) {
+                  const existingStaff = await prisma.staff.findFirst({
+                    where: {
                       schoolId: school.id,
                       profileId: userProfile.id,
-                      staffId,
-                      staffNumber,
-                      staffType,
-                      employmentType: EmploymentType.FULL_TIME,
-                      isActive: true,
                     },
                   });
+
+                  if (!existingStaff) {
+                    const year = new Date().getFullYear();
+                    const random = Math.floor(1000 + Math.random() * 9000);
+                    const staffId = `S-${year}-${random}`;
+                    const staffNumber = `SN-S-${year}-${random}`;
+
+                    let staffType: StaffType = StaffType.OTHER;
+                    if (role === "ACCOUNTANT") {
+                      staffType = StaffType.ACCOUNTANT;
+                    } else if (role === "ADMIN") {
+                      staffType = StaffType.ADMIN;
+                    }
+
+                    await prisma.staff.create({
+                      data: {
+                        schoolId: school.id,
+                        profileId: userProfile.id,
+                        staffId,
+                        staffNumber,
+                        staffType,
+                        employmentType: EmploymentType.FULL_TIME,
+                        isActive: true,
+                      },
+                    });
+                  }
                 }
               }
             }
 
-            // AUDIT LOG
+            // AUDIT LOG — include schoolId for per-school audit filtering
             await prisma.auditLog.create({
               data: {
                 userId: user.id,
+                schoolId: school?.id ?? null,
                 action: "CREATE",
                 entityType: "MEMBER",
                 entityId: member.id,
@@ -454,9 +516,14 @@ export const auth = betterAuth({
         // =====================================================================
         afterRemoveMember: async ({ member, user, organization }) => {
           try {
+            const school = await prisma.school.findUnique({
+              where: { organizationId: organization.id },
+              select: { id: true },
+            });
             await prisma.auditLog.create({
               data: {
                 userId: user.id,
+                schoolId: school?.id ?? null,
                 action: "DELETE",
                 entityType: "MEMBER",
                 entityId: member.id,
@@ -478,10 +545,7 @@ export const auth = betterAuth({
         // =====================================================================
         afterAcceptInvitation: async ({ invitation, user, organization }) => {
           try {
-            // ------------------------------------------------------------------
             // ENSURE USER PROFILE EXISTS
-            // (new users may not have a profile yet at this point)
-            // ------------------------------------------------------------------
             let userProfile = await prisma.userProfile.findUnique({
               where: { userId: user.id },
             });
@@ -505,7 +569,7 @@ export const auth = betterAuth({
               });
             }
 
-            // MARK EMAIL VERIFIED — invitation link proves email ownership
+            // MARK EMAIL VERIFIED
             await prisma.user.update({
               where: { id: user.id },
               data: { emailVerified: true },
@@ -514,29 +578,72 @@ export const auth = betterAuth({
               where: { identifier: user.email },
             });
 
-            // ------------------------------------------------------------------
-            // LOOK UP THE SCHOOL for this organization
-            // ------------------------------------------------------------------
+            // GLOBAL ROLE SYNC — same logic as afterAddMember.
+            // Sync elevated org roles to global user.role so Better Auth's
+            // admin plugin will grant setUserPassword rights to school admins.
+            const invitedRoleLower = invitation.role?.toLowerCase();
+            const elevatedRolesInv = [
+              "owner",
+              "admin",
+              "headteacher",
+              "superAdmin",
+            ];
+            if (
+              invitedRoleLower &&
+              elevatedRolesInv.includes(invitedRoleLower)
+            ) {
+              const currentUserRecord = await prisma.user.findUnique({
+                where: { id: user.id },
+                select: { role: true },
+              });
+              if (currentUserRecord?.role !== "superAdmin") {
+                await prisma.user.update({
+                  where: { id: user.id },
+                  data: { role: invitedRoleLower },
+                });
+              }
+            }
+
+            // LOOK UP THE SCHOOL
             const school = await prisma.school.findUnique({
               where: { organizationId: organization.id },
               select: { id: true },
             });
 
             if (school && userProfile) {
-              // TEACHER LINKING — link pending Teacher record
-              await prisma.teacher.updateMany({
+              // Get subscription limits
+              const subscription = await prisma.subscription.findUnique({
+                where: { schoolId: school.id },
+                select: { maxTeachers: true, maxStaff: true },
+              });
+
+              const maxTeachers = subscription?.maxTeachers ?? 5;
+              const maxStaff = subscription?.maxStaff ?? 2;
+
+              // TEACHER LINKING
+              const teacherCount = await prisma.teacher.count({
                 where: {
-                  invitationEmail: invitation.email,
                   schoolId: school.id,
-                  profileId: null,
-                },
-                data: {
-                  profileId: userProfile.id,
-                  invitationEmail: null,
+                  isActive: true,
+                  profileId: { not: null },
                 },
               });
 
-              // GUARDIAN LINKING — link pending Guardian record
+              if (maxTeachers === null || teacherCount < maxTeachers) {
+                await prisma.teacher.updateMany({
+                  where: {
+                    invitationEmail: invitation.email,
+                    schoolId: school.id,
+                    profileId: null,
+                  },
+                  data: {
+                    profileId: userProfile.id,
+                    invitationEmail: null,
+                  },
+                });
+              }
+
+              // GUARDIAN LINKING
               const guardianRecord = await prisma.guardian.findFirst({
                 where: {
                   email: invitation.email,
@@ -552,54 +659,61 @@ export const auth = betterAuth({
                 });
               }
 
-              // STAFF LINKING — create Staff record for administrative roles
+              // STAFF LINKING
               const invitedRole = invitation.role?.toUpperCase();
-              const isStaffRole = ["ACCOUNTANT", "ADMIN", "HEADTEACHER"].includes(invitedRole);
+              const isStaffRole = [
+                "ACCOUNTANT",
+                "ADMIN",
+                "HEADTEACHER",
+              ].includes(invitedRole);
 
               if (isStaffRole) {
-                // Check if staff record already exists
-                const existingStaff = await prisma.staff.findFirst({
-                  where: {
-                    schoolId: school.id,
-                    profileId: userProfile.id,
-                  },
+                const staffCount = await prisma.staff.count({
+                  where: { schoolId: school.id, isActive: true },
                 });
 
-                if (!existingStaff) {
-                  const year = new Date().getFullYear();
-                  const random = Math.floor(1000 + Math.random() * 9000);
-                  const staffId = `S-${year}-${random}`;
-                  const staffNumber = `SN-S-${year}-${random}`;
-
-                  let staffType: StaffType = StaffType.OTHER;
-                  if (invitedRole === "ACCOUNTANT") {
-                    staffType = StaffType.ACCOUNTANT;
-                  } else if (invitedRole === "ADMIN") {
-                    staffType = StaffType.ADMIN;
-                  }
-                  else if (invitedRole === "HEADTEACHER") staffType = StaffType.OTHER; // No direct mapping, keep as OTHER or add to enum
-
-                  await prisma.staff.create({
-                    data: {
+                if (maxStaff === null || staffCount < maxStaff) {
+                  const existingStaff = await prisma.staff.findFirst({
+                    where: {
                       schoolId: school.id,
                       profileId: userProfile.id,
-                      staffId,
-                      staffNumber,
-                      staffType,
-                      employmentType: EmploymentType.FULL_TIME,
-                      isActive: true,
                     },
                   });
+
+                  if (!existingStaff) {
+                    const year = new Date().getFullYear();
+                    const random = Math.floor(1000 + Math.random() * 9000);
+                    const staffId = `S-${year}-${random}`;
+                    const staffNumber = `SN-S-${year}-${random}`;
+
+                    let staffType: StaffType = StaffType.OTHER;
+                    if (invitedRole === "ACCOUNTANT") {
+                      staffType = StaffType.ACCOUNTANT;
+                    } else if (invitedRole === "ADMIN") {
+                      staffType = StaffType.ADMIN;
+                    }
+
+                    await prisma.staff.create({
+                      data: {
+                        schoolId: school.id,
+                        profileId: userProfile.id,
+                        staffId,
+                        staffNumber,
+                        staffType,
+                        employmentType: EmploymentType.FULL_TIME,
+                        isActive: true,
+                      },
+                    });
+                  }
                 }
               }
             }
 
-            // ------------------------------------------------------------------
             // AUDIT LOG
-            // ------------------------------------------------------------------
             await prisma.auditLog.create({
               data: {
                 userId: user.id,
+                schoolId: school?.id ?? null,
                 action: "CREATE",
                 entityType: "INVITATION_ACCEPTANCE",
                 entityId: invitation.id,
@@ -626,9 +740,14 @@ export const auth = betterAuth({
           organization,
         }) => {
           try {
+            const school = await prisma.school.findUnique({
+              where: { organizationId: organization.id },
+              select: { id: true },
+            });
             await prisma.auditLog.create({
               data: {
                 userId: cancelledBy.id,
+                schoolId: school?.id ?? null,
                 action: "DELETE",
                 entityType: "INVITATION",
                 entityId: invitation.id,
@@ -666,6 +785,14 @@ export const auth = betterAuth({
         member: memberRole,
         user: userRole,
       },
+
+      // ── adminRoles ────────────────────────────────────────────────────────
+      // Roles listed here are allowed to call admin-plugin endpoints (e.g.
+      // setUserPassword, banUser). Better Auth compares this list against
+      // the session user's GLOBAL `user.role` field.  We include all
+      // elevated school roles so that owner/admin/headteacher accounts
+      // can reset student passwords without needing a platform-superAdmin.
+      adminRoles: ["superAdmin", "owner", "admin", "headteacher"],
 
       impersonationSessionDuration: 60 * 60 * 2,
 
@@ -717,9 +844,19 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 24 hours
+    // ── Cookie cache DISABLED ────────────────────────────────────────────────
+    // Cookie cache stores user.role (and other user data) in a signed cookie
+    // for up to maxAge seconds. This means role changes in the DB are NOT
+    // reflected in existing sessions until the cache expires.
+    //
+    // We disable it so that when the reset-password route self-heals the
+    // calling admin's user.role in the DB, the subsequent auth.api.setUserPassword
+    // call reads the updated role immediately (fresh DB read, not stale cookie).
+    //
+    // Performance impact is negligible for a school management system:
+    // one extra DB lookup per request vs. the benefit of correct role checks.
     cookieCache: {
-      enabled: true,
-      maxAge: 60 * 5, // 5 minutes
+      enabled: false,
     },
   },
 

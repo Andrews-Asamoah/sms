@@ -12,7 +12,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { MoreVertical, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -21,22 +22,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-type GradeScaleFormValues = {
-  grade: string;
-  description: string;
-  minScore: number;
-  maxScore: number;
-};
-
-type FormValues = {
-  name: string;
-  code: string;
-  description?: string;
-  isSchoolDefault: boolean;
-  isActive: boolean;
-  gradeScales: GradeScaleFormValues[];
-};
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 const gradeScaleSchema = z
   .object({
@@ -44,15 +37,15 @@ const gradeScaleSchema = z
     description: z.string().min(1, "Description is required"),
     minScore: z
       .number()
-      .min(0, "Minimum score cannot be less than 0")
-      .max(100, "Maximum score cannot be more than 100"),
+      .min(0, "Min score must be >= 0")
+      .max(100, "Min score must be <= 100"),
     maxScore: z
       .number()
-      .min(0, "Minimum score cannot be less than 0")
-      .max(100, "Maximum score cannot be more than 100"),
+      .min(0, "Max score must be >= 0")
+      .max(100, "Max score must be <= 100"),
   })
   .refine((data) => data.maxScore >= data.minScore, {
-    message: "Max score must be greater than or equal to min score",
+    message: "Max score must be >= min score",
     path: ["maxScore"],
   });
 
@@ -70,16 +63,35 @@ const formSchema = z.object({
     .min(1, "At least one grade is required"),
 });
 
+type FormValues = z.infer<typeof formSchema>;
+type GradeScaleFormValues = z.infer<typeof gradeScaleSchema>;
+
+const BECE_DEFAULT_GRADES: GradeScaleFormValues[] = [
+  { grade: "1", description: "Excellent", minScore: 90, maxScore: 100 },
+  { grade: "2", description: "Very good", minScore: 80, maxScore: 89 },
+  { grade: "3", description: "Good", minScore: 70, maxScore: 79 },
+  { grade: "4", description: "Credit", minScore: 60, maxScore: 69 },
+  { grade: "5", description: "Credit", minScore: 55, maxScore: 59 },
+  { grade: "6", description: "Pass", minScore: 50, maxScore: 54 },
+  { grade: "7", description: "Pass", minScore: 40, maxScore: 49 },
+  { grade: "8", description: "Weak pass", minScore: 35, maxScore: 39 },
+  { grade: "9", description: "Very weak", minScore: 0, maxScore: 34 },
+];
+
 interface GradingSystemFormProps {
+  id?: string;
   schoolSlug: string;
   gradingSystem?: any;
   onSuccess?: () => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 export function GradingSystemForm({
+  id,
   schoolSlug,
   gradingSystem,
   onSuccess,
+  onLoadingChange,
 }: GradingSystemFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -123,6 +135,7 @@ export function GradingSystemForm({
 
   async function onSubmit(values: FormValues) {
     setIsLoading(true);
+    onLoadingChange?.(true);
     try {
       // Add displayOrder based on index
       const payload = {
@@ -167,11 +180,12 @@ export function GradingSystemForm({
       );
     } finally {
       setIsLoading(false);
+      onLoadingChange?.(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form id={id} onSubmit={handleSubmit(onSubmit)} className="space-y-8 pb-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <FieldGroup>
           <FieldLabel htmlFor="name">System Name</FieldLabel>
@@ -210,30 +224,59 @@ export function GradingSystemForm({
       </FieldGroup>
 
       <div className="space-y-6 pt-4">
-        <div className="flex items-center justify-between border-b pb-2">
+        <div className="flex flex-col gap-4 border-b pb-4">
           <div>
-            <FieldLabel className="text-xl">Grade Scales</FieldLabel>
+            <FieldLabel className="text-xl font-bold flex items-center gap-2">
+              Grade Scales
+              <Badge
+                variant="outline"
+                className="text-[10px] uppercase tracking-wider font-bold h-5"
+              >
+                Configuration
+              </Badge>
+            </FieldLabel>
             <p className="text-sm text-muted-foreground mt-1">
               Configure individual grades and their score ranges
             </p>
           </div>
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            className="shadow-sm"
-            onClick={() =>
-              append({
-                grade: "",
-                description: "",
-                minScore: 0,
-                maxScore: 0,
-              })
-            }
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add New Grade
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 px-4 shadow-sm border-primary/20 hover:border-primary hover:bg-primary/5 font-semibold transition-all duration-200"
+              onClick={() => {
+                setValue("name", "WAEC BECE Standard");
+                setValue("code", "BECE");
+                setValue(
+                  "description",
+                  "Ghana WAEC — Nine-point Stanine grading system (Grades 1-9)",
+                );
+                setValue("gradeScales", BECE_DEFAULT_GRADES);
+                toast.success("BECE Standard Scale loaded!");
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Use BECE Standard (1-9)
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="h-9 px-4 shadow-sm font-semibold transition-all duration-200"
+              onClick={() =>
+                append({
+                  grade: "",
+                  description: "",
+                  minScore: 0,
+                  maxScore: 0,
+                })
+              }
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add New Grade
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-xl border shadow-sm overflow-hidden bg-card">
@@ -242,16 +285,13 @@ export function GradingSystemForm({
               <TableHeader className="bg-muted/50 border-b">
                 <TableRow>
                   <TableHead className="w-[100px] font-bold">Grade</TableHead>
-                  <TableHead className="min-w-[250px] font-bold">
+                  <TableHead className="min-w-[160px] font-bold">
                     Description
                   </TableHead>
-                  <TableHead className="w-[120px] font-bold text-center">
-                    Min Score (%)
+                  <TableHead className="w-[320px] font-bold text-center">
+                    Score Range (%)
                   </TableHead>
-                  <TableHead className="w-[120px] font-bold text-center">
-                    Max Score (%)
-                  </TableHead>
-                  <TableHead className="w-[120px] text-right font-bold">
+                  <TableHead className="w-[50px] text-right font-bold">
                     Actions
                   </TableHead>
                 </TableRow>
@@ -264,7 +304,7 @@ export function GradingSystemForm({
                   >
                     <TableCell className="p-3">
                       <Input
-                        className="h-10 px-3 font-semibold text-center border-primary/20 focus:border-primary"
+                        className="h-10 px-0 font-semibold text-center border-primary/20 focus:border-primary"
                         {...register(`gradeScales.${index}.grade` as const)}
                         placeholder="1"
                       />
@@ -279,55 +319,70 @@ export function GradingSystemForm({
                       />
                     </TableCell>
                     <TableCell className="p-3">
-                      <Input
-                        type="number"
-                        className="h-10 px-3 text-center"
-                        {...register(`gradeScales.${index}.minScore` as const, {
-                          valueAsNumber: true,
-                        })}
-                      />
-                    </TableCell>
-                    <TableCell className="p-3">
-                      <Input
-                        type="number"
-                        className="h-10 px-3 text-center"
-                        {...register(`gradeScales.${index}.maxScore` as const, {
-                          valueAsNumber: true,
-                        })}
-                      />
-                    </TableCell>
-                    <TableCell className="p-3 text-right">
-                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 hover:bg-primary/10 hover:text-primary"
-                          disabled={index === 0}
-                          onClick={() => move(index, index - 1)}
-                        >
-                          <ArrowUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 hover:bg-primary/10 hover:text-primary"
-                          disabled={index === fields.length - 1}
-                          onClick={() => move(index, index + 1)}
-                        >
-                          <ArrowDown className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => remove(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div className="flex items-center justify-center gap-3">
+                        <Input
+                          type="number"
+                          className="h-9 w-20 px-2 text-center border-primary/10 focus:border-primary/40"
+                          {...register(
+                            `gradeScales.${index}.minScore` as const,
+                            {
+                              valueAsNumber: true,
+                            },
+                          )}
+                        />
+                        <span className="text-muted-foreground text-xs font-medium">
+                          to
+                        </span>
+                        <Input
+                          type="number"
+                          className="h-9 w-20 px-2 text-center border-primary/10 focus:border-primary/40"
+                          {...register(
+                            `gradeScales.${index}.maxScore` as const,
+                            {
+                              valueAsNumber: true,
+                            },
+                          )}
+                        />
                       </div>
+                    </TableCell>
+                    <TableCell className="p-2 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-muted"
+                          >
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuItem
+                            disabled={index === 0}
+                            onClick={() => move(index, index - 1)}
+                            className="text-xs"
+                          >
+                            <ArrowUp className="mr-2 h-3.5 w-3.5" />
+                            Move Up
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={index === fields.length - 1}
+                            onClick={() => move(index, index + 1)}
+                            className="text-xs"
+                          >
+                            <ArrowDown className="mr-2 h-3.5 w-3.5" />
+                            Move Down
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => remove(index)}
+                            className="text-xs text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            Remove
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -373,14 +428,6 @@ export function GradingSystemForm({
           />
         </div>
       </div>
-
-      <Button type="submit" disabled={isLoading} className="w-full h-11">
-        {isLoading
-          ? "Saving..."
-          : gradingSystem
-            ? "Update Grading System"
-            : "Create Grading System"}
-      </Button>
     </form>
   );
 }

@@ -56,7 +56,7 @@ export async function GET(
     // Get school ID
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      select: { id: true },
+      select: { id: true, organizationId: true },
     });
 
     if (!school) {
@@ -99,7 +99,17 @@ export async function GET(
     const teachers = await prisma.teacher.findMany({
       where,
       include: {
-        profile: true,
+        profile: {
+          include: {
+            user: {
+              include: {
+                members: {
+                  where: { organizationId: school.organizationId || undefined }
+                }
+              }
+            },
+          },
+        },
         department: true,
         house: true,
         _count: {
@@ -151,14 +161,38 @@ export async function POST(
 
     const data = result.data;
 
-    // Fetch school + its organization
+    // Fetch school + its organization + subscription
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      select: { id: true, name: true, organizationId: true },
+      select: {
+        id: true,
+        name: true,
+        organizationId: true,
+        subscription: {
+          select: { maxTeachers: true, planName: true },
+        },
+      },
     });
 
     if (!school) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
+    }
+
+    // ─── Enforce Teacher Limits ──────────────────────────────────────────────
+    const teacherCount = await prisma.teacher.count({
+      where: { schoolId: school.id, isActive: true, profileId: { not: null } },
+    });
+
+    const maxTeachers = school.subscription?.maxTeachers ?? 5; // Default to 5 for Free Plan
+
+    if (maxTeachers !== null && teacherCount >= maxTeachers) {
+      return NextResponse.json(
+        {
+          error: `Teacher limit reached for ${school.subscription?.planName || "Free Plan"}.`,
+          details: `Cumulative Limit reached: ${teacherCount} active teachers out of ${maxTeachers} allowed. Please upgrade your subscription to add more teachers.`,
+        },
+        { status: 403 },
+      );
     }
 
     // Reject duplicate pending invite for the same email in this school

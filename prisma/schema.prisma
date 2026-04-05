@@ -274,6 +274,7 @@ model School {
   teacherAssignments  TeacherAssignment[]
   staffAssignments    StaffAssignment[]
   promotionRecords    PromotionRecord[]
+  auditLogs           AuditLog[]
 
   @@index([code])
   @@index([subdomain])
@@ -315,11 +316,11 @@ model UserProfile {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  user     user      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  guardian Guardian?
-  staff    Staff?
-  student  Student?
-  teacher  Teacher?
+  user      user       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guardians Guardian[] // One profile can be linked to guardians at multiple schools
+  staff     Staff?
+  student   Student?
+  teacher   Teacher?
 
   @@index([userId])
   @@index([isActive])
@@ -437,8 +438,8 @@ model Staff {
   staffNumber String?
 
   // Job Information
-  staffType  StaffType
-  department String?
+  staffType    StaffType
+  departmentId String?
   jobTitle   String?
 
   // Employment Details
@@ -450,10 +451,11 @@ model Staff {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  school    School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  documents Document[]
-  payslips  Payslip[]
+  profile    UserProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  school     School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department Department?  @relation("StaffDepartment", fields: [departmentId], references: [id])
+  documents  Document[]
+  payslips   Payslip[]
 
   // Scoped to Academic Year
   assignments StaffAssignment[]
@@ -468,7 +470,7 @@ model Staff {
 
 model Guardian {
   id                 String       @id @default(cuid())
-  profileId          String?      @unique
+  profileId          String?
   schoolId           String
   guardianId         String
   firstName          String
@@ -631,9 +633,11 @@ model Department {
   students             Student[]
   subjects             Subject[]            @relation("DepartmentSubjects")
   teachersInDepartment Teacher[]            @relation("TeacherDepartment")
+  staff                Staff[]              @relation("StaffDepartment")
   classes              Class[]
   timetableEntries     TimetableEntry[]
   assessmentTemplates  AssessmentTemplate[]
+  reportCardTemplates  ReportCardTemplate[]
 
   @@unique([code, schoolId])
   @@index([headOfDeptId])
@@ -785,7 +789,7 @@ model Enrollment {
   studentId      String
   classId        String
   academicYearId String
-  termId         String?
+  termId         String
   status         EnrollmentStatus @default(ACTIVE)
   enrolledAt     DateTime         @default(now())
   completedAt    DateTime?
@@ -795,7 +799,7 @@ model Enrollment {
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  term         Term?        @relation(fields: [termId], references: [id])
+  term         Term         @relation(fields: [termId], references: [id])
 
   @@unique([studentId, classId, academicYearId, termId])
   @@index([studentId])
@@ -956,7 +960,7 @@ model AssessmentScore {
   template        AssessmentTemplate @relation(fields: [templateId], references: [id])
   componentScores ComponentScore[]
 
-  @@unique([studentId, subjectId, termId])
+  @@unique([studentId, subjectId, termId, templateId])
   @@index([studentId, termId])
   @@index([subjectId, termId])
   @@index([templateId])
@@ -982,7 +986,7 @@ model ComponentScore {
   component       AssessmentComponent @relation(fields: [componentId], references: [id])
   recordedBy      user?               @relation(fields: [recordedById], references: [id], onDelete: SetNull)
 
-  @@unique([assessmentScoreId, componentId])
+  @@unique([assessmentScoreId, componentId, occurrenceIndex])
   @@index([assessmentScoreId])
   @@index([componentId])
   @@index([recordedById])
@@ -1037,19 +1041,30 @@ model TranscriptRequest {
 // ============================================================================
 
 model ReportCardTemplate {
-  id          String   @id @default(cuid())
-  schoolId    String
-  name        String
-  description String?
-  layout      Json // For storing configuration of sections, titles, etc.
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  schoolId     String
+  name         String
+  description  String?
+  layout       Json // For storing configuration of sections, titles, etc.
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  school School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  sets   ReportCardSet[]
+  // Level scoping: references the school department that represents this level
+  // e.g. "Primary" department → primary-level template with SEL rubrics
+  departmentId String?
+
+  // Level-specific configuration payloads (stored as JSON for flexibility)
+  developmentalConfig Json? // Creche/KG: milestone categories & tracking items
+  selConfig           Json? // Primary: Social-Emotional Learning rubric definitions
+  disciplineConfig    Json? // JHS: discipline, readiness, and predictive rubrics
+
+  school       School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department   Department?     @relation(fields: [departmentId], references: [id])
+  sets         ReportCardSet[]
 
   @@index([schoolId])
+  @@index([departmentId])
   @@map("report_card_templates")
 }
 
@@ -1091,13 +1106,30 @@ model ReportCard {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  set     ReportCardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
-  student Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  set                ReportCardSet      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  student            Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  behavioralRemarks  BehavioralRemark[]
 
   @@unique([setId, studentId])
   @@index([setId])
   @@index([studentId])
   @@map("report_cards")
+}
+
+// Hybrid Remark System: structured behavioral pillar entries per report card
+model BehavioralRemark {
+  id           String           @id @default(cuid())
+  reportCardId String
+  pillar       BehavioralPillar
+  // Predefined value (e.g. "Excellent", "Satisfactory") or custom text when pillar = OTHER
+  value        String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  reportCard ReportCard @relation(fields: [reportCardId], references: [id], onDelete: Cascade)
+
+  @@index([reportCardId])
+  @@map("behavioral_remarks")
 }
 
 model Notification {
@@ -1455,6 +1487,7 @@ model PromotionRecord {
   @@index([fromClassId])
   @@index([toClassId])
   @@index([fromYearId])
+  @@index([toYearId])
   @@index([promotionType])
   @@map("promotion_records")
 }
@@ -1464,6 +1497,13 @@ enum PromotionType {
   REPEATED // Student repeats the same class
   GRADUATED // Student completed the final class
   SKIPPED // Special/accelerated — skipped one or more classes
+}
+
+enum BehavioralPillar {
+  PUNCTUALITY
+  CONDUCT
+  ATTITUDE
+  OTHER
 }
 
 // Custom Categories for Financial Flexibility
@@ -1675,8 +1715,9 @@ model Document {
 }
 
 model AuditLog {
-  id     String @id @default(cuid())
-  userId String
+  id       String  @id @default(cuid())
+  userId   String
+  schoolId String?
 
   action     AuditAction
   entityType String
@@ -1687,9 +1728,11 @@ model AuditLog {
   userAgent  String?
   createdAt  DateTime    @default(now())
 
-  user user @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   user    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([schoolId])
   @@index([entityType, entityId])
   @@index([action])
   @@index([createdAt])
@@ -2309,6 +2352,8 @@ model TimetableEntry {
   classroom    Classroom?   @relation(fields: [classroomId], references: [id], onDelete: SetNull)
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
+  @@unique([teacherId, timeSlotId, academicYearId])
+  @@unique([classroomId, timeSlotId, academicYearId])
   @@index([classId])
   @@index([departmentId])
   @@index([teacherId])

@@ -2,6 +2,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 const updateSubjectSchema = z.object({
@@ -104,6 +105,8 @@ export async function PATCH(
       },
     });
 
+    revalidatePath(`/${schoolSlug}/admin`, "layout");
+
     return NextResponse.json(subject);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -175,6 +178,8 @@ export async function DELETE(
         schoolId: school.id,
       },
     });
+
+    revalidatePath(`/${schoolSlug}/admin`, "layout");
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

@@ -65,7 +65,8 @@ export function MarksEntrySheet({
   extension,
   isPublished = false,
   forceReadOnly = false,
-}: MarksEntrySheetProps & { forceReadOnly?: boolean }) {
+  isAdminView = false,
+}: MarksEntrySheetProps & { forceReadOnly?: boolean; isAdminView?: boolean }) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,7 +77,12 @@ export function MarksEntrySheet({
   const deadline = template.deadline ? new Date(template.deadline) : null;
   const extDeadline = extension?.deadline ? new Date(extension.deadline) : null;
   const effectiveDeadline = extDeadline || deadline;
-  const isDeadlinePassed = effectiveDeadline ? now > effectiveDeadline : false;
+  // Compare dates only (strip time) so a deadline of "21/03/2026" is not
+  // considered passed when the current time is still on 20/03/2026 at night.
+  const todayStr = now.toDateString();
+  const isDeadlinePassed = effectiveDeadline
+    ? new Date(todayStr) > new Date(effectiveDeadline.toDateString())
+    : false;
   const isGlobalLocked = template.isLocked;
   
   // New: Check if any student has FINAL/REVIEWED status (Strict locking after approval)
@@ -484,41 +490,44 @@ export function MarksEntrySheet({
                       The administration has finalized these marks. You cannot make any further changes.
                     </p>
                   </div>
-                  <Dialog open={isRequestingEdit} onOpenChange={setIsRequestingEdit}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="bg-background border-red-500/20 text-red-600 hover:bg-red-500/10 h-8">
-                        Request Edit Access
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Request Edit Access</DialogTitle>
-                        <DialogDescription>
-                          Explain why you need to make changes to this approved gradebook. Your request will be sent to the Class HOD and School Admins.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-2">
-                        <Textarea
-                          placeholder="e.g. I accidentally entered the wrong marks for Class Test 2..."
-                          value={requestReason}
-                          onChange={(e) => setRequestReason(e.target.value)}
-                          className="min-h-[120px] bg-background resize-none"
-                        />
-                      </div>
-                      <DialogFooter>
-                        <Button variant="ghost" onClick={() => setIsRequestingEdit(false)}>
-                          Cancel
+                  {/* Only teachers can request edit access — admins already have control */}
+                  {!isAdminView && (
+                    <Dialog open={isRequestingEdit} onOpenChange={setIsRequestingEdit}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="bg-background border-red-500/20 text-red-600 hover:bg-red-500/10 h-8">
+                          Request Edit Access
                         </Button>
-                        <Button 
-                          onClick={handleRequestEdit} 
-                          disabled={isSubmittingRequest || !requestReason.trim()}
-                        >
-                          {isSubmittingRequest && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Submit Request
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Request Edit Access</DialogTitle>
+                          <DialogDescription>
+                            Explain why you need to make changes to this approved gradebook. Your request will be sent to the Class HOD and School Admins.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-2">
+                          <Textarea
+                            placeholder="e.g. I accidentally entered the wrong marks for Class Test 2..."
+                            value={requestReason}
+                            onChange={(e) => setRequestReason(e.target.value)}
+                            className="min-h-[120px] bg-background resize-none"
+                          />
+                        </div>
+                        <DialogFooter>
+                          <Button variant="ghost" onClick={() => setIsRequestingEdit(false)}>
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={handleRequestEdit} 
+                            disabled={isSubmittingRequest || !requestReason.trim()}
+                          >
+                            {isSubmittingRequest && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Submit Request
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  )}
                 </div>
               ) : (
                 <>

@@ -17,6 +17,8 @@ interface ReviewPageClientProps {
   termId: string;
   subjectName: string;
   className: string;
+  termName: string;
+  isAdminView?: boolean;
   marksData: MarksDataResult;
 }
 
@@ -27,6 +29,8 @@ export function ReviewPageClient({
   termId,
   subjectName,
   className,
+  termName,
+  isAdminView = false,
   marksData,
 }: ReviewPageClientProps) {
   const router = useRouter();
@@ -81,7 +85,7 @@ export function ReviewPageClient({
             <p className="text-muted-foreground text-sm flex items-center gap-2 mt-1">
               Class: <span className="font-semibold text-foreground">{className}</span>
               <span className="opacity-20">|</span>
-              Term ID: <span className="font-semibold text-foreground">{termId}</span>
+              Term: <span className="font-semibold text-foreground">{termName}</span>
             </p>
           </div>
         </div>
@@ -126,6 +130,7 @@ export function ReviewPageClient({
                   subjectId={subjectId}
                   termId={termId}
                   forceReadOnly={true}
+                  isAdminView={isAdminView}
                 />
              </div>
           </div>

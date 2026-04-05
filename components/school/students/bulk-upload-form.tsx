@@ -10,6 +10,8 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  SkipForward,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +27,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+
+// ============================================================================
+// TYPES
+// ============================================================================
 
 interface BulkUploadFormProps {
   schoolId: string;
@@ -43,178 +49,149 @@ interface UploadResult {
   email?: string;
   password?: string;
   status: "success" | "error";
+  action?: "created" | "updated" | "skipped";
   message?: string;
 }
 
-export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
+interface UploadSummary {
+  total: number;
+  successful: number;
+  repaired: number;
+  skipped: number;
+  failed: number;
+}
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
+export function BulkUploadForm({ schoolSlug }: BulkUploadFormProps) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [results, setResults] = useState<UploadResult[]>([]);
+  const [summary, setSummary] = useState<UploadSummary | null>(null);
   const [showResults, setShowResults] = useState(false);
+
+  // ── File validation ────────────────────────────────────────────────────────
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      // Validate file type - EXCEL ONLY
-      const validTypes = [
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
-        "application/vnd.ms-excel", // .xls
-      ];
+    if (!selectedFile) return;
 
-      const fileExtension = selectedFile.name.split(".").pop()?.toLowerCase();
-      const isValidExtension =
-        fileExtension === "xlsx" || fileExtension === "xls";
+    const extension = selectedFile.name.split(".").pop()?.toLowerCase();
+    const validExtensions = ["xlsx", "xls"];
+    const validMimeTypes = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+    ];
 
-      if (!validTypes.includes(selectedFile.type) && !isValidExtension) {
-        toast.error("Invalid file type", {
-          description:
-            "Please upload an Excel file (.xlsx or .xls) only. Other formats are not supported.",
-        });
-        e.target.value = ""; // Clear the input
-        return;
-      }
-
-      // Check file size (max 10MB)
-      const maxSize = 10 * 1024 * 1024; // 10MB
-      if (selectedFile.size > maxSize) {
-        toast.error("File too large", {
-          description: "File size must be less than 10MB",
-        });
-        e.target.value = "";
-        return;
-      }
-
-      setFile(selectedFile);
-      setResults([]);
-      setShowResults(false);
+    if (
+      !validExtensions.includes(extension ?? "") &&
+      !validMimeTypes.includes(selectedFile.type)
+    ) {
+      toast.error("Invalid file type", {
+        description: "Please upload an Excel file (.xlsx or .xls) only.",
+      });
+      e.target.value = "";
+      return;
     }
+
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      toast.error("File too large", {
+        description: "File size must be less than 10MB.",
+      });
+      e.target.value = "";
+      return;
+    }
+
+    setFile(selectedFile);
+    setResults([]);
+    setSummary(null);
+    setShowResults(false);
   };
 
+  // ── Upload handler ─────────────────────────────────────────────────────────
+  //
+  // The file is sent as multipart/form-data — the server parses the Excel
+  // file. This keeps xlsx out of the client bundle (~500KB saved) and
+  // ensures ALL rows are processed in a single request so the server's
+  // Phase A ID reservation is never split across multiple calls (which
+  // would cause duplicate student ID collisions).
+  //
   const handleUpload = async () => {
     if (!file) {
       toast.error("No file selected", {
-        description: "Please select an Excel file to upload",
+        description: "Please select an Excel file to upload.",
       });
       return;
     }
 
     setIsUploading(true);
-    setUploadProgress(0);
+    setUploadProgress(10);
     setResults([]);
+    setSummary(null);
 
     try {
-      const { read, utils } = await import("xlsx");
-      const buffer = await file.arrayBuffer();
-      const workbook = read(buffer, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      
-      const rawRows = utils.sheet_to_json(sheet, { raw: false }) as Record<string, unknown>[];
-      
-      if (rawRows.length === 0) {
-        throw new Error("No data found in the Excel file");
+      const formData = new FormData();
+      formData.append("file", file);
+
+      // Simulate progress while waiting for the server (upload + processing).
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => Math.min(prev + 5, 85));
+      }, 800);
+
+      const response = await fetch(
+        `/api/schools/${schoolSlug}/students/bulk-upload`,
+        {
+          method: "POST",
+          // Do NOT set Content-Type manually — the browser sets it automatically
+          // with the correct multipart boundary when using FormData.
+          body: formData,
+        },
+      );
+
+      clearInterval(progressInterval);
+      setUploadProgress(95);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Upload failed");
       }
 
-      const getVal = (row: Record<string, any>, ...keys: string[]) => {
-        for (const key of keys) {
-          if (row[key] !== undefined) return row[key];
-          const normalizedReq = key.toLowerCase().replace(/[^a-z0-9]/g, "");
-          const actualKey = Object.keys(row).find((k) => {
-            const normalizedActual = k.toLowerCase().replace(/[^a-z0-9]/g, "");
-            return normalizedActual === normalizedReq;
-          });
-          if (actualKey) return row[actualKey];
-        }
-        return undefined;
-      };
-
-      const studentsData = rawRows.map((row) => ({
-        firstName: String(getVal(row, "First Name*", "First Name", "FirstName") || "").trim(),
-        lastName: String(getVal(row, "Last Name*", "Last Name", "LastName") || "").trim(),
-        otherNames: getVal(row, "Other Names") ? String(getVal(row, "Other Names")).trim() : null,
-        gender: String(getVal(row, "Gender*", "Gender") || "").toUpperCase(),
-        dateOfBirth: String(getVal(row, "Date of Birth*", "Date of Birth", "DOB") || ""),
-        nationality: getVal(row, "Nationality") ? String(getVal(row, "Nationality")).trim() : null,
-        phone: getVal(row, "Phone") ? String(getVal(row, "Phone")).trim() : null,
-        alternatePhone: getVal(row, "Alternate Phone") ? String(getVal(row, "Alternate Phone")).trim() : null,
-        residentialAddress: getVal(row, "Residential Address") ? String(getVal(row, "Residential Address")).trim() : null,
-        postalAddress: getVal(row, "Postal Address") ? String(getVal(row, "Postal Address")).trim() : null,
-        city: getVal(row, "City") ? String(getVal(row, "City")).trim() : null,
-        region: getVal(row, "Region") ? String(getVal(row, "Region")).trim() : null,
-        country: getVal(row, "Country") ? String(getVal(row, "Country")).trim() : null,
-        admissionDate: String(getVal(row, "Admission Date*", "Admission Date") || ""),
-        className: getVal(row, "Class Name", "Class") ? String(getVal(row, "Class Name", "Class")).trim() : null,
-        departmentName: getVal(row, "Department Name", "Department") ? String(getVal(row, "Department Name", "Department")).trim() : null,
-        houseName: getVal(row, "House Name", "House") ? String(getVal(row, "House Name", "House")).trim() : null,
-        previousSchool: getVal(row, "Previous School") ? String(getVal(row, "Previous School")).trim() : null,
-        previousClass: getVal(row, "Previous Class") ? String(getVal(row, "Previous Class")).trim() : null,
-        bloodGroup: getVal(row, "Blood Group") ? String(getVal(row, "Blood Group")).trim() : null,
-        allergies: getVal(row, "Allergies") ? String(getVal(row, "Allergies")).trim() : null,
-        medicalConditions: getVal(row, "Medical Conditions") ? String(getVal(row, "Medical Conditions")).trim() : null,
-        emergencyContactName: getVal(row, "Emergency Contact Name") ? String(getVal(row, "Emergency Contact Name")).trim() : null,
-        emergencyContactPhone: getVal(row, "Emergency Contact Phone") ? String(getVal(row, "Emergency Contact Phone")).trim() : null,
-        emergencyRelationship: getVal(row, "Emergency Relationship") ? String(getVal(row, "Emergency Relationship")).trim() : null,
-      }));
-
-      const BATCH_SIZE = 20;
-      const allResults: UploadResult[] = [];
-      
-      for (let i = 0; i < studentsData.length; i += BATCH_SIZE) {
-        const batch = studentsData.slice(i, i + BATCH_SIZE);
-        const progress = Math.round((i / studentsData.length) * 100);
-        setUploadProgress(progress);
-
-        const response = await fetch(
-          `/api/schools/${schoolSlug}/students/bulk-upload`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ students: batch, schoolId }),
-          },
-        );
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || `Failed to upload batch starting at row ${i + 2}`);
-        }
-
-        const data = await response.json();
-        allResults.push(...data.results);
-      }
-
-      setResults(allResults);
+      setResults(data.results ?? []);
+      setSummary(data.summary ?? null);
       setShowResults(true);
       setUploadProgress(100);
 
-      const successCount = allResults.filter(
-        (r: UploadResult) => r.status === "success",
-      ).length;
-      const errorCount = allResults.filter(
-        (r: UploadResult) => r.status === "error",
-      ).length;
+      const s: UploadSummary = data.summary;
 
-      if (successCount > 0 && errorCount === 0) {
-        toast.success(`Successfully processed ${successCount} students.`);
+      if (s.failed === 0 && s.successful > 0) {
+        toast.success(
+          `Upload complete — ${s.successful} created${s.repaired ? `, ${s.repaired} repaired` : ""}${s.skipped ? `, ${s.skipped} skipped` : ""}.`,
+        );
         setTimeout(() => {
           router.push(`/${schoolSlug}/admin/students`);
           router.refresh();
-        }, 2000);
-      } else if (successCount > 0 && errorCount > 0) {
+        }, 2500);
+      } else if (s.failed === 0 && s.skipped > 0 && s.successful === 0) {
+        toast.info(`All ${s.skipped} students already exist — nothing to do.`);
+      } else if (s.successful > 0 && s.failed > 0) {
         toast.warning("Upload completed with errors", {
-          description: `${successCount} students uploaded, ${errorCount} failed.`,
+          description: `${s.successful} created, ${s.failed} failed. Review errors below.`,
         });
-      } else {
+      } else if (s.failed > 0 && s.successful === 0) {
         toast.error("Upload failed", {
-          description: `All ${errorCount} students failed to upload.`,
+          description: `All ${s.failed} rows failed. Review errors below.`,
         });
       }
     } catch (error) {
-      console.error("Error uploading file:", error);
+      console.error("[BulkUploadForm] Error:", error);
       toast.error("Upload failed", {
         description:
-          error instanceof Error ? error.message : "Please try again later.",
+          error instanceof Error ? error.message : "Please try again.",
       });
       setUploadProgress(0);
     } finally {
@@ -222,12 +199,23 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
     }
   };
 
-  const successCount = results.filter((r) => r.status === "success").length;
-  const errorCount = results.filter((r) => r.status === "error").length;
+  // ── Reset ──────────────────────────────────────────────────────────────────
+
+  const handleReset = () => {
+    setFile(null);
+    setResults([]);
+    setSummary(null);
+    setShowResults(false);
+    setUploadProgress(0);
+    const fileInput = document.getElementById("file") as HTMLInputElement;
+    if (fileInput) fileInput.value = "";
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
-      {/* File Upload */}
+      {/* File input + upload button */}
       <div className="space-y-4">
         <FieldGroup>
           <FieldLabel htmlFor="file">
@@ -250,7 +238,7 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
               {isUploading ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Uploading...
+                  Processing...
                 </>
               ) : (
                 <>
@@ -260,17 +248,19 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
               )}
             </Button>
           </div>
+
           {file && !isUploading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
               <FileSpreadsheet className="h-4 w-4 text-green-600" />
               <span className="font-medium">{file.name}</span>
               <span className="text-xs">
-                ({(file.size / 1024).toFixed(2)} KB)
+                ({(file.size / 1024).toFixed(1)} KB)
               </span>
             </div>
           )}
+
           <p className="text-xs text-muted-foreground mt-1">
-            Maximum file size: 10MB • Supported formats: .xlsx, .xls
+            Maximum file size: 10MB · Supported formats: .xlsx, .xls
           </p>
         </FieldGroup>
 
@@ -278,113 +268,134 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
           <div className="space-y-2">
             <Progress value={uploadProgress} className="w-full" />
             <p className="text-sm text-muted-foreground text-center">
-              Processing students data... Student IDs and admission numbers are
-              being auto-generated.
+              Processing students — IDs and admission numbers are being
+              auto-generated…
             </p>
           </div>
         )}
       </div>
 
       {/* Results */}
-      {showResults && results.length > 0 && (
+      {showResults && results.length > 0 && summary && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          {/* Summary badges */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-lg font-semibold">Upload Results</h3>
-            <div className="flex gap-4">
-              <Badge
-                variant="outline"
-                className="bg-green-500/10 text-green-700 border-green-300"
-              >
-                <CheckCircle className="mr-1 h-3 w-3" />
-                {successCount} Successful
-              </Badge>
-              {errorCount > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {summary.successful > 0 && (
+                <Badge
+                  variant="outline"
+                  className="bg-green-500/10 text-green-700 border-green-300"
+                >
+                  <CheckCircle className="mr-1 h-3 w-3" />
+                  {summary.successful} Created
+                </Badge>
+              )}
+              {summary.repaired > 0 && (
+                <Badge
+                  variant="outline"
+                  className="bg-blue-500/10 text-blue-700 border-blue-300"
+                >
+                  <Wrench className="mr-1 h-3 w-3" />
+                  {summary.repaired} Repaired
+                </Badge>
+              )}
+              {summary.skipped > 0 && (
+                <Badge
+                  variant="outline"
+                  className="bg-yellow-500/10 text-yellow-700 border-yellow-300"
+                >
+                  <SkipForward className="mr-1 h-3 w-3" />
+                  {summary.skipped} Skipped
+                </Badge>
+              )}
+              {summary.failed > 0 && (
                 <Badge
                   variant="outline"
                   className="bg-red-500/10 text-red-700 border-red-300"
                 >
                   <XCircle className="mr-1 h-3 w-3" />
-                  {errorCount} Errors
+                  {summary.failed} Failed
                 </Badge>
               )}
             </div>
           </div>
 
-          {errorCount > 0 && (
+          {/* Error guidance */}
+          {summary.failed > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-amber-800">
-                <p className="font-semibold">Some students failed to upload</p>
+                <p className="font-semibold">Some rows failed to upload</p>
                 <p className="mt-1">
                   Review the errors below, correct the data in your Excel file,
-                  and try uploading again.
+                  and re-upload. Successfully created students will be detected
+                  as duplicates and skipped automatically.
                 </p>
               </div>
             </div>
           )}
 
+          {/* Results table */}
           <div className="rounded-md border max-h-96 overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-16">Row</TableHead>
+                  <TableHead className="w-14">Row</TableHead>
                   <TableHead>Student ID</TableHead>
                   <TableHead>Admission No.</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Credentials</TableHead>
+                  <TableHead>Login Credentials</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Message</TableHead>
+                  <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {results.map((result, index) => (
                   <TableRow
                     key={index}
-                    className={result.status === "error" ? "bg-red-50/50" : ""}
+                    className={
+                      result.status === "error"
+                        ? "bg-red-50/50 dark:bg-red-950/20"
+                        : result.action === "skipped"
+                          ? "opacity-60"
+                          : ""
+                    }
                   >
-                    <TableCell className="font-medium">{result.row}</TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {result.studentId || "-"}
+                    <TableCell className="font-medium tabular-nums">
+                      {result.row}
                     </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {result.admissionNumber || "-"}
+                    <TableCell className="font-mono text-xs">
+                      {result.studentId || "—"}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {result.admissionNumber || "—"}
                     </TableCell>
                     <TableCell className="font-medium">{result.name}</TableCell>
                     <TableCell>
-                      {result.status === "success" && result.password ? (
-                        <div className="flex flex-col space-y-1 text-xs">
+                      {result.status === "success" &&
+                      result.password &&
+                      result.action !== "skipped" ? (
+                        <div className="flex flex-col gap-0.5 text-xs">
                           <span className="font-mono text-muted-foreground">
                             {result.email}
                           </span>
-                          <span className="font-mono font-medium">
+                          <span className="font-mono font-semibold">
                             {result.password}
                           </span>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      {result.status === "success" ? (
-                        <Badge
-                          variant="outline"
-                          className="bg-green-500/10 text-green-700 border-green-300"
-                        >
-                          <CheckCircle className="mr-1 h-3 w-3" />
-                          Success
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="bg-red-500/10 text-red-700 border-red-300"
-                        >
-                          <XCircle className="mr-1 h-3 w-3" />
-                          Error
-                        </Badge>
-                      )}
+                      <ActionBadge result={result} />
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {result.message || "Successfully created"}
+                    <TableCell className="text-xs text-muted-foreground max-w-48 truncate">
+                      {result.message ||
+                        (result.action === "created"
+                          ? "Successfully created"
+                          : null)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -392,8 +403,9 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
             </Table>
           </div>
 
+          {/* Footer actions */}
           <div className="flex justify-end gap-3">
-            {errorCount === 0 && (
+            {summary.failed === 0 ? (
               <Button
                 onClick={() => {
                   router.push(`/${schoolSlug}/admin/students`);
@@ -402,20 +414,8 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
               >
                 View All Students
               </Button>
-            )}
-            {errorCount > 0 && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setFile(null);
-                  setResults([]);
-                  setShowResults(false);
-                  const fileInput = document.getElementById(
-                    "file",
-                  ) as HTMLInputElement;
-                  if (fileInput) fileInput.value = "";
-                }}
-              >
+            ) : (
+              <Button variant="outline" onClick={handleReset}>
                 Upload Again
               </Button>
             )}
@@ -424,4 +424,60 @@ export function BulkUploadForm({ schoolId, schoolSlug }: BulkUploadFormProps) {
       )}
     </div>
   );
+}
+
+// ── Sub-component: action badge ────────────────────────────────────────────
+
+function ActionBadge({ result }: { result: UploadResult }) {
+  if (result.status === "error") {
+    return (
+      <Badge
+        variant="outline"
+        className="bg-red-500/10 text-red-700 border-red-300"
+      >
+        <XCircle className="mr-1 h-3 w-3" />
+        Error
+      </Badge>
+    );
+  }
+
+  switch (result.action) {
+    case "created":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-green-500/10 text-green-700 border-green-300"
+        >
+          <CheckCircle className="mr-1 h-3 w-3" />
+          Created
+        </Badge>
+      );
+    case "updated":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-blue-500/10 text-blue-700 border-blue-300"
+        >
+          <Wrench className="mr-1 h-3 w-3" />
+          Repaired
+        </Badge>
+      );
+    case "skipped":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-yellow-500/10 text-yellow-700 border-yellow-300"
+        >
+          <SkipForward className="mr-1 h-3 w-3" />
+          Skipped
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="outline">
+          <CheckCircle className="mr-1 h-3 w-3" />
+          Success
+        </Badge>
+      );
+  }
 }

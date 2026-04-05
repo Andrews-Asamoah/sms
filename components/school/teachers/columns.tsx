@@ -12,6 +12,7 @@ export type Teacher = {
   teacherId: string;
   schoolId: string;
   staffNumber: string | null;
+  invitationEmail: string | null;
   isActive: boolean;
   employmentType: string;
   qualification: string | null;
@@ -28,6 +29,13 @@ export type Teacher = {
     dateOfBirth: Date;
     phone: string | null;
     email?: string;
+    userId: string;
+    user?: {
+      id: string;
+      email?: string;
+      banned: boolean | null;
+      banReason: string | null;
+    };
   };
   department: {
     id: string;
@@ -61,13 +69,29 @@ export const columns: ColumnDef<Teacher>[] = [
     ),
     cell: ({ row }) => {
       const teacher = row.original;
+      if (!teacher.profile) {
+        return (
+          <div className="flex items-center gap-3 opacity-60">
+            <Avatar>
+              <AvatarFallback>?</AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="font-medium italic">Pending Invitation</div>
+              <div className="text-sm text-muted-foreground">
+                Sent to {teacher.profile ? "profile" : "Invited User"}
+              </div>
+            </div>
+          </div>
+        );
+      }
+      
       const initials =
-        `${teacher.profile.firstName.charAt(0)}${teacher.profile.lastName.charAt(0)}`.toUpperCase();
+        `${teacher.profile.firstName?.charAt(0) || ""}${teacher.profile.lastName?.charAt(0) || ""}`.toUpperCase();
 
       return (
         <div className="flex items-center gap-3">
           <Avatar>
-            <AvatarFallback>{initials}</AvatarFallback>
+            <AvatarFallback>{initials || "?"}</AvatarFallback>
           </Avatar>
           <div>
             <div className="font-medium">
@@ -87,8 +111,9 @@ export const columns: ColumnDef<Teacher>[] = [
     },
     filterFn: (row, id, value) => {
       const teacher = row.original;
+      const profile = teacher.profile;
       const searchString =
-        `${teacher.profile.firstName} ${teacher.profile.lastName} ${teacher.profile.otherNames || ""} ${teacher.teacherId} ${teacher.staffNumber || ""}`.toLowerCase();
+        `${profile?.firstName || ""} ${profile?.lastName || ""} ${profile?.otherNames || ""} ${teacher.teacherId} ${teacher.staffNumber || ""} ${teacher.invitationEmail || ""}`.toLowerCase();
       return searchString.includes(value.toLowerCase());
     },
   },
@@ -191,7 +216,21 @@ export const columns: ColumnDef<Teacher>[] = [
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
-      const isActive = row.original.isActive;
+      const teacher = row.original;
+      const isBanned = teacher.profile.user?.banned;
+      
+      if (isBanned) {
+        return (
+          <Badge
+            variant="outline"
+            className="bg-red-500/10 text-red-700 border-red-300"
+          >
+            Banned
+          </Badge>
+        );
+      }
+
+      const isActive = teacher.isActive;
       return (
         <Badge
           variant="outline"
@@ -204,6 +243,7 @@ export const columns: ColumnDef<Teacher>[] = [
           {isActive ? "Active" : "Inactive"}
         </Badge>
       );
+
     },
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));

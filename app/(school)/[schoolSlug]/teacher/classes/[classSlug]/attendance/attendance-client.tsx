@@ -324,12 +324,6 @@ export function AttendanceClient({
                     <SelectContent>
                       <SelectItem value="PRESENT">Present</SelectItem>
                       <SelectItem value="ABSENT">Absent</SelectItem>
-                      <SelectItem value="LATE">Late</SelectItem>
-                      <SelectItem value="EXCUSED">Excused</SelectItem>
-                      <SelectItem value="SICK">Sick</SelectItem>
-                      <SelectItem value="PERMISSION">
-                        With Permission
-                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </TableCell>

@@ -292,7 +292,7 @@ export function AttendanceClient({
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          {(["PRESENT", "ABSENT", "LATE", "SICK"] as const).map(
+                          {(["PRESENT", "ABSENT"] as const).map(
                             (status) => (
                               <Button
                                 key={status}
@@ -311,9 +311,6 @@ export function AttendanceClient({
                                   student.status === status &&
                                     status === "ABSENT" &&
                                     "bg-destructive hover:bg-destructive/90",
-                                  student.status === status &&
-                                    status === "LATE" &&
-                                    "bg-yellow-600 hover:bg-yellow-700",
                                 )}
                                 onClick={() =>
                                   canEdit &&

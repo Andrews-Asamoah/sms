@@ -36,7 +36,17 @@ export default async function AdminParentsPage({ params }: ParentsPageProps) {
   const guardians = await prisma.guardian.findMany({
     where: { schoolId: school.id },
     include: {
-      profile: true,
+      profile: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              banned: true,
+              banReason: true,
+            },
+          },
+        },
+      },
       students: {
         include: {
           student: {
@@ -71,6 +81,8 @@ export default async function AdminParentsPage({ params }: ParentsPageProps) {
       altPhone: g.alternatePhone,
       occupation: g.occupation,
       isActive: g.isActive,
+      userId: g.profile?.user?.id ?? null,
+      isBanned: g.profile?.user?.banned ?? false,
       wards,
     };
   });

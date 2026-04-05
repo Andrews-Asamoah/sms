@@ -92,6 +92,7 @@ interface PromotionClientProps {
   targetAcademicYearId: string;
   targetAcademicYearName: string;
   currentAcademicYearId: string;
+  targetFirstTermId: string | null;
 }
 
 const TYPE_LABELS: Record<PromotionType, string> = {
@@ -122,6 +123,7 @@ export function PromotionClient({
   targetAcademicYearId,
   targetAcademicYearName,
   currentAcademicYearId,
+  targetFirstTermId,
 }: PromotionClientProps) {
   const router = useRouter();
   const [selectedClassId, setSelectedClassId] = useState<string>("");
@@ -252,6 +254,7 @@ export function PromotionClient({
             sourceClassId: selectedClassId,
             targetAcademicYearId,
             currentAcademicYearId,
+            targetFirstTermId,
             promotions,
           }),
         }
@@ -392,6 +395,16 @@ export function PromotionClient({
                 This is a graduating class. All students are pre-assigned{" "}
                 <strong>Graduate</strong> status. You can override per-student
                 if needed.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {selectedClassId && !isLoading && students.length > 0 && (
+            <Alert>
+              <Users className="h-4 w-4" />
+              <AlertDescription>
+                Suspended students are automatically excluded from this list.
+                Only active students are shown below.
               </AlertDescription>
             </Alert>
           )}

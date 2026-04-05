@@ -1,9 +1,24 @@
-// app/api/schools/[schoolSlug]/students/template/route.ts - UPDATED
+// app/api/schools/[schoolSlug]/students/template/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import * as XLSX from "xlsx";
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+interface SchoolSettings {
+  currentAcademicYearId?: string | null;
+  currentTermId?: string | null;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// GET — download bulk upload template
+// ============================================================================
 
 export async function GET(
   request: NextRequest,
@@ -11,6 +26,8 @@ export async function GET(
 ) {
   try {
     const { schoolSlug } = await params;
+
+    // ── 1. Auth ──────────────────────────────────────────────────────────────
     const session = await requireSchoolAccess(schoolSlug);
     const role = getSchoolRole(session, schoolSlug);
 
@@ -22,11 +39,35 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
+    // ── 2. Load school settings first so we can filter classes by current year
+    const schoolBase = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { settings: true, code: true },
+    });
+
+    if (!schoolBase) {
+      return NextResponse.json({ error: "School not found" }, { status: 404 });
+    }
+
+    const { currentAcademicYearId } =
+      (schoolBase.settings as unknown as SchoolSettings) ?? {};
+
+    // ── 3. Load school with reference data ───────────────────────────────────
+    //
+    // Classes are filtered to the current academic year so the template only
+    // shows classes the admin would actually assign new students to.
+    //
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      include: {
+      select: {
+        code: true,
         classes: {
-          where: { isActive: true },
+          where: {
+            isActive: true,
+            ...(currentAcademicYearId
+              ? { academicYearId: currentAcademicYearId }
+              : {}),
+          },
           select: { name: true },
           orderBy: { name: "asc" },
         },
@@ -47,10 +88,15 @@ export async function GET(
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    // Create workbook
+    // ── 4. Build workbook ────────────────────────────────────────────────────
     const workbook = XLSX.utils.book_new();
 
-    // Create main data sheet with headers and sample data
+    // Today's date in YYYY-MM-DD — Ghana runs on GMT/UTC+0 so toISOString()
+    // is safe and will never show a previous day's date.
+    const today = new Date().toISOString().split("T")[0];
+    const schoolPrefix = schoolSlug.toUpperCase();
+
+    // ── Sheet 1: Students (data entry sheet) ─────────────────────────────────
     const headers = [
       "First Name*",
       "Last Name*",
@@ -79,8 +125,7 @@ export async function GET(
       "Emergency Relationship",
     ];
 
-    // Sample data row
-    const sampleData = [
+    const sampleRow = [
       "John",
       "Doe",
       "Michael",
@@ -94,10 +139,10 @@ export async function GET(
       "Accra",
       "Greater Accra",
       "Ghana",
-      new Date().toISOString().split("T")[0],
-      school.classes[0]?.name || "Class 1",
-      school.departments[0]?.name || "",
-      school.houses[0]?.name || "",
+      today,
+      school.classes[0]?.name ?? "",
+      school.departments[0]?.name ?? "",
+      school.houses[0]?.name ?? "",
       "ABC Primary School",
       "Grade 5",
       "O+",
@@ -108,11 +153,9 @@ export async function GET(
       "Mother",
     ];
 
-    const data = [headers, sampleData];
-    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    const dataSheet = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
 
-    // Set column widths
-    const colWidths = [
+    dataSheet["!cols"] = [
       { wch: 15 }, // First Name
       { wch: 15 }, // Last Name
       { wch: 15 }, // Other Names
@@ -139,89 +182,101 @@ export async function GET(
       { wch: 15 }, // Emergency Contact Phone
       { wch: 15 }, // Emergency Relationship
     ];
-    worksheet["!cols"] = colWidths;
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
+    XLSX.utils.book_append_sheet(workbook, dataSheet, "Students");
 
-    // Create instructions sheet
+    // ── Sheet 2: Instructions ─────────────────────────────────────────────────
+    const currentYearNote = currentAcademicYearId
+      ? "Classes shown are filtered to the current academic year."
+      : "No current academic year is set — all active classes are shown.";
+
     const instructionsData = [
-      ["STUDENT BULK UPLOAD TEMPLATE - INSTRUCTIONS"],
+      ["STUDENT BULK UPLOAD TEMPLATE — INSTRUCTIONS"],
       [""],
       ["IMPORTANT NOTES:"],
       [
-        "1. Student ID and Admission Number will be AUTO-GENERATED - DO NOT include these columns",
+        "1. Student ID and Admission Number are AUTO-GENERATED — do not add these columns.",
       ],
-      ["2. Student IDs will be generated as: STU-YYYY-NNNN (e.g., STU-2025-0042)"],
+      ["2. Student IDs are generated as: STU-YYYY-NNNN (e.g., STU-2025-0042)"],
       [
-        `3. Admission Numbers will be generated as: ${schoolSlug.toUpperCase()}-YY-NNNN (e.g., ${schoolSlug.toUpperCase()}-25-0042)`,
+        `3. Admission Numbers are generated as: ${schoolPrefix}-YY-NNNN (e.g., ${schoolPrefix}-25-0042)`,
       ],
       [
-        "   (The year YYYY/YY is automatically derived from the 'Admission Date' column)",
+        "   The year (YYYY / YY) is derived automatically from the Admission Date column.",
       ],
-      ["4. Fields marked with * are REQUIRED"],
-      ["5. Keep the header row as is (first row)"],
-      ["6. Delete the sample data row before adding your data"],
-      ["7. Save as .xlsx or .xls format only"],
+      ["4. Fields marked with * are REQUIRED."],
+      ["5. Keep the header row exactly as it is (row 1)."],
+      ["6. Delete the sample data row before uploading your real data."],
+      ["7. Save the file in .xlsx or .xls format only."],
+      [currentYearNote],
       [""],
       ["REQUIRED FIELDS (marked with *):"],
-      ["- First Name"],
-      ["- Last Name"],
-      ["- Gender (must be exactly: MALE, FEMALE, or OTHER)"],
-      ["- Date of Birth (format: YYYY-MM-DD, e.g., 2010-01-15)"],
-      ["- Admission Date (format: YYYY-MM-DD)"],
+      ["  • First Name"],
+      ["  • Last Name"],
+      ["  • Gender  —  must be exactly: MALE, FEMALE, or OTHER (uppercase)"],
+      ["  • Date of Birth  —  format: YYYY-MM-DD  e.g. 2010-01-15"],
+      ["  • Admission Date  —  format: YYYY-MM-DD"],
       [""],
-      ["GENDER VALUES (case-sensitive):"],
-      ["- MALE"],
-      ["- FEMALE"],
-      ["- OTHER"],
-      [""],
+      ["GENDER VALUES:"],
+      ["  MALE  |  FEMALE  |  OTHER"],
       [""],
       ["BLOOD GROUP OPTIONS:"],
-      ["A+, A-, B+, B-, AB+, AB-, O+, O-"],
+      ["  A+  |  A-  |  B+  |  B-  |  AB+  |  AB-  |  O+  |  O-"],
       [""],
-      ["AVAILABLE CLASSES:"],
-      ...school.classes.map((c) => [`- ${c.name}`]),
+      ["AVAILABLE CLASSES (current academic year):"],
+      ...(school.classes.length > 0
+        ? school.classes.map((c) => [`  • ${c.name}`])
+        : [["  (No active classes found for the current academic year)"]]),
       [""],
       ["AVAILABLE DEPARTMENTS:"],
-      ...school.departments.map((d) => [`- ${d.name}`]),
+      ...(school.departments.length > 0
+        ? school.departments.map((d) => [`  • ${d.name}`])
+        : [["  (No active departments found)"]]),
       [""],
       ["AVAILABLE HOUSES:"],
-      ...school.houses.map((h) => [`- ${h.name}`]),
+      ...(school.houses.length > 0
+        ? school.houses.map((h) => [`  • ${h.name}`])
+        : [["  (No active houses found)"]]),
       [""],
       ["DATE FORMAT EXAMPLES:"],
-      ["- 2010-01-15 (January 15, 2010)"],
-      ["- 2009-12-25 (December 25, 2009)"],
+      ["  2010-01-15  →  January 15, 2010"],
+      ["  2009-12-25  →  December 25, 2009"],
       [""],
       ["TIPS:"],
-      ["1. Use exact class/department/house names as shown above"],
-      ["2. Leave optional fields empty if no data available"],
-      ["3. Phone numbers can include country code (e.g., +233244123456)"],
-      ["4. Double-check all dates are in YYYY-MM-DD format"],
-      ["5. Ensure Gender is exactly MALE, FEMALE, or OTHER (uppercase)"],
+      ["  1. Use the exact class / department / house names listed above."],
+      ["  2. Leave optional fields blank if the data is not available."],
+      ["  3. Phone numbers may include a country code, e.g. +233244123456."],
+      ["  4. Ensure all dates are in YYYY-MM-DD format."],
+      ["  5. Gender must be uppercase: MALE, FEMALE, or OTHER."],
     ];
 
     const instructionsSheet = XLSX.utils.aoa_to_sheet(instructionsData);
-    instructionsSheet["!cols"] = [{ wch: 80 }];
+    instructionsSheet["!cols"] = [{ wch: 85 }];
     XLSX.utils.book_append_sheet(workbook, instructionsSheet, "Instructions");
 
-    // Create reference data sheet
-    const referenceData = [
+    // ── Sheet 3: Reference data ───────────────────────────────────────────────
+    const referenceData: string[][] = [
       ["REFERENCE DATA"],
       [""],
-      ["Classes"],
-      ...school.classes.map((c) => [c.name]),
+      ["Classes (current academic year)"],
+      ...(school.classes.length > 0
+        ? school.classes.map((c) => [c.name])
+        : [["(none)"]]),
       [""],
       ["Departments"],
-      ...school.departments.map((d) => [d.name]),
+      ...(school.departments.length > 0
+        ? school.departments.map((d) => [d.name])
+        : [["(none)"]]),
       [""],
       ["Houses"],
-      ...school.houses.map((h) => [h.name]),
+      ...(school.houses.length > 0
+        ? school.houses.map((h) => [h.name])
+        : [["(none)"]]),
       [""],
       ["Gender Options"],
       ["MALE"],
       ["FEMALE"],
       ["OTHER"],
-      [""],
       [""],
       ["Blood Groups"],
       ["A+"],
@@ -238,22 +293,25 @@ export async function GET(
     referenceSheet["!cols"] = [{ wch: 30 }];
     XLSX.utils.book_append_sheet(workbook, referenceSheet, "Reference");
 
-    // Generate Excel file
+    // ── 5. Write and return ──────────────────────────────────────────────────
     const excelBuffer = XLSX.write(workbook, {
       type: "buffer",
       bookType: "xlsx",
     });
 
-    // Return file
+    // Use school.code when available, fall back to schoolSlug so the
+    // filename is always valid even if code is somehow empty.
+    const fileLabel = school.code || schoolSlug;
+
     return new NextResponse(excelBuffer, {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="students-upload-template-${school.code}.xlsx"`,
+        "Content-Disposition": `attachment; filename="students-upload-template-${fileLabel}.xlsx"`,
       },
     });
   } catch (error) {
-    console.error("[TEMPLATE_DOWNLOAD] Error", error);
+    console.error("[Template Download] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

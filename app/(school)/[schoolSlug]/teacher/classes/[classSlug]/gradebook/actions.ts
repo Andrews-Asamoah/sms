@@ -452,10 +452,11 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
         // Upsert AssessmentScore
         const assessmentScore = await tx.assessmentScore.upsert({
           where: {
-            studentId_subjectId_termId: {
+            studentId_subjectId_termId_templateId: {
               studentId: studentEntry.studentId,
               subjectId,
               termId,
+              templateId,
             },
           },
           create: {
@@ -510,9 +511,10 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
 
           await tx.componentScore.upsert({
             where: {
-              assessmentScoreId_componentId: {
+              assessmentScoreId_componentId_occurrenceIndex: {
                 assessmentScoreId: assessmentScore.id,
                 componentId: compScore.componentId,
+                occurrenceIndex: 0, // default occurrence for non-repeatable components
               },
             },
             create: {
@@ -674,11 +676,7 @@ export async function requestGradebookEdit(req: {
     // 2. Identify Recipient User IDs
     const recipientIds = new Set<string>();
 
-    // Add HOD if exists
-    const hodUserId = classData.department?.headOfDept?.profile?.userId;
-    if (hodUserId) recipientIds.add(hodUserId);
-
-    // Add School Admins & Owners
+    // Add School Admins & Owners ONLY
     const administrators = await prisma.member.findMany({
       where: {
         organization: { school: { subdomain: schoolSlug } },
@@ -688,6 +686,9 @@ export async function requestGradebookEdit(req: {
     });
 
     administrators.forEach(admin => recipientIds.add(admin.userId));
+
+    // Exclude the requesting teacher from getting their own notification
+    recipientIds.delete(session.user.id);
 
     // 3. Create Notifications
     const notificationTitle = `Gradebook Edit Request: ${classData.name}`;

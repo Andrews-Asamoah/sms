@@ -1,4 +1,4 @@
-// app/api/schools/route.ts - COMPLETE FIXED VERSION
+// app/api/schools/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
@@ -7,7 +7,7 @@ import { getSession } from "@/lib/auth/session";
 // GET - List all schools (Super Admin only)
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession(); // ✅ Fixed
+    const session = await getSession();
 
     if (!session || !session.isSuperAdmin) {
       return NextResponse.json(
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log("[SCHOOLS_POST] Starting school creation process");
 
-    const session = await getSession(); // ✅ Fixed
+    const session = await getSession();
 
     // Only superAdmins can create schools
     if (!session || !session.isSuperAdmin) {

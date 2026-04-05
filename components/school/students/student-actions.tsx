@@ -11,7 +11,10 @@ import {
   Loader2,
   Copy,
   Check,
+  ShieldBan,
+  ShieldCheck,
 } from "lucide-react";
+import { BanUserButton } from "../ban-user-button";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -119,6 +122,34 @@ export function StudentActions({ student }: StudentActionsProps) {
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          
+          {student.profile?.userId && (
+            <BanUserButton
+              schoolSlug={schoolSlug}
+              userId={student.profile.userId}
+              isBanned={student.profile.user?.banned ?? false}
+              userName={`${student.profile.firstName} ${student.profile.lastName}`}
+              trigger={
+                <DropdownMenuItem 
+                  onSelect={(e) => e.preventDefault()}
+                  className={student.profile.user?.banned ? "text-green-600 focus:text-green-700 hover:bg-green-50" : "text-amber-600 focus:text-amber-700 hover:bg-amber-50"}
+                >
+                  {student.profile.user?.banned ? (
+                    <>
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Unban Student
+                    </>
+                  ) : (
+                    <>
+                      <ShieldBan className="mr-2 h-4 w-4" />
+                      Ban Student
+                    </>
+                  )}
+                </DropdownMenuItem>
+              }
+            />
+          )}
+
           <DropdownMenuItem
             className="text-red-600 focus:text-red-700 hover:bg-red-50"
             onClick={() => setShowConfirm(true)}

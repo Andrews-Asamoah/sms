@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
-import { auth } from "@/lib/auth";
 import * as z from "zod";
 
 const guardianSchema = z.object({
@@ -62,23 +61,32 @@ export async function POST(
     let profileId: string | undefined = undefined;
 
     if (existingUser) {
-      const isMember = existingUser.members && existingUser.members.length > 0;
+      const existingMember =
+        existingUser.members && existingUser.members.length > 0
+          ? existingUser.members[0]
+          : null;
 
-      if (isMember) {
-        const member = existingUser.members[0];
-        const roles = member.role.split(",");
+      if (existingMember) {
+        // ✅ CRITICAL: Append guardian role WITHOUT clobbering existing roles.
+        // Never call auth.api.addMember here — it overwrites the entire role field.
+        const roles = existingMember.role
+          .split(",")
+          .map((r) => r.trim())
+          .filter(Boolean);
         if (!roles.includes("guardian")) {
-          // Add guardian role
           roles.push("guardian");
           await prisma.member.update({
-            where: { id: member.id },
+            where: { id: existingMember.id },
             data: { role: roles.join(",") },
           });
         }
+        // Member already exists with correct roles — nothing more to do for auth
       } else {
-        await auth.api.addMember({
-          headers: request.headers,
-          body: {
+        // User exists in the system but is not a member of this org yet.
+        // Create the member record directly so we can control the role string.
+        await prisma.member.create({
+          data: {
+            id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             organizationId: school.organizationId,
             userId: existingUser.id,
             role: "guardian",
@@ -86,12 +94,14 @@ export async function POST(
         });
       }
 
-      // If they have a profile, we can use it
+      // Reuse the existing profile if it exists
       if (existingUser.userProfile) {
         profileId = existingUser.userProfile.id;
       }
     } else {
-      // Create user and invitation
+      // Brand-new user — send an invitation. The invitation handler will assign
+      // them the guardian role upon acceptance without touching any other roles.
+      const { auth } = await import("@/lib/auth");
       const invitation = await auth.api.createInvitation({
         headers: request.headers,
         body: {
@@ -104,14 +114,13 @@ export async function POST(
       if (!invitation) {
         return NextResponse.json(
           { error: "Failed to create invitation" },
-          { status: 500 }
+          { status: 500 },
         );
       }
     }
 
-    // Create the Guardian record and links in a transaction
+    // Create the Guardian record and ward links in a transaction
     const guardian = await prisma.$transaction(async (tx) => {
-      // 1. Create the Guardian record
       const newGuardian = await tx.guardian.create({
         data: {
           schoolId: school.id,
@@ -129,7 +138,6 @@ export async function POST(
         },
       });
 
-      // 2. Link wards
       await Promise.all(
         data.wards.map((ward) =>
           tx.guardianStudent.create({

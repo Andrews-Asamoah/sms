@@ -1,10 +1,15 @@
 // app/api/schools/[schoolSlug]/students/[studentId]/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { Prisma } from "@/lib/generated/prisma/client";
+
+// ============================================================================
+// SCHEMA
+// ============================================================================
 
 const updateStudentSchema = z.object({
   firstName: z.string().min(2).optional(),
@@ -45,6 +50,10 @@ const updateStudentSchema = z.object({
     .optional(),
 });
 
+// ============================================================================
+// GET — fetch a single student
+// ============================================================================
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string; studentId: string }> },
@@ -67,24 +76,15 @@ export async function GET(
     }
 
     const student = await prisma.student.findUnique({
-      where: {
-        id: studentId,
-        schoolId: school.id,
-      },
+      where: { id: studentId, schoolId: school.id },
       include: {
         profile: true,
-        class: {
-          include: { academicYear: true },
-        },
+        class: { include: { academicYear: true } },
         department: true,
         house: true,
         guardians: {
           include: {
-            guardian: {
-              include: {
-                profile: true,
-              },
-            },
+            guardian: { include: { profile: true } },
           },
         },
         bills: {
@@ -116,7 +116,7 @@ export async function GET(
 
     return NextResponse.json(student);
   } catch (error) {
-    console.error("[STUDENT_GET] Error", error);
+    console.error("[Student GET] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -124,12 +124,14 @@ export async function GET(
   }
 }
 
+// ============================================================================
+// PATCH — update a student
+// ============================================================================
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string; studentId: string }> },
 ) {
-  console.log("✏️ [Student Update] Starting update process...");
-
   try {
     const { schoolSlug, studentId } = await params;
     const session = await requireSchoolAccess(schoolSlug);
@@ -140,7 +142,6 @@ export async function PATCH(
       role?.effectiveRole !== "owner" &&
       !session.isSuperAdmin
     ) {
-      console.log("❌ [Student Update] Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -152,28 +153,19 @@ export async function PATCH(
     });
 
     if (!school) {
-      console.log("❌ [Student Update] School not found");
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
     const existingStudent = await prisma.student.findUnique({
-      where: {
-        id: studentId,
-        schoolId: school.id,
-      },
+      where: { id: studentId, schoolId: school.id },
       include: { profile: true },
     });
 
     if (!existingStudent) {
-      console.log("❌ [Student Update] Student not found");
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
-    console.log(
-      `👤 [Student Update] Updating student: ${existingStudent.studentId}`,
-    );
-
-    // Check admission number uniqueness if being changed
+    // Check admission number uniqueness if being changed.
     if (
       validatedData.admissionNumber &&
       validatedData.admissionNumber !== existingStudent.admissionNumber
@@ -187,7 +179,6 @@ export async function PATCH(
       });
 
       if (duplicate) {
-        console.log("❌ [Student Update] Admission number already exists");
         return NextResponse.json(
           { error: "Admission number already exists" },
           { status: 400 },
@@ -195,11 +186,10 @@ export async function PATCH(
       }
     }
 
-    // Update in transaction
-    console.log("💾 [Student Update] Starting database transaction...");
+    // ── Update in a transaction ──────────────────────────────────────────────
     const updatedStudent = await prisma.$transaction(async (tx) => {
-      // Update profile
-      const profileData: Partial<{
+      // Build profile patch — only include fields that were actually sent.
+      type ProfilePatch = Partial<{
         firstName: string;
         lastName: string;
         otherNames: string | null;
@@ -216,48 +206,52 @@ export async function PATCH(
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
         emergencyRelationship: string | null;
-      }> = {};
+      }>;
+
+      const profilePatch: ProfilePatch = {};
 
       if (validatedData.firstName)
-        profileData.firstName = validatedData.firstName;
-      if (validatedData.lastName) profileData.lastName = validatedData.lastName;
+        profilePatch.firstName = validatedData.firstName;
+      if (validatedData.lastName)
+        profilePatch.lastName = validatedData.lastName;
       if (validatedData.otherNames !== undefined)
-        profileData.otherNames = validatedData.otherNames;
-      if (validatedData.gender) profileData.gender = validatedData.gender;
+        profilePatch.otherNames = validatedData.otherNames;
+      if (validatedData.gender) profilePatch.gender = validatedData.gender;
       if (validatedData.dateOfBirth)
-        profileData.dateOfBirth = new Date(validatedData.dateOfBirth);
+        profilePatch.dateOfBirth = new Date(validatedData.dateOfBirth);
       if (validatedData.nationality)
-        profileData.nationality = validatedData.nationality;
+        profilePatch.nationality = validatedData.nationality;
       if (validatedData.phone !== undefined)
-        profileData.phone = validatedData.phone;
+        profilePatch.phone = validatedData.phone;
       if (validatedData.alternatePhone !== undefined)
-        profileData.alternatePhone = validatedData.alternatePhone;
+        profilePatch.alternatePhone = validatedData.alternatePhone;
       if (validatedData.residentialAddress !== undefined)
-        profileData.residentialAddress = validatedData.residentialAddress;
+        profilePatch.residentialAddress = validatedData.residentialAddress;
       if (validatedData.postalAddress !== undefined)
-        profileData.postalAddress = validatedData.postalAddress;
+        profilePatch.postalAddress = validatedData.postalAddress;
       if (validatedData.city !== undefined)
-        profileData.city = validatedData.city;
+        profilePatch.city = validatedData.city;
       if (validatedData.region !== undefined)
-        profileData.region = validatedData.region;
-      if (validatedData.country) profileData.country = validatedData.country;
+        profilePatch.region = validatedData.region;
+      if (validatedData.country) profilePatch.country = validatedData.country;
       if (validatedData.emergencyContactName !== undefined)
-        profileData.emergencyContactName = validatedData.emergencyContactName;
+        profilePatch.emergencyContactName = validatedData.emergencyContactName;
       if (validatedData.emergencyContactPhone !== undefined)
-        profileData.emergencyContactPhone = validatedData.emergencyContactPhone;
+        profilePatch.emergencyContactPhone =
+          validatedData.emergencyContactPhone;
       if (validatedData.emergencyRelationship !== undefined)
-        profileData.emergencyRelationship = validatedData.emergencyRelationship;
+        profilePatch.emergencyRelationship =
+          validatedData.emergencyRelationship;
 
-      if (Object.keys(profileData).length > 0) {
-        console.log("📋 [Student Update] Updating profile...");
+      if (Object.keys(profilePatch).length > 0) {
         await tx.userProfile.update({
           where: { id: existingStudent.profileId },
-          data: profileData,
+          data: profilePatch,
         });
       }
 
-      // Update student
-      const studentData: Partial<{
+      // Build student patch.
+      type StudentPatch = Partial<{
         admissionNumber: string | null;
         admissionDate: Date;
         classId: string | null;
@@ -275,34 +269,49 @@ export async function PATCH(
           | "SUSPENDED"
           | "TRANSFERRED"
           | "EXPELLED";
-      }> = {};
+      }>;
+
+      const studentPatch: StudentPatch = {};
 
       if (validatedData.admissionNumber !== undefined)
-        studentData.admissionNumber = validatedData.admissionNumber;
+        studentPatch.admissionNumber = validatedData.admissionNumber;
       if (validatedData.admissionDate)
-        studentData.admissionDate = new Date(validatedData.admissionDate);
-      if (validatedData.classId !== undefined)
-        studentData.classId = validatedData.classId;
-      if (validatedData.departmentId !== undefined)
-        studentData.departmentId = validatedData.departmentId;
-      if (validatedData.houseId !== undefined)
-        studentData.houseId = validatedData.houseId;
-      if (validatedData.previousSchool !== undefined)
-        studentData.previousSchool = validatedData.previousSchool;
-      if (validatedData.previousClass !== undefined)
-        studentData.previousClass = validatedData.previousClass;
-      if (validatedData.bloodGroup !== undefined)
-        studentData.bloodGroup = validatedData.bloodGroup;
-      if (validatedData.allergies !== undefined)
-        studentData.allergies = validatedData.allergies;
-      if (validatedData.medicalConditions !== undefined)
-        studentData.medicalConditions = validatedData.medicalConditions;
-      if (validatedData.status) studentData.status = validatedData.status;
+        studentPatch.admissionDate = new Date(validatedData.admissionDate);
+      
+      if (validatedData.classId !== undefined) {
+        studentPatch.classId = validatedData.classId;
+        
+        // Auto-assign department based on new class, unless department is explicitly overridden
+        if (validatedData.classId && validatedData.departmentId === undefined) {
+          const cls = await tx.class.findUnique({
+            where: { id: validatedData.classId },
+            select: { departmentId: true }
+          });
+          if (cls?.departmentId) {
+            studentPatch.departmentId = cls.departmentId;
+          }
+        }
+      }
 
-      console.log("🎓 [Student Update] Updating student record...");
-      const student = await tx.student.update({
+      if (validatedData.departmentId !== undefined)
+        studentPatch.departmentId = validatedData.departmentId;
+      if (validatedData.houseId !== undefined)
+        studentPatch.houseId = validatedData.houseId;
+      if (validatedData.previousSchool !== undefined)
+        studentPatch.previousSchool = validatedData.previousSchool;
+      if (validatedData.previousClass !== undefined)
+        studentPatch.previousClass = validatedData.previousClass;
+      if (validatedData.bloodGroup !== undefined)
+        studentPatch.bloodGroup = validatedData.bloodGroup;
+      if (validatedData.allergies !== undefined)
+        studentPatch.allergies = validatedData.allergies;
+      if (validatedData.medicalConditions !== undefined)
+        studentPatch.medicalConditions = validatedData.medicalConditions;
+      if (validatedData.status) studentPatch.status = validatedData.status;
+
+      return tx.student.update({
         where: { id: studentId },
-        data: studentData,
+        data: studentPatch,
         include: {
           profile: true,
           class: { include: { academicYear: true } },
@@ -310,14 +319,10 @@ export async function PATCH(
           house: true,
         },
       });
-
-      return student;
     });
 
-    console.log("✅ [Student Update] Transaction completed successfully");
-
-    // Log audit trail
-    console.log("📝 [Audit] Creating audit log...");
+    // Audit log — outside the transaction so a log failure doesn't roll back
+    // the update.
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
@@ -329,11 +334,9 @@ export async function PATCH(
       },
     });
 
-    console.log("✅ [Student Update] Process completed successfully\n");
-
     return NextResponse.json(updatedStudent);
   } catch (error) {
-    console.error("❌ [Student Update] Error:", error);
+    console.error("[Student PATCH] Error:", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -349,12 +352,14 @@ export async function PATCH(
   }
 }
 
+// ============================================================================
+// DELETE — remove a student
+// ============================================================================
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string; studentId: string }> },
 ) {
-  console.log("🗑️ [Student Delete] Starting deletion process...");
-
   try {
     const { schoolSlug, studentId } = await params;
     const session = await requireSchoolAccess(schoolSlug);
@@ -365,7 +370,6 @@ export async function DELETE(
       role?.effectiveRole !== "owner" &&
       !session.isSuperAdmin
     ) {
-      console.log("❌ [Student Delete] Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -374,15 +378,11 @@ export async function DELETE(
     });
 
     if (!school) {
-      console.log("❌ [Student Delete] School not found");
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
     const student = await prisma.student.findUnique({
-      where: {
-        id: studentId,
-        schoolId: school.id,
-      },
+      where: { id: studentId, schoolId: school.id },
       include: {
         _count: {
           select: {
@@ -395,38 +395,26 @@ export async function DELETE(
     });
 
     if (!student) {
-      console.log("❌ [Student Delete] Student not found");
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
-    console.log(`👤 [Student Delete] Checking student: ${student.studentId}`);
-
-    // Check if student has records
+    // Guard against deleting students with existing financial or academic records.
     if (
       student._count.bills > 0 ||
       student._count.enrollments > 0 ||
       student._count.assessmentScores > 0
     ) {
-      console.log("❌ [Student Delete] Student has existing records");
       return NextResponse.json(
         {
           error:
-            "Cannot delete student with existing records. Consider marking as withdrawn instead.",
+            "Cannot delete a student with existing records. Consider marking them as withdrawn instead.",
         },
         { status: 400 },
       );
     }
 
-    console.log("💾 [Student Delete] Deleting student...");
-    // Delete student (cascade will handle related records)
-    await prisma.student.delete({
-      where: { id: studentId },
-    });
+    await prisma.student.delete({ where: { id: studentId } });
 
-    console.log("✅ [Student Delete] Student deleted successfully");
-
-    // Log audit trail
-    console.log("📝 [Audit] Creating audit log...");
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
@@ -437,11 +425,9 @@ export async function DELETE(
       },
     });
 
-    console.log("✅ [Student Delete] Process completed successfully\n");
-
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("❌ [Student Delete] Error:", error);
+    console.error("[Student DELETE] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

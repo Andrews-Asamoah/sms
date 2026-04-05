@@ -1,4 +1,5 @@
 // app/(school)/[schoolSlug]/admin/students/[studentId]/edit/page.tsx
+
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect, notFound } from "next/navigation";
@@ -15,9 +16,22 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
 interface EditStudentPageProps {
   params: Promise<{ schoolSlug: string; studentId: string }>;
 }
+
+interface SchoolSettings {
+  currentAcademicYearId?: string | null;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// PAGE
+// ============================================================================
 
 export default async function EditStudentPage({
   params,
@@ -27,7 +41,6 @@ export default async function EditStudentPage({
   const session = await requireSchoolAccess(schoolSlug);
   const role = getSchoolRole(session, schoolSlug);
 
-  // Check authorization
   if (
     role?.effectiveRole !== "admin" &&
     role?.effectiveRole !== "owner" &&
@@ -36,7 +49,6 @@ export default async function EditStudentPage({
     redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  // Fetch school
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
   });
@@ -45,12 +57,8 @@ export default async function EditStudentPage({
     redirect("/");
   }
 
-  // Fetch student with profile
   const student = await prisma.student.findUnique({
-    where: {
-      id: studentId,
-      schoolId: school.id,
-    },
+    where: { id: studentId, schoolId: school.id },
     include: {
       profile: true,
       class: true,
@@ -63,10 +71,20 @@ export default async function EditStudentPage({
     notFound();
   }
 
-  // Fetch form options
+  // Filter classes to the current academic year so the dropdown matches what
+  // the student would be assigned to in the bulk upload and new student flows.
+  const { currentAcademicYearId } =
+    (school.settings as unknown as SchoolSettings) ?? {};
+
   const [classes, departments, houses] = await Promise.all([
     prisma.class.findMany({
-      where: { schoolId: school.id, isActive: true },
+      where: {
+        schoolId: school.id,
+        isActive: true,
+        ...(currentAcademicYearId
+          ? { academicYearId: currentAcademicYearId }
+          : {}),
+      },
       include: { academicYear: true },
       orderBy: { name: "asc" },
     }),
@@ -80,50 +98,39 @@ export default async function EditStudentPage({
     }),
   ]);
 
-  // Prepare initial data
+  // Prepare initial form values. Optional fields use null coalescing to
+  // undefined so uncontrolled form inputs stay in an uncontrolled state
+  // rather than receiving an explicit null.
   const initialData = {
-    // Personal Information
     firstName: student.profile.firstName,
     lastName: student.profile.lastName,
-    otherNames: student.profile.otherNames,
+    otherNames: student.profile.otherNames ?? undefined,
     gender: student.profile.gender,
     dateOfBirth: new Date(student.profile.dateOfBirth)
       .toISOString()
       .split("T")[0],
-    nationality: student.profile.nationality,
-
-    // Contact
-    phone: student.profile.phone,
-    alternatePhone: student.profile.alternatePhone,
-
-    // Address
-    residentialAddress: student.profile.residentialAddress,
-    postalAddress: student.profile.postalAddress,
-    city: student.profile.city,
-    region: student.profile.region,
-    country: student.profile.country,
-
-    // Student Specific
+    nationality: student.profile.nationality ?? undefined,
+    phone: student.profile.phone ?? undefined,
+    alternatePhone: student.profile.alternatePhone ?? undefined,
+    residentialAddress: student.profile.residentialAddress ?? undefined,
+    postalAddress: student.profile.postalAddress ?? undefined,
+    city: student.profile.city ?? undefined,
+    region: student.profile.region ?? undefined,
+    country: student.profile.country ?? undefined,
     studentId: student.studentId,
-    admissionNumber: student.admissionNumber || "",
+    admissionNumber: student.admissionNumber ?? "",
     admissionDate: new Date(student.admissionDate).toISOString().split("T")[0],
-    classId: student.classId,
-    departmentId: student.departmentId,
-    houseId: student.houseId,
-
-    // Previous School
-    previousSchool: student.previousSchool,
-    previousClass: student.previousClass,
-
-    // Medical
-    bloodGroup: student.bloodGroup,
-    allergies: student.allergies,
-    medicalConditions: student.medicalConditions,
-
-    // Emergency
-    emergencyContactName: student.profile.emergencyContactName,
-    emergencyContactPhone: student.profile.emergencyContactPhone,
-    emergencyRelationship: student.profile.emergencyRelationship,
+    classId: student.classId ?? undefined,
+    departmentId: student.departmentId ?? undefined,
+    houseId: student.houseId ?? undefined,
+    previousSchool: student.previousSchool ?? undefined,
+    previousClass: student.previousClass ?? undefined,
+    bloodGroup: student.bloodGroup ?? undefined,
+    allergies: student.allergies ?? undefined,
+    medicalConditions: student.medicalConditions ?? undefined,
+    emergencyContactName: student.profile.emergencyContactName ?? undefined,
+    emergencyContactPhone: student.profile.emergencyContactPhone ?? undefined,
+    emergencyRelationship: student.profile.emergencyRelationship ?? undefined,
   };
 
   return (
@@ -161,7 +168,7 @@ export default async function EditStudentPage({
             departments={departments}
             houses={houses}
             suggestedStudentId={student.studentId}
-            suggestedAdmissionNumber={student.admissionNumber || ""}
+            suggestedAdmissionNumber={student.admissionNumber ?? ""}
             initialData={initialData}
             studentProfileId={studentId}
           />

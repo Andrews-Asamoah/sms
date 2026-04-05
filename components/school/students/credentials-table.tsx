@@ -22,10 +22,12 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Eye, EyeOff, KeyRound } from "lucide-react";
+import { Copy, Eye, EyeOff, ShieldBan, ShieldCheck } from "lucide-react";
 import { ResetPasswordDialog } from "./reset-password-dialog";
+import { BanUserButton } from "@/components/school/ban-user-button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+
 
 interface StudentCredentialData {
   id: string;
@@ -36,7 +38,10 @@ interface StudentCredentialData {
     lastName: string;
     otherNames: string | null;
     user: {
+      id: string;
       email: string;
+      banned: boolean;
+      banReason: string | null;
     } | null;
   };
   class: {
@@ -44,10 +49,13 @@ interface StudentCredentialData {
   } | null;
 }
 
+
 interface CredentialsTableProps {
   data: StudentCredentialData[];
   schoolSlug: string;
 }
+
+import { DataTablePagination } from "@/components/ui/data-table/pagination";
 
 export function CredentialsTable({ data, schoolSlug }: CredentialsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -165,15 +173,37 @@ export function CredentialsTable({ data, schoolSlug }: CredentialsTableProps) {
       header: "Actions",
       cell: ({ row }) => {
         const studentName = `${row.original.profile.firstName} ${row.original.profile.lastName}`;
+        const user = row.original.profile.user;
         return (
-          <ResetPasswordDialog
-            studentId={row.original.id}
-            studentName={studentName}
-            schoolSlug={schoolSlug}
-          />
+          <div className="flex items-center gap-2">
+            <ResetPasswordDialog
+              studentId={row.original.id}
+              studentName={studentName}
+              schoolSlug={schoolSlug}
+            />
+            {user && (
+              <BanUserButton
+                schoolSlug={schoolSlug}
+                userId={user.id}
+                isBanned={user.banned}
+                userName={studentName}
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={user.banned ? "text-green-600 hover:text-green-700" : "text-destructive hover:text-destructive/80"}
+                    title={user.banned ? `Unban (Reason: ${user.banReason ?? "No reason"})` : "Ban Student"}
+                  >
+                    {user.banned ? <ShieldCheck className="h-4 w-4" /> : <ShieldBan className="h-4 w-4" />}
+                  </Button>
+                }
+              />
+            )}
+          </div>
         );
       },
     },
+
   ];
 
   const table = useReactTable({
@@ -231,8 +261,8 @@ export function CredentialsTable({ data, schoolSlug }: CredentialsTableProps) {
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
+                         cell.column.columnDef.cell,
+                         cell.getContext()
                       )}
                     </TableCell>
                   ))}
@@ -251,24 +281,7 @@ export function CredentialsTable({ data, schoolSlug }: CredentialsTableProps) {
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Next
-        </Button>
-      </div>
+      <DataTablePagination table={table} />
     </div>
   );
 }

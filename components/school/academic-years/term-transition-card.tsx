@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   Loader2,
   ChevronRight,
+  Users,
+  BookOpen,
 } from "lucide-react";
 import {
   Card,
@@ -36,6 +38,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 interface TermOption {
@@ -51,6 +54,8 @@ interface TransitionData {
   preview: {
     studentsWithBalance: number;
     totalOutstanding: number;
+    activeEnrollmentCount: number;
+    teacherAssignmentCount: number;
   } | null;
 }
 
@@ -62,6 +67,7 @@ export function TermTransitionCard() {
   const [data, setData] = useState<TransitionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [nextTermId, setNextTermId] = useState<string>("skip");
+  const [carryForwardArrears, setCarryForwardArrears] = useState(true);
   const [executing, setExecuting] = useState(false);
 
   const fetchPreview = async () => {
@@ -94,7 +100,10 @@ export function TermTransitionCard() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nextTermId: nextTermId === "skip" ? undefined : nextTermId }),
+          body: JSON.stringify({
+            nextTermId: nextTermId === "skip" ? undefined : nextTermId,
+            carryForwardArrears,
+          }),
         },
       );
 
@@ -104,10 +113,18 @@ export function TermTransitionCard() {
         throw new Error(result.error || "Transition failed");
       }
 
-      toast.success(
-        `Term "${result.closedTerm?.name}" closed. ${result.studentsUpdated} student(s) updated with carry-forward balances.`,
-        { duration: 5000 },
-      );
+      const parts: string[] = [];
+      if (result.closedTerm) parts.push(`Closed "${result.closedTerm.name}".`);
+      if (result.enrollmentsCloned > 0)
+        parts.push(`${result.enrollmentsCloned} enrolment(s) cloned.`);
+      if (result.arrearsBillsCreated > 0)
+        parts.push(`${result.arrearsBillsCreated} arrears bill(s) created.`);
+      if (result.studentsUpdated > 0)
+        parts.push(`${result.studentsUpdated} student balance(s) updated.`);
+
+      toast.success(parts.join(" ") || "Transition completed.", {
+        duration: 6000,
+      });
 
       // Re-fetch preview and refresh page
       await fetchPreview();
@@ -138,7 +155,8 @@ export function TermTransitionCard() {
         <CardContent className="flex items-center gap-3 py-6">
           <AlertTriangle className="h-5 w-5 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">
-            No active term found. Set a current term using the Global Settings above before triggering a transition.
+            No active term found. Set a current term using the Global Settings
+            above before triggering a transition.
           </span>
         </CardContent>
       </Card>
@@ -146,6 +164,8 @@ export function TermTransitionCard() {
   }
 
   const hasOutstanding = (data.preview?.studentsWithBalance ?? 0) > 0;
+  const enrollmentCount = data.preview?.activeEnrollmentCount ?? 0;
+  const teacherCount = data.preview?.teacherAssignmentCount ?? 0;
 
   return (
     <Card className="border-2 border-amber-200 bg-amber-50/20">
@@ -157,7 +177,8 @@ export function TermTransitionCard() {
           </CardTitle>
         </div>
         <CardDescription>
-          Close the current term and carry forward outstanding balances to the next term.
+          Close the current term, clone active enrolments to the next term, and
+          carry forward outstanding balances.
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6 space-y-5">
@@ -179,7 +200,11 @@ export function TermTransitionCard() {
                 {data.preview!.studentsWithBalance !== 1 ? "s" : ""}
               </p>
               <p className="text-xs text-muted-foreground">
-                GHS {data.preview!.totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })} total
+                GHS{" "}
+                {data.preview!.totalOutstanding.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}{" "}
+                total
               </p>
             </div>
           )}
@@ -191,13 +216,43 @@ export function TermTransitionCard() {
           )}
         </div>
 
+        {/* Enrolment & Assignment stats */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50/60 dark:bg-blue-900/10 border border-blue-200/50">
+            <Users className="h-4 w-4 text-blue-600 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">{enrollmentCount}</p>
+              <p className="text-xs text-muted-foreground">
+                Active enrolments to clone
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-violet-50/60 dark:bg-violet-900/10 border border-violet-200/50">
+            <BookOpen className="h-4 w-4 text-violet-600 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">{teacherCount}</p>
+              <p className="text-xs text-muted-foreground">
+                Teacher assignments (persist across terms)
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Carry-forward note */}
         {hasOutstanding && (
           <div className="flex gap-2 p-3 rounded-md bg-amber-100/50 border border-amber-200 text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <span>
-              <strong>{data.preview!.studentsWithBalance}</strong> students have unpaid bills totalling{" "}
-              <strong>GHS {data.preview!.totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>. These balances will be added to each student&apos;s outstanding balance record.
+              <strong>{data.preview!.studentsWithBalance}</strong> students have
+              unpaid bills totalling{" "}
+              <strong>
+                GHS{" "}
+                {data.preview!.totalOutstanding.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}
+              </strong>
+              . These balances will be added to each student&apos;s outstanding
+              balance record.
             </span>
           </div>
         )}
@@ -221,9 +276,33 @@ export function TermTransitionCard() {
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            If selected, this term will become the new active term for all users.
+            If selected, this term will become the new active term and all
+            active enrolments will be cloned into it.
           </p>
         </div>
+
+        {/* Arrears toggle */}
+        {hasOutstanding && nextTermId !== "skip" && (
+          <div className="flex items-center gap-3 p-3 rounded-lg border bg-background/50">
+            <Checkbox
+              id="carry-forward-arrears"
+              checked={carryForwardArrears}
+              onCheckedChange={(checked) =>
+                setCarryForwardArrears(checked === true)
+              }
+            />
+            <label
+              htmlFor="carry-forward-arrears"
+              className="text-sm font-medium cursor-pointer leading-tight"
+            >
+              Create arrears bills in the new term
+              <span className="block text-xs text-muted-foreground font-normal mt-0.5">
+                Generates an &quot;Arrears&quot; invoice for each student with
+                unpaid balances.
+              </span>
+            </label>
+          </div>
+        )}
 
         {/* Confirm dialog */}
         <AlertDialog>
@@ -237,7 +316,7 @@ export function TermTransitionCard() {
               ) : (
                 <ChevronRight className="h-4 w-4 mr-2" />
               )}
-              Close &quot;{data.currentTerm.name}&quot; &amp; Carry Forward Balances
+              Close &quot;{data.currentTerm.name}&quot; &amp; Transition
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
@@ -254,6 +333,13 @@ export function TermTransitionCard() {
                   </p>
                   <ul className="list-disc list-inside space-y-1">
                     <li>Mark the current term as inactive.</li>
+                    {nextTermId !== "skip" && (
+                      <li>
+                        Clone <strong>{enrollmentCount}</strong> active
+                        enrolment(s) to the next term (suspended students
+                        excluded).
+                      </li>
+                    )}
                     {hasOutstanding && (
                       <li>
                         Add outstanding bill balances to{" "}
@@ -261,7 +347,16 @@ export function TermTransitionCard() {
                         student account(s).
                       </li>
                     )}
-                    {nextTermId && (
+                    {hasOutstanding &&
+                      carryForwardArrears &&
+                      nextTermId !== "skip" && (
+                        <li>
+                          Create arrears bills for{" "}
+                          <strong>{data.preview!.studentsWithBalance}</strong>{" "}
+                          student(s) in the new term.
+                        </li>
+                      )}
+                    {nextTermId !== "skip" && (
                       <li>
                         Activate{" "}
                         <strong>
@@ -273,7 +368,8 @@ export function TermTransitionCard() {
                     )}
                   </ul>
                   <p className="text-destructive font-medium pt-1">
-                    This cannot be undone. Please ensure all data for this term is finalised before proceeding.
+                    This cannot be undone. Please ensure all data for this term
+                    is finalised before proceeding.
                   </p>
                 </div>
               </AlertDialogDescription>

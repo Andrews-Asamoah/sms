@@ -13,12 +13,15 @@ export type Student = {
   admissionNumber: string | null;
   status: string;
   profile: {
+    userId: string;
     firstName: string;
     lastName: string;
     gender: string;
     phone: string | null;
     user?: {
       email: string;
+      banned: boolean;
+      banReason: string | null;
     };
   };
   class: {

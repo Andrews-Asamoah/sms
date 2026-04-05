@@ -35,7 +35,7 @@ export default async function SubjectsPage(props: SubjectsPageProps) {
   }
 
   // Fetch subjects with relations
-  const subjects = await prisma.subject.findMany({
+  const rawSubjects = await prisma.subject.findMany({
     where: { schoolId: school.id },
     include: {
       departments: {
@@ -44,14 +44,35 @@ export default async function SubjectsPage(props: SubjectsPageProps) {
           name: true,
         },
       },
+      classSubjects: {
+        where: { teacherId: { not: null } },
+        select: { teacherId: true },
+      },
       _count: {
         select: {
-          teachers: true,
           classSubjects: true,
         },
       },
     },
     orderBy: { name: "asc" },
+  });
+
+  // Calculate unique assigned teachers per subject
+  const subjects = rawSubjects.map((subject) => {
+    const uniqueTeacherIds = new Set(
+      subject.classSubjects.map((cs) => cs.teacherId).filter(Boolean)
+    );
+    
+    // Strip out classSubjects array before passing to the client to keep payload small
+    const { classSubjects, ...rest } = subject;
+    
+    return {
+      ...rest,
+      _count: {
+        ...rest._count,
+        teachers: uniqueTeacherIds.size,
+      },
+    };
   });
 
   // Fetch departments for the add dialog
@@ -60,6 +81,23 @@ export default async function SubjectsPage(props: SubjectsPageProps) {
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
+
+  // Fetch active teachers for the bulk assign dialog
+  const teachers = await prisma.teacher.findMany({
+    where: { schoolId: school.id, isActive: true },
+    include: { profile: true },
+    orderBy: { profile: { firstName: "asc" } },
+  });
+  
+  const mappedTeachers = teachers
+    .filter((t) => t.profile !== null)
+    .map((t) => ({
+      id: t.id,
+      profile: {
+        firstName: t.profile!.firstName,
+        lastName: t.profile!.lastName,
+      },
+    }));
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -82,6 +120,7 @@ export default async function SubjectsPage(props: SubjectsPageProps) {
             data={subjects}
             schoolSlug={schoolSlug}
             departments={departments}
+            teachers={mappedTeachers}
           />
         </div>
       </div>

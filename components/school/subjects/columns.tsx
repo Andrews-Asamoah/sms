@@ -1,7 +1,13 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowUpDown,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  BookOpen,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { SubjectDialog } from "./subject-dialog";
+import { BulkAssignSubjectDialog } from "./bulk-assign-subject-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +61,10 @@ export type Subject = {
 export const columns = (
   schoolSlug: string,
   departments: Array<{ id: string; name: string }>,
+  teachers: Array<{
+    id: string;
+    profile: { firstName: string; lastName: string };
+  }>,
 ): ColumnDef<Subject>[] => [
   {
     accessorKey: "name",
@@ -134,6 +145,7 @@ export const columns = (
       const subject = row.original;
       const [showEditDialog, setShowEditDialog] = useState(false);
       const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+      const [showBulkAssignDialog, setShowBulkAssignDialog] = useState(false);
       const router = useRouter();
 
       const handleDelete = async () => {
@@ -170,6 +182,13 @@ export const columns = (
           >
             <span className="hidden" />
           </SubjectDialog>
+          <BulkAssignSubjectDialog
+            open={showBulkAssignDialog}
+            onOpenChange={setShowBulkAssignDialog}
+            subject={subject}
+            schoolSlug={schoolSlug}
+            teachers={teachers}
+          />
           <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -208,6 +227,9 @@ export const columns = (
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowBulkAssignDialog(true)}>
+                <BookOpen className="mr-2 h-4 w-4" /> Bulk Assign to Dept
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowDeleteAlert(true)}

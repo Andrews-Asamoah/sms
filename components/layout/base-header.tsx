@@ -42,6 +42,24 @@ export function BaseHeader({
       pathToUse = pathname.replace(prefixToRemove, "");
     }
     const pathSegments = pathToUse.split("/").filter(Boolean);
+
+    // Map parent segment → friendly label for what follows it (an ID)
+    const idContextLabels: Record<string, string> = {
+      sets: "Set Details",
+      students: "Student Report",
+      classes: "Class",
+      teachers: "Teacher",
+      subjects: "Subject",
+      departments: "Department",
+      terms: "Term",
+      years: "Year",
+      tickets: "Ticket",
+    };
+
+    // Heuristic: a segment that is long (>14 chars) and not kebab-case words is an ID
+    const looksLikeId = (seg: string) =>
+      seg.length > 14 && !/^[a-z]+(-[a-z]+)*$/.test(seg);
+
     return pathSegments.map((segment, index) => {
       const hrefSegments = prefixToRemove
         ? [
@@ -50,10 +68,18 @@ export function BaseHeader({
           ]
         : pathSegments.slice(0, index + 1);
       const href = "/" + hrefSegments.join("/");
-      const label = segment
-        .split("-")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
+
+      let label: string;
+      if (looksLikeId(segment)) {
+        const parent = pathSegments[index - 1] ?? "";
+        label = idContextLabels[parent] ?? segment.slice(0, 8) + "…";
+      } else {
+        label = segment
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ");
+      }
+
       return {
         href,
         label,

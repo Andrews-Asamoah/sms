@@ -5,13 +5,29 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, ArrowLeft, Receipt, CheckCircle2 } from "lucide-react";
+import { 
+  Loader2, 
+  ArrowLeft, 
+  Receipt, 
+  CheckCircle2, 
+  Bold, 
+  Italic, 
+  List, 
+  ListOrdered, 
+  Heading1, 
+  Heading2, 
+  Quote, 
+  Undo, 
+  Redo,
+  Type
+} from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
 import { DashboardPageHeader } from "@/components/layout/page-header";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -81,10 +97,27 @@ export function GenerateInvoiceClient({
   const billType = watch("billType");
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit.configure({
+        bulletList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        orderedList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+      }),
+    ],
     content: "",
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
       setValue("notes", editor.getHTML());
+    },
+    editorProps: {
+      attributes: {
+        class: 'tiptap prose prose-sm dark:prose-invert max-w-none focus:outline-none p-4 min-h-full h-full',
+      },
     },
   });
 
@@ -168,9 +201,9 @@ export function GenerateInvoiceClient({
         />
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="h-[calc(100vh-140px)] min-h-[600px]">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
+          <div className="md:col-span-2 space-y-6 flex flex-col h-full">
             {/* Main Configuration Card */}
             <Card>
               <CardHeader>
@@ -236,56 +269,147 @@ export function GenerateInvoiceClient({
             </Card>
 
             {/* Notes / Message Card */}
-            <Card>
+            <Card className="flex-1 flex flex-col overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-xl">Additional Notes (Optional)</CardTitle>
                 <CardDescription>Add customized payment instructions, deadlines, or remarks to appear on the bill.</CardDescription>
               </CardHeader>
-              <CardContent>
-                 <div className="border rounded-md overflow-hidden bg-background">
-                  <div className="bg-muted px-3 py-2 border-b flex gap-2">
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => editor?.chain().focus().toggleBold().run()}
-                      className={editor?.isActive('bold') ? 'bg-secondary' : ''}
-                    >
-                      Bold
-                    </Button>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => editor?.chain().focus().toggleItalic().run()}
-                      className={editor?.isActive('italic') ? 'bg-secondary' : ''}
-                    >
-                      Italic
-                    </Button>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                      className={editor?.isActive('bulletList') ? 'bg-secondary' : ''}
-                    >
-                      Bullet List
-                    </Button>
+              <CardContent className="flex-1 pb-4">
+                 <div className="border rounded-md overflow-hidden bg-background flex flex-col flex-1 min-h-[400px]">
+                  <div className="bg-muted/50 px-2 py-1 border-b flex flex-wrap items-center gap-1">
+                    <div className="flex items-center gap-0.5 border-r pr-1 mr-0.5 border-border/50">
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('heading', { level: 1 }) ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                        title="Heading 1"
+                      >
+                        <Heading1 className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('heading', { level: 2 }) ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                        title="Heading 2"
+                      >
+                        <Heading2 className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().clearNodes().setParagraph().run()}
+                        className={cn("h-8 w-8 p-0 transition-colors", (editor?.isActive('paragraph') && !editor?.isActive('heading') && !editor?.isActive('bulletList') && !editor?.isActive('orderedList') && !editor?.isActive('blockquote')) ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                        title="Paragraph"
+                      >
+                        <Type className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 border-r pr-1 mr-0.5 border-border/50">
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().toggleBold().run()}
+                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('bold') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                        title="Bold"
+                      >
+                        <Bold className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().toggleItalic().run()}
+                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('italic') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                        title="Italic"
+                      >
+                        <Italic className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 border-r pr-1 mr-0.5 border-border/50">
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().toggleBulletList().run()}
+                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('bulletList') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                        title="Bullet List"
+                      >
+                        <List className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('orderedList') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                        title="Ordered List"
+                      >
+                        <ListOrdered className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('blockquote') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                        title="Quote"
+                      >
+                        <Quote className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-0.5">
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().undo().run()}
+                        className="h-8 w-8 p-0 hover:bg-muted transition-colors opacity-70 hover:opacity-100"
+                        title="Undo"
+                        disabled={!editor?.can().undo()}
+                      >
+                        <Undo className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editor?.chain().focus().redo().run()}
+                        className="h-8 w-8 p-0 hover:bg-muted transition-colors opacity-70 hover:opacity-100"
+                        title="Redo"
+                        disabled={!editor?.can().redo()}
+                      >
+                        <Redo className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <EditorContent editor={editor} className="p-4 min-h-[150px] prose prose-sm max-w-none focus:outline-none" />
+                  <div className="flex-1 overflow-auto bg-card/30">
+                    <EditorContent 
+                      editor={editor} 
+                      className="h-full" 
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="space-y-6">
-            <Card className="sticky top-6">
-              <CardHeader>
+          <div className="md:sticky md:top-6 flex flex-col h-auto md:h-[calc(100vh-140px)] min-h-[500px]">
+            <Card className="flex flex-col h-full overflow-hidden border-primary/10 shadow-lg shadow-primary/5">
+              <CardHeader className="bg-primary/[0.02] border-b pb-4">
                 <CardTitle className="text-xl">Target Classes</CardTitle>
                 <CardDescription>Select which classes should receive this bill.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <Field data-invalid={!!errors.targetClasses}>
+              <CardContent className="flex-1 overflow-hidden flex flex-col">
+                <Field data-invalid={!!errors.targetClasses} className="flex-1 flex flex-col overflow-hidden">
                   <div className="mb-4 flex items-center justify-between">
                      <div className="flex items-center space-x-2">
                         <Checkbox 
@@ -301,8 +425,8 @@ export function GenerateInvoiceClient({
                        {targetClasses.length} Selected
                      </span>
                   </div>
-                  <div className="border rounded-md">
-                    <ScrollArea className="h-[300px] p-4">
+                  <div className="border rounded-md flex-1 overflow-hidden">
+                    <ScrollArea className="h-full p-4">
                       <div className="space-y-4">
                         {classes.length === 0 && (
                           <p className="text-sm text-muted-foreground text-center py-4">
@@ -351,7 +475,7 @@ export function GenerateInvoiceClient({
                     </Alert>
                 )}
               </CardContent>
-              <CardFooter className="pt-4 border-t bg-muted/20">
+              <CardFooter className="pt-4 border-t mt-auto bg-muted/20 pb-4">
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Generate {billType === "INVOICE" ? "Invoices" : "Proformas"}

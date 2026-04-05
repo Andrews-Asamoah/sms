@@ -24,9 +24,10 @@ export default async function GradebookReviewPage({
   }
 
   // Fetch contextual info for labels
-  const [cls, subject] = await Promise.all([
+  const [cls, subject, term] = await Promise.all([
     prisma.class.findUnique({ where: { id: classId }, select: { name: true } }),
     prisma.subject.findUnique({ where: { id: subjectId }, select: { name: true } }),
+    prisma.term.findUnique({ where: { id: termId }, select: { name: true } }),
   ]);
 
   const result = await getMarksData(schoolSlug, classId, subjectId, termId);
@@ -48,6 +49,8 @@ export default async function GradebookReviewPage({
       termId={termId}
       subjectName={subject?.name || "Unknown"}
       className={cls?.name || "Unknown"}
+      termName={term?.name || termId}
+      isAdminView={true}
       marksData={result.data}
     />
   );

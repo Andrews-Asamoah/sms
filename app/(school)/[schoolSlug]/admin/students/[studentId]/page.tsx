@@ -28,22 +28,20 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddGuardianDialog } from "@/components/school/students/add-guardian-dialog";
 import { ResetPasswordDialog } from "@/components/school/students/reset-password-dialog";
-import { Decimal } from "@/lib/generated/prisma/runtime/client";
 import { StudentBillingTab } from "@/components/school/students/student-billing-tab";
 import { StudentStatusDropdown } from "@/components/school/students/student-status-dropdown";
 
-// Helper function to safely convert Decimal to string
-function decimalToString(value: Decimal | string | null): string {
-  if (!value) return "0";
-  if (typeof value === "string") return value;
-  return value.toString();
-}
+// ============================================================================
+// TYPES
+// ============================================================================
 
 interface StudentDetailPageProps {
   params: Promise<{ schoolSlug: string; studentId: string }>;
 }
 
-
+// ============================================================================
+// PAGE
+// ============================================================================
 
 export default async function StudentDetailPage({
   params,
@@ -66,15 +64,10 @@ export default async function StudentDetailPage({
   }
 
   const student = await prisma.student.findUnique({
-    where: {
-      id: studentId,
-      schoolId: school.id,
-    },
+    where: { id: studentId, schoolId: school.id },
     include: {
       profile: {
-        include: {
-          user: true,
-        },
+        include: { user: true },
       },
       class: {
         include: {
@@ -83,9 +76,7 @@ export default async function StudentDetailPage({
             include: {
               subject: true,
               teacher: {
-                include: {
-                  profile: true,
-                },
+                include: { profile: true },
               },
             },
           },
@@ -94,9 +85,7 @@ export default async function StudentDetailPage({
       department: true,
       house: true,
       guardians: {
-        include: {
-          guardian: true,
-        },
+        include: { guardian: true },
       },
       bills: {
         take: 5,
@@ -106,6 +95,7 @@ export default async function StudentDetailPage({
         include: {
           class: true,
           academicYear: true,
+          term: true, // required — enrollment is scoped to term
         },
         orderBy: { enrolledAt: "desc" },
       },
@@ -116,7 +106,8 @@ export default async function StudentDetailPage({
     notFound();
   }
 
-  // Serialize student data to convert Decimal fields to numbers
+  // Serialize Decimal fields to numbers so they can be safely passed to client
+  // components (Decimal is not JSON-serializable).
   const serializedStudent = {
     ...student,
     outstandingBalance: Number(student.outstandingBalance),
@@ -213,7 +204,7 @@ export default async function StudentDetailPage({
                 <div>
                   <p className="text-sm text-muted-foreground">Class</p>
                   <p className="font-semibold">
-                    {student.class?.name || "Not assigned"}
+                    {student.class?.name ?? "Not assigned"}
                   </p>
                 </div>
                 <div>
@@ -236,6 +227,7 @@ export default async function StudentDetailPage({
           <TabsTrigger value="academic">Academic</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
         </TabsList>
+
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -256,7 +248,9 @@ export default async function StudentDetailPage({
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Nationality</p>
-                  <p className="font-medium">{student.profile.nationality}</p>
+                  <p className="font-medium">
+                    {student.profile.nationality ?? "—"}
+                  </p>
                 </div>
                 {student.profile.phone && (
                   <div>
@@ -273,6 +267,26 @@ export default async function StudentDetailPage({
                     {new Date(student.admissionDate).toLocaleDateString()}
                   </p>
                 </div>
+                {student.admissionNumber && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Admission Number
+                    </p>
+                    <p className="font-mono font-medium">
+                      {student.admissionNumber}
+                    </p>
+                  </div>
+                )}
+                {student.plainTextPassword && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Login Password
+                    </p>
+                    <p className="font-mono font-medium">
+                      {student.plainTextPassword}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -285,7 +299,7 @@ export default async function StudentDetailPage({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {student.profile.residentialAddress && (
+                {student.profile.residentialAddress ? (
                   <div>
                     <p className="text-sm text-muted-foreground">
                       Residential Address
@@ -294,25 +308,33 @@ export default async function StudentDetailPage({
                       {student.profile.residentialAddress}
                     </p>
                   </div>
-                )}
-                {student.profile.city && (
+                ) : null}
+                {student.profile.city ? (
                   <div>
                     <p className="text-sm text-muted-foreground">City</p>
                     <p className="font-medium">{student.profile.city}</p>
                   </div>
-                )}
-                {student.profile.region && (
+                ) : null}
+                {student.profile.region ? (
                   <div>
                     <p className="text-sm text-muted-foreground">Region</p>
                     <p className="font-medium">{student.profile.region}</p>
                   </div>
-                )}
-                {student.profile.country && (
+                ) : null}
+                {student.profile.country ? (
                   <div>
                     <p className="text-sm text-muted-foreground">Country</p>
                     <p className="font-medium">{student.profile.country}</p>
                   </div>
-                )}
+                ) : null}
+                {!student.profile.residentialAddress &&
+                  !student.profile.city &&
+                  !student.profile.region &&
+                  !student.profile.country && (
+                    <p className="text-sm text-muted-foreground">
+                      No address information recorded
+                    </p>
+                  )}
               </CardContent>
             </Card>
 
@@ -399,7 +421,8 @@ export default async function StudentDetailPage({
             </Card>
           </div>
         </TabsContent>
-        {/* Guardians Tab - ENHANCED WITH ADD BUTTON */}
+
+        {/* Guardians Tab */}
         <TabsContent value="guardians">
           <Card className="backdrop-blur-sm bg-card/50 border-border/50">
             <CardHeader>
@@ -517,12 +540,14 @@ export default async function StudentDetailPage({
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Academic Tab */}
         <TabsContent value="academic" className="space-y-4">
           <Card className="backdrop-blur-sm bg-card/50 border-border/50">
             <CardHeader>
               <CardTitle>Current Class Subjects</CardTitle>
               <CardDescription>
-                Subjects assigned to {student.class?.name || "current class"}
+                Subjects assigned to {student.class?.name ?? "current class"}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -589,6 +614,9 @@ export default async function StudentDetailPage({
                         <p className="font-semibold">{enrollment.class.name}</p>
                         <p className="text-sm text-muted-foreground">
                           {enrollment.academicYear.name}
+                          {enrollment.term
+                            ? ` · ${enrollment.term.name}`
+                            : null}
                         </p>
                       </div>
                       <Badge variant="outline">{enrollment.status}</Badge>
@@ -599,6 +627,7 @@ export default async function StudentDetailPage({
             </CardContent>
           </Card>
         </TabsContent>
+
         {/* Billing Tab */}
         <TabsContent value="billing">
           <StudentBillingTab

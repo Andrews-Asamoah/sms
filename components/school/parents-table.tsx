@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+
 import { DataTable } from "@/components/ui/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, GraduationCap, Phone } from "lucide-react";
+import { StatCard } from "@/components/ui/stat-card";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { BanUserButton } from "@/components/school/ban-user-button";
+
 
 export type WardInfo = {
   id: string;
@@ -29,16 +32,18 @@ export type GuardianData = {
   altPhone: string | null;
   occupation: string | null;
   isActive: boolean;
+  userId: string | null;
+  isBanned: boolean;
   wards: WardInfo[];
 };
+
 
 interface ParentsTableProps {
   schoolSlug: string;
   initialData: GuardianData[];
 }
 
-export function ParentsTable({ schoolSlug, initialData }: ParentsTableProps) {
-  const [data] = useState<GuardianData[]>(initialData);
+export function ParentsTable({ schoolSlug, initialData: data }: ParentsTableProps) {
 
   const columns: ColumnDef<GuardianData>[] = [
     {
@@ -138,38 +143,39 @@ export function ParentsTable({ schoolSlug, initialData }: ParentsTableProps) {
         </Badge>
       ),
     },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        if (!row.original.userId) return null;
+        return (
+          <BanUserButton
+            schoolSlug={schoolSlug}
+            userId={row.original.userId}
+            isBanned={row.original.isBanned}
+            userName={row.original.name}
+          />
+        );
+      },
+    },
   ];
 
   const totalWards = data.reduce((acc, curr) => acc + curr.wards.length, 0);
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Guardians
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Linked Students
-            </CardTitle>
-            <GraduationCap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalWards}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Total wards tracked across all parents
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          title="Total Guardians"
+          value={data.length}
+          icon={Users}
+        />
+        <StatCard
+          title="Linked Students"
+          value={totalWards}
+          icon={GraduationCap}
+          description="Total wards tracked across all parents"
+        />
       </div>
 
       <div className="bg-background rounded-md border shadow-sm p-4">

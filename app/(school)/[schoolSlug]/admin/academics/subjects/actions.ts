@@ -482,3 +482,80 @@ export async function removeTeacherFromSubject(
     };
   }
 }
+
+// ============================================================================
+// BULK ASSIGN SUBJECT TO DEPARTMENT
+// ============================================================================
+
+export async function bulkAssignSubjectToDepartment(
+  schoolSlug: string,
+  subjectId: string,
+  departmentId: string,
+  teacherId?: string
+) {
+  try {
+    const session = await requireSchoolAccess(schoolSlug);
+    const role = getSchoolRole(session, schoolSlug);
+
+    if (
+      !session.isSuperAdmin &&
+      role?.effectiveRole !== "admin" &&
+      role?.effectiveRole !== "owner"
+    ) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { id: true }
+    });
+    if (!school) return { success: false, error: "School not found" };
+
+    // Find all classes in this department
+    const classes = await prisma.class.findMany({
+      where: { schoolId: school.id, departmentId }
+    });
+
+    if (classes.length === 0) {
+      return { success: false, error: "No classes found in this department. Please create classes first." };
+    }
+
+    // Upsert ClassSubject for each class
+    for (const cls of classes) {
+      const createData: any = {
+        classId: cls.id,
+        subjectId,
+      };
+      if (teacherId !== undefined) {
+        createData.teacherId = teacherId;
+      }
+
+      const updateData: any = {};
+      if (teacherId !== undefined) {
+        updateData.teacherId = teacherId;
+      }
+
+      await prisma.classSubject.upsert({
+        where: {
+          classId_subjectId: {
+            classId: cls.id,
+            subjectId,
+          }
+        },
+        create: createData,
+        update: Object.keys(updateData).length > 0 ? updateData : { classId: cls.id }, // Provide a dummy update if no teacher is set
+      });
+    }
+
+    revalidatePath(`/${schoolSlug}/admin`, 'layout');
+
+    return { 
+      success: true, 
+      message: `Assigned subject to ${classes.length} class${classes.length > 1 ? 'es' : ''} successfully.` 
+    };
+  } catch (error) {
+    console.error("[BULK_ASSIGN_SUBJECT]", error);
+    return { success: false, error: "Failed to assign subject to classes" };
+  }
+}
+

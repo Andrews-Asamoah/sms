@@ -134,6 +134,8 @@ interface TeacherDialogProps {
       phone: string | null;
     };
   };
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function TeacherDialog({
@@ -143,9 +145,15 @@ export function TeacherDialog({
   departments,
   houses,
   teacher,
+  open: externalOpen,
+  onOpenChange: setExternalOpen,
 }: TeacherDialogProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const isControlled = externalOpen !== undefined;
+  const open = isControlled ? externalOpen : internalOpen;
+  const setOpen = isControlled ? setExternalOpen! : setInternalOpen;
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Confirmation state for existing members
   const [confirmState, setConfirmState] = useState<{

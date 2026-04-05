@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { MoreHorizontal, Edit, Trash2, Eye } from "lucide-react";
+import { MoreHorizontal, Edit, Trash2, Eye, ShieldBan, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TeacherDialog } from "./teacher-dialog";
+import { BanUserButton } from "../ban-user-button";
 import { toast } from "sonner";
 import { Teacher } from "./columns";
 
@@ -150,6 +151,36 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
             <Edit className="mr-2 h-4 w-4" />
             Edit teacher
           </DropdownMenuItem>
+
+          {teacher.profile?.userId && (
+            <BanUserButton
+              schoolSlug={schoolSlug}
+              userId={teacher.profile.userId}
+              isBanned={teacher.profile.user?.banned ?? false}
+              userName={`${teacher.profile.firstName} ${teacher.profile.lastName}`}
+              trigger={
+                <DropdownMenuItem 
+                  onSelect={(e) => e.preventDefault()}
+                  className={teacher.profile.user?.banned ? "text-green-600" : "text-amber-600"}
+                >
+                  {teacher.profile.user?.banned ? (
+                    <>
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Unban teacher
+                    </>
+                  ) : (
+                    <>
+                      <ShieldBan className="mr-2 h-4 w-4" />
+                      Ban teacher
+                    </>
+                  )}
+                </DropdownMenuItem>
+              }
+            />
+          )}
+
+
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => setShowDeleteDialog(true)}
             className="text-red-600"
@@ -161,17 +192,17 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
       </DropdownMenu>
 
       {/* Edit Dialog */}
-      {showEditDialog && !loadingData && (
-        <TeacherDialog
-          schoolId={teacher.schoolId}
-          schoolSlug={schoolSlug}
-          departments={departments}
-          houses={houses}
-          teacher={teacher}
-        >
-          <div />
-        </TeacherDialog>
-      )}
+      <TeacherDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        schoolId={teacher.schoolId}
+        schoolSlug={schoolSlug}
+        departments={departments}
+        houses={houses}
+        teacher={teacher}
+      >
+        <div />
+      </TeacherDialog>
 
       {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

@@ -8,7 +8,10 @@ import crypto from "crypto";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import type { GuardianType } from "@/lib/generated/prisma/client";
-import { headers } from "next/headers";
+
+// ============================================================================
+// SCHEMA
+// ============================================================================
 
 const addGuardianSchema = z.object({
   firstName: z.string().min(2),
@@ -64,6 +67,10 @@ const addGuardianSchema = z.object({
 
 type AddGuardianData = z.infer<typeof addGuardianSchema>;
 
+// ============================================================================
+// POST — add a guardian to a student
+// ============================================================================
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string; studentId: string }> },
@@ -71,9 +78,7 @@ export async function POST(
   try {
     const { schoolSlug, studentId } = await params;
 
-    // ========================================================================
-    // STEP 1: Validate access
-    // ========================================================================
+    // ── 1. Auth ──────────────────────────────────────────────────────────────
     const session = await requireSchoolAccess(schoolSlug);
     const schoolAccess = getSchoolRole(session, schoolSlug);
 
@@ -84,7 +89,6 @@ export async function POST(
       );
     }
 
-    // Only admin/owner can add guardians
     if (
       schoolAccess.effectiveRole !== "admin" &&
       schoolAccess.effectiveRole !== "owner" &&
@@ -96,20 +100,11 @@ export async function POST(
       );
     }
 
-    // ========================================================================
-    // STEP 2: Validate request body
-    // ========================================================================
+    // ── 2. Validate body ─────────────────────────────────────────────────────
     const body = await req.json();
-    console.log("[Add Guardian] Request body:", JSON.stringify(body, null, 2));
-
     const validation = addGuardianSchema.safeParse(body);
 
     if (!validation.success) {
-      console.error("[Add Guardian] Validation failed:", validation.error);
-      console.error(
-        "[Add Guardian] Error details:",
-        JSON.stringify(validation.error.format(), null, 2),
-      );
       return NextResponse.json(
         {
           error: "Invalid request data",
@@ -121,34 +116,21 @@ export async function POST(
 
     const data: AddGuardianData = validation.data;
 
-    // ========================================================================
-    // STEP 3: Verify student exists
-    // ========================================================================
+    // ── 3. Verify student exists ─────────────────────────────────────────────
     const student = await prisma.student.findUnique({
-      where: {
-        id: studentId,
-        schoolId: data.schoolId,
-      },
-      include: {
-        profile: true,
-      },
+      where: { id: studentId, schoolId: data.schoolId },
+      include: { profile: true },
     });
 
     if (!student) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
-    // ========================================================================
-    // STEP 4: Check if guardian already linked to this student
-    // ========================================================================
+    // ── 4. Check if guardian is already linked to this student ───────────────
     const existingLink = await prisma.guardianStudent.findFirst({
       where: {
-        student: {
-          id: studentId,
-        },
-        guardian: {
-          email: data.email,
-        },
+        studentId,
+        guardian: { email: data.email },
       },
     });
 
@@ -161,9 +143,7 @@ export async function POST(
       );
     }
 
-    // ========================================================================
-    // STEP 5: Check if user/guardian exists
-    // ========================================================================
+    // ── 5. Resolve or create the guardian ────────────────────────────────────
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -171,13 +151,11 @@ export async function POST(
     let guardian;
 
     if (existingUser) {
-      // ====================================================================
-      // Guardian user EXISTS
-      // ====================================================================
-      console.log(
-        `📋 [Add Guardian] Guardian ${data.email} already has account`,
-      );
-
+      // ── Guardian already has a platform account ──────────────────────────
+      //
+      // Find their profile — it must exist if they've been through the normal
+      // sign-up / invitation flow.
+      //
       const guardianProfile = await prisma.userProfile.findUnique({
         where: { userId: existingUser.id },
       });
@@ -186,12 +164,9 @@ export async function POST(
         throw new Error(`User profile not found for guardian ${data.email}`);
       }
 
-      // Find or create Guardian record
+      // Find or create the Guardian record for this school.
       guardian = await prisma.guardian.findFirst({
-        where: {
-          schoolId: data.schoolId,
-          email: data.email,
-        },
+        where: { schoolId: data.schoolId, email: data.email },
       });
 
       if (!guardian) {
@@ -201,22 +176,24 @@ export async function POST(
             guardianId: crypto.randomUUID(),
             firstName: data.firstName,
             lastName: data.lastName,
-            otherNames: data.otherNames || null,
+            otherNames: data.otherNames ?? null,
             email: data.email,
             phone: data.phone,
-            alternatePhone: data.alternatePhone || null,
+            alternatePhone: data.alternatePhone ?? null,
             relationshipType: data.relationshipType as GuardianType,
-            occupation: data.occupation || null,
-            employer: data.employer || null,
-            workPhone: data.workPhone || null,
-            workAddress: data.workAddress || null,
+            occupation: data.occupation ?? null,
+            employer: data.employer ?? null,
+            workPhone: data.workPhone ?? null,
+            workAddress: data.workAddress ?? null,
             profileId: guardianProfile.id,
             canLogin: true,
           },
         });
       }
 
-      // Add to organization if not already member
+      // Ensure they are a member of the school's organization.
+      // Guardians get the "guardian" role — not "member" — so the permission
+      // system can correctly scope what they can see.
       const existingMembership = await prisma.member.findFirst({
         where: {
           userId: existingUser.id,
@@ -229,39 +206,63 @@ export async function POST(
           body: {
             organizationId: data.organizationId,
             userId: existingUser.id,
-            role: "member",
+            role: "guardian",
+          },
+          headers: req.headers,
+        });
+      }
+
+      // Link guardian to student.
+      const link = await prisma.guardianStudent.findUnique({
+        where: {
+          guardianId_studentId: {
+            guardianId: guardian.id,
+            studentId: student.id,
+          },
+        },
+      });
+
+      if (!link) {
+        await prisma.guardianStudent.create({
+          data: {
+            guardianId: guardian.id,
+            studentId: student.id,
+            isPrimary: data.isPrimary,
+            canPickup: data.canPickup,
+            receiveReports: data.receiveReports,
+            receiveAlerts: data.receiveAlerts,
           },
         });
-        console.log(`✅ [Add Guardian] Added ${data.email} to organization`);
       }
     } else {
-      // ====================================================================
-      // NEW guardian - create record and send invitation
-      // ====================================================================
-      console.log(
-        `📧 [Add Guardian] Creating guardian and sending invitation: ${data.email}`,
-      );
-
+      // ── New guardian — create record, link to student, send invitation ────
+      //
+      // We create the Guardian record and the GuardianStudent link BEFORE
+      // sending the invitation. This means the `afterAcceptInvitation` hook
+      // in auth.ts will find the guardian record by email and link the new
+      // UserProfile to it automatically when the guardian accepts.
+      //
       guardian = await prisma.guardian.create({
         data: {
           schoolId: data.schoolId,
           guardianId: crypto.randomUUID(),
           firstName: data.firstName,
           lastName: data.lastName,
-          otherNames: data.otherNames || null,
+          otherNames: data.otherNames ?? null,
           email: data.email,
           phone: data.phone,
-          alternatePhone: data.alternatePhone || null,
+          alternatePhone: data.alternatePhone ?? null,
           relationshipType: data.relationshipType as GuardianType,
-          occupation: data.occupation || null,
-          employer: data.employer || null,
-          workPhone: data.workPhone || null,
-          workAddress: data.workAddress || null,
+          occupation: data.occupation ?? null,
+          employer: data.employer ?? null,
+          workPhone: data.workPhone ?? null,
+          workAddress: data.workAddress ?? null,
           canLogin: true,
+          // profileId is null until the guardian accepts the invitation and
+          // the afterAcceptInvitation hook links their new account.
         },
       });
 
-      // Link to student first
       await prisma.guardianStudent.create({
         data: {
           guardianId: guardian.id,
@@ -273,47 +274,21 @@ export async function POST(
         },
       });
 
-      // Send invitation
+      // Send invitation via Better Auth — the afterCreateInvitation hook in
+      // auth.ts will dispatch the correct guardian invitation email.
+      // Role must be "guardian" so the hook knows which email template to use
+      // and so the member row gets the right role on acceptance.
       await auth.api.createInvitation({
         body: {
           email: data.email,
           organizationId: data.organizationId,
-          role: "member",
+          role: "guardian",
         },
-        headers: await headers(),
-      });
-
-      console.log(`✅ [Add Guardian] Sent invitation to ${data.email}`);
-    }
-
-    // ========================================================================
-    // STEP 6: Link guardian to student (if not done above)
-    // ========================================================================
-    const link = await prisma.guardianStudent.findUnique({
-      where: {
-        guardianId_studentId: {
-          guardianId: guardian.id,
-          studentId: student.id,
-        },
-      },
-    });
-
-    if (!link) {
-      await prisma.guardianStudent.create({
-        data: {
-          guardianId: guardian.id,
-          studentId: student.id,
-          isPrimary: data.isPrimary,
-          canPickup: data.canPickup,
-          receiveReports: data.receiveReports,
-          receiveAlerts: data.receiveAlerts,
-        },
+        headers: req.headers,
       });
     }
 
-    // ========================================================================
-    // STEP 7: Create audit log
-    // ========================================================================
+    // ── 6. Audit log ──────────────────────────────────────────────────────────
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
@@ -331,9 +306,6 @@ export async function POST(
       },
     });
 
-    // ========================================================================
-    // RESPONSE
-    // ========================================================================
     return NextResponse.json(
       {
         success: true,
@@ -362,7 +334,7 @@ export async function POST(
 }
 
 // ============================================================================
-// GET - List all guardians for a student
+// GET — list all guardians for a student
 // ============================================================================
 
 export async function GET(
@@ -371,7 +343,6 @@ export async function GET(
 ) {
   try {
     const { schoolSlug, studentId } = await params;
-
     const session = await requireSchoolAccess(schoolSlug);
     const schoolAccess = getSchoolRole(session, schoolSlug);
 
@@ -384,9 +355,7 @@ export async function GET(
 
     const guardians = await prisma.guardianStudent.findMany({
       where: { studentId },
-      include: {
-        guardian: true,
-      },
+      include: { guardian: true },
       orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
     });
 

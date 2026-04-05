@@ -1,61 +1,114 @@
 "use client";
 
-import { PDFViewer, PDFDownloadLink } from "@react-pdf/renderer";
-import { ReportCardPDF } from "@/components/school/report-cards/report-card-pdf";
+import { useEffect, useState } from "react";
+import { FormalReportCard } from "@/components/school/report-cards/formal-report-card";
+import dynamic_next from "next/dynamic";
 import { Button } from "@/components/ui/button";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, Pencil } from "lucide-react";
+import { ReportCardEditorDialog } from "@/components/school/report-cards/report-card-editor-dialog";
+import { updateReportCardData } from "../../actions";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
-interface StudentReportClientProps {
+const PDFDownloadLink = dynamic_next(
+  () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+  { ssr: false },
+);
+
+const ReportCardPDF = dynamic_next(
+  () =>
+    import("@/components/school/report-cards/report-card-pdf").then(
+      (mod) => mod.ReportCardPDF,
+    ),
+  { ssr: false },
+);
+
+interface AdminReportCardClientProps {
   report: any;
   school: any;
   schoolSlug: string;
+  remarks: any[];
+  gradingSystem: any;
 }
 
-export function StudentReportClient({
+export function AdminReportCardClient({
   report,
   school,
   schoolSlug,
-}: StudentReportClientProps) {
-  // Combine snapshotted data with student info for the PDF
+  remarks,
+  gradingSystem,
+}: AdminReportCardClientProps) {
+  const router = useRouter();
+  const [editOpen, setEditOpen] = useState(false);
+
+  // Wire up the print button in the parent toolbar
+  useEffect(() => {
+    const btn = document.getElementById("print-report-btn");
+    if (btn) btn.onclick = () => window.print();
+  }, []);
+
   const pdfData = {
     ...report.data,
     student: {
       name: `${report.student.profile.firstName} ${report.student.profile.lastName}`,
       id: report.student.studentId,
-      class: report.set.class?.name || report.data.class,
+      class: report.set.class?.name || report.data?.class,
     },
+  };
+
+  const handleSaveData = async (updatedData: any) => {
+    try {
+      const result = await updateReportCardData(schoolSlug, report.setId, report.studentId, updatedData);
+      if (result.success) {
+        toast.success("Report card data updated successfully");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Failed to update report card");
+      }
+    } catch (err) {
+      toast.error("Something went wrong");
+    }
   };
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="p-4 bg-background border-b flex justify-end gap-2">
+      {/* Action bar */}
+      <div className="p-3 bg-white border-b flex justify-end gap-2 print:hidden">
+        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+          <Pencil className="w-4 h-4 mr-2" /> Edit Data
+        </Button>
         <PDFDownloadLink
           document={<ReportCardPDF data={pdfData} school={school} />}
-          fileName={`${pdfData.student.name}_Report_Card.pdf`}
+          fileName={`${report.student.profile.firstName}_${report.student.profile.lastName}_Report.pdf`}
         >
           {({ loading }) => (
-            <Button disabled={loading}>
+            <Button variant="outline" size="sm" disabled={loading}>
               {loading ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <Download className="w-4 h-4 mr-2" />
               )}
-              {loading ? "Preparing PDF..." : "Download PDF"}
+              {loading ? "Preparing PDF…" : "Download PDF"}
             </Button>
           )}
         </PDFDownloadLink>
       </div>
 
-      <div className="flex-1 bg-gray-100 p-4">
-        <PDFViewer
-          width="100%"
-          height="100%"
-          className="rounded-lg shadow-lg border-none"
-          showToolbar={false}
-        >
-          <ReportCardPDF data={pdfData} school={school} />
-        </PDFViewer>
-      </div>
+      {/* Formal web report card */}
+      <FormalReportCard
+        report={report}
+        school={school}
+        remarks={remarks}
+        gradingSystem={gradingSystem}
+      />
+
+      {/* Edit Dialog */}
+      <ReportCardEditorDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        reportData={report.data}
+        onSave={handleSaveData}
+      />
     </div>
   );
 }

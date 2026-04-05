@@ -20,6 +20,7 @@ import {
   ArrowRight,
   ClipboardCheck,
   BadgeDollarSign,
+  MessageSquareText,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -210,6 +211,19 @@ export function TeacherClassesClient({
                       >
                         <BadgeDollarSign className="h-3.5 w-3.5 mr-2 opacity-70 group-hover/btn:opacity-100" />
                         Fees
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 text-xs bg-white/5 border-white/10 hover:bg-purple-600 hover:text-white group/btn col-span-2"
+                      asChild
+                    >
+                      <Link
+                        href={`/${schoolSlug}/teacher/classes/${cls.slug || cls.id}/remarks`}
+                      >
+                        <MessageSquareText className="h-3.5 w-3.5 mr-2 opacity-70 group-hover/btn:opacity-100" />
+                        Report Card Remarks
                       </Link>
                     </Button>
                   </>

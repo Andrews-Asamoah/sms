@@ -1,1 +1,0 @@
-﻿app/(school)/[schoolSlug]/accountant/finance/invoices/generate/generate-client.tsx(20,44): error TS2307: Cannot find module '@/components/ui/radio-group' or its corresponding type declarations.

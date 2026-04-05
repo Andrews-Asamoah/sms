@@ -22,16 +22,28 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
     if (membership.organization.school) {
       const school = membership.organization.school;
 
+      // Better Auth stores comma-separated roles (e.g. "admin,teacher,guardian").
+      // Split and find the highest-priority one to use as the effective role.
+      const orgRoles = membership.role
+        .split(",")
+        .map((r) => r.trim())
+        .filter(Boolean) as OrganizationRole[];
+
+      // Pick the highest-priority org role
+      let bestEffective: EffectiveRole = "member";
+      for (const r of orgRoles) {
+        const mapped = mapOrgRoleToEffective(r);
+        bestEffective = getHighestRole(bestEffective, mapped);
+      }
+
       schoolAccessMap.set(school.id, {
         schoolId: school.id,
         schoolName: school.name,
         subdomain: school.subdomain,
         organizationId: membership.organizationId,
-        organizationRole: membership.role as OrganizationRole,
+        organizationRole: orgRoles[0] ?? (membership.role as OrganizationRole),
         profileRoles: [], // Will be populated below
-        effectiveRole: mapOrgRoleToEffective(
-          membership.role as OrganizationRole,
-        ),
+        effectiveRole: bestEffective,
         isActive: true,
       });
     }
@@ -39,7 +51,7 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
 
   // Step 2: Add profile-based roles
   if (session.profile) {
-    const { teacher, student, staff, guardian } = session.profile;
+    const { teacher, student, staff, guardians } = session.profile;
 
     // Teacher role
     if (teacher && teacher.isActive && teacher.school) {
@@ -115,26 +127,31 @@ export function getUserSchoolAccess(session: ExtendedSession): SchoolAccess[] {
       }
     }
 
-    // Guardian role (includes parents, legal guardians, and other caretakers)
-    if (guardian && guardian.isActive && guardian.canLogin && guardian.school) {
-      const existing = schoolAccessMap.get(guardian.school.id);
-      if (existing) {
-        existing.profileRoles.push("guardian");
-        existing.effectiveRole = getHighestRole(
-          existing.effectiveRole,
-          "guardian",
-        );
-      } else {
-        schoolAccessMap.set(guardian.school.id, {
-          schoolId: guardian.school.id,
-          schoolName: guardian.school.name,
-          subdomain: guardian.school.subdomain,
-          organizationId: guardian.school.organizationId,
-          organizationRole: undefined,
-          profileRoles: ["guardian"],
-          effectiveRole: "guardian",
-          isActive: guardian.isActive,
-        });
+    // Guardian roles — a profile may have guardian records at MULTIPLE schools
+    // (multi-school parents). Iterate all and add each school's access entry.
+    if (guardians && guardians.length > 0) {
+      for (const guardian of guardians) {
+        if (guardian.isActive && guardian.canLogin && guardian.school) {
+          const existing = schoolAccessMap.get(guardian.school.id);
+          if (existing) {
+            existing.profileRoles.push("guardian");
+            existing.effectiveRole = getHighestRole(
+              existing.effectiveRole,
+              "guardian",
+            );
+          } else {
+            schoolAccessMap.set(guardian.school.id, {
+              schoolId: guardian.school.id,
+              schoolName: guardian.school.name,
+              subdomain: guardian.school.subdomain,
+              organizationId: guardian.school.organizationId,
+              organizationRole: undefined,
+              profileRoles: ["guardian"],
+              effectiveRole: "guardian",
+              isActive: guardian.isActive,
+            });
+          }
+        }
       }
     }
   }
@@ -296,12 +313,29 @@ export function getAllRolesInSchool(
   // 1. Add profile roles first (e.g., teacher, student, etc.)
   access.profileRoles.forEach((role) => roles.add(role.toLowerCase()));
 
-  // 2. Add organization role only if it's NOT 'member' or if NO profile roles exist.
-  // This prevents 'member' from appearing alongside 'teacher' or 'admin'.
-  if (access.organizationRole) {
-    const orgRole = access.organizationRole.toLowerCase();
+  // 2. Resolve organization roles — the member.role field may be
+  //    comma-separated (e.g. "admin,teacher,guardian").
+  //    Add each individual role, suppressing "member" when real roles exist.
+  const membership = session.memberships.find(
+    (m) => m.organization.school?.subdomain === subdomain,
+  );
+  const rawOrgRole = membership?.role ?? "";
+  const orgRoles = rawOrgRole
+    .split(",")
+    .map((r) => r.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const orgRole of orgRoles) {
     if (orgRole !== "member" || roles.size === 0) {
       roles.add(orgRole);
+    }
+  }
+
+  // Fallback: if no org roles were split and we have a single organizationRole
+  if (orgRoles.length === 0 && access.organizationRole) {
+    const fallback = access.organizationRole.toLowerCase();
+    if (fallback !== "member" || roles.size === 0) {
+      roles.add(fallback);
     }
   }
 

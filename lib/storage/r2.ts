@@ -84,8 +84,11 @@ export async function uploadFile(
   try {
     const client = getR2Client();
     const isImage = mimeType.startsWith("image/");
+    // Do NOT use "immutable" for images — school logos and profile pictures
+    // are replaced in-place (same key), so "immutable" would prevent browsers
+    // and CDNs from ever fetching the new file. Use a long max-age without it.
     const cacheControl = isImage
-      ? "public, max-age=31536000, immutable"
+      ? "public, max-age=31536000"
       : "public, max-age=86400";
 
     await client.send(

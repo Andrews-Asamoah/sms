@@ -20,6 +20,7 @@ import {
   Calendar,
   ArrowRight,
   Bell,
+  GraduationCap,
 } from "lucide-react";
 import { Decimal } from "@/lib/generated/prisma/runtime/client";
 
@@ -337,7 +338,7 @@ export default async function GuardianDashboard({
           <CardDescription>Common tasks and important links</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
             <Link href={`/${schoolSlug}/guardian/bills`}>
               <Button
                 className="w-full h-auto flex-col gap-2 p-4"
@@ -365,6 +366,16 @@ export default async function GuardianDashboard({
               >
                 <Bell className="h-8 w-8" />
                 <span>Messages</span>
+              </Button>
+            </Link>
+
+            <Link href={`/${schoolSlug}/guardian/reports`}>
+              <Button
+                className="w-full h-auto flex-col gap-2 p-4"
+                variant="outline"
+              >
+                <GraduationCap className="h-8 w-8" />
+                <span>Report Cards</span>
               </Button>
             </Link>
           </div>

@@ -36,6 +36,20 @@ export async function POST(
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
+    // Get current term from school settings
+    const schoolSettings = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { settings: true },
+    });
+    const currentTermId = (schoolSettings?.settings as Record<string, string> | null)?.currentTermId ?? null;
+
+    if (!currentTermId) {
+      return NextResponse.json(
+        { error: "Current Term not set. Please configure it in school settings first." },
+        { status: 400 },
+      );
+    }
+
     // Enroll students in class
     await prisma.$transaction(
       studentIds.map((studentId) =>
@@ -47,6 +61,7 @@ export async function POST(
               create: {
                 classId: classId,
                 academicYearId: classRecord.academicYearId,
+                termId: currentTermId,
                 status: "ACTIVE",
               },
             },

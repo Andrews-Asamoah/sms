@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -24,6 +24,7 @@ interface BanUserButtonProps {
   userId: string;
   isBanned: boolean;
   userName: string;
+  trigger?: React.ReactNode;
 }
 
 export function BanUserButton({
@@ -31,22 +32,32 @@ export function BanUserButton({
   userId,
   isBanned,
   userName,
+  trigger,
 }: BanUserButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [reason, setReason] = useState("");
+  const [localIsBanned, setLocalIsBanned] = useState(isBanned);
+
+  useEffect(() => {
+    setLocalIsBanned(isBanned);
+  }, [isBanned]);
 
   async function handleToggleBan(ban: boolean) {
     setIsLoading(true);
     try {
+      const endpoint = ban 
+        ? `/api/schools/${schoolSlug}/members/${userId}/ban`
+        : `/api/schools/${schoolSlug}/members/${userId}/unban`;
       const response = await fetch(
-        `/api/schools/${schoolSlug}/users/${userId}/ban`,
+        endpoint,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ban, reason: reason.trim() || undefined }),
+          body: JSON.stringify({ reason: reason.trim() || undefined }),
         }
       );
+
 
       if (!response.ok) {
         const data = await response.json();
@@ -59,6 +70,7 @@ export function BanUserButton({
           : `${userName} has been unbanned and can now log in again.`,
       });
 
+      setLocalIsBanned(ban);
       setReason("");
       router.refresh();
     } catch (error) {
@@ -68,14 +80,16 @@ export function BanUserButton({
     }
   }
 
-  if (isBanned) {
+  if (localIsBanned) {
     return (
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="outline" className="border-green-500 text-green-600 hover:bg-green-50">
-            <ShieldCheck className="mr-2 h-4 w-4" />
-            Unban User
-          </Button>
+          {trigger || (
+            <Button variant="outline" className="border-green-500 text-green-600 hover:bg-green-50">
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Unban User
+            </Button>
+          )}
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -104,10 +118,12 @@ export function BanUserButton({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive/5">
-          <ShieldBan className="mr-2 h-4 w-4" />
-          Ban User
-        </Button>
+        {trigger || (
+          <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive/5">
+            <ShieldBan className="mr-2 h-4 w-4" />
+            Ban User
+          </Button>
+        )}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -118,13 +134,14 @@ export function BanUserButton({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-2 py-2">
-          <Label htmlFor="reason">Reason (optional)</Label>
+          <Label htmlFor="reason">Reason (required)</Label>
           <Textarea
             id="reason"
-            placeholder="Explain the reason for this ban..."
+            placeholder="Explain the reason for this ban. This will be shown to the user."
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
+            required
           />
         </div>
         <AlertDialogFooter>
@@ -132,7 +149,7 @@ export function BanUserButton({
           <AlertDialogAction
             className="bg-destructive hover:bg-destructive/90"
             onClick={() => handleToggleBan(true)}
-            disabled={isLoading}
+            disabled={isLoading || !reason.trim()}
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Yes, Ban User

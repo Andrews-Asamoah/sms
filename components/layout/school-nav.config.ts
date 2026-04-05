@@ -279,21 +279,6 @@ export const schoolNavSections: NavSection[] = [
     ],
   },
   {
-    title: "Communication",
-    items: [
-      {
-        title: "Announcements",
-        url: "/announcements",
-        icon: MessageSquare,
-      },
-      {
-        title: "Notifications",
-        url: "/notifications",
-        icon: Bell,
-      },
-    ],
-  },
-  {
     title: "System",
     items: [
       {
@@ -301,10 +286,6 @@ export const schoolNavSections: NavSection[] = [
         url: "/admin/settings",
         icon: Settings,
         permission: "canManageSettings",
-        items: [
-          { title: "General", url: "/admin/settings" },
-          { title: "Users & Roles", url: "/admin/users" },
-        ],
       },
       {
         title: "Subscription",
@@ -320,6 +301,7 @@ export const schoolNavSections: NavSection[] = [
       },
     ],
   },
+
   {
     title: "Student Area",
     items: [
@@ -387,6 +369,21 @@ export const schoolNavSections: NavSection[] = [
         title: "Clubs",
         url: "/guardian/clubs",
         icon: Users,
+      },
+    ],
+  },
+  {
+    title: "Communication",
+    items: [
+      {
+        title: "Announcements",
+        url: "/announcements",
+        icon: MessageSquare,
+      },
+      {
+        title: "Notifications",
+        url: "/notifications",
+        icon: Bell,
       },
     ],
   },
