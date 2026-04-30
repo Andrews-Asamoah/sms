@@ -1,4 +1,4 @@
-// components/System/Schools/school-invitations-list.tsx - UPDATED VERSION
+// components/System/Schools/school-invitations-list.tsx
 "use client";
 
 import { useState } from "react";

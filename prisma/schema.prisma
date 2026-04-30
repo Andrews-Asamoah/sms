@@ -148,6 +148,7 @@ model organization {
   members     member[]
   invitations invitation[]
   school      School?
+  roles       organizationRole[]
 
   // Subscription State (Better Auth Customization)
   subscriptionStatus String    @default("TRIALING") // Use String for Better Auth compatibility if needed, else Enum
@@ -158,13 +159,31 @@ model organization {
   @@map("organizations")
 }
 
+// ============================================================
+// BETTER AUTH DYNAMIC ACCESS CONTROL
+// Required by the organization plugin when dynamicAccessControl is enabled.
+// Stores custom roles created at runtime per organization.
+// ============================================================
+
+model organizationRole {
+  id             String   @id
+  organizationId String
+  role           String
+  permissions    String // JSON string of permission map e.g. {"student":["view","create"]}
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, role])
+  @@index([organizationId])
+  @@map("organization_roles")
+}
+
 model member {
   id             String   @id
   organizationId String
   userId         String
-  // Role is a string — Better Auth stores comma-separated roles for multi-role support.
-  // Your custom roles (admin, teacher, accountant, student, guardian) are defined
-  // in auth.ts via the admin plugin's roles config and stored here.
   role           String
   banned         Boolean  @default(false)
   banReason      String?
@@ -185,12 +204,10 @@ model invitation {
   id             String   @id
   organizationId String
   email          String
-  // role is a string (can be comma-separated for multiple roles)
   role           String?
   status         String   @default("pending")
   expiresAt      DateTime
   createdAt      DateTime @default(now())
-  // inviterId references the user who sent the invitation
   inviterId      String
 
   organization organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -266,6 +283,7 @@ model School {
   payslips                    Payslip[]
   classrooms                  Classroom[]
   timeSlots                   TimeSlot[]
+  periodTemplates             PeriodTemplate[]
   timetableEntries            TimetableEntry[]
 
   // Advanced Accounting Registries
@@ -440,7 +458,7 @@ model Staff {
   // Job Information
   staffType    StaffType
   departmentId String?
-  jobTitle   String?
+  jobTitle     String?
 
   // Employment Details
   employmentType  EmploymentType @default(FULL_TIME)
@@ -451,9 +469,9 @@ model Staff {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  profile    UserProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  school     School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  department Department?  @relation("StaffDepartment", fields: [departmentId], references: [id])
+  profile    UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department Department? @relation("StaffDepartment", fields: [departmentId], references: [id])
   documents  Document[]
   payslips   Payslip[]
 
@@ -638,6 +656,8 @@ model Department {
   timetableEntries     TimetableEntry[]
   assessmentTemplates  AssessmentTemplate[]
   reportCardTemplates  ReportCardTemplate[]
+  periodTemplates      PeriodTemplate[]     @relation("DeptPeriodTemplates")
+  timeSlots            TimeSlot[]           @relation("DeptTimeSlots")
 
   @@unique([code, schoolId])
   @@index([headOfDeptId])
@@ -1041,14 +1061,14 @@ model TranscriptRequest {
 // ============================================================================
 
 model ReportCardTemplate {
-  id           String   @id @default(cuid())
-  schoolId     String
-  name         String
-  description  String?
-  layout       Json // For storing configuration of sections, titles, etc.
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  description String?
+  layout      Json // For storing configuration of sections, titles, etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Level scoping: references the school department that represents this level
   // e.g. "Primary" department → primary-level template with SEL rubrics
@@ -1059,9 +1079,9 @@ model ReportCardTemplate {
   selConfig           Json? // Primary: Social-Emotional Learning rubric definitions
   disciplineConfig    Json? // JHS: discipline, readiness, and predictive rubrics
 
-  school       School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  department   Department?     @relation(fields: [departmentId], references: [id])
-  sets         ReportCardSet[]
+  school     School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department Department?     @relation(fields: [departmentId], references: [id])
+  sets       ReportCardSet[]
 
   @@index([schoolId])
   @@index([departmentId])
@@ -1106,9 +1126,9 @@ model ReportCard {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  set                ReportCardSet      @relation(fields: [setId], references: [id], onDelete: Cascade)
-  student            Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  behavioralRemarks  BehavioralRemark[]
+  set               ReportCardSet      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  student           Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  behavioralRemarks BehavioralRemark[]
 
   @@unique([setId, studentId])
   @@index([setId])
@@ -1123,8 +1143,8 @@ model BehavioralRemark {
   pillar       BehavioralPillar
   // Predefined value (e.g. "Excellent", "Satisfactory") or custom text when pillar = OTHER
   value        String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   reportCard ReportCard @relation(fields: [reportCardId], references: [id], onDelete: Cascade)
 
@@ -2301,6 +2321,12 @@ enum DayOfWeek {
   SUNDAY
 }
 
+enum TimetableEntryType {
+  LESSON
+  BREAK
+  ACTIVITY
+}
+
 model Classroom {
   id        String   @id @default(cuid())
   schoolId  String
@@ -2316,44 +2342,75 @@ model Classroom {
   @@map("classrooms")
 }
 
+/// Defines a reusable period (e.g. "Period 1: 08:00–08:45") with no day attached.
+/// departmentId = null means school-wide; set = department-specific schedule.
+model PeriodTemplate {
+  id           String  @id @default(cuid())
+  schoolId     String
+  /// null → applies to all departments; set → department-specific schedule
+  departmentId String?
+  name         String  // "Period 1", "Lunch Break"
+  startTime    String  // "HH:mm"
+  endTime      String  // "HH:mm"
+  sortOrder    Int     @default(0)
+
+  school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department Department? @relation("DeptPeriodTemplates", fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, departmentId, startTime, endTime])
+  @@index([schoolId, departmentId])
+  @@map("period_templates")
+}
+
 model TimeSlot {
-  id        String    @id @default(cuid())
-  schoolId  String
-  dayOfWeek DayOfWeek
-  startTime String // "HH:mm"
-  endTime   String // "HH:mm"
-  label     String? // e.g., "Period 1"
+  id           String    @id @default(cuid())
+  schoolId     String
+  /// null → school-wide slot; set → only appears on this department's timetable
+  departmentId String?
+  dayOfWeek    DayOfWeek
+  startTime    String // "HH:mm"
+  endTime      String // "HH:mm"
+  label        String? // e.g., "Period 1"
 
   school           School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department       Department?      @relation("DeptTimeSlots", fields: [departmentId], references: [id], onDelete: Cascade)
   timetableEntries TimetableEntry[]
 
-  @@unique([schoolId, dayOfWeek, startTime, endTime])
+  @@unique([schoolId, departmentId, dayOfWeek, startTime, endTime])
+  @@index([schoolId, departmentId])
   @@map("time_slots")
 }
 
 model TimetableEntry {
-  id             String  @id @default(cuid())
+  id             String             @id @default(cuid())
   schoolId       String
   classId        String?
   departmentId   String?
-  subjectId      String
-  teacherId      String
+  /// LESSON = normal class, BREAK = lunch/recess, ACTIVITY = P.E./Worship/Library
+  type           TimetableEntryType @default(LESSON)
+  /// Human-readable label for breaks/activities e.g. "Lunch", "Worship"
+  label          String?
+  subjectId      String?  // Optional: Breaks and Activities may not have a subject
+  teacherId      String?  // Optional: Teacherless activities (P.E., Worship) allowed
   timeSlotId     String
   classroomId    String?
   academicYearId String
   termId         String?
 
-  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  class        Class?       @relation(fields: [classId], references: [id], onDelete: Cascade)
-  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  timeSlot     TimeSlot     @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
-  classroom    Classroom?   @relation(fields: [classroomId], references: [id], onDelete: SetNull)
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  school       School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class        Class?             @relation(fields: [classId], references: [id], onDelete: Cascade)
+  department   Department?        @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  subject      Subject?           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher      Teacher?           @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  timeSlot     TimeSlot           @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
+  classroom    Classroom?         @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
-  @@unique([teacherId, timeSlotId, academicYearId])
+  // Teacher conflict: one teacher can only be in one place per time slot (enforced at API layer for nullables)
   @@unique([classroomId, timeSlotId, academicYearId])
+  // One class/dept can only have one entry per slot
+  @@unique([classId, timeSlotId, academicYearId])
+  @@unique([departmentId, timeSlotId, academicYearId])
   @@index([classId])
   @@index([departmentId])
   @@index([teacherId])

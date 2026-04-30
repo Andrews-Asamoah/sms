@@ -23,7 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddGuardianDialog } from "@/components/school/students/add-guardian-dialog";
@@ -67,7 +67,9 @@ export default async function StudentDetailPage({
     where: { id: studentId, schoolId: school.id },
     include: {
       profile: {
-        include: { user: true },
+        include: {
+          user: { select: { id: true, email: true, image: true } },
+        },
       },
       class: {
         include: {
@@ -95,7 +97,7 @@ export default async function StudentDetailPage({
         include: {
           class: true,
           academicYear: true,
-          term: true, // required — enrollment is scoped to term
+          term: true,
         },
         orderBy: { enrolledAt: "desc" },
       },
@@ -169,8 +171,15 @@ export default async function StudentDetailPage({
       <Card className="backdrop-blur-sm bg-card/50 border-border/50">
         <CardContent className="pt-6">
           <div className="flex items-start gap-6">
-            <Avatar className="h-24 w-24">
-              <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
+            <Avatar className="h-24 w-24 border-4 border-background shadow-lg ring-2 ring-border">
+              <AvatarImage
+                src={student.profile.user?.image ?? ""}
+                alt={`${student.profile.firstName} ${student.profile.lastName}`}
+                className="object-cover"
+              />
+              <AvatarFallback className="text-2xl font-semibold bg-gradient-to-br from-primary/20 to-primary/40 text-primary">
+                {initials}
+              </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <div className="flex items-start justify-between">

@@ -70,6 +70,12 @@ export const r2Keys = {
     `${schoolSlug}/images/logo/logo.${ext}`,
   profileImage: (schoolSlug: string, userId: string, ext: string) =>
     `${schoolSlug}/images/profiles/${userId}.${ext}`,
+  studentImage: (schoolSlug: string, userId: string, ext: string) =>
+    `${schoolSlug}/images/students/${userId}.${ext}`,
+  teacherImage: (schoolSlug: string, userId: string, ext: string) =>
+    `${schoolSlug}/images/teachers/${userId}.${ext}`,
+  staffImage: (schoolSlug: string, userId: string, ext: string) =>
+    `${schoolSlug}/images/staff/${userId}.${ext}`,
   document: (schoolSlug: string, entityType: string, filename: string) =>
     `${schoolSlug}/files/documents/${entityType}/${filename}`,
   report: (schoolSlug: string, filename: string) =>

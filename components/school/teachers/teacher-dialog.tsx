@@ -39,6 +39,7 @@ import { FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { UserAvatarUploader } from "@/components/shared/user-avatar-uploader";
 
 // ─── Invite Mode Schema (new teacher — email only, no bio) ───────────────────
 const teacherInviteSchema = z.object({
@@ -132,6 +133,10 @@ interface TeacherDialogProps {
       gender: string;
       dateOfBirth: Date;
       phone: string | null;
+      /** BetterAuth userId — present when teacher has accepted invitation */
+      userId?: string | null;
+      /** Profile photo URL */
+      image?: string | null;
     };
   };
   open?: boolean;
@@ -664,6 +669,20 @@ export function TeacherDialog({
               className="flex flex-col overflow-hidden flex-1"
             >
               <div className="space-y-6 overflow-y-auto pr-1 flex-1">
+                {/* Profile Photo — only shown when the teacher has accepted their invite */}
+                {teacher?.profile?.userId && (
+                  <div className="flex flex-col items-center gap-2 pb-2">
+                    <UserAvatarUploader
+                      userId={teacher.profile.userId}
+                      schoolSlug={schoolSlug}
+                      entityType="teacher"
+                      currentImage={teacher.profile.image}
+                      displayName={`${teacher.profile.firstName} ${teacher.profile.lastName}`}
+                    />
+                    <p className="text-xs text-muted-foreground">Profile photo</p>
+                  </div>
+                )}
+
                 {/* Personal Information */}
                 <div className="space-y-4">
                   <h3 className="font-semibold text-sm">

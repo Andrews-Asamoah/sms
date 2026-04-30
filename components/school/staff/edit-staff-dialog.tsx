@@ -28,6 +28,7 @@ import { FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { UserAvatarUploader } from "@/components/shared/user-avatar-uploader";
 
 const staffEditSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters"),
@@ -75,6 +76,10 @@ interface EditStaffDialogProps {
       gender: string;
       dateOfBirth: Date;
       phone: string | null;
+      /** BetterAuth userId — present when staff member has an active account */
+      userId?: string | null;
+      /** Profile photo URL */
+      image?: string | null;
     };
   };
 }
@@ -160,6 +165,20 @@ export function EditStaffDialog({ schoolSlug, departments, staff }: EditStaffDia
 
         <form onSubmit={editForm.handleSubmit(onEdit)} className="flex flex-col overflow-hidden flex-1">
           <div className="space-y-6 overflow-y-auto pr-1 flex-1 pb-4">
+            {/* Profile Photo */}
+            {staff.profile.userId && (
+              <div className="flex flex-col items-center gap-2">
+                <UserAvatarUploader
+                  userId={staff.profile.userId}
+                  schoolSlug={schoolSlug}
+                  entityType="staff"
+                  currentImage={staff.profile.image}
+                  displayName={`${staff.profile.firstName} ${staff.profile.lastName}`}
+                />
+                <p className="text-xs text-muted-foreground">Profile photo</p>
+              </div>
+            )}
+
             {/* Personal Information */}
             <div className="space-y-4">
               <h3 className="font-semibold text-sm">Personal Information</h3>

@@ -380,3 +380,109 @@ export function getRoleDescription(role: RoleName): string {
   };
   return descriptions[role];
 }
+
+// ============================================================================
+// PERMISSION CATEGORIES — structured for the roles management UI
+// ============================================================================
+
+export const PERMISSION_CATEGORIES = {
+  "User & Session": {
+    user: ["create", "list", "set-role", "ban", "impersonate", "delete", "set-password", "get", "update"],
+    session: ["list", "revoke", "delete"],
+  },
+  "Organization": {
+    organization: ["create", "update", "delete", "view", "invite"],
+    invitation: ["create", "view", "delete"],
+  },
+  "Core School": {
+    school: ["create", "update", "delete", "view", "manage"],
+    student: ["create", "update", "delete", "view", "enroll"],
+    teacher: ["create", "update", "delete", "view", "assign"],
+    parent: ["create", "update", "delete", "view"],
+  },
+  "Academics": {
+    class: ["create", "update", "delete", "view", "manage"],
+    subject: ["create", "update", "delete", "view"],
+    department: ["create", "update", "delete", "view"],
+    house: ["create", "update", "delete", "view"],
+    assessment: ["create", "update", "delete", "view", "grade"],
+    attendance: ["create", "update", "delete", "view", "approve"],
+    timetable: ["create", "update", "delete", "view"],
+  },
+  "Finance": {
+    finance: ["create", "update", "delete", "view", "approve"],
+    bill: ["create", "update", "delete", "view"],
+    payment: ["create", "update", "delete", "view"],
+  },
+  "Reports & Analytics": {
+    report: ["create", "view", "download", "approve"],
+    analytics: ["view"],
+  },
+  "Administrative": {
+    document: ["create", "update", "delete", "view", "upload"],
+    announcement: ["create", "update", "delete", "view"],
+    setting: ["view", "update"],
+    communication: ["view", "send"],
+  },
+  "Facilities": {
+    hostel: ["create", "update", "delete", "view"],
+    library: ["create", "update", "delete", "view"],
+    inventory: ["create", "update", "delete", "view"],
+    transport: ["create", "update", "delete", "view"],
+  },
+} as const;
+
+export type PermissionCategory = keyof typeof PERMISSION_CATEGORIES;
+export type ResourceName = keyof typeof statement;
+export type ActionName<R extends ResourceName> = (typeof statement)[R][number];
+
+/**
+ * Get all available resources and their actions from the statement
+ */
+export function getAllResources(): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  for (const [resource, actions] of Object.entries(statement)) {
+    result[resource] = [...actions];
+  }
+  return result;
+}
+
+/**
+ * Get the permissions for a static (hardcoded) role
+ */
+export function getStaticRolePermissions(roleName: string): Record<string, string[]> | null {
+  // Each ac.newRole() has a narrowed type; we extract .statements directly
+  const statementsMap: Record<string, Record<string, string[]>> = {
+    superAdmin: superAdmin.statements as Record<string, string[]>,
+    owner: owner.statements as Record<string, string[]>,
+    admin: admin.statements as Record<string, string[]>,
+    headteacher: headteacher.statements as Record<string, string[]>,
+    teacher: teacher.statements as Record<string, string[]>,
+    accountant: accountant.statements as Record<string, string[]>,
+    staff: staff.statements as Record<string, string[]>,
+    student: student.statements as Record<string, string[]>,
+    guardian: guardian.statements as Record<string, string[]>,
+    user: user.statements as Record<string, string[]>,
+    member: member.statements as Record<string, string[]>,
+    suspended: suspended.statements as Record<string, string[]>,
+  };
+  return statementsMap[roleName] ?? null;
+}
+
+/**
+ * List of roles that are hardcoded and cannot be edited/deleted via the UI
+ */
+export const STATIC_ROLES = [
+  "owner",
+  "admin",
+  "headteacher",
+  "teacher",
+  "accountant",
+  "student",
+  "guardian",
+  "member",
+  "staff",
+] as const;
+
+export type StaticRoleName = (typeof STATIC_ROLES)[number];
+

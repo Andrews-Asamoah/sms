@@ -3,7 +3,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DataTableColumnHeader } from "@/components/ui/data-table/column-header";
 import { TeacherActions } from "./teacher-actions";
 
@@ -33,6 +33,7 @@ export type Teacher = {
     user?: {
       id: string;
       email?: string;
+      image?: string | null;
       banned: boolean | null;
       banReason: string | null;
     };
@@ -91,7 +92,14 @@ export const columns: ColumnDef<Teacher>[] = [
       return (
         <div className="flex items-center gap-3">
           <Avatar>
-            <AvatarFallback>{initials || "?"}</AvatarFallback>
+            <AvatarImage
+              src={teacher.profile.user?.image ?? ""}
+              alt={`${teacher.profile.firstName} ${teacher.profile.lastName}`}
+              className="object-cover"
+            />
+            <AvatarFallback className="text-xs font-semibold bg-gradient-to-br from-primary/20 to-primary/40 text-primary">
+              {initials || "?"}
+            </AvatarFallback>
           </Avatar>
           <div>
             <div className="font-medium">

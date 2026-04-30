@@ -152,6 +152,11 @@ export const auth = betterAuth({
         staff,
       },
 
+      dynamicAccessControl: {
+        enabled: true,
+        maximumRolesPerOrganization: 10,
+      },
+
       // ======================================================================
       // PERMISSION: Who can create organizations?
       // ======================================================================

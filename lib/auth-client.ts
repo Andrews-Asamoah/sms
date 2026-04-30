@@ -59,6 +59,9 @@ export const authClient = createAuthClient({
         guardian,
         student,
       },
+      dynamicAccessControl: {
+        enabled: true,
+      },
     }),
     inferAdditionalFields<typeof AuthServer>(),
   ],

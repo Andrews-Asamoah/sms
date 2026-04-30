@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import {
   Calendar,
   Clock,
+  Coffee,
   MapPin,
   User,
   Plus,
@@ -12,9 +13,12 @@ import {
   Printer,
   Loader2,
   Trash2,
+  BookOpen,
+  Activity,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -34,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { TimeSlotManager } from "@/components/school/timetable/time-slot-manager";
+import { PeriodTemplateManager } from "@/components/school/timetable/time-slot-manager";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,16 +59,20 @@ interface TimeSlot {
   label: string | null;
 }
 
+type EntryType = "LESSON" | "BREAK" | "ACTIVITY";
+
 interface TimetableEntry {
   id: string;
-  subject: { name: string; code: string };
-  teacher: { profile: { firstName: string; lastName: string } };
+  type: EntryType;
+  label: string | null;
+  subject: { name: string; code: string } | null;
+  teacher: { profile: { firstName: string; lastName: string } } | null;
   timeSlot: TimeSlot;
   classroom: { name: string } | null;
   departmentId?: string | null;
   classId?: string | null;
-  subjectId: string;
-  teacherId: string;
+  subjectId?: string | null;
+  teacherId?: string | null;
   timeSlotId: string;
   classroomId?: string | null;
   academicYearId: string;
@@ -77,6 +85,7 @@ export function TimetableClient() {
   const [entries, setEntries] = useState<TimetableEntry[]>([]);
   const [view, setView] = useState<"class" | "teacher">("class");
   const [selectedClass, setSelectedClass] = useState<string>("");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
   const [classes, setClasses] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -91,8 +100,9 @@ export function TimetableClient() {
   const [entryForm, setEntryForm] = useState({
     classId: "",
     departmentId: "",
+    type: "LESSON" as EntryType,
+    label: "",
     subjectId: "",
-    teacherId: "",
     timeSlotId: "",
     classroomId: "",
     academicYearId: "",
@@ -117,7 +127,7 @@ export function TimetableClient() {
         fetch(`/api/schools/${schoolSlug}/departments`),
         fetch(`/api/schools/${schoolSlug}/subjects`),
         fetch(`/api/schools/${schoolSlug}/teachers`),
-        fetch(`/api/schools/${schoolSlug}/inventory?type=infrastructure`), // Assuming classrooms are here or similar
+        fetch(`/api/schools/${schoolSlug}/classrooms`),
         fetch(`/api/schools/${schoolSlug}/academic-years`),
       ]);
 
@@ -144,16 +154,8 @@ export function TimetableClient() {
       setDepartments(deptsData);
       setSubjects(subsData);
       setTeachers(teachersData);
+      setClassrooms(roomsData);
       setAcademicYears(yearsData);
-
-      // Filter rooms if they come from inventory
-      if (Array.isArray(roomsData)) {
-        setClassrooms(
-          roomsData.filter(
-            (i) => i.category === "CLASSROOM" || i.type === "infrastructure",
-          ),
-        );
-      }
 
       // Set default academic year
       const activeYear = yearsData.find((y: any) => y.isCurrent);
@@ -184,8 +186,27 @@ export function TimetableClient() {
   }, [schoolSlug]);
 
   useEffect(() => {
-    if (selectedClass) fetchEntries(selectedClass);
-  }, [selectedClass]);
+    if (selectedClass) {
+      fetchEntries(selectedClass);
+      // Derive the department for this class so we can fetch dept-specific slots
+      const cls = classes.find((c) => c.id === selectedClass);
+      const deptId = cls?.departmentId || "";
+      setSelectedDepartmentId(deptId);
+      // Refetch slots scoped to this department (+ school-wide)
+      const slotsUrl = deptId
+        ? `/api/schools/${schoolSlug}/timetable/slots?departmentId=${deptId}`
+        : `/api/schools/${schoolSlug}/timetable/slots`;
+      fetch(slotsUrl).then((r) => r.json()).then(setSlots).catch(() => {});
+    }
+  }, [selectedClass, classes]);
+
+  // Realtime clock for the timetable
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000); // Update every minute
+    return () => clearInterval(timer);
+  }, []);
 
   const getEntryAt = (day: string, slotId: string) => {
     return entries.find(
@@ -193,17 +214,88 @@ export function TimetableClient() {
     );
   };
 
+  const isCurrentTimeSlot = (
+    day: string,
+    startTime: string,
+    endTime: string,
+  ) => {
+    const currentDay = currentTime
+      .toLocaleDateString("en-US", { weekday: "long" })
+      .toUpperCase();
+    if (day !== currentDay) return false;
+
+    const [startHour, startMin] = startTime.split(":").map(Number);
+    const [endHour, endMin] = endTime.split(":").map(Number);
+    const currentHour = currentTime.getHours();
+    const currentMin = currentTime.getMinutes();
+
+    const startTotalMins = startHour * 60 + startMin;
+    const endTotalMins = endHour * 60 + endMin;
+    const currentTotalMins = currentHour * 60 + currentMin;
+
+    return (
+      currentTotalMins >= startTotalMins && currentTotalMins < endTotalMins
+    );
+  };
+
+  const getSlotProgressPercentage = (startTime: string, endTime: string) => {
+    const [startHour, startMin] = startTime.split(":").map(Number);
+    const [endHour, endMin] = endTime.split(":").map(Number);
+    const currentHour = currentTime.getHours();
+    const currentMin = currentTime.getMinutes();
+
+    const startTotalMins = startHour * 60 + startMin;
+    const endTotalMins = endHour * 60 + endMin;
+    const currentTotalMins = currentHour * 60 + currentMin;
+
+    const totalDuration = endTotalMins - startTotalMins;
+    const elapsed = currentTotalMins - startTotalMins;
+
+    return Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
+  };
+
+  const isPastTimeSlot = (day: string, endTime: string) => {
+    const daysOfWeek = [
+      "SUNDAY",
+      "MONDAY",
+      "TUESDAY",
+      "WEDNESDAY",
+      "THURSDAY",
+      "FRIDAY",
+      "SATURDAY",
+    ];
+    const currentDayIndex = currentTime.getDay();
+    const slotDayIndex = daysOfWeek.indexOf(day);
+
+    if (slotDayIndex < currentDayIndex) return true;
+    if (slotDayIndex > currentDayIndex) return false;
+
+    const [endHour, endMin] = endTime.split(":").map(Number);
+    const currentHour = currentTime.getHours();
+    const currentMin = currentTime.getMinutes();
+
+    const endTotalMins = endHour * 60 + endMin;
+    const currentTotalMins = currentHour * 60 + currentMin;
+
+    return currentTotalMins >= endTotalMins;
+  };
+
   const handleSaveEntry = async () => {
-    if (
-      !entryForm.subjectId ||
-      !entryForm.teacherId ||
-      !entryForm.timeSlotId ||
-      !entryForm.academicYearId
-    ) {
+    if (!entryForm.timeSlotId || !entryForm.academicYearId) {
       return toast.error("Please fill in all required fields");
     }
     if (!entryForm.classId && !entryForm.departmentId) {
       return toast.error("Select either a Class or a Department");
+    }
+    if (entryForm.type === "LESSON" && !entryForm.subjectId) {
+      return toast.error("Subject is required for a Lesson entry");
+    }
+    if (
+      (entryForm.type === "BREAK" || entryForm.type === "ACTIVITY") &&
+      !entryForm.label &&
+      !entryForm.subjectId
+    ) {
+      return toast.error("A label or subject is required");
     }
 
     try {
@@ -248,13 +340,14 @@ export function TimetableClient() {
     }
   };
 
-  const openAddDialog = (slotId?: string, day?: string) => {
+  const openAddDialog = (slotId?: string) => {
     setEditingEntry(null);
     setEntryForm({
       classId: selectedClass || "",
       departmentId: "",
+      type: "LESSON",
+      label: "",
       subjectId: "",
-      teacherId: "",
       timeSlotId: slotId || "",
       classroomId: "",
       academicYearId: academicYears.find((y) => y.isCurrent)?.id || "",
@@ -267,8 +360,9 @@ export function TimetableClient() {
     setEntryForm({
       classId: entry.classId || "",
       departmentId: entry.departmentId || "",
-      subjectId: entry.subjectId,
-      teacherId: entry.teacherId,
+      type: entry.type || "LESSON",
+      label: entry.label || "",
+      subjectId: entry.subjectId || "",
       timeSlotId: entry.timeSlotId,
       classroomId: entry.classroomId || "",
       academicYearId: entry.academicYearId,
@@ -409,90 +503,170 @@ export function TimetableClient() {
                           return (
                             <td
                               key={day}
-                              className="p-2 relative border-r last:border-r-0 align-top"
+                              className={`p-2 relative border-r last:border-r-0 align-top h-full ${
+                                isPastTimeSlot(day, end) ? "bg-muted/30" : ""
+                              }`}
                             >
+                              {isCurrentTimeSlot(day, start, end) && (
+                                <div
+                                  className="absolute left-0 w-full z-20 flex items-center pointer-events-none"
+                                  style={{
+                                    top: `${getSlotProgressPercentage(start, end)}%`,
+                                    transform: "translateY(-50%)",
+                                  }}
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-red-500 -ml-1 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                                  <div className="flex-1 h-[2px] bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]" />
+                                  <div className="absolute right-1 -top-5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                                    NOW
+                                  </div>
+                                </div>
+                              )}
                               {entry ? (
                                 <div
-                                  className={`h-full w-full rounded-lg border p-3 flex flex-col justify-between group cursor-pointer transition-all ${entry.departmentId ? "bg-secondary/10 border-secondary/20 hover:bg-secondary/15" : "bg-primary/10 border-primary/20 hover:bg-primary/15"}`}
+                                  className={`h-full w-full rounded-lg border p-3 flex flex-col justify-between group cursor-pointer transition-all ${
+                                    entry.type === "BREAK"
+                                      ? "bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700"
+                                      : entry.type === "ACTIVITY"
+                                        ? "bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700"
+                                        : isPastTimeSlot(day, end)
+                                          ? "bg-muted/50 border-muted-foreground/20 opacity-50 grayscale"
+                                          : entry.departmentId
+                                            ? "bg-secondary/10 border-secondary/20 hover:bg-secondary/15 shadow-sm"
+                                            : "bg-primary/10 border-primary/20 hover:bg-primary/15 shadow-sm"
+                                  } ${isCurrentTimeSlot(day, start, end) ? "ring-2 ring-primary/50" : ""}`}
                                 >
-                                  <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex gap-1">
+                                  {entry.type === "BREAK" ? (
+                                    // ── Break rendering ──────────────────
+                                    <div className="flex flex-col items-center justify-center h-full gap-1 text-amber-700 dark:text-amber-300">
+                                      <Coffee className="w-5 h-5" />
+                                      <span className="font-bold text-sm">
+                                        {entry.label || "Break"}
+                                      </span>
+                                    </div>
+                                  ) : entry.type === "ACTIVITY" ? (
+                                    // ── Activity rendering ───────────────
+                                    <div className="flex flex-col h-full gap-1">
+                                      <div className="flex items-center gap-1">
+                                        <Activity className="w-3 h-3 text-violet-500" />
                                         <Badge
                                           variant="secondary"
-                                          className={`text-[10px] font-bold border-none uppercase tracking-tighter px-1 h-4 ${entry.departmentId ? "bg-secondary/20 text-secondary-foreground" : "bg-primary/20 text-primary"}`}
+                                          className="text-[10px] font-bold border-none uppercase tracking-tighter px-1 h-4 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
                                         >
-                                          {entry.subject.code}
+                                          {entry.label ||
+                                            entry.subject?.code ||
+                                            "Activity"}
                                         </Badge>
-                                        {entry.departmentId && (
-                                          <Badge
-                                            variant="outline"
-                                            className="text-[8px] h-4 px-1 uppercase opacity-70"
-                                          >
-                                            Dept
-                                          </Badge>
+                                      </div>
+                                      <p className="text-xs font-bold leading-tight">
+                                        {entry.label || entry.subject?.name}
+                                      </p>
+                                      {entry.departmentId && (
+                                        <p className="text-[10px] text-muted-foreground">
+                                          Dept-wide
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex gap-1">
+                                            <Badge
+                                              variant="secondary"
+                                              className={`text-[10px] font-bold border-none uppercase tracking-tighter px-1 h-4 ${entry.departmentId ? "bg-secondary/20 text-secondary-foreground" : "bg-primary/20 text-primary"}`}
+                                            >
+                                              {entry.subject?.code}
+                                            </Badge>
+                                            {entry.departmentId && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-[8px] h-4 px-1 uppercase opacity-70"
+                                              >
+                                                Dept
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-5 w-5"
+                                              onClick={() =>
+                                                openEditDialog(entry)
+                                              }
+                                            >
+                                              <Settings className="w-3 h-3" />
+                                            </Button>
+                                            <AlertDialog>
+                                              <AlertDialogTrigger asChild>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-5 w-5 text-destructive"
+                                                >
+                                                  <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                              </AlertDialogTrigger>
+                                              <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                  <AlertDialogTitle>
+                                                    Remove Timetable Entry?
+                                                  </AlertDialogTitle>
+                                                  <AlertDialogDescription>
+                                                    Are you sure you want to
+                                                    remove this timetable entry?
+                                                    This action cannot be
+                                                    undone.
+                                                  </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                  <AlertDialogCancel>
+                                                    Cancel
+                                                  </AlertDialogCancel>
+                                                  <AlertDialogAction
+                                                    onClick={() =>
+                                                      handleDeleteEntry(
+                                                        entry.id,
+                                                      )
+                                                    }
+                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                  >
+                                                    Remove
+                                                  </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                              </AlertDialogContent>
+                                            </AlertDialog>
+                                          </div>
+                                        </div>
+                                        <p className="text-xs font-bold leading-tight">
+                                          {entry.subject?.name}
+                                        </p>
+                                      </div>
+                                      <div className="space-y-1 mt-2">
+                                        {entry.teacher && (
+                                          <div className="flex items-center text-[10px] text-muted-foreground font-medium">
+                                            <User className="w-3 h-3 mr-1 text-primary/60" />
+                                            {
+                                              entry.teacher?.profile
+                                                .firstName[0]
+                                            }
+                                            . {entry.teacher?.profile.lastName}
+                                          </div>
+                                        )}
+                                        {entry.classroom && (
+                                          <div className="flex items-center text-[10px] text-muted-foreground font-medium">
+                                            <MapPin className="w-3 h-3 mr-1 text-primary/60" />
+                                            {entry.classroom.name}
+                                          </div>
                                         )}
                                       </div>
-                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-5 w-5"
-                                          onClick={() => openEditDialog(entry)}
-                                        >
-                                          <Settings className="w-3 h-3" />
-                                        </Button>
-                                          <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-5 w-5 text-destructive"
-                                              >
-                                                <Trash2 className="w-4 h-4" />
-                                              </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                              <AlertDialogHeader>
-                                                <AlertDialogTitle>Remove Timetable Entry?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                  Are you sure you want to remove this timetable entry? This action cannot be undone.
-                                                </AlertDialogDescription>
-                                              </AlertDialogHeader>
-                                              <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction 
-                                                  onClick={() => handleDeleteEntry(entry.id)}
-                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                >
-                                                  Remove
-                                                </AlertDialogAction>
-                                              </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                          </AlertDialog>
-                                      </div>
-                                    </div>
-                                    <p className="text-xs font-bold leading-tight">
-                                      {entry.subject.name}
-                                    </p>
-                                  </div>
-                                  <div className="space-y-1 mt-2">
-                                    <div className="flex items-center text-[10px] text-muted-foreground font-medium">
-                                      <User className="w-3 h-3 mr-1 text-primary/60" />
-                                      {entry.teacher.profile.firstName[0]}.{" "}
-                                      {entry.teacher.profile.lastName}
-                                    </div>
-                                    {entry.classroom && (
-                                      <div className="flex items-center text-[10px] text-muted-foreground font-medium">
-                                        <MapPin className="w-3 h-3 mr-1 text-primary/60" />
-                                        {entry.classroom.name}
-                                      </div>
-                                    )}
-                                  </div>
+                                    </>
+                                  )}
                                 </div>
                               ) : slot ? (
                                 <div
-                                  onClick={() => openAddDialog(slot.id, day)}
+                                  onClick={() => openAddDialog(slot.id)}
                                   className="h-full w-full rounded-lg border border-dashed border-muted flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer bg-muted/10"
                                 >
                                   <Plus className="w-4 h-4 text-muted-foreground/60" />
@@ -513,9 +687,21 @@ export function TimetableClient() {
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">
-          <TimeSlotManager
+          <PeriodTemplateManager
             schoolSlug={schoolSlug as string}
-            onRefresh={fetchData}
+            departmentId={selectedDepartmentId || undefined}
+            departments={departments}
+            onRefresh={() => {
+              fetchData();
+              if (selectedClass) {
+                const cls = classes.find((c) => c.id === selectedClass);
+                const deptId = cls?.departmentId || "";
+                const slotsUrl = deptId
+                  ? `/api/schools/${schoolSlug}/timetable/slots?departmentId=${deptId}`
+                  : `/api/schools/${schoolSlug}/timetable/slots`;
+                fetch(slotsUrl).then((r) => r.json()).then(setSlots).catch(() => {});
+              }
+            }}
           />
         </TabsContent>
       </Tabs>
@@ -532,6 +718,45 @@ export function TimetableClient() {
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4 py-4">
+            {/* Entry Type selector — controls what fields are shown */}
+            <div className="space-y-2 col-span-2">
+              <label className="text-sm font-medium">Entry Type</label>
+              <Tabs
+                value={entryForm.type}
+                onValueChange={(v) =>
+                  setEntryForm({
+                    ...entryForm,
+                    type: v as EntryType,
+                    label: "",
+                    subjectId: "",
+                  })
+                }
+              >
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="LESSON" className="gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5" /> Lesson
+                  </TabsTrigger>
+                  <TabsTrigger value="BREAK" className="gap-1.5">
+                    <Coffee className="w-3.5 h-3.5" /> Break
+                  </TabsTrigger>
+                  <TabsTrigger value="ACTIVITY" className="gap-1.5">
+                    <Activity className="w-3.5 h-3.5" /> Activity
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              {entryForm.type === "BREAK" && (
+                <p className="text-xs text-muted-foreground">
+                  Breaks have no subject or teacher. Scoped to the selected
+                  department.
+                </p>
+              )}
+              {entryForm.type === "ACTIVITY" && (
+                <p className="text-xs text-muted-foreground">
+                  Activities (P.E., Worship, Library) don't require a teacher
+                  and apply to the whole department.
+                </p>
+              )}
+            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Apply To</label>
               <Tabs
@@ -601,47 +826,55 @@ export function TimetableClient() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Subject</label>
-              <Select
-                value={entryForm.subjectId}
-                onValueChange={(v) =>
-                  setEntryForm({ ...entryForm, subjectId: v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select subject" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} ({s.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Subject — hidden for BREAK, visible for LESSON & ACTIVITY */}
+            {entryForm.type !== "BREAK" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {entryForm.type === "ACTIVITY"
+                    ? "Subject (optional)"
+                    : "Subject"}
+                </label>
+                <Select
+                  value={entryForm.subjectId}
+                  onValueChange={(v) =>
+                    setEntryForm({ ...entryForm, subjectId: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name} ({s.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Teacher</label>
-              <Select
-                value={entryForm.teacherId}
-                onValueChange={(v) =>
-                  setEntryForm({ ...entryForm, teacherId: v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select teacher" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.profile.firstName} {t.profile.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Label — required for BREAK, optional for ACTIVITY */}
+            {(entryForm.type === "BREAK" || entryForm.type === "ACTIVITY") && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {entryForm.type === "BREAK"
+                    ? "Break Name"
+                    : "Activity Label (optional)"}
+                </label>
+                <Input
+                  placeholder={
+                    entryForm.type === "BREAK"
+                      ? "e.g. Lunch Break"
+                      : "e.g. Worship, P.E."
+                  }
+                  value={entryForm.label}
+                  onChange={(e) =>
+                    setEntryForm({ ...entryForm, label: e.target.value })
+                  }
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Time Slot</label>
@@ -683,27 +916,6 @@ export function TimetableClient() {
                   {classrooms.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Academic Year</label>
-              <Select
-                value={entryForm.academicYearId}
-                onValueChange={(v) =>
-                  setEntryForm({ ...entryForm, academicYearId: v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {academicYears.map((y) => (
-                    <SelectItem key={y.id} value={y.id}>
-                      {y.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -487,6 +487,7 @@ export async function POST(
         success: true,
         student: {
           id: student.id,
+          userId: createdUserId,
           studentId: finalStudentId,
           admissionNumber: finalAdmissionNumber,
           name: `${firstName} ${lastName}`,

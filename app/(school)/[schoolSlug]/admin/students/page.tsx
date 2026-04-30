@@ -114,6 +114,12 @@ export default async function StudentsPage({ params, searchParams }: StudentsPag
               <span className="hidden sm:inline">Bulk Upload</span>
             </Button>
           </Link>
+          <Link href={`/${schoolSlug}/admin/students/bulk-images`}>
+            <Button variant="outline" size="lg">
+              <Upload className="mr-2 h-5 w-5" />
+              <span className="hidden sm:inline">Bulk Photos</span>
+            </Button>
+          </Link>
           <Link href={`/${schoolSlug}/admin/students/new`}>
             <Button size="lg">
               <Plus className="mr-2 h-5 w-5" />
@@ -196,6 +202,7 @@ async function StudentsListContent({
             select: {
               id: true,
               email: true,
+              image: true,
               banned: true,
               banReason: true,
             },

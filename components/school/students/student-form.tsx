@@ -13,6 +13,7 @@ import {
   MapPin,
   Heart,
   GraduationCap,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -27,6 +28,76 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
+import { UserAvatarUploader } from "@/components/shared/user-avatar-uploader";
+import { updateUserImageByAdmin } from "@/actions/user-image";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useRef } from "react";
+
+// ---------------------------------------------------------------------------
+// LocalAvatarPicker
+// Used only during *create* mode, where we don't yet have a userId.
+// It collects a file + shows a preview, then StudentForm uploads it after
+// the student is created and returns a userId.
+// ---------------------------------------------------------------------------
+function LocalAvatarPicker({
+  displayName,
+  onFileSelected,
+}: {
+  displayName: string;
+  onFileSelected: (file: File | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  const initials = displayName
+    .trim()
+    .split(/\s+/)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) return;
+    if (file.size > 2 * 1024 * 1024) return;
+    onFileSelected(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="relative">
+      <Avatar className="h-24 w-24 border-4 border-background shadow-lg ring-2 ring-border">
+        {preview ? (
+          <img src={preview} alt="preview" className="h-full w-full object-cover rounded-full" />
+        ) : (
+          <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/40 text-primary text-xl font-semibold">
+            {initials || <User className="h-8 w-8" />}
+          </AvatarFallback>
+        )}
+      </Avatar>
+      <label
+        htmlFor="new-student-avatar"
+        className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer shadow-md border-2 border-background transition-transform hover:scale-110 active:scale-95"
+        title="Upload photo"
+      >
+        <Camera className="h-3.5 w-3.5" />
+        <input
+          ref={inputRef}
+          id="new-student-avatar"
+          type="file"
+          className="sr-only"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleChange}
+        />
+      </label>
+    </div>
+  );
+}
 
 const studentFormSchema = z.object({
   // Personal Information
@@ -78,11 +149,15 @@ interface StudentFormProps {
   schoolSlug: string;
   classes: Array<{ id: string; name: string; academicYear: { name: string } }>;
   departments: Array<{ id: string; name: string }>;
-  houses?: Array<{ id: string; name: string }>; // kept for future use
+  houses?: Array<{ id: string; name: string }>;
   suggestedStudentId: string;
   suggestedAdmissionNumber?: string;
   initialData?: Partial<StudentFormValues>;
   studentProfileId?: string;
+  /** BetterAuth userId — provided when editing an existing student */
+  userId?: string;
+  /** Current profile image URL — provided when editing */
+  currentImage?: string | null;
 }
 
 export function StudentForm({
@@ -95,9 +170,13 @@ export function StudentForm({
   suggestedAdmissionNumber,
   initialData,
   studentProfileId,
+  userId,
+  currentImage,
 }: StudentFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // For create mode: we queue a pending image file and upload it once we have the userId.
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const isEditing = !!studentProfileId;
 
   const {
@@ -140,6 +219,16 @@ export function StudentForm({
 
       const result = await response.json();
 
+      // After create: upload the queued photo now that we have a userId
+      if (!isEditing && pendingImageFile && result.student?.userId) {
+        const imgFormData = new FormData();
+        imgFormData.append("image", pendingImageFile);
+        // Fire-and-forget — photo failure shouldn't block navigation
+        updateUserImageByAdmin(result.student.userId, imgFormData, "student", schoolSlug).catch(
+          (err) => console.error("[StudentForm] Photo upload failed:", err)
+        );
+      }
+
       toast.success(
         studentProfileId
           ? "Student updated successfully"
@@ -171,6 +260,31 @@ export function StudentForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      {/* Profile Photo */}
+      <div className="flex flex-col items-center gap-2">
+        {isEditing && userId ? (
+          // Edit mode: uploader talks directly to R2 via server action
+          <UserAvatarUploader
+            userId={userId}
+            schoolSlug={schoolSlug}
+            entityType="student"
+            currentImage={currentImage}
+            displayName={`${watch("firstName") || ""} ${watch("lastName") || ""}`.trim() || "Student"}
+          />
+        ) : (
+          // Create mode: collect the file and upload after the student is created
+          <LocalAvatarPicker
+            displayName={`${watch("firstName") || ""} ${watch("lastName") || ""}`.trim() || "Student"}
+            onFileSelected={setPendingImageFile}
+          />
+        )}
+        <p className="text-xs text-muted-foreground">
+          {isEditing ? "Click the camera icon to change photo" : "Optional: upload a photo now (max 2 MB)"}
+        </p>
+      </div>
+
+      <Separator />
+
       {/* Personal Information */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">

@@ -5,17 +5,10 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Plus, Users, GraduationCap, Clock } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TeachersClient } from "./client";
 import { TeacherDialog } from "@/components/school/teachers/teacher-dialog";
-import { CancelInvitationButton } from "@/components/school/teachers/cancel-invitation-button";
+import { TeacherPendingInvitationsList } from "@/components/school/teachers/teacher-pending-invitations-list";
 import { StatCard } from "@/components/ui/stat-card";
 
 interface TeachersPageProps {
@@ -56,6 +49,7 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
                 select: {
                   id: true,
                   email: true,
+                  image: true,
                   banned: true,
                   banReason: true,
                 },
@@ -161,64 +155,10 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
       </div>
 
       {/* Pending Invitations */}
-      {pendingInvitations.length > 0 && (
-        <Card className="backdrop-blur-sm bg-card/50 border-border/50 border-yellow-500/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-yellow-600" />
-              Pending Invitations
-            </CardTitle>
-            <CardDescription>
-              These teachers have been invited but haven&apos;t accepted yet.
-              Their profile details will be linked automatically when they sign
-              up.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y">
-              {pendingInvitations.map((pending) => (
-                <div
-                  key={pending.id}
-                  className="flex items-center justify-between py-3"
-                >
-                  <div className="space-y-0.5">
-                    <p className="font-medium text-sm">
-                      {pending.firstName || pending.lastName
-                        ? `${pending.firstName ?? ""} ${pending.lastName ?? ""}`.trim()
-                        : pending.invitationEmail}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {pending.invitationEmail && (pending.firstName || pending.lastName) && (
-                        <span className="mr-1">{pending.invitationEmail} •</span>
-                      )}
-                      {pending.department.name} ·{" "}
-                      {pending.employmentType.replace("_", " ")} · Invited{" "}
-                      {new Date(pending.createdAt).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className="text-yellow-600 border-yellow-500/50"
-                    >
-                      Awaiting signup
-                    </Badge>
-                    <CancelInvitationButton
-                      schoolSlug={schoolSlug}
-                      teacherId={pending.id}
-                      email={pending.invitationEmail!}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <TeacherPendingInvitationsList
+        pendingInvitations={pendingInvitations}
+        schoolSlug={schoolSlug}
+      />
 
       {/* Teachers Table */}
       <Card className="backdrop-blur-sm bg-card/50 border-border/50">

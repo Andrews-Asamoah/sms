@@ -60,7 +60,12 @@ export default async function EditStudentPage({
   const student = await prisma.student.findUnique({
     where: { id: studentId, schoolId: school.id },
     include: {
-      profile: true,
+      profile: {
+        include: {
+          // We need the BetterAuth userId and current image URL
+          user: { select: { id: true, image: true } },
+        },
+      },
       class: true,
       department: true,
       house: true,
@@ -76,7 +81,7 @@ export default async function EditStudentPage({
   const { currentAcademicYearId } =
     (school.settings as unknown as SchoolSettings) ?? {};
 
-  const [classes, departments, houses] = await Promise.all([
+  const [rawClasses, rawDepartments, houses] = await Promise.all([
     prisma.class.findMany({
       where: {
         schoolId: school.id,
@@ -97,6 +102,14 @@ export default async function EditStudentPage({
       orderBy: { name: "asc" },
     }),
   ]);
+
+  // Serialize Decimal → number so it is safe to pass to Client Components
+  const classes = rawClasses;
+  const departments = rawDepartments.map((d) => ({
+    ...d,
+    promotionPassMark:
+      d.promotionPassMark !== null ? Number(d.promotionPassMark) : null,
+  }));
 
   // Prepare initial form values. Optional fields use null coalescing to
   // undefined so uncontrolled form inputs stay in an uncontrolled state
@@ -171,6 +184,8 @@ export default async function EditStudentPage({
             suggestedAdmissionNumber={student.admissionNumber ?? ""}
             initialData={initialData}
             studentProfileId={studentId}
+            userId={student.profile.user?.id}
+            currentImage={student.profile.user?.image}
           />
         </CardContent>
       </Card>

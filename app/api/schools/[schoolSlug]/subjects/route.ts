@@ -50,6 +50,11 @@ export async function GET(
             name: true,
           },
         },
+        teachers: {
+          select: {
+            teacherId: true,
+          },
+        },
         _count: {
           select: {
             teachers: true,
