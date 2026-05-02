@@ -7,6 +7,7 @@ import {
   Bell,
   UserCircle,
   Loader2,
+  HelpCircle,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -39,6 +40,7 @@ import { useMemo, useState } from "react";
 import { signOut } from "@/lib/auth-client";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
+import { useOnboardingContext } from "@/components/onboarding";
 
 interface NavUserProps {
   user: {
@@ -55,6 +57,7 @@ export default function NavUser({ user }: NavUserProps) {
   const { schoolSlug } = useParams();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const { replay } = useOnboardingContext();
 
   const initials = useMemo(() => {
     return user.name
@@ -173,6 +176,19 @@ export default function NavUser({ user }: NavUserProps) {
                     <Bell className="h-4 w-4" />
                     Notifications
                   </Link>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    replay();
+                  }}
+                >
+                  <HelpCircle className="h-4 w-4" />
+                  Take Tour
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />

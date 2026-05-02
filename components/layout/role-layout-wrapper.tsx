@@ -5,9 +5,20 @@ import { usePathname } from "next/navigation";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebarSchool } from "@/components/layout/app-sidebar-school";
 import { SiteHeaderSchool } from "@/components/layout/site-header-school";
+import dynamic from "next/dynamic";
 import { ReactNode } from "react";
 import type { NavPermissions } from "@/lib/auth/types";
 import type { SubscriptionLifecycleStatus } from "@/lib/subscription/lifecycle";
+
+// Defer the onboarding bundle — it reads localStorage + renders a Dialog, so
+// it never needs SSR. Keeps every role layout's initial JS chunk lean.
+const OnboardingProvider = dynamic(
+  () =>
+    import("@/components/onboarding/onboarding-context").then((m) => ({
+      default: m.OnboardingProvider,
+    })),
+  { ssr: false },
+);
 
 // ============================================================================
 // TYPES
@@ -20,6 +31,7 @@ interface RoleLayoutWrapperProps {
   schoolPlan: string;
   schoolLogo?: string;
   user: {
+    id: string;
     name: string;
     email: string;
     avatar?: string;
@@ -71,120 +83,126 @@ export function RoleLayoutWrapper({
   const subscriptionUrl = `/${schoolSlug}/admin/subscription`;
 
   return (
-    <SidebarProvider>
-      <div className="print:hidden">
-        <AppSidebarSchool
-          schoolSlug={schoolSlug}
-          schoolName={schoolName}
-          schoolPlan={schoolPlan}
-          schoolLogo={schoolLogo}
-          user={user}
-          permissions={permissions}
-          currentActiveRole={currentRole}
-        />
-      </div>
-
-      <SidebarInset className="flex flex-col h-screen overflow-hidden print:h-auto print:block">
-        <div className="print:hidden flex-shrink-0">
-          <SiteHeaderSchool
+    <OnboardingProvider
+      schoolSlug={schoolSlug}
+      userId={user.id}
+      role={currentRole}
+    >
+      <SidebarProvider>
+        <div className="print:hidden">
+          <AppSidebarSchool
             schoolSlug={schoolSlug}
-            academicYear={academicYear}
-            currentTerm={currentTerm}
-            currentRole={currentRole}
-            availableRoles={availableRoles}
+            schoolName={schoolName}
+            schoolPlan={schoolPlan}
+            schoolLogo={schoolLogo}
+            user={user}
+            permissions={permissions}
+            currentActiveRole={currentRole}
           />
         </div>
 
-        {/* Expiring-soon banner — shown when < 7 days remain but not yet expired */}
-        {isExpiringSoon && !isExpired && (
-          <div className="flex-shrink-0 bg-yellow-500 text-white text-center py-2 px-4 text-sm font-medium flex items-center justify-center gap-2">
-            <span className="hidden sm:inline">
-              Your {subscriptionStatus?.planName} subscription expires in{" "}
-              {subscriptionStatus?.daysRemaining}{" "}
-              {subscriptionStatus?.daysRemaining === 1 ? "day" : "days"}.
-            </span>
-            <span className="sm:hidden">
-              Subscription expires in {subscriptionStatus?.daysRemaining}{" "}
-              {subscriptionStatus?.daysRemaining === 1 ? "day" : "days"}.
-            </span>
-            <a
-              href={subscriptionUrl}
-              className="underline hover:no-underline font-bold ml-2"
-            >
-              Renew now
-            </a>
+        <SidebarInset className="flex flex-col h-screen overflow-hidden print:h-auto print:block">
+          <div className="print:hidden flex-shrink-0">
+            <SiteHeaderSchool
+              schoolSlug={schoolSlug}
+              academicYear={academicYear}
+              currentTerm={currentTerm}
+              currentRole={currentRole}
+              availableRoles={availableRoles}
+            />
           </div>
-        )}
 
-        {/* Expired overlay — blocks the dashboard but lets admins reach billing */}
-        {isExpired && !isOnSubscriptionPage ? (
-          <div className="flex-1 relative min-h-0">
-            {/* Overlay — sits above the blurred content */}
-            <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-6">
-              <div className="max-w-md w-full space-y-6 text-center">
-                <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto">
-                  <svg
-                    className="w-10 h-10 text-red-600 dark:text-red-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                    />
-                  </svg>
-                </div>
+          {/* Expiring-soon banner — shown when < 7 days remain but not yet expired */}
+          {isExpiringSoon && !isExpired && (
+            <div className="flex-shrink-0 bg-yellow-500 text-white text-center py-2 px-4 text-sm font-medium flex items-center justify-center gap-2">
+              <span className="hidden sm:inline">
+                Your {subscriptionStatus?.planName} subscription expires in{" "}
+                {subscriptionStatus?.daysRemaining}{" "}
+                {subscriptionStatus?.daysRemaining === 1 ? "day" : "days"}.
+              </span>
+              <span className="sm:hidden">
+                Subscription expires in {subscriptionStatus?.daysRemaining}{" "}
+                {subscriptionStatus?.daysRemaining === 1 ? "day" : "days"}.
+              </span>
+              <a
+                href={subscriptionUrl}
+                className="underline hover:no-underline font-bold ml-2"
+              >
+                Renew now
+              </a>
+            </div>
+          )}
 
-                <div className="space-y-2">
-                  <h1 className="text-2xl font-bold tracking-tight">
-                    Access restricted
-                  </h1>
-                  <p className="text-muted-foreground">
-                    The subscription for{" "}
-                    <span className="font-semibold text-foreground">
-                      {schoolName}
-                    </span>{" "}
-                    has expired. Please renew your plan to restore access.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  {canManageBilling ? (
-                    <a
-                      href={subscriptionUrl}
-                      className="inline-flex items-center justify-center rounded-md bg-primary px-8 py-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          {/* Expired overlay — blocks the dashboard but lets admins reach billing */}
+          {isExpired && !isOnSubscriptionPage ? (
+            <div className="flex-1 relative min-h-0">
+              {/* Overlay — sits above the blurred content */}
+              <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-6">
+                <div className="max-w-md w-full space-y-6 text-center">
+                  <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto">
+                    <svg
+                      className="w-10 h-10 text-red-600 dark:text-red-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
                     >
-                      Renew subscription
-                    </a>
-                  ) : (
-                    <p className="text-sm text-muted-foreground border rounded-lg p-4">
-                      Please contact your school administrator to renew the
-                      subscription.
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                      />
+                    </svg>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h1 className="text-2xl font-bold tracking-tight">
+                      Access restricted
+                    </h1>
+                    <p className="text-muted-foreground">
+                      The subscription for{" "}
+                      <span className="font-semibold text-foreground">
+                        {schoolName}
+                      </span>{" "}
+                      has expired. Please renew your plan to restore access.
                     </p>
-                  )}
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    {canManageBilling ? (
+                      <a
+                        href={subscriptionUrl}
+                        className="inline-flex items-center justify-center rounded-md bg-primary px-8 py-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        Renew subscription
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted-foreground border rounded-lg p-4">
+                        Please contact your school administrator to renew the
+                        subscription.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Blurred background content — pointer-events and selection disabled */}
-            <div
-              className="h-full overflow-hidden blur-sm pointer-events-none select-none"
-              aria-hidden="true"
-            >
-              {children}
+              {/* Blurred background content — pointer-events and selection disabled */}
+              <div
+                className="h-full overflow-hidden blur-sm pointer-events-none select-none"
+                aria-hidden="true"
+              >
+                {children}
+              </div>
             </div>
-          </div>
-        ) : (
-          <main className="flex-1 overflow-y-auto min-h-0 print:overflow-visible print:h-auto print:block [scrollbar-gutter:stable]">
-            <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6 print:p-0 print:max-w-none">
-              {children}
-            </div>
-          </main>
-        )}
-      </SidebarInset>
-    </SidebarProvider>
+          ) : (
+            <main className="flex-1 overflow-y-auto min-h-0 print:overflow-visible print:h-auto print:block [scrollbar-gutter:stable]">
+              <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6 print:p-0 print:max-w-none">
+                {children}
+              </div>
+            </main>
+          )}
+        </SidebarInset>
+      </SidebarProvider>
+    </OnboardingProvider>
   );
 }

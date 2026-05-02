@@ -29,7 +29,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ProductTour } from "@/components/shared/product-tour";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard",
@@ -296,57 +295,6 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
           </p>
         </div>
       )}
-
-      <ProductTour
-        tourId="school-admin-dashboard"
-        steps={[
-          {
-            element: "#school-header",
-            popover: {
-              title: "Institutional Overview",
-              description: "Welcome to your School Dashboard! This provides a comprehensive overview of your institution's health.",
-              side: "bottom",
-              align: "start"
-            }
-          },
-          {
-            element: "#kpi-ribbon",
-            popover: {
-              title: "Key Indicators",
-              description: "Monitor critical stats like total students, teachers, and active classes in real-time.",
-              side: "bottom",
-              align: "start"
-            }
-          },
-          {
-            element: "#analysis-charts",
-            popover: {
-              title: "Operations Analysis",
-              description: "Visualize trends in enrollment, financial summaries, and student demographics with interactive charts.",
-              side: "top",
-              align: "start"
-            }
-          },
-          {
-            element: "#school-sidebar-column",
-            popover: {
-              title: "Activity & Finance",
-              description: "Stay updated with recent activities and keep a close eye on your institution's financial health.",
-              side: "left",
-              align: "start"
-            }
-          },
-          {
-            element: "#app-sidebar",
-            popover: {
-              title: "Quick Navigation",
-              description: "Use the sidebar to manage Academics, Finance, Staff, and other school modules effortlessly.",
-              side: "right",
-              align: "start"
-            }
-          }
-        ]}
-      />
     </div>
   );
 }

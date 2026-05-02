@@ -37,7 +37,7 @@ type FeeStructure = {
   isActive: boolean;
   _count: { bills: number };
   items: { id: string; name: string; amount: number }[];
-  targetClasses: { classId: string; }[];
+  targetClasses: { classId: string }[];
 };
 
 interface FeesClientProps {
@@ -254,7 +254,7 @@ export default function FeesClient({
       </div>
 
       {/* Enhanced Table Container */}
-      <div className="rounded-lg border bg-card shadow-sm">
+      <div className="rounded-lg border bg-card shadow-sm p-5">
         <DataTable columns={columns} data={data} searchKey="name" />
       </div>
 

@@ -42,6 +42,7 @@ export interface RoleLayoutData {
   allRoles: ReturnType<typeof getAllRolesInSchool>;
   permissions: Awaited<ReturnType<typeof getNavPermissions>>;
   userData: {
+    id: string;
     name: string;
     email: string;
     avatar: string | undefined;
@@ -176,6 +177,7 @@ export async function getRoleLayoutData(
   ]);
 
   const userData = {
+    id: session.user.id,
     name: freshUser?.name ?? session.user.name ?? "User",
     email: session.user.email,
     avatar: freshUser?.image ?? session.user.image ?? undefined,

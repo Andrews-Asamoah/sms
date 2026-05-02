@@ -65,7 +65,10 @@ export default function FinanceDashboardPage() {
             <DollarSign className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div 
+              className="text-xl sm:text-2xl font-bold truncate"
+              title={formatter.format(stats.revenue)}
+            >
               {formatter.format(stats.revenue)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -81,7 +84,10 @@ export default function FinanceDashboardPage() {
             <AlertCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div 
+              className="text-xl sm:text-2xl font-bold truncate"
+              title={formatter.format(stats.outstanding)}
+            >
               {formatter.format(stats.outstanding)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -97,7 +103,10 @@ export default function FinanceDashboardPage() {
             <TrendingDown className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div 
+              className="text-xl sm:text-2xl font-bold truncate"
+              title={formatter.format(stats.expenses)}
+            >
               {formatter.format(stats.expenses)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">

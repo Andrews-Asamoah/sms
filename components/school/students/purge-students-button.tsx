@@ -63,8 +63,8 @@ export function PurgeStudentsButton({ schoolSlug }: PurgeStudentsButtonProps) {
   return (
     <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive" size="lg" className="gap-2">
-          <Trash2 className="h-5 w-5" />
+        <Button variant="destructive" className="gap-2">
+          <Trash2 className="h-4 w-4" />
           Delete All Students
         </Button>
       </AlertDialogTrigger>

@@ -61,7 +61,10 @@ export default function FinanceDashboardPage() {
             <DollarSign className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold truncate" title={formatCurrency(stats.revenue, stats.currency)}>
+            <div 
+              className="text-xl sm:text-2xl font-bold truncate" 
+              title={formatCurrency(stats.revenue, stats.currency)}
+            >
               {formatCurrency(stats.revenue, stats.currency)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -77,7 +80,10 @@ export default function FinanceDashboardPage() {
             <AlertCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold truncate" title={formatCurrency(stats.outstanding, stats.currency)}>
+            <div 
+              className="text-xl sm:text-2xl font-bold truncate" 
+              title={formatCurrency(stats.outstanding, stats.currency)}
+            >
               {formatCurrency(stats.outstanding, stats.currency)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -93,7 +99,10 @@ export default function FinanceDashboardPage() {
             <TrendingDown className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold truncate" title={formatCurrency(stats.expenses, stats.currency)}>
+            <div 
+              className="text-xl sm:text-2xl font-bold truncate" 
+              title={formatCurrency(stats.expenses, stats.currency)}
+            >
               {formatCurrency(stats.expenses, stats.currency)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">

@@ -11,6 +11,8 @@ import {
   Users,
   GraduationCap,
   UserCheck,
+  UserCog,
+  ImageUp,
   UserX,
 } from "lucide-react";
 import {
@@ -33,7 +35,10 @@ interface StudentsPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function StudentsPage({ params, searchParams }: StudentsPageProps) {
+export default async function StudentsPage({
+  params,
+  searchParams,
+}: StudentsPageProps) {
   const { schoolSlug } = await params;
   const resolvedSearchParams = await searchParams;
   const classId = resolvedSearchParams.classId as string | undefined;
@@ -101,44 +106,44 @@ export default async function StudentsPage({ params, searchParams }: StudentsPag
             Manage student records, enrollments, and information
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Link href={`/${schoolSlug}/admin/students/credentials`}>
-            <Button variant="outline" size="lg">
-              <UserCheck className="mr-2 h-5 w-5" />
-              <span className="hidden sm:inline">Credentials</span>
+        <div className="flex flex-col items-start md:items-end gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" asChild>
+              <Link href={`/${schoolSlug}/admin/students/credentials`}>
+                <UserCog className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Credentials</span>
+              </Link>
             </Button>
-          </Link>
-          <Link href={`/${schoolSlug}/admin/students/bulk-upload`}>
-            <Button variant="outline" size="lg">
-              <Upload className="mr-2 h-5 w-5" />
-              <span className="hidden sm:inline">Bulk Upload</span>
+            <Button variant="outline" asChild>
+              <Link href={`/${schoolSlug}/admin/students/bulk-upload`}>
+                <Upload className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Bulk Upload</span>
+              </Link>
             </Button>
-          </Link>
-          <Link href={`/${schoolSlug}/admin/students/bulk-images`}>
-            <Button variant="outline" size="lg">
-              <Upload className="mr-2 h-5 w-5" />
-              <span className="hidden sm:inline">Bulk Photos</span>
+            <Button variant="outline" asChild>
+              <Link href={`/${schoolSlug}/admin/students/bulk-images`}>
+                <ImageUp className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Bulk Photos</span>
+              </Link>
             </Button>
-          </Link>
-          <Link href={`/${schoolSlug}/admin/students/new`}>
-            <Button size="lg">
-              <Plus className="mr-2 h-5 w-5" />
-              <span className="hidden sm:inline">New Student</span>
+            <Button className="bg-blue-500 hover:bg-blue-600 text-white" asChild>
+              <Link href={`/${schoolSlug}/admin/students/new`}>
+                <Plus className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">New Student</span>
+              </Link>
             </Button>
-          </Link>
+          </div>
           {(role?.effectiveRole === "owner" || session.isSuperAdmin) && (
-            <PurgeStudentsButton schoolSlug={schoolSlug} />
+            <div className="w-full md:w-auto self-start">
+              <PurgeStudentsButton schoolSlug={schoolSlug} />
+            </div>
           )}
         </div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-4">
-        <StatCard
-          title="Total Students"
-          value={totalCount}
-          icon={Users}
-        />
+        <StatCard title="Total Students" value={totalCount} icon={Users} />
         <StatCard
           title="Active"
           value={activeCount}
@@ -161,13 +166,12 @@ export default async function StudentsPage({ params, searchParams }: StudentsPag
 
       {/* Students Table inside Suspense */}
       <Suspense fallback={<StudentsTableSkeleton />}>
-      <StudentsListContent
+        <StudentsListContent
           schoolId={school.id}
           schoolSlug={schoolSlug}
           classId={effectiveClassId}
           classes={classes}
         />
-
       </Suspense>
     </div>
   );
@@ -187,7 +191,6 @@ async function StudentsListContent({
   classId: string;
   classes: { id: string; name: string }[];
 }) {
-
   const whereClause: any = { schoolId };
   if (classId !== "all") {
     whereClause.classId = classId;
@@ -226,7 +229,6 @@ async function StudentsListContent({
     orderBy: [{ createdAt: "desc" }],
   });
 
-
   const students = rawStudents.map((s) => ({
     ...s,
     outstandingBalance: Number(s.outstandingBalance),
@@ -244,7 +246,9 @@ async function StudentsListContent({
     <Card className="backdrop-blur-sm bg-card/50 border-border/50">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
         <div className="space-y-1.5">
-          <CardTitle>{classId === "all" ? "All Students" : "Class Students"}</CardTitle>
+          <CardTitle>
+            {classId === "all" ? "All Students" : "Class Students"}
+          </CardTitle>
           <CardDescription>
             {classId === "all"
               ? "View and manage all student records"
@@ -252,10 +256,7 @@ async function StudentsListContent({
           </CardDescription>
         </div>
         <div>
-          <StudentClassFilter
-            classes={classes}
-            currentClassId={classId}
-          />
+          <StudentClassFilter classes={classes} currentClassId={classId} />
         </div>
       </CardHeader>
       <CardContent>
