@@ -4,7 +4,7 @@
 // ============================================================================
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
   output   = "../lib/generated/prisma"
 }
 
@@ -2349,9 +2349,9 @@ model PeriodTemplate {
   schoolId     String
   /// null → applies to all departments; set → department-specific schedule
   departmentId String?
-  name         String  // "Period 1", "Lunch Break"
-  startTime    String  // "HH:mm"
-  endTime      String  // "HH:mm"
+  name         String // "Period 1", "Lunch Break"
+  startTime    String // "HH:mm"
+  endTime      String // "HH:mm"
   sortOrder    Int     @default(0)
 
   school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -2390,21 +2390,21 @@ model TimetableEntry {
   type           TimetableEntryType @default(LESSON)
   /// Human-readable label for breaks/activities e.g. "Lunch", "Worship"
   label          String?
-  subjectId      String?  // Optional: Breaks and Activities may not have a subject
-  teacherId      String?  // Optional: Teacherless activities (P.E., Worship) allowed
+  subjectId      String? // Optional: Breaks and Activities may not have a subject
+  teacherId      String? // Optional: Teacherless activities (P.E., Worship) allowed
   timeSlotId     String
   classroomId    String?
   academicYearId String
   termId         String?
 
-  school       School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  class        Class?             @relation(fields: [classId], references: [id], onDelete: Cascade)
-  department   Department?        @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  subject      Subject?           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  teacher      Teacher?           @relation(fields: [teacherId], references: [id], onDelete: SetNull)
-  timeSlot     TimeSlot           @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
-  classroom    Classroom?         @relation(fields: [classroomId], references: [id], onDelete: SetNull)
-  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class        Class?       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  subject      Subject?     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher      Teacher?     @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  timeSlot     TimeSlot     @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
+  classroom    Classroom?   @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
   // Teacher conflict: one teacher can only be in one place per time slot (enforced at API layer for nullables)
   @@unique([classroomId, timeSlotId, academicYearId])

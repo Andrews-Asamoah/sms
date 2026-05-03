@@ -3,6 +3,7 @@ import { GraduationCap, School, ShieldCheck, Sparkles } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
 import { getDefaultRoute } from "@/lib/auth/route-resolver";
 import { redirect } from "next/navigation";
+import { PrivacyModal, TermsModal } from "@/components/auth/legal-modals";
 
 export const dynamic = "force-dynamic";
 
@@ -92,12 +93,8 @@ export default async function AuthLayout({
         <div className="relative z-10 flex justify-between items-center text-slate-500 text-sm font-medium">
           <p>© {new Date().getFullYear()} SchoolMS platform</p>
           <div className="flex gap-4">
-            <a href="#" className="hover:text-white transition-colors">
-              Privacy
-            </a>
-            <a href="#" className="hover:text-white transition-colors">
-              Terms
-            </a>
+            <PrivacyModal />
+            <TermsModal />
           </div>
         </div>
       </div>
