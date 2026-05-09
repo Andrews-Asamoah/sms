@@ -24,9 +24,6 @@ type OrgRoleLower = Lowercase<OrgRole>;
 const inviteAdminSchema = z.object({
   email: z.string().email("Invalid email address"),
   role: z.enum(ALL_ORG_ROLES),
-  firstName: z.string().min(2).optional(),
-  lastName: z.string().min(2).optional(),
-  phone: z.string().optional(),
 });
 
 type InviteAdminData = z.infer<typeof inviteAdminSchema>;
@@ -257,8 +254,6 @@ export async function POST(
           newValues: {
             email: data.email,
             role: data.role,
-            firstName: data.firstName || null,
-            lastName: data.lastName || null,
             organizationId: school.organizationId,
             schoolId: school.id,
             schoolName: school.name,

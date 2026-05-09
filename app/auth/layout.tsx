@@ -100,7 +100,7 @@ export default async function AuthLayout({
       </div>
 
       {/* Right Side - Form Content */}
-      <div className="flex-1 overflow-y-auto lg:overflow-hidden bg-slate-50 dark:bg-slate-950 relative">
+      <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 relative">
         {/* Mobile-only background effects */}
         <div className="absolute inset-0 lg:hidden overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-[80px]" />
@@ -108,7 +108,7 @@ export default async function AuthLayout({
         </div>
 
         <div className="min-h-full flex items-center justify-center p-4 sm:p-8 lg:p-12">
-          <div className="w-full max-w-[420px] relative z-10 flex flex-col justify-center">
+          <div className="w-full max-w-[480px] relative z-10">
             {children}
           </div>
         </div>

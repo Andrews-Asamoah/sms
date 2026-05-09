@@ -1,4 +1,4 @@
-// components/auth/invite-accept-form.tsx - UPDATED REDIRECT PATHS
+// components/auth/invite-accept-form.tsx
 "use client";
 
 import { useState } from "react";
@@ -7,13 +7,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Field,
   FieldError,
@@ -27,8 +20,12 @@ import {
   Mail,
   Lock,
   User,
+  Phone,
   Eye,
   EyeOff,
+  Building2,
+  CheckCircle2,
+  Shield,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
@@ -37,14 +34,16 @@ import { verifyInvitationStatus } from "@/app/auth/invite/[invitationId]/actions
 
 const signupSchema = z
   .object({
-    name: z.string().min(2, "Name must be at least 2 characters"),
+    firstName: z.string().min(2, "First name must be at least 2 characters"),
+    lastName: z.string().min(2, "Last name must be at least 2 characters"),
+    phone: z.string().optional(),
     email: z.string().email("Invalid email address"),
     password: z
       .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-      .regex(/[0-9]/, "Password must contain at least one number"),
+      .min(8, "Min 8 chars")
+      .regex(/[A-Z]/, "No uppercase")
+      .regex(/[a-z]/, "No lowercase")
+      .regex(/[0-9]/, "No number"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -61,8 +60,16 @@ interface InviteAcceptFormProps {
     inviterName: string;
     role: string | null;
     invitationId: string;
-    name?: string;
   };
+}
+
+function RoleBadge({ role }: { role: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+      <Shield className="h-3 w-3" />
+      {role}
+    </span>
+  );
 }
 
 export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
@@ -75,7 +82,9 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
-      name: invitation.name || "",
+      firstName: "",
+      lastName: "",
+      phone: "",
       email: invitation.email,
       password: "",
       confirmPassword: "",
@@ -87,47 +96,28 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
     setError("");
 
     try {
-      // 1. Verify invitation status before signup
-      console.log("🔍 Verifying invitation status...");
-      const verification = await verifyInvitationStatus(invitation.invitationId);
+      const verification = await verifyInvitationStatus(
+        invitation.invitationId,
+      );
       if (!verification.valid) {
         throw new Error(verification.error || "Invitation is no longer valid.");
       }
 
-      console.log("📝 Signing up user:", data.email);
-
       const signupResult = await authClient.signUp.email({
         email: data.email,
         password: data.password,
-        name: data.name,
+        name: `${data.firstName} ${data.lastName}`,
       });
 
       if (signupResult.error) {
         throw new Error(signupResult.error.message);
       }
 
-      console.log("✅ Signup successful");
-
-      // Note: Because autoSignIn is false, the user is not authenticated yet.
-      // We cannot call acceptInvitation on the client without a session.
-      // However, we want them to sign in natively to accept the invite.
-      // So we just switch the view to Login, and once they log in,
-      // they can click "Accept Invitation" while authenticated.
-      // Wait, the user said: "upon signup, it should accept the invitation then redirect the user to the login page to signin."
-      // If we cannot accept the invitation without logging in, we must use a backend workaround OR log them in.
-      // Let's revert to a cleaner login -> accept -> logout flow or use a server action.
-      // Actually, BetterAuth API allows accepting an invitation via a public endpoint? No.
-      // I will keep the previous manual login/logout but explain why it's necessary, 
-      // OR wait... Better Auth has `signUp.email` with an `invitationId` inside the API? No.
-      // I'll make the backend API route stateless to accept invitations by email if they just signed up? No, that's insecure.
-      // I'll revert to the previous code here but make sure the API route works, since I fixed the config in auth.ts.
-      // Wait, let's just restore the manual login/logout but in a cleaner way.
       await authClient.signIn.email({
         email: data.email,
         password: data.password,
       });
 
-      console.log("📧 Accepting invitation...");
       const result = await authClient.organization.acceptInvitation({
         invitationId: invitation.invitationId,
       });
@@ -139,19 +129,18 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
       await authClient.signOut();
 
       toast.success("Account created successfully", {
-        description: "Your invitation has been accepted. Please sign in to continue.",
+        description:
+          "Your invitation has been accepted. Please sign in to continue.",
         duration: 5000,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
       window.location.href = "/auth/login";
-
     } catch (err) {
       const errorMessage =
         err instanceof Error
           ? err.message
           : "Failed to create account. Please try again.";
-      console.error("❌ Signup error:", errorMessage);
       setError(errorMessage);
       setIsSubmitting(false);
     }
@@ -162,14 +151,12 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
     setError("");
 
     try {
-      // 1. Verify invitation status before login
-      console.log("🔍 Verifying invitation status...");
-      const verification = await verifyInvitationStatus(invitation.invitationId);
+      const verification = await verifyInvitationStatus(
+        invitation.invitationId,
+      );
       if (!verification.valid) {
         throw new Error(verification.error || "Invitation is no longer valid.");
       }
-
-      console.log("🔐 Signing in user:", data.email);
 
       const loginResult = await authClient.signIn.email({
         email: data.email,
@@ -180,12 +167,8 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
         throw new Error(loginResult.error.message);
       }
 
-      console.log("✅ Login successful");
-
-      // Wait for Better Auth to process
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      console.log("📧 Accepting invitation...");
       const response = await fetch(
         `/api/invitations/${invitation.invitationId}/accept`,
         {
@@ -200,201 +183,333 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
       }
 
       const result = await response.json();
-      console.log("✅ Invitation accepted, target:", result.redirectUrl);
-
-      // Extra wait for database sync
       await new Promise((resolve) => setTimeout(resolve, 500));
-
-      console.log("🔄 Redirecting via /auth/callback...");
-
-      // Redirect through callback to ensure session is loaded
       window.location.href = `/auth/callback?callbackUrl=${encodeURIComponent(result.redirectUrl)}`;
     } catch (err) {
       const errorMessage =
         err instanceof Error
           ? err.message
           : "Failed to sign in. Please try again.";
-      console.error("❌ Login error:", errorMessage);
       setError(errorMessage);
       setIsSubmitting(false);
     }
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 shadow-2xl">
-      <CardHeader className="text-center pb-4">
-        <CardTitle className="text-xl">
-          {hasAccount ? "Sign In to Accept" : "Create Your Account"}
-        </CardTitle>
-        <CardDescription className="text-sm">
-          You&apos;ve been invited by{" "}
-          <strong>{invitation.inviterName}</strong> to join{" "}
-          <strong>{invitation.schoolName}</strong> as a{" "}
-          <strong>{invitation.role}</strong>
-        </CardDescription>
-      </CardHeader>
+    <div className="w-full flex flex-col gap-4">
+      {/* Invitation Context Card */}
+      <div className="rounded-xl border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/80 dark:bg-blue-950/30 backdrop-blur-sm p-4">
+        <div className="flex items-center gap-4">
+          <div className="h-10 w-10 rounded border border-blue-200 dark:border-blue-800 flex items-center justify-center shrink-0 bg-white dark:bg-slate-900">
+            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <p className="font-semibold text-[15px] text-slate-800 dark:text-slate-100 truncate">
+                {invitation.schoolName}
+              </p>
+              <RoleBadge role={invitation.role || "member"} />
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Invited by{" "}
+              <span className="font-medium text-slate-600 dark:text-slate-300">
+                {invitation.inviterName}
+              </span>
+            </p>
+          </div>
+          <CheckCircle2 className="h-6 w-6 text-blue-500 dark:text-blue-400 shrink-0" />
+        </div>
+      </div>
 
-        <CardContent>
+      {/* Form Card */}
+      <div className="rounded-xl border border-slate-200/80 dark:border-slate-700/60 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white">
+            {hasAccount ? "Sign in to accept" : "Create your account"}
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            {hasAccount
+              ? "Use your existing credentials to join this school"
+              : "Set up your profile and password to get started"}
+          </p>
+        </div>
+
+        <div className="px-6 py-5">
           {error && (
-            <Alert variant="destructive" className="mb-4 py-2">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm">{error}</AlertDescription>
+            <Alert variant="destructive" className="mb-4 py-3 px-4 text-sm">
+              <AlertCircle className="h-4 w-4 mr-2" />
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
           <form
             onSubmit={form.handleSubmit(hasAccount ? onLogin : onSignup)}
-            className="space-y-3"
+            className="space-y-4"
           >
-            <FieldGroup>
+            <FieldGroup className="gap-4">
+              {/* Row 1: Names (only for signup) */}
               {!hasAccount && (
+                <div className="grid grid-cols-2 gap-4">
+                  <Controller
+                    name="firstName"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field
+                        data-invalid={fieldState.invalid}
+                        className="gap-2"
+                      >
+                        <FieldLabel
+                          htmlFor="firstName"
+                          className="text-sm font-semibold"
+                        >
+                          First Name
+                        </FieldLabel>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          <Input
+                            {...field}
+                            id="firstName"
+                            placeholder="John"
+                            disabled={isSubmitting}
+                            aria-invalid={fieldState.invalid}
+                            className="pl-9 h-10 text-sm"
+                          />
+                        </div>
+                        {fieldState.invalid && (
+                          <FieldError
+                            errors={[fieldState.error]}
+                            className="text-xs"
+                          />
+                        )}
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    name="lastName"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field
+                        data-invalid={fieldState.invalid}
+                        className="gap-2"
+                      >
+                        <FieldLabel
+                          htmlFor="lastName"
+                          className="text-sm font-semibold"
+                        >
+                          Last Name
+                        </FieldLabel>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          <Input
+                            {...field}
+                            id="lastName"
+                            placeholder="Doe"
+                            disabled={isSubmitting}
+                            aria-invalid={fieldState.invalid}
+                            className="pl-9 h-10 text-sm"
+                          />
+                        </div>
+                        {fieldState.invalid && (
+                          <FieldError
+                            errors={[fieldState.error]}
+                            className="text-xs"
+                          />
+                        )}
+                      </Field>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Row 2: Email and Phone */}
+              <div
+                className={
+                  hasAccount ? "grid grid-cols-1" : "grid grid-cols-2 gap-4"
+                }
+              >
+                {/* Email — always locked */}
                 <Controller
-                  name="name"
+                  name="email"
                   control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="name">Full Name</FieldLabel>
+                  render={({ field }) => (
+                    <Field className="gap-2">
+                      <FieldLabel
+                        htmlFor="email"
+                        className="text-sm font-semibold"
+                      >
+                        Email Address
+                      </FieldLabel>
                       <div className="relative">
-                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
                           {...field}
-                          id="name"
-                          placeholder="Enter your full name"
-                          disabled={isSubmitting}
-                          aria-invalid={fieldState.invalid}
-                          className="pl-10"
+                          id="email"
+                          type="email"
+                          disabled
+                          className="pl-9 h-10 text-sm bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 cursor-not-allowed"
                         />
                       </div>
-                      {fieldState.invalid && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
                     </Field>
                   )}
                 />
-              )}
 
-              <Controller
-                name="email"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="email">Email Address</FieldLabel>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input
-                        {...field}
-                        id="email"
-                        type="email"
-                        disabled
-                        aria-invalid={fieldState.invalid}
-                        className="pl-10 bg-muted"
-                      />
-                    </div>
-                    {fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
-                  </Field>
-                )}
-              />
-
-              <Controller
-                name="password"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="password">
-                      {hasAccount ? "Password" : "Create Password"}
-                    </FieldLabel>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input
-                        {...field}
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder={
-                          hasAccount
-                            ? "Enter your password"
-                            : "Create a strong password"
-                        }
-                        disabled={isSubmitting}
-                        aria-invalid={fieldState.invalid}
-                        className="pl-10 pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        disabled={isSubmitting}
-                        tabIndex={-1}
+                {/* Phone — only for signup */}
+                {!hasAccount && (
+                  <Controller
+                    name="phone"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field
+                        data-invalid={fieldState.invalid}
+                        className="gap-2"
                       >
-                        {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
-                          <Eye className="h-5 w-5" />
-                        )}
-                      </button>
-                    </div>
-                    {fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
+                        <FieldLabel
+                          htmlFor="phone"
+                          className="text-sm font-semibold"
+                        >
+                          Phone{" "}
+                          <span className="text-slate-400 font-normal ml-1 opacity-80">
+                            (optional)
+                          </span>
+                        </FieldLabel>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          <Input
+                            {...field}
+                            id="phone"
+                            type="tel"
+                            placeholder="+233 XX XXX XXXX"
+                            disabled={isSubmitting}
+                            className="pl-9 h-10 text-sm"
+                          />
+                        </div>
+                      </Field>
                     )}
-                  </Field>
+                  />
                 )}
-              />
+              </div>
 
-              {!hasAccount && (
+              {/* Row 3: Passwords */}
+              <div
+                className={
+                  hasAccount ? "grid grid-cols-1" : "grid grid-cols-2 gap-4"
+                }
+              >
+                {/* Password */}
                 <Controller
-                  name="confirmPassword"
+                  name="password"
                   control={form.control}
                   render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="confirmPassword">
-                        Confirm Password
+                    <Field data-invalid={fieldState.invalid} className="gap-2">
+                      <FieldLabel
+                        htmlFor="password"
+                        className="text-sm font-semibold"
+                      >
+                        {hasAccount ? "Password" : "Create Password"}
                       </FieldLabel>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
                           {...field}
-                          id="confirmPassword"
-                          type={showConfirmPassword ? "text" : "password"}
-                          placeholder="Re-enter your password"
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder={
+                            hasAccount ? "Enter password" : "Strong password"
+                          }
                           disabled={isSubmitting}
                           aria-invalid={fieldState.invalid}
-                          className="pl-10 pr-10"
+                          className="pl-9 pr-10 h-10 text-sm"
                         />
                         <button
                           type="button"
-                          onClick={() =>
-                            setShowConfirmPassword(!showConfirmPassword)
-                          }
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                           disabled={isSubmitting}
                           tabIndex={-1}
                         >
-                          {showConfirmPassword ? (
-                            <EyeOff className="h-5 w-5" />
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
                           ) : (
-                            <Eye className="h-5 w-5" />
+                            <Eye className="h-4 w-4" />
                           )}
                         </button>
                       </div>
                       {fieldState.invalid && (
-                        <FieldError errors={[fieldState.error]} />
+                        <FieldError
+                          errors={[fieldState.error]}
+                          className="text-xs"
+                        />
                       )}
                     </Field>
                   )}
                 />
-              )}
+
+                {/* Confirm Password — only for signup */}
+                {!hasAccount && (
+                  <Controller
+                    name="confirmPassword"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field
+                        data-invalid={fieldState.invalid}
+                        className="gap-2"
+                      >
+                        <FieldLabel
+                          htmlFor="confirmPassword"
+                          className="text-sm font-semibold"
+                        >
+                          Confirm Password
+                        </FieldLabel>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          <Input
+                            {...field}
+                            id="confirmPassword"
+                            type={showConfirmPassword ? "text" : "password"}
+                            placeholder="Re-enter password"
+                            disabled={isSubmitting}
+                            aria-invalid={fieldState.invalid}
+                            className="pl-9 pr-10 h-10 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowConfirmPassword(!showConfirmPassword)
+                            }
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                            disabled={isSubmitting}
+                            tabIndex={-1}
+                          >
+                            {showConfirmPassword ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                        {fieldState.invalid && (
+                          <FieldError
+                            errors={[fieldState.error]}
+                            className="text-xs"
+                          />
+                        )}
+                      </Field>
+                    )}
+                  />
+                )}
+              </div>
             </FieldGroup>
 
             <Button
               type="submit"
-              className="w-full mt-2"
+              className="w-full h-10 text-sm font-semibold mt-2 cursor-pointer"
               disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  {hasAccount ? "Signing In..." : "Creating Account..."}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {hasAccount ? "Signing in..." : "Creating account..."}
                 </>
               ) : hasAccount ? (
                 "Sign In & Accept Invitation"
@@ -402,35 +517,34 @@ export function InviteAcceptForm({ invitation }: InviteAcceptFormProps) {
                 "Create Account & Accept Invitation"
               )}
             </Button>
-
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setHasAccount(!hasAccount);
-                  setError("");
-                }}
-                className="text-sm text-primary hover:underline"
-                disabled={isSubmitting}
-              >
-                {hasAccount
-                  ? "Don't have an account? Create one"
-                  : "Already have an account? Sign in"}
-              </button>
-            </div>
           </form>
+        </div>
 
+        {/* Footer */}
+        <div className="px-6 pb-5 pt-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 rounded-b-xl">
+          <button
+            type="button"
+            onClick={() => {
+              setHasAccount(!hasAccount);
+              setError("");
+            }}
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+            disabled={isSubmitting}
+          >
+            {hasAccount
+              ? "Don't have an account? Create one"
+              : "Already have an account? Sign in"}
+          </button>
           {hasAccount && (
-            <div className="mt-4 text-center">
-              <Link
-                href="/auth/forgot-password"
-                className="text-sm text-muted-foreground hover:text-primary hover:underline"
-              >
-                Forgot your password?
-              </Link>
-            </div>
+            <Link
+              href="/auth/forgot-password"
+              className="text-sm font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+            >
+              Forgot password?
+            </Link>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+    </div>
   );
 }

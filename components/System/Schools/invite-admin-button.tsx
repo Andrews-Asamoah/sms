@@ -35,15 +35,6 @@ import { UserPlus, Loader2, Shield } from "lucide-react";
 const inviteSchema = z.object({
   email: z.string().email("Invalid email address"),
   role: z.enum(["OWNER", "ADMIN", "MEMBER"]),
-  firstName: z
-    .string()
-    .min(2, "First name must be at least 2 characters")
-    .optional(),
-  lastName: z
-    .string()
-    .min(2, "Last name must be at least 2 characters")
-    .optional(),
-  phone: z.string().optional(),
 });
 
 type InviteFormData = z.infer<typeof inviteSchema>;
@@ -73,9 +64,6 @@ export function InviteAdminButton({
     defaultValues: {
       email: "",
       role: "ADMIN",
-      firstName: "",
-      lastName: "",
-      phone: "",
     },
   });
 
@@ -147,7 +135,6 @@ export function InviteAdminButton({
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
           <FieldGroup>
-            {/* Required Fields */}
             <Field data-invalid={!!errors.email}>
               <FieldLabel htmlFor="email">Email Address *</FieldLabel>
               <Input
@@ -158,7 +145,8 @@ export function InviteAdminButton({
                 disabled={isSubmitting}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                An invitation will be sent to this email address
+                An invitation link will be sent to this email address. The
+                recipient will complete their profile on sign-up.
               </p>
               <FieldError errors={[errors.email]} />
             </Field>
@@ -186,52 +174,6 @@ export function InviteAdminButton({
               </p>
               <FieldError errors={[errors.role]} />
             </Field>
-
-            {/* Optional Profile Information */}
-            <div className="pt-4 border-t">
-              <p className="text-sm font-medium mb-3">
-                Optional: Pre-fill Profile Information
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <Field data-invalid={!!errors.firstName}>
-                  <FieldLabel htmlFor="firstName">First Name</FieldLabel>
-                  <Input
-                    {...register("firstName")}
-                    id="firstName"
-                    placeholder="John"
-                    disabled={isSubmitting}
-                  />
-                  <FieldError errors={[errors.firstName]} />
-                </Field>
-
-                <Field data-invalid={!!errors.lastName}>
-                  <FieldLabel htmlFor="lastName">Last Name</FieldLabel>
-                  <Input
-                    {...register("lastName")}
-                    id="lastName"
-                    placeholder="Doe"
-                    disabled={isSubmitting}
-                  />
-                  <FieldError errors={[errors.lastName]} />
-                </Field>
-              </div>
-
-              <Field data-invalid={!!errors.phone} className="mt-4">
-                <FieldLabel htmlFor="phone">Phone Number</FieldLabel>
-                <Input
-                  {...register("phone")}
-                  id="phone"
-                  type="tel"
-                  placeholder="+233 XX XXX XXXX"
-                  disabled={isSubmitting}
-                />
-                <FieldError errors={[errors.phone]} />
-              </Field>
-
-              <p className="text-xs text-muted-foreground mt-2">
-                If provided, a profile will be pre-created for the user
-              </p>
-            </div>
           </FieldGroup>
 
           <div className="flex gap-3 justify-end pt-4 border-t">
