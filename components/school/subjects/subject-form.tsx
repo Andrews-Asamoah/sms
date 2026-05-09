@@ -29,9 +29,24 @@ const formSchema = z.object({
     .max(10, "Code must be 10 characters or less"),
   description: z.string().optional(),
   departmentIds: z.array(z.string()).min(1, "Select at least one department"),
-  creditHours: z.coerce.number().int().min(0),
+  periodsPerWeek: z.coerce.number().int().min(1).max(10),
   isActive: z.boolean(),
 });
+
+// GES/NaCCA JHS standard: most core subjects get 4-5 periods/week.
+// Each period is typically 50 minutes.
+const GES_PERIOD_HINT: Record<number, string> = {
+  1: "Minimal — supplementary or elective",
+  2: "Low — minor elective subject",
+  3: "Standard — elective or integrated arts",
+  4: "Core standard — GES recommended for most subjects",
+  5: "Core intensive — Maths, English, Science",
+  6: "Extended — double-period subjects",
+  7: "Heavy — vocational/technical tracks",
+  8: "Very heavy — specialised technical subjects",
+  9: "Maximum — full-day technical programmes",
+  10: "Full allocation — reserved for specialised tracks",
+};
 
 interface SubjectFormProps {
   schoolSlug: string;
@@ -64,7 +79,7 @@ export function SubjectForm({
       departmentIds:
         subject?.departments?.map((d: any) => d.id) ||
         (subject?.departmentId ? [subject.departmentId] : []),
-      creditHours: subject?.creditHours ?? 1,
+      periodsPerWeek: subject?.periodsPerWeek ?? 4,
       isActive: subject?.isActive ?? true,
     },
   });
@@ -126,15 +141,29 @@ export function SubjectForm({
         </FieldGroup>
 
         <FieldGroup>
-          <FieldLabel htmlFor="creditHours">Credit Hours</FieldLabel>
-          <Input
-            id="creditHours"
-            type="number"
-            min="0"
-            {...register("creditHours")}
-          />
-          {errors.creditHours && (
-            <FieldError>{errors.creditHours.message}</FieldError>
+          <FieldLabel htmlFor="periodsPerWeek">Periods per Week</FieldLabel>
+          <Select
+            value={String(watch("periodsPerWeek") ?? 4)}
+            onValueChange={(val) =>
+              setValue("periodsPerWeek", parseInt(val, 10))
+            }
+          >
+            <SelectTrigger id="periodsPerWeek">
+              <SelectValue placeholder="Select periods" />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n} period{n > 1 ? "s" : ""} / week
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {GES_PERIOD_HINT[watch("periodsPerWeek") ?? 4]}
+          </p>
+          {errors.periodsPerWeek && (
+            <FieldError>{errors.periodsPerWeek.message}</FieldError>
           )}
         </FieldGroup>
       </div>

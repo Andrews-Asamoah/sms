@@ -17,7 +17,7 @@ const updateSubjectSchema = z.object({
     .array(z.string())
     .min(1, "At least one department is required")
     .optional(),
-  creditHours: z.number().int().min(0).optional(),
+  periodsPerWeek: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -39,7 +39,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, code, description, departmentIds, creditHours, isActive } =
+    const { name, code, description, departmentIds, periodsPerWeek, isActive } =
       updateSubjectSchema.parse(body);
 
     const school = await prisma.school.findUnique({
@@ -92,7 +92,7 @@ export async function PATCH(
         name,
         code,
         description,
-        creditHours,
+        periodsPerWeek,
         isActive,
         departments: departmentIds
           ? {

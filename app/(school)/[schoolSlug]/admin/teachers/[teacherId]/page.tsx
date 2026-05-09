@@ -262,7 +262,7 @@ export default async function TeacherDetailPage({
                               </p>
                             </div>
                             <Badge variant="secondary" className="text-xs">
-                              {st.subject.creditHours} Credits
+                              {st.subject.periodsPerWeek} periods/wk
                             </Badge>
                           </div>
                         ))}

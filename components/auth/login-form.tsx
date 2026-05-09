@@ -1,4 +1,4 @@
-// components/auth/login-form.tsx - FIXED WITH THEME COLORS
+// components/auth/login-form.tsx
 "use client";
 
 import { useState } from "react";
@@ -64,8 +64,6 @@ export function LoginForm() {
     setError("");
 
     try {
-      console.log("🔐 [Login] Attempting login for:", data.email);
-
       const result = await authClient.signIn.email({
         email: data.email,
         password: data.password,
@@ -74,7 +72,6 @@ export function LoginForm() {
       if (result.error) {
         const msg = result.error.message || "Invalid email or password";
 
-        // BetterAuth banned check — handle directly without re-throwing
         if (msg.toLowerCase().includes("banned")) {
           try {
             const res = await fetch(`/api/auth/ban-reason?email=${encodeURIComponent(data.email)}`);
@@ -102,17 +99,10 @@ export function LoginForm() {
         return;
       }
 
-      console.log("✅ [Login] Success!");
       setIsSuccess(true);
-
-      // Give Better Auth time to establish session and show success state
       await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Always redirect to /auth/callback
-      console.log("🔄 [Login] Redirecting to /auth/callback");
       window.location.href = "/auth/callback";
     } catch (err) {
-      console.error("❌ [Login] Unexpected error:", err);
       const authError = err as AuthError;
       setError(authError.message || "Failed to sign in. Please try again.");
     }
@@ -124,30 +114,31 @@ export function LoginForm() {
         {error && (
           <Alert
             variant="destructive"
-            className="bg-destructive/10 border-destructive/20 text-destructive dark:text-red-400 py-2"
+            className="bg-destructive/10 border-destructive/20 text-destructive dark:text-red-400 py-2 px-3"
           >
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-sm font-medium">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <AlertDescription className="text-xs font-medium">
               {error}
             </AlertDescription>
           </Alert>
         )}
 
-        <Field data-invalid={!!errors.email} className="space-y-1.5">
+        {/* Email */}
+        <Field data-invalid={!!errors.email} className="space-y-1">
           <FieldLabel
             htmlFor="email"
-            className="text-slate-700 dark:text-slate-300 font-medium"
+            className="text-sm text-slate-700 dark:text-slate-300 font-medium"
           >
             Email Address
           </FieldLabel>
           <div className="relative group">
-            <Mail className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
             <Input
               {...register("email")}
               id="email"
               type="email"
               placeholder="you@school.edu"
-              className="pl-11 h-12 bg-slate-50/50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-300 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 hover:border-slate-300 dark:hover:border-slate-600"
+              className="pl-9 h-10 text-sm bg-slate-50/50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
               disabled={isSubmitting}
               aria-invalid={!!errors.email}
               autoComplete="email"
@@ -156,30 +147,31 @@ export function LoginForm() {
           <FieldError className="text-xs" errors={[errors.email]} />
         </Field>
 
-        <Field data-invalid={!!errors.password} className="space-y-1.5">
+        {/* Password */}
+        <Field data-invalid={!!errors.password} className="space-y-1">
           <div className="flex items-center justify-between">
             <FieldLabel
               htmlFor="password"
-              className="text-slate-700 dark:text-slate-300 font-medium"
+              className="text-sm text-slate-700 dark:text-slate-300 font-medium"
             >
               Password
             </FieldLabel>
             <Link
               href="/auth/forgot-password"
-              className="text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+              className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 transition-colors"
               tabIndex={-1}
             >
               Forgot password?
             </Link>
           </div>
           <div className="relative group">
-            <Lock className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
             <Input
               {...register("password")}
               id="password"
               type={showPassword ? "text" : "password"}
               placeholder="••••••••"
-              className="pl-11 pr-11 h-12 bg-slate-50/50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-300 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 hover:border-slate-300 dark:hover:border-slate-600 tracking-wider placeholder:tracking-normal"
+              className="pl-9 pr-10 h-10 text-sm bg-slate-50/50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all tracking-wider placeholder:tracking-normal"
               disabled={isSubmitting}
               aria-invalid={!!errors.password}
               autoComplete="current-password"
@@ -187,50 +179,51 @@ export function LoginForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3.5 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
               disabled={isSubmitting}
               tabIndex={-1}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? (
-                <EyeOff className="h-5 w-5" />
+                <EyeOff className="h-4 w-4" />
               ) : (
-                <Eye className="h-5 w-5" />
+                <Eye className="h-4 w-4" />
               )}
             </button>
           </div>
           <FieldError className="text-xs" errors={[errors.password]} />
         </Field>
 
+        {/* Submit */}
         <Button
           type="submit"
-          className={`w-full h-11 sm:h-12 mt-1 sm:mt-2 font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-300 ${
+          className={`w-full h-10 mt-1 font-semibold text-sm shadow-md hover:shadow-lg transition-all duration-300 ${
             isSuccess
-              ? "bg-green-500 hover:bg-green-600 text-white shadow-green-500/25"
-              : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 shadow-purple-500/25"
+              ? "bg-green-500 hover:bg-green-600 text-white"
+              : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
           }`}
           disabled={isSubmitting || isSuccess}
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Authenticating...
             </>
           ) : isSuccess ? (
             <>
-              <CheckCircle2 className="mr-2 h-5 w-5 animate-in zoom-in duration-300" />
+              <CheckCircle2 className="mr-2 h-4 w-4" />
               Sign in successful
             </>
           ) : (
             <>
               Sign in to platform
-              <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="ml-2 h-4 w-4" />
             </>
           )}
         </Button>
 
         {callbackUrl && (
-          <p className="text-xs text-center text-slate-500 dark:text-slate-400 mt-4">
+          <p className="text-xs text-center text-slate-400 dark:text-slate-500">
             You will be redirected automatically
           </p>
         )}

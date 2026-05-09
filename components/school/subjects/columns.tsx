@@ -39,7 +39,7 @@ export type Subject = {
   name: string;
   code: string;
   description?: string | null;
-  creditHours: number;
+  periodsPerWeek: number;
   isActive: boolean;
   departments: Array<{
     id: string;
@@ -50,13 +50,6 @@ export type Subject = {
     classSubjects: number;
   };
 };
-
-// We need to pass departments to the columns so the edit dialog can access them
-// This requires a custom column definition that accepts extra data, but for simplicity
-// we will just define the columns type here and handle the dialog in the cell renderer
-// by accepting departments in the props of the Table or passing them down.
-// Ideally, the cell renderer should have access to the context or we pass props.
-// A cleaner way is to create a component for the Cell that takes the row and the departments list.
 
 export const columns = (
   schoolSlug: string,
@@ -103,9 +96,16 @@ export const columns = (
     },
   },
   {
-    accessorKey: "creditHours",
-    header: "Credit Hours",
-    cell: ({ row }) => row.getValue("creditHours"),
+    accessorKey: "periodsPerWeek",
+    header: "Periods/Wk",
+    cell: ({ row }) => (
+      <span className="font-medium">
+        {row.getValue("periodsPerWeek")}
+        <span className="text-muted-foreground font-normal text-xs ml-1">
+          /wk
+        </span>
+      </span>
+    ),
   },
   {
     accessorKey: "isActive",

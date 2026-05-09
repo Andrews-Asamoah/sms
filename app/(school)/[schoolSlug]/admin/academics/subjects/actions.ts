@@ -22,7 +22,7 @@ const subjectSchema = z.object({
   departmentIds: z
     .array(z.string())
     .min(1, "At least one department is required"),
-  creditHours: z.number().int().min(1).max(10),
+  periodsPerWeek: z.number().int().min(1).max(10),
   isActive: z.boolean().default(true),
 });
 
@@ -88,7 +88,7 @@ export async function createSubject(
         departments: {
           connect: validated.departmentIds.map((id) => ({ id })),
         },
-        creditHours: validated.creditHours,
+        periodsPerWeek: validated.periodsPerWeek,
         isActive: validated.isActive,
       },
       include: {
@@ -200,7 +200,7 @@ export async function updateSubject(
         departments: {
           set: validated.departmentIds.map((id) => ({ id })),
         },
-        creditHours: validated.creditHours,
+        periodsPerWeek: validated.periodsPerWeek,
         isActive: validated.isActive,
       },
       include: {
@@ -491,7 +491,7 @@ export async function bulkAssignSubjectToDepartment(
   schoolSlug: string,
   subjectId: string,
   departmentId: string,
-  teacherId?: string
+  teacherId?: string,
 ) {
   try {
     const session = await requireSchoolAccess(schoolSlug);
@@ -507,17 +507,21 @@ export async function bulkAssignSubjectToDepartment(
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      select: { id: true }
+      select: { id: true },
     });
     if (!school) return { success: false, error: "School not found" };
 
     // Find all classes in this department
     const classes = await prisma.class.findMany({
-      where: { schoolId: school.id, departmentId }
+      where: { schoolId: school.id, departmentId },
     });
 
     if (classes.length === 0) {
-      return { success: false, error: "No classes found in this department. Please create classes first." };
+      return {
+        success: false,
+        error:
+          "No classes found in this department. Please create classes first.",
+      };
     }
 
     // Upsert ClassSubject for each class
@@ -540,22 +544,22 @@ export async function bulkAssignSubjectToDepartment(
           classId_subjectId: {
             classId: cls.id,
             subjectId,
-          }
+          },
         },
         create: createData,
-        update: Object.keys(updateData).length > 0 ? updateData : { classId: cls.id }, // Provide a dummy update if no teacher is set
+        update:
+          Object.keys(updateData).length > 0 ? updateData : { classId: cls.id }, // Provide a dummy update if no teacher is set
       });
     }
 
-    revalidatePath(`/${schoolSlug}/admin`, 'layout');
+    revalidatePath(`/${schoolSlug}/admin`, "layout");
 
-    return { 
-      success: true, 
-      message: `Assigned subject to ${classes.length} class${classes.length > 1 ? 'es' : ''} successfully.` 
+    return {
+      success: true,
+      message: `Assigned subject to ${classes.length} class${classes.length > 1 ? "es" : ""} successfully.`,
     };
   } catch (error) {
     console.error("[BULK_ASSIGN_SUBJECT]", error);
     return { success: false, error: "Failed to assign subject to classes" };
   }
 }
-

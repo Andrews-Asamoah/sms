@@ -249,9 +249,17 @@ export default async function SubjectDetailPage(props: SubjectDetailPageProps) {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-muted-foreground">
-                  Credit Hours
+                  Periods per Week
                 </p>
-                <p className="text-lg font-semibold">{subject.creditHours}</p>
+                <p className="text-lg font-semibold">
+                  {subject.periodsPerWeek}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">
+                    /week
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Each period ≈ 50 min (GES/NaCCA JHS standard)
+                </p>
               </div>
             </div>
             {subject.description && (

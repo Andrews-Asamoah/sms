@@ -24,24 +24,24 @@ export function AuthCardWrapper({
       {/* Decorative top gradient border edge */}
       <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 z-10" />
 
-      <CardHeader className="space-y-1 pb-2 pt-4 sm:pt-6 px-4 sm:px-8 text-center relative z-20">
+      <CardHeader className="space-y-0.5 pb-3 pt-5 px-6 text-center relative z-20">
         {/* Mobile Logo */}
-        <div className="flex items-center justify-center lg:hidden mb-2 sm:mb-4">
-          <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg ring-4 ring-white/50 dark:ring-slate-900/50">
-            <GraduationCap className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
+        <div className="flex items-center justify-center lg:hidden mb-3">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-md ring-4 ring-white/50 dark:ring-slate-900/50">
+            <GraduationCap className="h-5 w-5 text-white" />
           </div>
         </div>
 
-        <CardTitle className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+        <CardTitle className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
           {title}
         </CardTitle>
 
-        <CardDescription className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+        <CardDescription className="text-sm text-slate-500 dark:text-slate-400">
           {description}
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="pb-4 sm:pb-6 px-4 sm:px-8 relative z-20">{children}</CardContent>
+      <CardContent className="pb-5 px-6 relative z-20">{children}</CardContent>
     </Card>
   );
 }

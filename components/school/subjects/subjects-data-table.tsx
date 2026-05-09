@@ -80,12 +80,15 @@ export function SubjectsDataTable({
       },
     },
     {
-      accessorKey: "creditHours",
+      accessorKey: "periodsPerWeek",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Credit Hours" />
+        <DataTableColumnHeader column={column} title="Periods/Wk" />
       ),
       cell: ({ row }) => (
-        <div className="text-center">{row.getValue("creditHours")}</div>
+        <div className="text-center font-medium">
+          {row.getValue("periodsPerWeek")}
+          <span className="text-muted-foreground text-xs ml-1">/wk</span>
+        </div>
       ),
     },
     {

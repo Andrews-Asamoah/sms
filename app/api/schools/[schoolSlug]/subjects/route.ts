@@ -15,7 +15,7 @@ const createSubjectSchema = z.object({
   departmentIds: z
     .array(z.string())
     .min(1, "At least one department is required"),
-  creditHours: z.number().int().min(0).default(1),
+  periodsPerWeek: z.number().int().min(0).default(4),
   isActive: z.boolean().default(true),
 });
 
@@ -90,7 +90,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { name, code, description, departmentIds, creditHours, isActive } =
+    const { name, code, description, departmentIds, periodsPerWeek, isActive } =
       createSubjectSchema.parse(body);
 
     const school = await prisma.school.findUnique({
@@ -135,7 +135,7 @@ export async function POST(
         name,
         code,
         description,
-        creditHours,
+        periodsPerWeek,
         isActive,
         schoolId: school.id,
         departments: {
