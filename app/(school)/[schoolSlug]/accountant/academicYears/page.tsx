@@ -3,7 +3,6 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
-import { Calendar } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -13,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Prisma } from "@/lib/generated/prisma/client";
 
 interface AcademicYearsPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -30,7 +30,17 @@ export default async function AccountantAcademicYearsPage({
     redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  const school = await prisma.school.findUnique({
+  type SchoolWithYears = Prisma.SchoolGetPayload<{
+    include: {
+      academicYears: {
+        include: {
+          terms: true;
+        };
+      };
+    };
+  }>;
+
+  const school = (await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
     include: {
       academicYears: {
@@ -42,7 +52,7 @@ export default async function AccountantAcademicYearsPage({
         orderBy: { startDate: "desc" },
       },
     },
-  });
+  })) as SchoolWithYears | null;
 
   if (!school) redirect("/");
 

@@ -2,22 +2,11 @@
 // app/layout.tsx
 // ================
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeProvider as ColorThemeProvider } from "@/lib/themes/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: { template: "%s | Edu-MS", default: "Edu-MS" },
@@ -49,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} h-screen overflow-hidden antialiased`}
+        className="font-sans h-screen overflow-hidden antialiased"
       >
         <ThemeProvider
           attribute="class"
