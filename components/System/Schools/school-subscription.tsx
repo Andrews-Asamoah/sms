@@ -28,7 +28,7 @@ import {
   AlertTriangle,
   Info,
 } from "lucide-react";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { SUBSCRIPTION_PLANS, getPlanById } from "@/lib/subscription-plans";

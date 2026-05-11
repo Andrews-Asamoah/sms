@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, MapPin } from "lucide-react";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma";
 
 const formSchema = z.object({
   name: z.string().min(3, "School name must be at least 3 characters"),

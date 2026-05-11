@@ -3,8 +3,7 @@
 import { requireAuth, requireSuperAdmin } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { TicketStatus } from "@prisma/client";
-
+import { TicketStatus } from "@/lib/generated/prisma";
 import { redirect } from "next/navigation";
 
 // ─── Superadmin: update status ───────────────────────────────────────────────

@@ -1,7 +1,7 @@
 // components/System/Schools/school-overview.tsx
 "use client";
 
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma";
 import {
   Card,
   CardContent,
