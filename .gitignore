@@ -41,4 +41,4 @@ yarn-error.log*
 next-env.d.ts
 
 # prisma - generated client is committed so Turbopack can resolve it on Vercel
-# /lib/generated
+# /lib/generated
