@@ -1,6 +1,7 @@
 // lib/finance/subscription.ts
 import prisma from "@/lib/prisma";
-import { SubscriptionStatus, PlanType } from "@/lib/generated/prisma";
+import { SubscriptionStatus, PlanType } from "@prisma/client";
+
 import { SUBSCRIPTION_PLANS } from "@/lib/subscription-plans";
 
 export type ResourceQuotaType = "maxStudents" | "maxTeachers" | "maxStaff";

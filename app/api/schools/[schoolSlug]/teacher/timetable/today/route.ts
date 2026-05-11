@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { DayOfWeek } from "@/lib/generated/prisma";
+import { DayOfWeek } from "@prisma/client";
+
 import { format } from "date-fns";
 
 export async function GET(

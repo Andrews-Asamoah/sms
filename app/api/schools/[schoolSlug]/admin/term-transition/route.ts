@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
-import { Prisma } from "@/lib/generated/prisma";
+import { Prisma } from "@prisma/client";
+
 
 export async function POST(
   req: NextRequest,

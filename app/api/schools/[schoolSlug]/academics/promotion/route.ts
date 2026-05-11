@@ -5,7 +5,8 @@ import {
   Prisma,
   EnrollmentStatus,
   PromotionType,
-} from "@/lib/generated/prisma";
+} from "@prisma/client";
+
 
 export async function GET(
   req: NextRequest,

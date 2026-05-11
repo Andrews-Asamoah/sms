@@ -4,7 +4,8 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
-import { Prisma } from "@/lib/generated/prisma";
+import { Prisma } from "@prisma/client";
+
 
 // ============================================================================
 // VALIDATION SCHEMA
