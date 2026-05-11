@@ -8,7 +8,6 @@ import {
   TrendingUp,
   AlertCircle,
   Package,
-  ArrowUpRight,
   Receipt,
   Users,
   Plus,
@@ -27,13 +26,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnnouncementWidget } from "@/components/dashboard/announcement-widget";
 import { format } from "date-fns";
 import Link from "next/link";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   BarChart,
   Bar,
@@ -70,7 +62,7 @@ export default function AccountantDashboardPage() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        // Stats are now naturally filtered by the server-side context 
+        // Stats are now naturally filtered by the server-side context
         // which defaults to working Year/Term if cookies are set.
         const [financeRes, inventoryRes] = await Promise.all([
           fetch(`/api/schools/${schoolSlug}/finance/overview`),
@@ -117,21 +109,22 @@ export default function AccountantDashboardPage() {
           <p className="text-muted-foreground">
             Financial overview and quick actions for your school.
           </p>
-          {(stats?.currentYearName || stats?.currentTermName) ? (
+          {stats?.currentYearName || stats?.currentTermName ? (
             <p className="text-sm mt-1 text-primary font-medium">
-               Showing data for:{" "}
-               <span className="font-semibold">
-                 {[stats.currentYearName, stats.currentTermName]
-                   .filter(Boolean)
-                   .join(" — ")}
-               </span>
-             </p>
+              Showing data for:{" "}
+              <span className="font-semibold">
+                {[stats.currentYearName, stats.currentTermName]
+                  .filter(Boolean)
+                  .join(" — ")}
+              </span>
+            </p>
           ) : (
             <p className="text-sm mt-1 text-primary font-medium">
-               Showing data for: <span className="font-semibold">All Time</span>
+              Showing data for: <span className="font-semibold">All Time</span>
             </p>
           )}
-        </div>        <div className="flex items-center space-x-4">
+        </div>{" "}
+        <div className="flex items-center space-x-4">
           <Button asChild>
             <Link href={`/${schoolSlug}/accountant/finance/invoices`}>
               <Receipt className="mr-2 h-4 w-4" />
@@ -161,12 +154,15 @@ export default function AccountantDashboardPage() {
                 <DollarSign className="h-4 w-4 text-emerald-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl sm:text-2xl font-bold truncate" title={formatter.format(stats?.revenue || 0)}>
+                <div
+                  className="text-xl sm:text-2xl font-bold truncate"
+                  title={formatter.format(stats?.revenue || 0)}
+                >
                   {formatter.format(stats?.revenue || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 flex items-center">
                   <TrendingUp className="h-3 w-3 mr-1 text-emerald-600" />
-                  +2.5% from last month
+                  Collected fees this term
                 </p>
               </CardContent>
               <div className="absolute top-0 right-0 p-2 opacity-5">
@@ -182,7 +178,10 @@ export default function AccountantDashboardPage() {
                 <AlertCircle className="h-4 w-4 text-red-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl sm:text-2xl font-bold truncate" title={formatter.format(stats?.outstanding || 0)}>
+                <div
+                  className="text-xl sm:text-2xl font-bold truncate"
+                  title={formatter.format(stats?.outstanding || 0)}
+                >
                   {formatter.format(stats?.outstanding || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 text-red-600 font-medium">
@@ -202,11 +201,14 @@ export default function AccountantDashboardPage() {
                 <TrendingDown className="h-4 w-4 text-orange-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl sm:text-2xl font-bold truncate" title={formatter.format(stats?.expenses || 0)}>
+                <div
+                  className="text-xl sm:text-2xl font-bold truncate"
+                  title={formatter.format(stats?.expenses || 0)}
+                >
                   {formatter.format(stats?.expenses || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Month-to-date
+                  This academic term
                 </p>
               </CardContent>
               <div className="absolute top-0 right-0 p-2 opacity-5">
@@ -222,7 +224,10 @@ export default function AccountantDashboardPage() {
                 <Users className="h-4 w-4 text-purple-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl sm:text-2xl font-bold truncate" title={formatter.format(stats?.payroll?.gross || 0)}>
+                <div
+                  className="text-xl sm:text-2xl font-bold truncate"
+                  title={formatter.format(stats?.payroll?.gross || 0)}
+                >
                   {formatter.format(stats?.payroll?.gross || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hasSchoolAccess } from "@/lib/auth/school-access";
+import { getActiveContext } from "@/lib/academic/get-active-context";
 
 export async function GET(
   request: NextRequest,
@@ -28,34 +29,27 @@ export async function GET(
     const queryYearId = searchParams.get("academicYearId");
     const queryTermId = searchParams.get("termId");
 
-    // Read Working Context from cookies
-    const cookieStore = await import("next/headers").then(mod => mod.cookies());
-    const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
-    const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
+    // Resolve user-scoped working context (cookie override → global setting)
+    const ctx = await getActiveContext(
+      schoolSlug,
+      session.user.id,
+      school.settings as Record<string, string | undefined>,
+      { withNames: false },
+    );
 
-    interface SchoolSettings {
-      currentAcademicYearId?: string;
-      currentTermId?: string;
-    }
-    const settings = (school.settings as SchoolSettings) || {};
-    
-    // Fallback logic priority: 
-    // 1. Explicit Query Param (e.g. from a specific report filter)
-    // 2. Working Context (Cookie - for the current accountant's session)
-    // 3. School Default (Global setting)
-    
+    // Allow explicit "all" query param to override the context filter
     let currentAcademicYearId: string | undefined;
     if (queryYearId === "all") {
       currentAcademicYearId = undefined;
     } else {
-      currentAcademicYearId = queryYearId || workingYearId || settings.currentAcademicYearId;
+      currentAcademicYearId = queryYearId || ctx.academicYearId;
     }
 
     let currentTermId: string | undefined;
     if (queryTermId === "all") {
       currentTermId = undefined;
     } else {
-      currentTermId = queryTermId || workingTermId || settings.currentTermId;
+      currentTermId = queryTermId || ctx.termId;
     }
 
     // Fetch current year/term names for display in the dashboard
@@ -116,10 +110,12 @@ export async function GET(
       },
     });
 
-    // 4. Total Payroll (not scoped to term — payroll is school-wide)
+    // 4. Total Payroll — scoped to the active academic period
     const totalPayroll = await prisma.payrollRecord.aggregate({
       where: {
         schoolId: school.id,
+        ...(currentAcademicYearId && { academicYearId: currentAcademicYearId }),
+        ...(currentTermId && { termId: currentTermId }),
       },
       _sum: {
         totalGross: true,
@@ -151,10 +147,12 @@ export async function GET(
         },
         billItem: {
           bill: {
-            ...(currentAcademicYearId && { academicYearId: currentAcademicYearId }),
+            ...(currentAcademicYearId && {
+              academicYearId: currentAcademicYearId,
+            }),
             ...(currentTermId && { termId: currentTermId }),
-          }
-        }
+          },
+        },
       },
       select: {
         amount: true,
@@ -162,49 +160,63 @@ export async function GET(
           select: {
             feeItem: {
               select: {
-                registryItem: { select: { name: true } }
-              }
-            }
-          }
-        }
-      }
+                registryItem: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
     });
 
     const revenueByCategory: Record<string, number> = {};
-    categorizedRevenueRaw.forEach(item => {
-      const categoryName = item.billItem.feeItem?.registryItem?.name || "Uncategorized Income";
-      revenueByCategory[categoryName] = (revenueByCategory[categoryName] || 0) + Number(item.amount);
+    categorizedRevenueRaw.forEach((item) => {
+      const categoryName =
+        item.billItem.feeItem?.registryItem?.name || "Uncategorized Income";
+      revenueByCategory[categoryName] =
+        (revenueByCategory[categoryName] || 0) + Number(item.amount);
     });
 
-    const revenueBreakdown = Object.entries(revenueByCategory).map(([name, amount]) => ({
-      name,
-      amount
-    })).sort((a, b) => b.amount - a.amount);
+    const revenueBreakdown = Object.entries(revenueByCategory)
+      .map(([name, amount]) => ({
+        name,
+        amount,
+      }))
+      .sort((a, b) => b.amount - a.amount);
 
     // 6. Categorized Expense Breakdown
     const categorizedExpensesRaw = await prisma.expense.groupBy({
-      by: ['registryCategoryId'],
+      by: ["registryCategoryId"],
       where: {
         schoolId: school.id,
         ...(currentAcademicYearId && { academicYearId: currentAcademicYearId }),
         ...(currentTermId && { termId: currentTermId }),
       },
-      _sum: { amount: true }
+      _sum: { amount: true },
     });
 
-    const registryCategories = await prisma.expenditureCategoryRegistry.findMany({
-      where: { id: { in: categorizedExpensesRaw.map(e => e.registryCategoryId).filter(Boolean) as string[] } },
-      select: { id: true, name: true }
-    });
+    const registryCategories =
+      await prisma.expenditureCategoryRegistry.findMany({
+        where: {
+          id: {
+            in: categorizedExpensesRaw
+              .map((e) => e.registryCategoryId)
+              .filter(Boolean) as string[],
+          },
+        },
+        select: { id: true, name: true },
+      });
 
-    const expenseBreakdown = categorizedExpensesRaw.map(exp => {
-      const category = registryCategories.find(c => c.id === exp.registryCategoryId);
-      return {
-        name: category?.name || "Uncategorized Expense",
-        amount: Number(exp._sum.amount || 0)
-      };
-    }).sort((a, b) => b.amount - a.amount);
-
+    const expenseBreakdown = categorizedExpensesRaw
+      .map((exp) => {
+        const category = registryCategories.find(
+          (c) => c.id === exp.registryCategoryId,
+        );
+        return {
+          name: category?.name || "Uncategorized Expense",
+          amount: Number(exp._sum.amount || 0),
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
 
     return NextResponse.json({
       currency: school.currency,

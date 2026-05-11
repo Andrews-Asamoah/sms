@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { calculatePayrollBreakdown } from "@/lib/finance/payroll-utils";
 import { Prisma } from "@/lib/generated/prisma";
+import { getActiveContext } from "@/lib/academic/get-active-context";
 
 /**
  * GET /api/schools/[schoolSlug]/finance/payroll
@@ -22,15 +23,22 @@ export async function GET(
   try {
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      select: { id: true },
+      select: { id: true, settings: true },
     });
 
     if (!school) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
+    // Resolve active context (user-scoped cookie override → global setting)
+    const ctx = await getActiveContext(schoolSlug, session.user.id, school.settings as Record<string, string | undefined>, { withNames: false });
+
     const payrollRecords = await prisma.payrollRecord.findMany({
-      where: { schoolId: school.id },
+      where: {
+        schoolId: school.id,
+        ...(ctx.academicYearId && { academicYearId: ctx.academicYearId }),
+        ...(ctx.termId && { termId: ctx.termId }),
+      },
       orderBy: [{ year: "desc" }, { month: "desc" }],
       include: {
         _count: {
@@ -74,9 +82,12 @@ export async function POST(
       );
     }
 
+    // Single query: fetch school data + settings for context resolution
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      include: {
+      select: {
+        id: true,
+        settings: true,
         teachers: {
           where: { isActive: true },
           select: { id: true, monthlySalary: true },
@@ -92,21 +103,12 @@ export async function POST(
       return NextResponse.json({ error: "School not found" }, { status: 404 });
     }
 
-    // Fallback to current term/year if not provided
-    let finalAcademicYearId = academicYearId;
-    let finalTermId = termId;
-
-    if (!finalAcademicYearId || !finalTermId) {
-      const currentYear = await prisma.academicYear.findFirst({
-        where: { schoolId: school.id, isCurrent: true },
-        include: { terms: { where: { isCurrent: true }, take: 1 } },
-      });
-
-      if (currentYear) {
-        finalAcademicYearId = finalAcademicYearId || currentYear.id;
-        finalTermId = finalTermId || currentYear.terms[0]?.id;
-      }
-    }
+    // Resolve active context via user-scoped cookie → global setting priority chain.
+    // This ensures payroll is tagged to the accountant's working period,
+    // not the isCurrent flag which may be out of sync.
+    const ctx = await getActiveContext(schoolSlug, session.user.id, school.settings as Record<string, string | undefined>, { withNames: false });
+    const finalAcademicYearId = academicYearId || ctx.academicYearId;
+    const finalTermId = termId || ctx.termId;
 
     // Check if payroll already exists for this period
     const existing = await prisma.payrollRecord.findUnique({

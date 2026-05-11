@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hasSchoolAccess } from "@/lib/auth/school-access";
+import { getActiveContext } from "@/lib/academic/get-active-context";
 
 export async function GET(
   request: NextRequest,
@@ -26,20 +27,16 @@ export async function GET(
     const academicYearId = url.searchParams.get("academicYearId");
     const termId = url.searchParams.get("termId");
 
-    // Read Working Context from cookies
-    const cookieStore = await import("next/headers").then(mod => mod.cookies());
-    const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
-    const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
+    // Resolve user-scoped working context (cookie override → global setting)
+    const ctx = await getActiveContext(
+      schoolSlug,
+      session.user.id,
+      school.settings as Record<string, string | undefined>,
+      { withNames: false },
+    );
 
-    const schoolWithSettings = await prisma.school.findUnique({
-      where: { id: school.id },
-      select: { settings: true },
-    });
-    const settings = (schoolWithSettings?.settings as any) || {};
-    
-    // Priority: 1. Query Param, 2. Working Context (Cookie), 3. School Default
-    const effectiveYearId = academicYearId === "all" ? undefined : (academicYearId || workingYearId || settings.currentAcademicYearId);
-    const effectiveTermId = termId === "all" ? undefined : (termId || workingTermId || settings.currentTermId);
+    const effectiveYearId = academicYearId === "all" ? undefined : (academicYearId || ctx.academicYearId);
+    const effectiveTermId = termId === "all" ? undefined : (termId || ctx.termId);
 
     const where: any = { schoolId: school.id };
     if (effectiveYearId) where.academicYearId = effectiveYearId;
@@ -103,16 +100,14 @@ export async function POST(
       );
     }
 
-    // Get Working Context from cookies or settings
-    const cookieStore = await import("next/headers").then(mod => mod.cookies());
-    const workingYearId = (await cookieStore).get("sms_working_academic_year_id")?.value;
-    const workingTermId = (await cookieStore).get("sms_working_term_id")?.value;
-
-    const schoolWithSettings = await prisma.school.findUnique({
-      where: { id: school.id },
-      select: { settings: true },
-    });
-    const settings = (schoolWithSettings?.settings as any) || {};
+    // Resolve active context via cookie → school settings fallback.
+    // Uses the shared utility to ensure consistent priority chain.
+    const ctx = await getActiveContext(
+      schoolSlug,
+      session.user.id,
+      school.settings as Record<string, string | undefined>,
+      { withNames: false },
+    );
 
     const expense = await prisma.expense.create({
       data: {
@@ -127,8 +122,8 @@ export async function POST(
         referenceNumber: referenceNumber || null,
         voucherNumber: voucherNumber || null,
         recordedById: session.user.id,
-        academicYearId: workingYearId || settings.currentAcademicYearId,
-        termId: workingTermId || settings.currentTermId,
+        academicYearId: ctx.academicYearId ?? null,
+        termId: ctx.termId ?? null,
       },
     });
 

@@ -358,7 +358,7 @@ export default async function AcademicOverviewPage(
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full" variant="outline">
-                <Link href={`/${schoolSlug}/admin/academic-years`}>
+                <Link href={`/${schoolSlug}/admin/academicYears`}>
                   Manage Calendar
                 </Link>
               </Button>
@@ -450,8 +450,8 @@ export default async function AcademicOverviewPage(
                         year.isCurrent
                           ? "default"
                           : year.status === "Upcoming"
-                          ? "secondary"
-                          : "outline"
+                            ? "secondary"
+                            : "outline"
                       }
                     >
                       {year.status}

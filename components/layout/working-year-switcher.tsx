@@ -35,7 +35,7 @@ interface AcademicYear {
   terms: AcademicTerm[];
 }
 
-export function WorkingYearSwitcher() {
+export function WorkingYearSwitcher({ userId }: { userId: string }) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const { state } = useSidebar();
   const [open, setOpen] = useState(false);
@@ -57,6 +57,15 @@ export function WorkingYearSwitcher() {
     return null;
   };
 
+  const setSessionCookie = (name: string, value: string) => {
+    // No `expires` → session cookie: cleared when browser is closed
+    document.cookie = `${name}=${value};path=/;SameSite=Lax`;
+  };
+
+  const clearCookie = (name: string) => {
+    document.cookie = `${name}=;path=/;expires=Thu, 01 Jan 1970 00:00:00 UTC;SameSite=Lax`;
+  };
+
   useEffect(() => {
     async function fetchYears() {
       try {
@@ -66,8 +75,8 @@ export function WorkingYearSwitcher() {
         const data: AcademicYear[] = await res.json();
         setYears(data);
 
-        const yearCookie = getCookie(`sms_working_year_${schoolSlug}`);
-        const termCookie = getCookie(`sms_working_term_${schoolSlug}`);
+        const yearCookie = getCookie(`sms_working_year_${schoolSlug}_${userId}`);
+        const termCookie = getCookie(`sms_working_term_${schoolSlug}_${userId}`);
 
         // 1. Resolve Year
         let activeYear = data.find((y) => y.id === yearCookie) || 
@@ -101,13 +110,9 @@ export function WorkingYearSwitcher() {
   const handleYearSelect = (yearId: string) => {
     setSelectedYearId(yearId);
     setSelectedTermId(null); // Reset term when year changes
-    
-    const expires = new Date();
-    expires.setTime(expires.getTime() + 7 * 24 * 60 * 60 * 1000);
-    document.cookie = `sms_working_year_${schoolSlug}=${yearId};path=/;expires=${expires.toUTCString()}`;
-    // Remove individual term cookie when changing year to force default term of new year
-    document.cookie = `sms_working_term_${schoolSlug}=;path=/;expires=Thu, 01 Jan 1970 00:00:00 UTC;`;
-    
+    // Session cookie — cleared when browser closes
+    setSessionCookie(`sms_working_year_${schoolSlug}_${userId}`, yearId);
+    clearCookie(`sms_working_term_${schoolSlug}_${userId}`);
     toast.success("Academic year changed");
     setTimeout(() => window.location.reload(), 500);
   };
@@ -115,11 +120,8 @@ export function WorkingYearSwitcher() {
   const handleTermSelect = (termId: string) => {
     setSelectedTermId(termId);
     setOpen(false);
-
-    const expires = new Date();
-    expires.setTime(expires.getTime() + 7 * 24 * 60 * 60 * 1000);
-    document.cookie = `sms_working_term_${schoolSlug}=${termId};path=/;expires=${expires.toUTCString()}`;
-
+    // Session cookie — cleared when browser closes
+    setSessionCookie(`sms_working_term_${schoolSlug}_${userId}`, termId);
     toast.success("Working term updated");
     setTimeout(() => window.location.reload(), 500);
   };

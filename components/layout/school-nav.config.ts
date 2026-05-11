@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Home,
   Trophy,
+  AlarmClock,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 import type { NavPermissions } from "@/lib/auth/types";
@@ -149,6 +150,12 @@ export const schoolNavSections: NavSection[] = [
         title: "Payroll Management",
         url: "/accountant/finance/payroll",
         icon: BadgeDollarSign,
+        permission: "canViewFinance",
+      },
+      {
+        title: "Fee Reminders",
+        url: "/accountant/fee-reminders",
+        icon: AlarmClock,
         permission: "canViewFinance",
       },
     ],

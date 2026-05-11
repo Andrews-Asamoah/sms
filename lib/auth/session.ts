@@ -1,4 +1,5 @@
 // lib/auth/session.ts
+import "server-only";
 
 import { cache } from "react";
 import { headers } from "next/headers";
@@ -7,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import type { ExtendedSession } from "./types";
 import { profileInclude, membershipInclude } from "./types";
+
 
 // ============================================================================
 // CORE SESSION FUNCTION

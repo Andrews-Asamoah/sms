@@ -96,6 +96,7 @@ export function RoleLayoutWrapper({
             schoolPlan={schoolPlan}
             schoolLogo={schoolLogo}
             user={user}
+            userId={user.id}
             permissions={permissions}
             currentActiveRole={currentRole}
           />
@@ -109,6 +110,7 @@ export function RoleLayoutWrapper({
               currentTerm={currentTerm}
               currentRole={currentRole}
               availableRoles={availableRoles}
+              userId={user.id}
             />
           </div>
 

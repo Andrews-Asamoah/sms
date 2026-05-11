@@ -1,6 +1,5 @@
 // lib/layout/get-role-layout-data.ts
 
-import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
@@ -12,6 +11,7 @@ import {
 import { getNavPermissions } from "@/lib/permissions/utils";
 import { checkSubscriptionStatus } from "@/lib/subscription/lifecycle";
 import type { SubscriptionLifecycleStatus } from "@/lib/subscription/lifecycle";
+import { getActiveContext } from "@/lib/academic/get-active-context";
 
 // ============================================================================
 // TYPES
@@ -108,26 +108,22 @@ export async function getRoleLayoutData(
     notFound();
   }
 
-  // ── 3. Resolve working context from cookies (user preference) or settings ──
+  // ── 3. Resolve working context — user-scoped cookie → global setting ────────
   //
-  // Priority: 1. Cookie (user explicitly switched) 2. School settings (default)
+  // Each user gets their own independent context via their userId in the key.
+  // Priority: 1. sms_working_year_{slug}_{userId}  2. school.settings global
   //
-  const cookieStore = await cookies();
-  const workingYearId = cookieStore.get(
-    `sms_working_year_${schoolSlug}`,
-  )?.value;
-  const workingTermId = cookieStore.get(
-    `sms_working_term_${schoolSlug}`,
-  )?.value;
-
-  const settings = (school.settings as SchoolSettings) ?? {};
-  const effectiveYearId = workingYearId ?? settings.currentAcademicYearId;
-  const effectiveTermId = workingTermId ?? settings.currentTermId;
+  const ctx = await getActiveContext(
+    schoolSlug,
+    session.user.id,
+    school.settings as Record<string, string | undefined>,
+    { withNames: false },
+  );
 
   // ── 4. Load academic year + terms ─────────────────────────────────────────
-  const academicYear = effectiveYearId
+  const academicYear = ctx.academicYearId
     ? await prisma.academicYear.findUnique({
-        where: { id: effectiveYearId },
+        where: { id: ctx.academicYearId },
         select: {
           name: true,
           terms: {
@@ -139,19 +135,14 @@ export async function getRoleLayoutData(
     : null;
 
   // Term resolution priority:
-  //   1. Cookie term (if it belongs to the resolved year)
+  //   1. User's cookie term (if it belongs to the resolved year)
   //   2. School settings term (if it belongs to the resolved year)
   //   3. The term flagged isCurrent on the year
   //   4. The first term on the year
   let activeTerm: { id: string; name: string } | null = null;
   if (academicYear && academicYear.terms.length > 0) {
-    if (workingTermId) {
-      activeTerm =
-        academicYear.terms.find((t) => t.id === workingTermId) ?? null;
-    }
-    if (!activeTerm && settings.currentTermId) {
-      activeTerm =
-        academicYear.terms.find((t) => t.id === settings.currentTermId) ?? null;
+    if (ctx.termId) {
+      activeTerm = academicYear.terms.find((t) => t.id === ctx.termId) ?? null;
     }
     if (!activeTerm) {
       activeTerm =

@@ -53,7 +53,8 @@ model user {
   paymentsRecorded   Payment[]              @relation("PaymentRecordedBy")
   transcriptRequests TranscriptRequest[]
   notifications      Notification[]
-  announcementsSent  Announcement[]         @relation("AnnouncementsSent")
+  announcementsSent     Announcement[]          @relation("AnnouncementsSent")
+  feeReminderSchedules  FeeReminderSchedule[]   @relation("FeeReminderSchedules")
   expensesRecorded   Expense[]              @relation("ExpenseRecordedBy")
   inventoryPerformed InventoryTransaction[] @relation("InventoryPerformedBy")
   inventoryReceived  InventoryTransaction[] @relation("InventoryRecipient")
@@ -274,6 +275,7 @@ model School {
   reportCardSets              ReportCardSet[]
   notifications               Notification[]
   announcements               Announcement[]
+  feeReminderSchedules        FeeReminderSchedule[]
   expenses                    Expense[]
   inventoryItems              InventoryItem[]
   inventoryTransactions       InventoryTransaction[]
@@ -597,6 +599,7 @@ model AcademicYear {
   expenses              Expense[]
   inventoryTransactions InventoryTransaction[]
   payrollRecords        PayrollRecord[]
+  feeReminderSchedules  FeeReminderSchedule[]
 
   @@unique([name, schoolId])
   @@index([schoolId, isCurrent])
@@ -626,6 +629,7 @@ model Term {
   expenses              Expense[]
   inventoryTransactions InventoryTransaction[]
   payrollRecords        PayrollRecord[]
+  feeReminderSchedules  FeeReminderSchedule[]
 
   @@unique([academicYearId, termNumber])
   @@index([academicYearId])
@@ -1181,15 +1185,21 @@ model Notification {
 }
 
 model Announcement {
-  id        String    @id @default(cuid())
-  schoolId  String
-  authorId  String
-  title     String
-  content   String
-  target    String    @default("ALL") // ALL, TEACHER, STUDENT, STAFF
-  expiresAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  schoolId    String
+  authorId    String
+  title       String
+  content     String    // Plain text / preview (stripped from HTML)
+  contentHtml String?   // Rich text HTML from Tiptap editor
+  target      String    @default("ALL") // ALL, TEACHER, STUDENT, STAFF, GUARDIAN, CLASS:id, CLUB:id
+  messageType String    @default("ANNOUNCEMENT") // ANNOUNCEMENT | FINANCIAL
+  sendSms     Boolean   @default(false)
+  sendEmail   Boolean   @default(false)
+  smsCount    Int       @default(0)
+  emailCount  Int       @default(0)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   academicYearId String?
   termId         String?
@@ -1201,9 +1211,95 @@ model Announcement {
 
   @@index([schoolId])
   @@index([authorId])
+  @@index([messageType])
   @@index([academicYearId])
   @@index([termId])
   @@map("announcements")
+}
+
+// ============================================================================
+// FEE REMINDER SCHEDULER
+// ============================================================================
+
+model FeeReminderSchedule {
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String   // e.g. "Term 1 2025 Fee Reminders"
+  description String?
+  isActive    Boolean  @default(true)
+
+  // Channels
+  sendSms   Boolean @default(true)
+  sendEmail Boolean @default(true)
+  sendInApp Boolean @default(true)
+
+  // Message template
+  messageTemplate String  // Rich HTML (Tiptap). Supports {{studentName}}, {{outstandingBalance}}, {{dueDate}}, {{installmentLabel}}
+  smsTemplate     String? // Auto-derived plain text for SMS (max 160 chars guidance)
+
+  // Targeting
+  targetOutstandingOnly Boolean @default(true)
+  minimumOutstanding    Decimal @default(0) @db.Decimal(10, 2)
+
+  academicYearId String?
+  termId         String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear? @relation(fields: [academicYearId], references: [id])
+  term         Term?         @relation(fields: [termId], references: [id])
+  createdBy    user          @relation("FeeReminderSchedules", fields: [createdById], references: [id])
+  installments FeeReminderInstallment[]
+  logs         FeeReminderLog[]
+
+  @@index([schoolId, isActive])
+  @@index([academicYearId])
+  @@index([termId])
+  @@map("fee_reminder_schedules")
+}
+
+model FeeReminderInstallment {
+  id         String    @id @default(cuid())
+  scheduleId String
+  label      String    // "1st Installment", "2nd Installment", "Final Notice"
+  dueDate    DateTime  @db.Date
+  sendDate   DateTime  @db.Date // When the reminder fires
+  sent       Boolean   @default(false)
+  sentAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  schedule FeeReminderSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  logs     FeeReminderLog[]
+
+  @@index([scheduleId])
+  @@index([sendDate, sent])
+  @@map("fee_reminder_installments")
+}
+
+model FeeReminderLog {
+  id            String         @id @default(cuid())
+  scheduleId    String
+  installmentId String?
+  guardianPhone String?
+  guardianEmail String?
+  guardianName  String
+  studentName   String
+  studentId     String
+  outstandingBalance Decimal   @db.Decimal(10, 2)
+  channel       MessageChannel
+  status        ReminderStatus @default(PENDING)
+  error         String?
+  sentAt        DateTime       @default(now())
+
+  schedule    FeeReminderSchedule     @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  installment FeeReminderInstallment? @relation(fields: [installmentId], references: [id], onDelete: SetNull)
+
+  @@index([scheduleId])
+  @@index([installmentId])
+  @@index([channel, status])
+  @@map("fee_reminder_logs")
 }
 
 // ============================================================================
@@ -2138,6 +2234,20 @@ enum NotificationType {
   GENERAL
   ANNOUNCEMENT
   ONLINE_PAYMENT
+  FINANCIAL_MESSAGE
+}
+
+enum MessageChannel {
+  SMS
+  EMAIL
+  IN_APP
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
 }
 
 // ============================================================================

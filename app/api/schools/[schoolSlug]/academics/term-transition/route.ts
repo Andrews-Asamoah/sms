@@ -221,15 +221,27 @@ export async function POST(
             data: { isCurrent: true },
           });
 
-          // Synchronize school settings
+          // Synchronize school settings — must update BOTH yearId and termId
+          // Bug fix: previously only currentTermId was synced, leaving
+          // currentAcademicYearId pointing to the old year when transitioning
+          // across year boundaries.
+          const nextTermData = await tx.term.findUnique({
+            where: { id: nextTermId },
+            select: { academicYearId: true },
+          });
+
           const schoolSettings = (school.settings as Record<string, unknown>) || {};
+          const updatedSettings = {
+            ...schoolSettings,
+            currentTermId: nextTermId,
+            currentAcademicYearId:
+              nextTermData?.academicYearId ??
+              (schoolSettings.currentAcademicYearId as string | undefined),
+          };
           await tx.school.update({
             where: { id: school.id },
             data: {
-              settings: {
-                ...schoolSettings,
-                currentTermId: nextTermId,
-              },
+              settings: updatedSettings as import("@/lib/generated/prisma").Prisma.InputJsonValue,
             },
           });
         }

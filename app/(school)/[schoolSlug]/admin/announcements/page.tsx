@@ -7,5 +7,6 @@ export const metadata: Metadata = {
 };
 
 export default function AdminAnnouncementsPage() {
-  return <AnnouncementsPageContent canManage={true} />;
+  return <AnnouncementsPageContent canManage={true} canSendExternal={true} />;
 }
+

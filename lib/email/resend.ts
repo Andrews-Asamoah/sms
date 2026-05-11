@@ -6,6 +6,7 @@ import { AdminInvitationEmail } from "./templates/admin-invitation";
 import { GuardianInvitationEmail } from "./templates/guardian-invitation";
 import { PasswordResetEmail } from "./templates/password-reset";
 import { StudentCredentialsEmail } from "./templates/student-credentials";
+import { FeeReminderEmail } from "./templates/fee-reminder";
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
@@ -222,6 +223,142 @@ export async function sendStudentCredentialsEmail(
       error,
     );
     throw new Error("Failed to send student credentials email");
+  }
+}
+
+// ============================================================================
+// FEE REMINDER EMAIL
+// ============================================================================
+
+export interface FeeReminderEmailParams {
+  to: string;
+  guardianName: string;
+  studentName: string;
+  studentId: string;
+  outstandingBalance: number;
+  currency: string;
+  installmentLabel: string;
+  dueDate: Date;
+  schoolName: string;
+  contentHtml?: string;
+  portalUrl: string;
+}
+
+/**
+ * Send a fee reminder email to a guardian via Resend
+ */
+export async function sendFeeReminderEmail(
+  params: FeeReminderEmailParams
+): Promise<{ success: boolean; error?: string }> {
+  const {
+    to,
+    guardianName,
+    studentName,
+    studentId,
+    outstandingBalance,
+    currency,
+    installmentLabel,
+    dueDate,
+    schoolName,
+    contentHtml,
+    portalUrl,
+  } = params;
+
+  try {
+    const formattedBalance = `${currency} ${outstandingBalance.toFixed(2)}`;
+    const formattedDate = dueDate.toLocaleDateString("en-GH", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    const emailHtml = await render(
+      FeeReminderEmail({
+        guardianName,
+        studentName,
+        studentId,
+        outstandingBalance: formattedBalance,
+        installmentLabel,
+        dueDate: formattedDate,
+        schoolName,
+        contentHtml,
+        portalUrl,
+      })
+    );
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `Fee Reminder — ${installmentLabel} | ${studentName} | ${schoolName}`,
+      html: emailHtml,
+    });
+
+    console.log(`✅ [Email] Fee reminder sent to ${to} for student ${studentName}`);
+    return { success: true };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    console.error(`❌ [Email] Fee reminder failed for ${to}:`, error);
+    return { success: false, error: msg };
+  }
+}
+
+// ============================================================================
+// ANNOUNCEMENT / FINANCIAL MESSAGE EMAIL
+// ============================================================================
+
+/**
+ * Send an announcement or financial message email
+ */
+export async function sendAnnouncementEmail(params: {
+  to: string;
+  recipientName: string;
+  subject: string;
+  contentHtml: string;
+  schoolName: string;
+  schoolSlug: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const { to, recipientName, subject, contentHtml, schoolName, schoolSlug } = params;
+
+  try {
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>${subject}</title></head>
+<body style="font-family:'Inter',Arial,sans-serif;background:#f3f4f6;margin:0;padding:0">
+  <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+    <div style="background:#1e3a5f;padding:28px 40px;text-align:center">
+      <h1 style="color:#fff;margin:0;font-size:22px">${schoolName}</h1>
+      <p style="color:#93c5fd;margin:4px 0 0;font-size:13px;text-transform:uppercase;letter-spacing:.05em">School Announcement</p>
+    </div>
+    <div style="padding:32px 40px">
+      <p style="color:#374151;font-size:15px;margin:0 0 20px">Dear ${recipientName},</p>
+      <h2 style="color:#111827;font-size:18px;margin:0 0 16px">${subject}</h2>
+      <div style="color:#374151;font-size:14px;line-height:1.7">${contentHtml}</div>
+      <div style="margin:28px 0 0;text-align:center">
+        <a href="${process.env.NEXT_PUBLIC_APP_URL}/${schoolSlug}/announcements"
+           style="background:#1e3a5f;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View on Portal</a>
+      </div>
+    </div>
+    <div style="background:#1e3a5f;padding:16px 40px;text-align:center">
+      <p style="color:#93c5fd;font-size:12px;margin:0">© ${new Date().getFullYear()} ${schoolName}</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html,
+    });
+
+    console.log(`✅ [Email] Announcement email sent to ${to}`);
+    return { success: true };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    console.error(`❌ [Email] Announcement email failed for ${to}:`, error);
+    return { success: false, error: msg };
   }
 }
 

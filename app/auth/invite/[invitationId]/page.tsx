@@ -2,6 +2,8 @@
 
 import prisma from "@/lib/prisma";
 import { InviteAcceptForm } from "@/components/auth/invite-accept-form";
+import { LoggedInInviteView } from "@/components/auth/logged-in-invite-view";
+import { getSession } from "@/lib/auth/session";
 import Link from "next/link";
 
 // ============================================================================
@@ -112,6 +114,12 @@ export default async function InvitePage({ params }: InvitePageProps) {
     invitationId: invitation.id,
     organizationId: invitation.organization.id,
   };
+
+  const session = await getSession();
+
+  if (session) {
+    return <LoggedInInviteView session={session} invitation={invitationData} />;
+  }
 
   return <InviteAcceptForm invitation={invitationData} />;
 }

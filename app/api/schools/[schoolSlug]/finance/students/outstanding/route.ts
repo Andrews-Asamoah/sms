@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hasSchoolAccess } from "@/lib/auth/school-access";
+import { getActiveContext } from "@/lib/academic/get-active-context";
 
 export async function GET(
   request: NextRequest,
@@ -25,19 +26,16 @@ export async function GET(
   const classId = searchParams.get("classId");
   const searchQuery = searchParams.get("q");
 
-  // Read Working Context from cookies
-  const cookieStore = await import("next/headers").then(mod => mod.cookies());
-  const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
-  const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
+  // Resolve user-scoped working context (cookie override → global setting)
+  const ctx = await getActiveContext(
+    schoolSlug,
+    session.user.id,
+    school.settings as Record<string, string | undefined>,
+    { withNames: false },
+  );
 
-  const schoolWithSettings = await prisma.school.findUnique({
-    where: { id: school.id },
-    select: { settings: true },
-  });
-  const settings = (schoolWithSettings?.settings as any) || {};
-
-  const effectiveYearId = workingYearId || settings.currentAcademicYearId;
-  const effectiveTermId = workingTermId || settings.currentTermId;
+  const effectiveYearId = ctx.academicYearId;
+  const effectiveTermId = ctx.termId;
 
   // Find students who have unpaid bills in the target period
   const studentsWithBills = await prisma.student.findMany({

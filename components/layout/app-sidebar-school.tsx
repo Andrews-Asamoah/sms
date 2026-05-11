@@ -18,13 +18,15 @@ interface AppSidebarSchoolProps {
   schoolPlan: string;
   schoolLogo?: string;
   user: {
+    id: string;
     name: string;
     email: string;
     avatar?: string;
     role?: string;
   };
   permissions: NavPermissions;
-  currentActiveRole: string; // NEW: The active role from URL
+  currentActiveRole: string;
+  userId: string; // For user-scoped academic context cookies
 }
 
 export function AppSidebarSchool({
@@ -35,6 +37,7 @@ export function AppSidebarSchool({
   user,
   permissions,
   currentActiveRole,
+  userId,
   ...props
 }: AppSidebarSchoolProps) {
   // Filter navigation by both role AND permissions
@@ -69,7 +72,7 @@ export function AppSidebarSchool({
         ["accountant", "admin", "owner", "headteacher", "superAdmin"].includes(
           currentActiveRole,
         ) ? (
-          <WorkingYearSwitcher />
+          <WorkingYearSwitcher userId={userId} />
         ) : null
       }
       {...props}

@@ -1,24 +1,14 @@
 // app/auth/layout.tsx
 import { GraduationCap, School, ShieldCheck, Sparkles } from "lucide-react";
-import { getSession } from "@/lib/auth/session";
-import { getDefaultRoute } from "@/lib/auth/route-resolver";
-import { redirect } from "next/navigation";
 import { PrivacyModal, TermsModal } from "@/components/auth/legal-modals";
 
 export const dynamic = "force-dynamic";
 
-export default async function AuthLayout({
+export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getSession();
-  
-  // If user is already logged in, redirect them away from auth pages
-  if (session) {
-    const defaultRoute = getDefaultRoute(session);
-    redirect(defaultRoute);
-  }
   return (
     <div className="min-h-screen flex bg-background selection:bg-primary/30">
       {/* Left Side - Modern Visual Branding */}

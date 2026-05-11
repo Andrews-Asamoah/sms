@@ -66,11 +66,9 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
             </h1>
             <p className="text-muted-foreground mt-2 flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              Overview for{" "}
-              {new Date().toLocaleDateString("en-US", {
-                month: "long",
-                year: "numeric",
-              })}
+              {stats.academicYearName
+                ? `${stats.academicYearName}${stats.termName ? ` · ${stats.termName}` : ""}`
+                : "No academic period set — configure in Academic Years"}
             </p>
           </div>
           <div className="flex gap-2">

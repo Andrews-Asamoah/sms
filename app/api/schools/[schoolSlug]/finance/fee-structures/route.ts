@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hasSchoolAccess } from "@/lib/auth/school-access";
+import { getActiveContext } from "@/lib/academic/get-active-context";
 
 export async function GET(
   request: NextRequest,
@@ -139,20 +140,15 @@ export async function POST(
           }
         });
 
-        // Read Working Context from cookies
-        const cookieStore = await import("next/headers").then(mod => mod.cookies());
-        const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
-        const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
-
-        // Get current Academic Year and Term from Working Context or school settings
-        const schoolWithSettings = await tx.school.findUnique({
-          where: { id: school.id },
-          select: { settings: true },
-        });
-
-        const settings = (schoolWithSettings?.settings as any) || {};
-        const effectiveYearId = workingYearId || settings.currentAcademicYearId;
-        const effectiveTermId = workingTermId || settings.currentTermId;
+        // Resolve user-scoped working context for billing period
+        const feeCtx = await getActiveContext(
+          schoolSlug,
+          session.user.id,
+          school.settings as Record<string, string | undefined>,
+          { withNames: false },
+        );
+        const effectiveYearId = feeCtx.academicYearId;
+        const effectiveTermId = feeCtx.termId;
 
         const [academicYear, term] = await Promise.all([
           tx.academicYear.findUnique({ where: { id: effectiveYearId || "" } }),

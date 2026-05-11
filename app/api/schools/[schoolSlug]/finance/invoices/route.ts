@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hasSchoolAccess } from "@/lib/auth/school-access";
+import { getActiveContext } from "@/lib/academic/get-active-context";
 
 // GET all bills (invoices)
 export async function GET(
@@ -29,19 +30,16 @@ export async function GET(
   const queryYearId = searchParams.get("academicYearId");
   const queryTermId = searchParams.get("termId");
 
-  // Read Working Context from cookies
-  const cookieStore = await import("next/headers").then(mod => mod.cookies());
-  const workingYearId = (await cookieStore).get(`sms_working_year_${schoolSlug}`)?.value;
-  const workingTermId = (await cookieStore).get(`sms_working_term_${schoolSlug}`)?.value;
+  // Resolve user-scoped working context (cookie override → global setting)
+  const ctx = await getActiveContext(
+    schoolSlug,
+    session.user.id,
+    school.settings as Record<string, string | undefined>,
+    { withNames: false },
+  );
 
-  const schoolWithSettings = await prisma.school.findUnique({
-    where: { id: school.id },
-    select: { settings: true },
-  });
-  const settings = (schoolWithSettings?.settings as any) || {};
-
-  const effectiveYearId = queryYearId === "all" ? undefined : (queryYearId || workingYearId || settings.currentAcademicYearId);
-  const effectiveTermId = queryTermId === "all" ? undefined : (queryTermId || workingTermId || settings.currentTermId);
+  const effectiveYearId = queryYearId === "all" ? undefined : (queryYearId || ctx.academicYearId);
+  const effectiveTermId = queryTermId === "all" ? undefined : (queryTermId || ctx.termId);
 
   const whereClause: any = { schoolId: school.id };
   if (status) {

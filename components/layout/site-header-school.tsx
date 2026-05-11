@@ -1,10 +1,14 @@
-// components/layout/site-header-school.tsx - WITH ROLE SWITCHER
+// components/layout/site-header-school.tsx
 "use client";
 
 import { BaseHeader } from "./base-header";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock } from "lucide-react";
 import { RoleSwitcher } from "./role-switcher";
+import { useSidebar } from "@/components/ui/sidebar";
+import { CompactYearTermSwitcher } from "./compact-year-term-switcher";
+
+const PRIVILEGED_ROLES = ["admin", "owner", "accountant", "headteacher", "superAdmin"];
 
 interface SiteHeaderSchoolProps {
   schoolSlug: string;
@@ -12,6 +16,7 @@ interface SiteHeaderSchoolProps {
   currentTerm?: string | null;
   currentRole: string;
   availableRoles: string[];
+  userId: string; // For user-scoped academic context cookies
 }
 
 export function SiteHeaderSchool({
@@ -20,7 +25,12 @@ export function SiteHeaderSchool({
   currentTerm,
   currentRole,
   availableRoles,
+  userId,
 }: SiteHeaderSchoolProps) {
+  const { state } = useSidebar();
+  const isPrivileged = PRIVILEGED_ROLES.includes(currentRole);
+  const sidebarCollapsed = state === "collapsed";
+
   return (
     <BaseHeader
       rootLabel="Dashboard"
@@ -35,18 +45,28 @@ export function SiteHeaderSchool({
             availableRoles={availableRoles}
           />
 
-          {/* Academic Year Badge */}
-          <Badge variant="outline" className="gap-1.5 hidden sm:flex">
-            <Calendar className="h-3.5 w-3.5" />
-            <span className="text-xs">{academicYear}</span>
-          </Badge>
-
-          {/* Current Term Badge (if exists) */}
-          {currentTerm && (
-            <Badge variant="secondary" className="gap-1.5 hidden md:flex">
-              <Clock className="h-3.5 w-3.5" />
-              <span className="text-xs">{currentTerm}</span>
-            </Badge>
+          {isPrivileged ? (
+            // Privileged roles:
+            // - Sidebar expanded → badges are redundant (switcher is in sidebar), hide them
+            // - Sidebar collapsed → sidebar switcher is hidden, show compact interactive dropdown
+            sidebarCollapsed ? (
+              <CompactYearTermSwitcher currentRole={currentRole} userId={userId} />
+            ) : null
+          ) : (
+            // Non-privileged roles (teacher, student, guardian):
+            // Always show read-only context badges
+            <>
+              <Badge variant="outline" className="gap-1.5 hidden sm:flex">
+                <Calendar className="h-3.5 w-3.5" />
+                <span className="text-xs">{academicYear}</span>
+              </Badge>
+              {currentTerm && (
+                <Badge variant="secondary" className="gap-1.5 hidden md:flex">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span className="text-xs">{currentTerm}</span>
+                </Badge>
+              )}
+            </>
           )}
         </div>
       }

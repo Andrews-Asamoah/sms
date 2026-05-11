@@ -3,124 +3,95 @@
 import prisma from "@/lib/prisma";
 import { startOfMonth, subMonths, endOfMonth } from "date-fns";
 import { formatStudentName } from "@/lib/utils/name-formatter";
+import { getActiveContext } from "@/lib/academic/get-active-context";
+import { getSession } from "@/lib/auth/session";
 
 export async function getAdminDashboardStats(schoolSlug: string) {
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
-    include: {
-      _count: {
-        select: {
-          teachers: { where: { isActive: true, profileId: { not: null } } },
-          staff: { where: { isActive: true } },
-          classes: { where: { isActive: true } },
-        },
-      },
+    select: {
+      id: true,
+      name: true,
+      currency: true,
+      settings: true,
     },
   });
 
   if (!school) throw new Error("School not found");
 
-  const { currentAcademicYearId, currentTermId } =
-    (school.settings as any) || {};
+  // Resolve the active academic context via the shared utility.
+  // Honors the admin's personal session cookie override (user-scoped) before
+  // falling back to the global school.settings values.
+  const session = await getSession();
+  const userId = session?.user.id ?? "anonymous";
+  const ctx = await getActiveContext(schoolSlug, userId, school.settings as Record<string, string | undefined>);
+  const { academicYearId: currentAcademicYearId, termId: currentTermId } = ctx;
 
-  // Get counts accurately including only those with profiles (accepted invitations)
-  const [activeStudentCount, activeTeacherCount, activeStaffCount, activeClassCount] = await Promise.all([
-    prisma.student.count({
-      where: {
-        schoolId: school.id,
-        status: "ACTIVE",
-        enrollments: {
-          some: {
-            academicYearId: currentAcademicYearId || undefined,
-            termId: currentTermId || undefined,
-            status: "ACTIVE",
+  // Counts ──────────────────────────────────────────────────────────────────
+  const [activeStudentCount, activeTeacherCount, activeStaffCount, activeClassCount] =
+    await Promise.all([
+      prisma.student.count({
+        where: {
+          schoolId: school.id,
+          status: "ACTIVE",
+          enrollments: {
+            some: {
+              academicYearId: currentAcademicYearId || undefined,
+              termId: currentTermId || undefined,
+              status: "ACTIVE",
+            },
           },
         },
-      },
-    }),
-    prisma.teacher.count({
+      }),
+      prisma.teacher.count({
+        where: { schoolId: school.id, isActive: true, profileId: { not: null } },
+      }),
+      prisma.staff.count({
+        where: { schoolId: school.id, isActive: true },
+      }),
+      prisma.class.count({
+        where: { schoolId: school.id, isActive: true },
+      }),
+    ]);
+
+  // Financial totals ────────────────────────────────────────────────────────
+  const [bills, expenses] = await Promise.all([
+    prisma.bill.findMany({
       where: {
         schoolId: school.id,
-        isActive: true,
-        profileId: { not: null },
+        academicYearId: currentAcademicYearId || undefined,
+        termId: currentTermId || undefined,
       },
+      select: { paidAmount: true },
     }),
-    prisma.staff.count({
+    prisma.expense.findMany({
       where: {
         schoolId: school.id,
-        isActive: true,
-        // profileId is required for Staff so this effectively excludes non-existent profiles
+        academicYearId: currentAcademicYearId || undefined,
+        termId: currentTermId || undefined,
       },
-    }),
-    prisma.class.count({
-      where: {
-        schoolId: school.id,
-        isActive: true,
-      },
+      select: { amount: true },
     }),
   ]);
-
-  // Fetch Financial Totals (Revenue vs Expenses)
-  const bills = await prisma.bill.findMany({
-    where: {
-      schoolId: school.id,
-      academicYearId: currentAcademicYearId || undefined,
-      termId: currentTermId || undefined,
-    },
-    select: {
-      paidAmount: true,
-    },
-  });
-
-  const expenses = await prisma.expense.findMany({
-    where: {
-      schoolId: school.id,
-      academicYearId: currentAcademicYearId || undefined,
-      termId: currentTermId || undefined,
-    },
-    select: {
-      amount: true,
-    },
-  });
 
   const totalRevenue = bills.reduce((sum, b) => sum + Number(b.paidAmount), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
-  // Fetch Enrollment Data for Charts (Last 6 Months) - NEW students per month
+  // Enrollment trend (last 6 calendar months) ───────────────────────────────
   const enrollmentTrends = await Promise.all(
     Array.from({ length: 6 }).map(async (_, i) => {
       const monthDate = subMonths(new Date(), 5 - i);
-      const start = startOfMonth(monthDate);
-      const end = endOfMonth(monthDate);
-
       const count = await prisma.student.count({
         where: {
           schoolId: school.id,
-          admissionDate: {
-            gte: start,
-            lte: end,
-          },
+          admissionDate: { gte: startOfMonth(monthDate), lte: endOfMonth(monthDate) },
         },
       });
-
-      return {
-        month: monthDate.toLocaleString("default", { month: "short" }),
-        students: count,
-      };
+      return { month: monthDate.toLocaleString("default", { month: "short" }), students: count };
     }),
   );
 
-  // Financial Chart Data (Revenue vs Expenses)
-  const financialData = [
-    { name: "Revenue", value: totalRevenue, fill: "var(--color-revenue)" },
-    {
-      name: "Expenses",
-      value: totalExpenses,
-      fill: "var(--color-expenses)",
-    },
-  ];
-
-  // Gender Distribution Charts
+  // Gender distribution ─────────────────────────────────────────────────────
   const genderDistribution = await Promise.all([
     prisma.student.count({
       where: {
@@ -128,10 +99,7 @@ export async function getAdminDashboardStats(schoolSlug: string) {
         status: "ACTIVE",
         profile: { gender: "MALE" },
         enrollments: {
-          some: {
-            academicYearId: currentAcademicYearId || undefined,
-            status: "ACTIVE",
-          },
+          some: { academicYearId: currentAcademicYearId || undefined, status: "ACTIVE" },
         },
       },
     }),
@@ -141,10 +109,7 @@ export async function getAdminDashboardStats(schoolSlug: string) {
         status: "ACTIVE",
         profile: { gender: "FEMALE" },
         enrollments: {
-          some: {
-            academicYearId: currentAcademicYearId || undefined,
-            status: "ACTIVE",
-          },
+          some: { academicYearId: currentAcademicYearId || undefined, status: "ACTIVE" },
         },
       },
     }),
@@ -153,20 +118,20 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     { gender: "female", count: female, fill: "var(--color-female)" },
   ]);
 
-  // Recent Activities (Latest 5 students)
+  // Recent activity ─────────────────────────────────────────────────────────
   const recentStudents = await prisma.student.findMany({
     where: { schoolId: school.id },
     take: 5,
     orderBy: { createdAt: "desc" },
-    include: {
-      profile: true,
-      class: true,
-    },
+    include: { profile: true, class: true },
   });
 
   return {
     schoolName: school.name,
     currency: school.currency,
+    // Context names for dashboard header display
+    academicYearName: ctx.academicYearName,
+    termName: ctx.termName,
     counts: {
       students: activeStudentCount,
       teachers: activeTeacherCount,
@@ -176,7 +141,10 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     financials: {
       totalRevenue,
       totalExpenses,
-      chartData: financialData,
+      chartData: [
+        { name: "Revenue", value: totalRevenue, fill: "var(--color-revenue)" },
+        { name: "Expenses", value: totalExpenses, fill: "var(--color-expenses)" },
+      ],
     },
     enrollmentTrends,
     genderDistribution,
