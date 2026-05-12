@@ -19,7 +19,7 @@ import { MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { SubjectDialog } from "./subject-dialog";
 import { DeleteSubjectButton } from "./delete-subject-button";
-import type { Subject, Department } from "@/lib/generated/prisma/client";
+import type { Subject, Department } from "@prisma/client";
 
 type SubjectWithRelations = Subject & {
   department: Department;

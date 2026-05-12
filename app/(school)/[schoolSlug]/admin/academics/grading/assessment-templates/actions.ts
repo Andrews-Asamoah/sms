@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { z } from "zod";
-import { AssessmentType } from "@/lib/generated/prisma/client";
+import { AssessmentType } from "@prisma/client";
 
 // ============================================================================
 // VALIDATION SCHEMAS

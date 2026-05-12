@@ -1,7 +1,7 @@
 // ============================================
 // lib/types/profile.ts
 // ============================================
-import type { Gender } from "@/lib/generated/prisma/client";
+import type { Gender } from "@prisma/client";
 
 export interface UserProfileData {
   // User data

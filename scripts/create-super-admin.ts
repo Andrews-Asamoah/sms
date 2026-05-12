@@ -7,7 +7,7 @@
 import "dotenv/config";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { Gender } from "@/lib/generated/prisma/client";
+import { Gender } from "@prisma/client";
 
 // ============================================================================
 // TYPE DEFINITIONS

@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Decimal } from "@/lib/generated/prisma/runtime/client";
+type Decimal = { toNumber(): number } | number;
 import { GuardianFeesClient } from "./guardian-fees-client";
 
 interface GuardianFeesPageProps {

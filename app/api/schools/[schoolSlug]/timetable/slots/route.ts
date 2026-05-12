@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hasSchoolAccess } from "@/lib/auth/school-access";
-import { DayOfWeek } from "@/lib/generated/prisma/client";
+import { DayOfWeek } from "@prisma/client";
 
 const WEEKDAYS: DayOfWeek[] = [
   "MONDAY",

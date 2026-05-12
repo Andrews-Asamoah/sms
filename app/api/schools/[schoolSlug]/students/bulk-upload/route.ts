@@ -7,7 +7,7 @@ import crypto from "crypto";
 import * as XLSX from "xlsx";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
-import type { Gender } from "@/lib/generated/prisma/client";
+import type { Gender } from "@prisma/client";
 import {
   resolveSubscriptionLimits,
   wouldExceedLimit,

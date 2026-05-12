@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
-import { Gender } from "@/lib/generated/prisma/client";
+import { Gender } from "@prisma/client";
 
 type RouteContext = {
   params: Promise<{

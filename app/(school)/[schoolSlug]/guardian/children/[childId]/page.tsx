@@ -21,7 +21,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Decimal } from "@/lib/generated/prisma/runtime/client";
+type Decimal = { toNumber(): number } | number;
 
 interface GuardianChildDetailsPageProps {
   params: Promise<{

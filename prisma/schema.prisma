@@ -4,8 +4,7 @@
 // ============================================================================
 
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -41,29 +40,29 @@ model user {
   banExpires    DateTime?
 
   // Relations
-  accounts           account[]
-  sessions           session[]
-  invitations        invitation[]
-  members            member[]
-  attendancesMarked  Attendance[]           @relation("AttendanceMarkedBy")
-  auditLogs          AuditLog[]
-  componentScores    ComponentScore[]
-  documents          Document[]
-  gradingSystems     GradingSystem[]
-  paymentsRecorded   Payment[]              @relation("PaymentRecordedBy")
-  transcriptRequests TranscriptRequest[]
-  notifications      Notification[]
-  announcementsSent     Announcement[]          @relation("AnnouncementsSent")
-  feeReminderSchedules  FeeReminderSchedule[]   @relation("FeeReminderSchedules")
-  expensesRecorded   Expense[]              @relation("ExpenseRecordedBy")
-  inventoryPerformed InventoryTransaction[] @relation("InventoryPerformedBy")
-  inventoryReceived  InventoryTransaction[] @relation("InventoryRecipient")
-  userProfile        UserProfile?
-  submittedTickets   SupportTicket[]        @relation("SubmittedTickets")
-  assignedTickets    SupportTicket[]        @relation("AssignedTickets")
-  ticketReplies      TicketReply[]
-  payrollProcessed   PayrollRecord[]        @relation("PayrollProcessedBy")
-  promotionsApproved PromotionRecord[]      @relation("PromotedBy")
+  accounts             account[]
+  sessions             session[]
+  invitations          invitation[]
+  members              member[]
+  attendancesMarked    Attendance[]           @relation("AttendanceMarkedBy")
+  auditLogs            AuditLog[]
+  componentScores      ComponentScore[]
+  documents            Document[]
+  gradingSystems       GradingSystem[]
+  paymentsRecorded     Payment[]              @relation("PaymentRecordedBy")
+  transcriptRequests   TranscriptRequest[]
+  notifications        Notification[]
+  announcementsSent    Announcement[]         @relation("AnnouncementsSent")
+  feeReminderSchedules FeeReminderSchedule[]  @relation("FeeReminderSchedules")
+  expensesRecorded     Expense[]              @relation("ExpenseRecordedBy")
+  inventoryPerformed   InventoryTransaction[] @relation("InventoryPerformedBy")
+  inventoryReceived    InventoryTransaction[] @relation("InventoryRecipient")
+  userProfile          UserProfile?
+  submittedTickets     SupportTicket[]        @relation("SubmittedTickets")
+  assignedTickets      SupportTicket[]        @relation("AssignedTickets")
+  ticketReplies        TicketReply[]
+  payrollProcessed     PayrollRecord[]        @relation("PayrollProcessedBy")
+  promotionsApproved   PromotionRecord[]      @relation("PromotedBy")
 
   @@index([banned])
   @@index([email])
@@ -1189,8 +1188,8 @@ model Announcement {
   schoolId    String
   authorId    String
   title       String
-  content     String    // Plain text / preview (stripped from HTML)
-  contentHtml String?   // Rich text HTML from Tiptap editor
+  content     String // Plain text / preview (stripped from HTML)
+  contentHtml String? // Rich text HTML from Tiptap editor
   target      String    @default("ALL") // ALL, TEACHER, STUDENT, STAFF, GUARDIAN, CLASS:id, CLUB:id
   messageType String    @default("ANNOUNCEMENT") // ANNOUNCEMENT | FINANCIAL
   sendSms     Boolean   @default(false)
@@ -1222,11 +1221,11 @@ model Announcement {
 // ============================================================================
 
 model FeeReminderSchedule {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   schoolId    String
-  name        String   // e.g. "Term 1 2025 Fee Reminders"
+  name        String // e.g. "Term 1 2025 Fee Reminders"
   description String?
-  isActive    Boolean  @default(true)
+  isActive    Boolean @default(true)
 
   // Channels
   sendSms   Boolean @default(true)
@@ -1234,7 +1233,7 @@ model FeeReminderSchedule {
   sendInApp Boolean @default(true)
 
   // Message template
-  messageTemplate String  // Rich HTML (Tiptap). Supports {{studentName}}, {{outstandingBalance}}, {{dueDate}}, {{installmentLabel}}
+  messageTemplate String // Rich HTML (Tiptap). Supports {{studentName}}, {{outstandingBalance}}, {{dueDate}}, {{installmentLabel}}
   smsTemplate     String? // Auto-derived plain text for SMS (max 160 chars guidance)
 
   // Targeting
@@ -1247,10 +1246,10 @@ model FeeReminderSchedule {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear? @relation(fields: [academicYearId], references: [id])
-  term         Term?         @relation(fields: [termId], references: [id])
-  createdBy    user          @relation("FeeReminderSchedules", fields: [createdById], references: [id])
+  school       School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear?            @relation(fields: [academicYearId], references: [id])
+  term         Term?                    @relation(fields: [termId], references: [id])
+  createdBy    user                     @relation("FeeReminderSchedules", fields: [createdById], references: [id])
   installments FeeReminderInstallment[]
   logs         FeeReminderLog[]
 
@@ -1263,7 +1262,7 @@ model FeeReminderSchedule {
 model FeeReminderInstallment {
   id         String    @id @default(cuid())
   scheduleId String
-  label      String    // "1st Installment", "2nd Installment", "Final Notice"
+  label      String // "1st Installment", "2nd Installment", "Final Notice"
   dueDate    DateTime  @db.Date
   sendDate   DateTime  @db.Date // When the reminder fires
   sent       Boolean   @default(false)
@@ -1279,19 +1278,19 @@ model FeeReminderInstallment {
 }
 
 model FeeReminderLog {
-  id            String         @id @default(cuid())
-  scheduleId    String
-  installmentId String?
-  guardianPhone String?
-  guardianEmail String?
-  guardianName  String
-  studentName   String
-  studentId     String
-  outstandingBalance Decimal   @db.Decimal(10, 2)
-  channel       MessageChannel
-  status        ReminderStatus @default(PENDING)
-  error         String?
-  sentAt        DateTime       @default(now())
+  id                 String         @id @default(cuid())
+  scheduleId         String
+  installmentId      String?
+  guardianPhone      String?
+  guardianEmail      String?
+  guardianName       String
+  studentName        String
+  studentId          String
+  outstandingBalance Decimal        @db.Decimal(10, 2)
+  channel            MessageChannel
+  status             ReminderStatus @default(PENDING)
+  error              String?
+  sentAt             DateTime       @default(now())
 
   schedule    FeeReminderSchedule     @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   installment FeeReminderInstallment? @relation(fields: [installmentId], references: [id], onDelete: SetNull)

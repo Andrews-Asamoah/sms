@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth";
 import crypto from "crypto";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
-import type { GuardianType } from "@/lib/generated/prisma/client";
+import type { GuardianType } from "@prisma/client";
 import { headers } from "next/headers";
 
 const addParentSchema = z.object({

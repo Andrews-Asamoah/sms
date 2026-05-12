@@ -1,6 +1,6 @@
 // lib/subscription-plans.ts
 
-import type { PlanType, BillingCycle } from "@/lib/generated/prisma/client";
+import type { PlanType, BillingCycle } from "@prisma/client";
 
 // ============================================================================
 // TYPES

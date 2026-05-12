@@ -23,7 +23,7 @@ import { FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { assignTeacherToSubject } from "@/app/(school)/[schoolSlug]/admin/academics/subjects/actions";
-import type { Teacher, UserProfile } from "@/lib/generated/prisma/client";
+import type { Teacher, UserProfile } from "@prisma/client";
 
 type TeacherWithProfile = Teacher & {
   profile: UserProfile;

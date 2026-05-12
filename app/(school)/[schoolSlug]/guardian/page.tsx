@@ -22,7 +22,7 @@ import {
   Bell,
   GraduationCap,
 } from "lucide-react";
-import { Decimal } from "@/lib/generated/prisma/runtime/client";
+type Decimal = { toNumber(): number } | number;
 
 interface GuardianDashboardProps {
   params: Promise<{ schoolSlug: string }>;

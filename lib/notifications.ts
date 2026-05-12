@@ -1,5 +1,5 @@
 import prisma from "./prisma";
-import { NotificationType } from "./generated/prisma";
+import { NotificationType } from "@prisma/client";
 
 /**
  * Send notifications to all teachers of classes assigned to an assessment template

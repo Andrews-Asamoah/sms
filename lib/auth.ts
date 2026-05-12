@@ -29,7 +29,7 @@ import {
   Gender,
   StaffType,
   EmploymentType,
-} from "@/lib/generated/prisma/client";
+} from "@prisma/client";
 
 // ============================================================================
 // TYPE DEFINITIONS

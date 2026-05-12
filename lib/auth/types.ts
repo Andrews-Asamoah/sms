@@ -1,7 +1,7 @@
 // lib/auth/types.ts
 
 import type { User } from "better-auth/types";
-import type { Prisma } from "@/lib/generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 
 // ============================================================================
 // PRISMA INCLUDE CONFIGURATIONS
@@ -329,4 +329,4 @@ export {
   EmploymentType,
   GuardianType,
   StaffType,
-} from "@/lib/generated/prisma/client";
+} from "@prisma/client";

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { calculatePayrollBreakdown } from "@/lib/finance/payroll-utils";
-import { Prisma } from "@/lib/generated/prisma";
+import { Prisma } from "@prisma/client";
 import { getActiveContext } from "@/lib/academic/get-active-context";
 
 /**

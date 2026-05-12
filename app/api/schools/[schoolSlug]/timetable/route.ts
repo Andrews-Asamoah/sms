@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hasSchoolAccess } from "@/lib/auth/school-access";
-import { TimetableEntryType } from "@/lib/generated/prisma/client";
+import { TimetableEntryType } from "@prisma/client";
 
 /**
  * GET /api/schools/[schoolSlug]/timetable

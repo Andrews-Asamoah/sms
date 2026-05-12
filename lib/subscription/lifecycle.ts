@@ -1,7 +1,7 @@
 // lib/subscription/lifecycle.ts
 
 import prisma from "@/lib/prisma";
-import type { SubscriptionStatus as PrismaSubscriptionStatus } from "@/lib/generated/prisma/client";
+import type { SubscriptionStatus as PrismaSubscriptionStatus } from "@prisma/client";
 
 // ============================================================================
 // TYPES

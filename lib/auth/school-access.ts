@@ -7,7 +7,7 @@ import type {
   OrganizationRole,
   MembershipWithOrganization,
 } from "./types";
-import { StudentStatus, StaffType } from "@/lib/generated/prisma/client";
+import { StudentStatus, StaffType } from "@prisma/client";
 import { ROLE_PRIORITY } from "./types";
 
 /**

@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { revalidatePath } from "next/cache";
-import { AttendanceStatus } from "@/lib/generated/prisma/client";
+import { AttendanceStatus } from "@prisma/client";
 
 interface AttendanceEntry {
   studentId: string;

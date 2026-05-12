@@ -241,7 +241,7 @@ export async function POST(
           await tx.school.update({
             where: { id: school.id },
             data: {
-              settings: updatedSettings as import("@/lib/generated/prisma").Prisma.InputJsonValue,
+              settings: updatedSettings as import("@prisma/client").Prisma.InputJsonValue,
             },
           });
         }

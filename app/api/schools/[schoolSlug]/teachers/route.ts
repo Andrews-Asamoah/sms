@@ -4,7 +4,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
-import { Gender } from "@/lib/generated/prisma/client";
+import { Gender } from "@prisma/client";
 
 // Schema for teacher invitation
 const teacherInviteSchema = z.object({
