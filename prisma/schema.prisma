@@ -5,6 +5,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
 }
 
 datasource db {
@@ -15,14 +16,6 @@ datasource db {
 // BETTER AUTH CORE MODELS
 // These are required by Better Auth and should not be modified
 // ============================================================================
-
-// ============================================================
-// BETTER AUTH CORE MODELS
-// Better Auth's prisma adapter expects these exact model names:
-// user, session, account, verification
-// The organization plugin expects: organization, member, invitation
-// We keep @@map() to preserve existing table names in the DB.
-// ============================================================
 
 model user {
   id            String    @id

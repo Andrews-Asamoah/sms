@@ -1,40 +1,28 @@
-// @lib/prisma.ts
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@/lib/generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
-});
-const globalForPrisma = global as unknown as {
-  prisma: PrismaClient;
-};
-const prisma =
-  globalForPrisma.prisma ||
+
+const createPrismaClient = () =>
   new PrismaClient({
-    adapter,
+    adapter: new PrismaPg({
+      connectionString: process.env.DATABASE_URL!,
+      max: 10,
+      idleTimeoutMillis: 20000,
+      connectionTimeoutMillis: 3000,
+    }),
+    log:
+      process.env.NODE_ENV === "development"
+        ? ["query", "error", "warn"]
+        : ["error"],
   });
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: ReturnType<typeof createPrismaClient> | undefined;
+};
+
+const prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}
+
 export default prisma;
-
-// // @lib/prisma.ts
-// import { PrismaClient } from "@prisma/client";
-// import { withAccelerate } from "@prisma/extension-accelerate";
-
-// const globalForPrisma = globalThis as unknown as {
-//   prisma: ReturnType<typeof createPrismaClient> | undefined;
-// };
-
-// function createPrismaClient() {
-//   const accelerateUrl = process.env.DATABASE_URL;
-//   if (!accelerateUrl) {
-//     throw new Error("DATABASE_URL is not set");
-//   }
-//   return new PrismaClient({ accelerateUrl }).$extends(withAccelerate());
-// }
-
-// const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-// if (process.env.NODE_ENV !== "production") {
-//   globalForPrisma.prisma = prisma;
-// }
-
-// export default prisma;

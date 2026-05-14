@@ -5,7 +5,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma";
 
 type RouteContext = {
   params: Promise<{
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const params = await context.params;
     const { schoolSlug } = params;
-    
+
     // Use requireSchoolAccess to allow teachers/admins/accountants/etc with access to this school
     // to fetch its metadata (logo, name, etc.)
     await requireSchoolAccess(schoolSlug);
