@@ -29,7 +29,7 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 
 const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
+  email: z.email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -74,11 +74,15 @@ export function LoginForm() {
 
         if (msg.toLowerCase().includes("banned")) {
           try {
-            const res = await fetch(`/api/auth/ban-reason?email=${encodeURIComponent(data.email)}`);
+            const res = await fetch(
+              `/api/auth/ban-reason?email=${encodeURIComponent(data.email)}`,
+            );
             if (res.ok) {
               const json = await res.json();
               if (json.reason) {
-                setError(`Your account has been suspended. Reason: ${json.reason}`);
+                setError(
+                  `Your account has been suspended. Reason: ${json.reason}`,
+                );
                 return;
               }
             }
