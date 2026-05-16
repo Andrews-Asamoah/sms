@@ -34,10 +34,16 @@ export function AnnouncementWidget() {
     const fetchAnnouncements = async () => {
       try {
         const res = await fetch(`/api/schools/${schoolSlug}/announcements`);
+        if (!res.ok) {
+          console.error(`Failed to fetch announcements: ${res.statusText}`);
+          setAnnouncements([]);
+          return;
+        }
         const data = await res.json();
-        setAnnouncements(data);
+        setAnnouncements(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to fetch announcements:", error);
+        setAnnouncements([]);
       } finally {
         setLoading(false);
       }

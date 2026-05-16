@@ -96,7 +96,9 @@ export const getSession = cache(async (): Promise<ExtendedSession | null> => {
     return enhancedSession;
   } catch (error) {
     console.error("[Session] Error getting session:", error);
-    return null;
+    // Don't mask database/connection errors as an invalid session
+    // This prevents users from being randomly logged out during DB spikes
+    throw error;
   }
 });
 

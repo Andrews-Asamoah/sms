@@ -108,10 +108,16 @@ export function InventoryClient() {
       const itemsData = await itemsRes.json();
       const txData = await txRes.json();
 
-      setItems(itemsData);
-      setTransactions(txData);
+      if (!itemsRes.ok) throw new Error(itemsData.error || "Failed to fetch items");
+      if (!txRes.ok) throw new Error(txData.error || "Failed to fetch transactions");
+
+      setItems(Array.isArray(itemsData) ? itemsData : []);
+      setTransactions(Array.isArray(txData) ? txData : []);
     } catch (error) {
+      console.error("Failed to load inventory data:", error);
       toast.error("Failed to load inventory data");
+      setItems([]);
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
