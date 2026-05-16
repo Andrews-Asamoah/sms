@@ -10,6 +10,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { FeeStructureForm } from "@/components/school/finance/fee-structure-form";
+import { useSchoolData } from "@/lib/school-data-context";
 
 interface FeeStructure {
   id: string;
@@ -42,42 +43,19 @@ export function FeeStructureSheet({
   onOpenChange,
 }: FeeStructureSheetProps) {
   const [internalOpen, setInternalOpen] = useState(false);
-  const [classes, setClasses] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [feeItemRegistry, setFeeItemRegistry] = useState([]);
+  const { classes, departments, feeItems: feeItemRegistry, fetchClasses, fetchDepartments, fetchFeeItems } = useSchoolData();
 
   // Use controlled or internal state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = onOpenChange || setInternalOpen;
 
-  // Fetch classes and departments when sheet opens
+  // Fetch context data when sheet opens
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [classesRes, deptsRes, registryRes] = await Promise.all([
-          fetch(`/api/schools/${schoolSlug}/classes`),
-          fetch(`/api/schools/${schoolSlug}/departments`),
-          fetch(`/api/schools/${schoolSlug}/finance/fee-item-registry`),
-        ]);
-
-        if (classesRes.ok) {
-          const c = await classesRes.json();
-          setClasses(c);
-        }
-        if (deptsRes.ok) {
-          const d = await deptsRes.json();
-          setDepartments(d);
-        }
-        if (registryRes.ok) {
-          const r = await registryRes.json();
-          setFeeItemRegistry(r);
-        }
-      } catch (e) {
-        console.error("Failed to fetch metadata for form", e);
-      }
-    };
-    fetchData();
-  }, [schoolSlug]);
+    if (!open) return;
+    fetchClasses();
+    fetchDepartments();
+    fetchFeeItems();
+  }, [open, fetchClasses, fetchDepartments, fetchFeeItems]);
 
   const handleSuccess = () => {
     setOpen(false);

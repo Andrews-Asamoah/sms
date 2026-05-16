@@ -101,12 +101,12 @@ interface TeacherDialogProps {
   departments: Array<{
     id: string;
     name: string;
-    code: string;
+    code?: string;
   }>;
   houses: Array<{
     id: string;
     name: string;
-    code: string;
+    code?: string;
   }>;
   teacher?: {
     id: string;

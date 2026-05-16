@@ -111,9 +111,10 @@ export function AnnouncementsPageContent({
   const [isDeleting, setIsDeleting] = useState(false);
   const [now, setNow] = useState(new Date());
 
+  // Force re-render every minute so that relative times update
   useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 10000);
-    return () => clearInterval(interval);
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
 
   const fetchAnnouncements = async () => {

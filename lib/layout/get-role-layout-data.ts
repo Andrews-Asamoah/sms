@@ -22,6 +22,19 @@ interface SchoolSettings {
   currentTermId?: string;
 }
 
+export interface AcademicTermOption {
+  id: string;
+  name: string;
+  isCurrent: boolean;
+}
+
+export interface AcademicYearOption {
+  id: string;
+  name: string;
+  isCurrent: boolean;
+  terms: AcademicTermOption[];
+}
+
 export interface RoleLayoutData {
   session: Awaited<ReturnType<typeof getSession>>;
   school: {
@@ -39,6 +52,7 @@ export interface RoleLayoutData {
   schoolRole: ReturnType<typeof getSchoolRole> & { effectiveRole: string };
   academicYear: string;
   currentTerm: string | null;
+  academicYears: AcademicYearOption[];  // ← All years with terms for switchers
   allRoles: ReturnType<typeof getAllRolesInSchool>;
   permissions: Awaited<ReturnType<typeof getNavPermissions>>;
   userData: {
@@ -158,12 +172,25 @@ export async function getRoleLayoutData(
     activeSchoolRole?.effectiveRole ?? schoolRole.effectiveRole;
   const allRoles = getAllRolesInSchool(session, schoolSlug);
 
-  // ── 6. Permissions + user data ─────────────────────────────────────────────
-  const [permissions, freshUser] = await Promise.all([
+  // ── 6. Permissions + user data + all academic years ─────────────────────
+  const [permissions, freshUser, allAcademicYears] = await Promise.all([
     getNavPermissions(session, schoolSlug),
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: { image: true, name: true },
+    }),
+    prisma.academicYear.findMany({
+      where: { schoolId: school.id },
+      orderBy: { startDate: "desc" },
+      select: {
+        id: true,
+        name: true,
+        isCurrent: true,
+        terms: {
+          orderBy: { termNumber: "asc" },
+          select: { id: true, name: true, isCurrent: true },
+        },
+      },
     }),
   ]);
 
@@ -202,7 +229,6 @@ export async function getRoleLayoutData(
         ? {
             planName: school.subscription.planName,
             status: school.subscription.status,
-            // Decimal → string safely (handles null and Prisma Decimal objects)
             amount:
               school.subscription.amount != null
                 ? Number(school.subscription.amount).toFixed(2)
@@ -217,6 +243,7 @@ export async function getRoleLayoutData(
     },
     academicYear: academicYear?.name ?? "No Active Year",
     currentTerm: activeTerm?.name ?? null,
+    academicYears: JSON.parse(JSON.stringify(allAcademicYears)),
     allRoles,
     permissions,
     userData,

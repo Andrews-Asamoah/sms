@@ -23,23 +23,12 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSidebar } from "@/components/ui/sidebar";
 
-interface AcademicTerm {
-  id: string;
-  name: string;
-}
+import type { AcademicYearOption } from "@/lib/layout/get-role-layout-data";
 
-interface AcademicYear {
-  id: string;
-  name: string;
-  isCurrent: boolean;
-  terms: AcademicTerm[];
-}
-
-export function WorkingYearSwitcher({ userId }: { userId: string }) {
+export function WorkingYearSwitcher({ userId, academicYears: years }: { userId: string, academicYears: AcademicYearOption[] }) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const { state } = useSidebar();
   const [open, setOpen] = useState(false);
-  const [years, setYears] = useState<AcademicYear[]>([]);
   const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,45 +56,30 @@ export function WorkingYearSwitcher({ userId }: { userId: string }) {
   };
 
   useEffect(() => {
-    async function fetchYears() {
-      try {
-        const res = await fetch(`/api/schools/${schoolSlug}/academic-years`);
-        if (!res.ok) return;
+    if (!schoolSlug || years.length === 0) return;
 
-        const data: AcademicYear[] = await res.json();
-        setYears(data);
+    const yearCookie = getCookie(`sms_working_year_${schoolSlug}_${userId}`);
+    const termCookie = getCookie(`sms_working_term_${schoolSlug}_${userId}`);
 
-        const yearCookie = getCookie(`sms_working_year_${schoolSlug}_${userId}`);
-        const termCookie = getCookie(`sms_working_term_${schoolSlug}_${userId}`);
-
-        // 1. Resolve Year
-        let activeYear = data.find((y) => y.id === yearCookie) || 
-                         data.find((y) => y.isCurrent) || 
-                         data[0];
-        
-        if (activeYear) {
-          setSelectedYearId(activeYear.id);
-          
-          // 2. Resolve Term within that Year
-          let activeTerm = activeYear.terms.find((t) => t.id === termCookie) || 
-                           activeYear.terms.find((t: any) => t.isCurrent) || 
-                           activeYear.terms[0];
-          
-          if (activeTerm) {
-            setSelectedTermId(activeTerm.id);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch academic years", error);
-      } finally {
-        setLoading(false);
+    // 1. Resolve Year
+    let activeYear = years.find((y) => y.id === yearCookie) || 
+                     years.find((y) => y.isCurrent) || 
+                     years[0];
+    
+    if (activeYear) {
+      setSelectedYearId(activeYear.id);
+      
+      // 2. Resolve Term within that Year
+      let activeTerm = activeYear.terms.find((t) => t.id === termCookie) || 
+                       activeYear.terms.find((t: any) => t.isCurrent) || 
+                       activeYear.terms[0];
+      
+      if (activeTerm) {
+        setSelectedTermId(activeTerm.id);
       }
     }
-
-    if (schoolSlug) {
-      fetchYears();
-    }
-  }, [schoolSlug]);
+    setLoading(false);
+  }, [schoolSlug, userId, years]);
 
   const handleYearSelect = (yearId: string) => {
     setSelectedYearId(yearId);

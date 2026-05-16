@@ -14,7 +14,7 @@ export default async function StudentLayout({
 }: StudentLayoutProps) {
   const { schoolSlug } = await params;
 
-  const { school, academicYear, currentTerm, allRoles, permissions, userData } =
+  const { school, academicYear, currentTerm, academicYears, allRoles, permissions, userData } =
     await getRoleLayoutData(schoolSlug, ["student", "owner", "admin"]);
 
   return (
@@ -26,6 +26,7 @@ export default async function StudentLayout({
       user={userData}
       academicYear={academicYear}
       currentTerm={currentTerm}
+      academicYears={academicYears}
       currentRole={userData.role}
       availableRoles={allRoles}
       permissions={permissions}

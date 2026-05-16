@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Bell, CheckCircle2, Circle, ExternalLink, MessageSquare, AlertTriangle,
-  Info, CalendarCheck, DollarSign, Megaphone, Loader2, BellOff, Filter,
+  Info, CalendarCheck, DollarSign, Megaphone, Loader2, BellOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,16 +13,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { DashboardPageHeader } from "@/components/layout/page-header";
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  isRead: boolean;
-  link: string | null;
-  createdAt: string;
-}
+import { useNotifications, type AppNotification } from "@/lib/notifications-context";
 
 const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: string; label: string }> = {
   ATTENDANCE_ALERT:  { icon: CalendarCheck, color: "text-blue-600 dark:text-blue-400",   bg: "bg-blue-100 dark:bg-blue-950",    label: "Attendance"   },
@@ -42,8 +33,8 @@ const FILTER_TABS = [
   { key: "ATTENDANCE_ALERT", label: "Attendance" },
 ];
 
-function groupByDate(notifications: Notification[]): { label: string; items: Notification[] }[] {
-  const groups = new Map<string, Notification[]>();
+function groupByDate(notifications: AppNotification[]): { label: string; items: AppNotification[] }[] {
+  const groups = new Map<string, AppNotification[]>();
   notifications.forEach((n) => {
     const d = new Date(n.createdAt);
     const key = isToday(d) ? "Today" : isYesterday(d) ? "Yesterday" : format(d, "EEE, d MMM yyyy");
@@ -55,41 +46,15 @@ function groupByDate(notifications: Notification[]): { label: string; items: Not
 
 export function NotificationsPageContent() {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  // ── Consume the shared SSE-backed context — zero extra fetch ──────────────
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [activeFilter, setActiveFilter] = useState("all");
 
-  const fetchNotifications = async () => {
-    try {
-      const res = await fetch(`/api/schools/${schoolSlug}/notifications`);
-      const data = await res.json();
-      if (data.notifications) setNotifications(data.notifications);
-    } catch {
-      toast.error("Failed to load notifications");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchNotifications(); }, [schoolSlug]);
-
-  const markAsRead = async (id: string) => {
-    try {
-      await fetch(`/api/schools/${schoolSlug}/notifications`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationId: id }),
-      });
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
-    } catch { /* silent */ }
-  };
-
-  const markAllAsRead = async () => {
+  const handleMarkAllRead = async () => {
     setMarkingAllRead(true);
     try {
-      await fetch(`/api/schools/${schoolSlug}/notifications`, { method: "PUT" });
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await markAllRead();
       toast.success("All notifications marked as read");
     } catch {
       toast.error("Failed to update notifications");
@@ -104,7 +69,6 @@ export function NotificationsPageContent() {
     return n.type === activeFilter;
   });
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
   const groups = groupByDate(filtered);
 
   return (
@@ -115,29 +79,31 @@ export function NotificationsPageContent() {
       >
         <Button
           variant="outline" size="sm"
-          onClick={markAllAsRead}
-          disabled={loading || markingAllRead || unreadCount === 0}
+          onClick={handleMarkAllRead}
+          disabled={markingAllRead || unreadCount === 0}
         >
-          <CheckCircle2 className="mr-2 h-4 w-4" />
+          {markingAllRead ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+          )}
           Mark all read
         </Button>
       </DashboardPageHeader>
 
       {/* Stats bar */}
-      {!loading && (
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "Total", value: notifications.length, color: "text-foreground" },
-            { label: "Unread", value: unreadCount, color: "text-primary font-bold" },
-            { label: "Today", value: notifications.filter((n) => isToday(new Date(n.createdAt))).length, color: "text-emerald-600 dark:text-emerald-400" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl border bg-card p-3 text-center">
-              <p className={cn("text-2xl font-bold", s.color)}>{s.value}</p>
-              <p className="text-xs text-muted-foreground">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Total", value: notifications.length, color: "text-foreground" },
+          { label: "Unread", value: unreadCount, color: "text-primary font-bold" },
+          { label: "Today", value: notifications.filter((n) => isToday(new Date(n.createdAt))).length, color: "text-emerald-600 dark:text-emerald-400" },
+        ].map((s) => (
+          <div key={s.label} className="rounded-xl border bg-card p-3 text-center">
+            <p className={cn("text-2xl font-bold", s.color)}>{s.value}</p>
+            <p className="text-xs text-muted-foreground">{s.label}</p>
+          </div>
+        ))}
+      </div>
 
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -163,13 +129,7 @@ export function NotificationsPageContent() {
       </div>
 
       {/* Content */}
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-20 rounded-xl border bg-card animate-pulse" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 rounded-xl border border-dashed bg-muted/20">
           <BellOff className="h-12 w-12 text-muted-foreground/30 mb-3" />
           <p className="text-base font-medium text-muted-foreground">
@@ -183,17 +143,14 @@ export function NotificationsPageContent() {
         <div className="space-y-6">
           {groups.map(({ label, items }) => (
             <div key={label}>
-              {/* Date group header */}
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
-
               <div className="space-y-2">
                 {items.map((notification, idx) => {
                   const config = TYPE_CONFIG[notification.type] || TYPE_CONFIG.GENERAL;
                   const Icon = config.icon;
-
                   return (
                     <div
                       key={notification.id}
@@ -205,12 +162,9 @@ export function NotificationsPageContent() {
                       )}
                       style={{ animationDelay: `${idx * 30}ms` }}
                     >
-                      {/* Icon */}
                       <div className={cn("mt-0.5 shrink-0 h-9 w-9 rounded-full flex items-center justify-center", config.bg)}>
                         <Icon className={cn("h-4 w-4", config.color)} />
                       </div>
-
-                      {/* Content */}
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -225,7 +179,7 @@ export function NotificationsPageContent() {
                             </span>
                             {!notification.isRead && (
                               <button
-                                onClick={() => markAsRead(notification.id)}
+                                onClick={() => markRead(notification.id)}
                                 className="h-5 w-5 rounded-full bg-primary/20 hover:bg-primary/30 flex items-center justify-center transition-colors"
                                 title="Mark as read"
                               >
@@ -234,11 +188,9 @@ export function NotificationsPageContent() {
                             )}
                           </div>
                         </div>
-
                         <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
                           {notification.message}
                         </p>
-
                         {notification.link && (
                           <Button variant="link" className="p-0 h-auto text-xs font-medium text-primary" asChild>
                             <Link href={notification.link.startsWith(`/${schoolSlug}`) ? notification.link : `/${schoolSlug}${notification.link.startsWith("/") ? "" : "/"}${notification.link}`}>

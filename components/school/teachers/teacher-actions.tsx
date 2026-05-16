@@ -27,21 +27,23 @@ import { TeacherDialog } from "./teacher-dialog";
 import { BanUserButton } from "../ban-user-button";
 import { toast } from "sonner";
 import { Teacher } from "./columns";
+import { useSchoolData } from "@/lib/school-data-context";
 
 interface TeacherActionsProps {
   teacher: Teacher;
 }
 
+// Local interfaces removed as we use the context types, but if they are still needed for TeacherDialog props, we can make code optional:
 interface Department {
   id: string;
   name: string;
-  code: string;
+  code?: string;
 }
 
 interface House {
   id: string;
   name: string;
-  code: string;
+  code?: string;
 }
 
 export function TeacherActions({ teacher }: TeacherActionsProps) {
@@ -53,10 +55,7 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Fetch departments and houses for the edit dialog
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [houses, setHouses] = useState<House[]>([]);
-  const [loadingData, setLoadingData] = useState(false);
+  const { departments, houses, fetchDepartments, fetchHouses } = useSchoolData();
 
   async function handleDelete() {
     setIsDeleting(true);
@@ -92,29 +91,7 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
   }
 
   async function fetchEditData() {
-    if (departments.length > 0) return; // Already loaded
-
-    setLoadingData(true);
-    try {
-      const [deptResponse, houseResponse] = await Promise.all([
-        fetch(`/api/schools/${schoolSlug}/departments`),
-        fetch(`/api/schools/${schoolSlug}/houses`),
-      ]);
-
-      if (deptResponse.ok) {
-        const deptData: Department[] = await deptResponse.json();
-        setDepartments(deptData);
-      }
-
-      if (houseResponse.ok) {
-        const houseData: House[] = await houseResponse.json();
-        setHouses(houseData);
-      }
-    } catch (error) {
-      console.error("Error fetching edit data:", error);
-    } finally {
-      setLoadingData(false);
-    }
+    await Promise.all([fetchDepartments(), fetchHouses()]);
   }
 
   return (

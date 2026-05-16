@@ -33,7 +33,13 @@ export async function GET(
     // Filter by type or other metadata based on role
     if (role === "guardian") {
       where.type = {
-        in: ["FEE_REMINDER", "ONLINE_PAYMENT", "ANNOUNCEMENT", "RESULT_PUBLISHED", "GENERAL"],
+        in: [
+          "FEE_REMINDER",
+          "ONLINE_PAYMENT",
+          "ANNOUNCEMENT",
+          "RESULT_PUBLISHED",
+          "GENERAL",
+        ],
       };
     } else if (role === "teacher") {
       where.type = {
@@ -49,12 +55,8 @@ export async function GET(
       take: 20,
     });
 
-    const unreadCount = await prisma.notification.count({
-      where: {
-        ...where,
-        isRead: false,
-      },
-    });
+    // Derive unreadCount from the fetched array — avoids a separate COUNT query
+    const unreadCount = notifications.filter((n) => !n.isRead).length;
 
     return NextResponse.json({ notifications, unreadCount });
   } catch (error) {

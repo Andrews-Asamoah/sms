@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { useSchoolData } from "@/lib/school-data-context";
 
 // ─── Tiptap toolbar ───────────────────────────────────────────────────────────
 function EditorToolbar({ editor }: { editor: any }) {
@@ -93,7 +94,7 @@ export function AnnouncementDialog({
   canSendExternal = false,
 }: AnnouncementDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
+  const { classes, fetchClasses } = useSchoolData();
   const [clubs, setClubs] = useState<{ id: string; name: string }[]>([]);
 
   const editor = useEditor({
@@ -125,8 +126,7 @@ export function AnnouncementDialog({
   useEffect(() => {
     if (!open) return;
 
-    fetch(`/api/schools/${schoolSlug}/classes`)
-      .then((r) => r.json()).then((d) => setClasses(Array.isArray(d) ? d : [])).catch(() => setClasses([]));
+    fetchClasses();
     fetch(`/api/schools/${schoolSlug}/teacher/clubs`)
       .then((r) => r.json()).then((d) => setClubs(Array.isArray(d) ? d : [])).catch(() => setClubs([]));
 
@@ -150,7 +150,7 @@ export function AnnouncementDialog({
       reset({ title: "", target: "ALL", targetId: "", expiresAt: "", messageType: "ANNOUNCEMENT", sendSms: false, sendEmail: false });
       editor?.commands.setContent("");
     }
-  }, [open, announcementToEdit, reset, schoolSlug, editor]);
+  }, [open, announcementToEdit, reset, schoolSlug, editor, fetchClasses]);
 
   const onSubmit = async (data: FormValues) => {
     const contentHtml = editor?.getHTML() || "";

@@ -18,18 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-interface AcademicTerm {
-  id: string;
-  name: string;
-  isCurrent?: boolean;
-}
-
-interface AcademicYear {
-  id: string;
-  name: string;
-  isCurrent: boolean;
-  terms: AcademicTerm[];
-}
+import type { AcademicYearOption } from "@/lib/layout/get-role-layout-data";
 
 const PRIVILEGED_ROLES = ["admin", "owner", "accountant", "headteacher", "superAdmin"];
 
@@ -55,6 +44,7 @@ function clearCookie(name: string) {
 interface CompactYearTermSwitcherProps {
   currentRole: string;
   userId: string; // For user-scoped academic context cookies
+  academicYears: AcademicYearOption[];
 }
 
 /**
@@ -62,47 +52,37 @@ interface CompactYearTermSwitcherProps {
  * Only rendered for privileged roles; collapses into a single dropdown.
  * Intended to be visible when the sidebar is collapsed.
  */
-export function CompactYearTermSwitcher({ currentRole, userId }: CompactYearTermSwitcherProps) {
+export function CompactYearTermSwitcher({ currentRole, userId, academicYears: years }: CompactYearTermSwitcherProps) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
-  const [years, setYears] = useState<AcademicYear[]>([]);
   const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!schoolSlug) return;
-    async function fetchYears() {
-      try {
-        const res = await fetch(`/api/schools/${schoolSlug}/academic-years`);
-        if (!res.ok) return;
-        const data: AcademicYear[] = await res.json();
-        setYears(data);
-
-        const yearCookie = getCookie(`sms_working_year_${schoolSlug}_${userId}`);
-        const termCookie = getCookie(`sms_working_term_${schoolSlug}_${userId}`);
-
-        const activeYear =
-          data.find((y) => y.id === yearCookie) ||
-          data.find((y) => y.isCurrent) ||
-          data[0];
-
-        if (activeYear) {
-          setSelectedYearId(activeYear.id);
-          const activeTerm =
-            activeYear.terms.find((t) => t.id === termCookie) ||
-            activeYear.terms.find((t) => t.isCurrent) ||
-            activeYear.terms[0];
-          if (activeTerm) setSelectedTermId(activeTerm.id);
-        }
-      } catch {
-        // silent
-      } finally {
-        setLoading(false);
-      }
+    if (!schoolSlug || years.length === 0) {
+      if (years.length === 0) setLoading(false);
+      return;
     }
-    fetchYears();
-  }, [schoolSlug]);
+
+    const yearCookie = getCookie(`sms_working_year_${schoolSlug}_${userId}`);
+    const termCookie = getCookie(`sms_working_term_${schoolSlug}_${userId}`);
+
+    const activeYear =
+      years.find((y) => y.id === yearCookie) ||
+      years.find((y) => y.isCurrent) ||
+      years[0];
+
+    if (activeYear) {
+      setSelectedYearId(activeYear.id);
+      const activeTerm =
+        activeYear.terms.find((t) => t.id === termCookie) ||
+        activeYear.terms.find((t) => t.isCurrent) ||
+        activeYear.terms[0];
+      if (activeTerm) setSelectedTermId(activeTerm.id);
+    }
+    setLoading(false);
+  }, [schoolSlug, userId, years]);
 
   const handleYearSelect = (yearId: string) => {
     if (yearId === selectedYearId) return;

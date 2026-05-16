@@ -10,6 +10,8 @@ import { CompactYearTermSwitcher } from "./compact-year-term-switcher";
 
 const PRIVILEGED_ROLES = ["admin", "owner", "accountant", "headteacher", "superAdmin"];
 
+import type { AcademicYearOption } from "@/lib/layout/get-role-layout-data";
+
 interface SiteHeaderSchoolProps {
   schoolSlug: string;
   academicYear: string;
@@ -17,6 +19,7 @@ interface SiteHeaderSchoolProps {
   currentRole: string;
   availableRoles: string[];
   userId: string; // For user-scoped academic context cookies
+  academicYears: AcademicYearOption[];
 }
 
 export function SiteHeaderSchool({
@@ -26,6 +29,7 @@ export function SiteHeaderSchool({
   currentRole,
   availableRoles,
   userId,
+  academicYears,
 }: SiteHeaderSchoolProps) {
   const { state } = useSidebar();
   const isPrivileged = PRIVILEGED_ROLES.includes(currentRole);
@@ -50,7 +54,7 @@ export function SiteHeaderSchool({
             // - Sidebar expanded → badges are redundant (switcher is in sidebar), hide them
             // - Sidebar collapsed → sidebar switcher is hidden, show compact interactive dropdown
             sidebarCollapsed ? (
-              <CompactYearTermSwitcher currentRole={currentRole} userId={userId} />
+              <CompactYearTermSwitcher currentRole={currentRole} userId={userId} academicYears={academicYears} />
             ) : null
           ) : (
             // Non-privileged roles (teacher, student, guardian):

@@ -12,6 +12,8 @@ import { useMemo } from "react";
 import { WorkingYearSwitcher } from "./working-year-switcher";
 import type { NavPermissions } from "@/lib/auth/types";
 
+import type { AcademicYearOption } from "@/lib/layout/get-role-layout-data";
+
 interface AppSidebarSchoolProps {
   schoolSlug: string;
   schoolName: string;
@@ -27,6 +29,7 @@ interface AppSidebarSchoolProps {
   permissions: NavPermissions;
   currentActiveRole: string;
   userId: string; // For user-scoped academic context cookies
+  academicYears: AcademicYearOption[];
 }
 
 export function AppSidebarSchool({
@@ -38,6 +41,7 @@ export function AppSidebarSchool({
   permissions,
   currentActiveRole,
   userId,
+  academicYears,
   ...props
 }: AppSidebarSchoolProps) {
   // Filter navigation by both role AND permissions
@@ -72,7 +76,7 @@ export function AppSidebarSchool({
         ["accountant", "admin", "owner", "headteacher", "superAdmin"].includes(
           currentActiveRole,
         ) ? (
-          <WorkingYearSwitcher userId={userId} />
+          <WorkingYearSwitcher userId={userId} academicYears={academicYears} />
         ) : null
       }
       {...props}

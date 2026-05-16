@@ -14,7 +14,7 @@ export default async function AccountantLayout({
 }: AccountantLayoutProps) {
   const { schoolSlug } = await params;
 
-  const { school, academicYear, currentTerm, allRoles, permissions, userData } =
+  const { school, academicYear, currentTerm, academicYears, allRoles, permissions, userData } =
     await getRoleLayoutData(schoolSlug, ["accountant", "owner", "admin"]);
 
   return (
@@ -26,6 +26,7 @@ export default async function AccountantLayout({
       user={userData}
       academicYear={academicYear}
       currentTerm={currentTerm}
+      academicYears={academicYears}
       currentRole={userData.role}
       availableRoles={allRoles}
       permissions={permissions}

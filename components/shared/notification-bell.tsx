@@ -1,8 +1,7 @@
 // components/shared/notification-bell.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { Bell } from "lucide-react";
+import { Bell, Wifi, WifiOff } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -15,80 +14,12 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  isRead: boolean;
-  link: string | null;
-  createdAt: string;
-}
+import { useNotifications } from "@/lib/notifications-context";
 
 export function NotificationBell() {
   const { schoolSlug } = useParams();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  const fetchNotifications = async (signal?: AbortSignal) => {
-    if (!schoolSlug) return;
-    try {
-      const res = await fetch(`/api/schools/${schoolSlug}/notifications`, { signal });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.notifications) {
-        setNotifications(data.notifications);
-        setUnreadCount(data.unreadCount);
-      }
-    } catch (error) {
-      // Ignore AbortError — these are expected during cleanup
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      console.error("Failed to fetch notifications:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchNotifications(controller.signal);
-    // Refresh every 60 seconds
-    const interval = setInterval(() => fetchNotifications(controller.signal), 60000);
-    return () => {
-      controller.abort();
-      clearInterval(interval);
-    };
-  }, [schoolSlug]);
-
-  const markAsRead = async (id: string) => {
-    try {
-      await fetch(`/api/schools/${schoolSlug}/notifications`, {
-        method: "PATCH",
-        body: JSON.stringify({ notificationId: id }),
-      });
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error("Failed to mark notification as read:", error);
-    }
-  };
-
-  const clearAllNotifications = async () => {
-    if (unreadCount === 0) return;
-    try {
-      await fetch(`/api/schools/${schoolSlug}/notifications`, {
-        method: "PUT",
-      });
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-    } catch (error) {
-      console.error("Failed to clear notifications:", error);
-    }
-  };
+  const { notifications, unreadCount, isConnected, markRead, markAllRead } =
+    useNotifications();
 
   return (
     <Popover>
@@ -119,24 +50,31 @@ export function NotificationBell() {
                 {unreadCount} unread
               </span>
             )}
+            {/* Live connection indicator */}
+            <span
+              title={isConnected ? "Live updates active" : "Reconnecting…"}
+              className="ml-1"
+            >
+              {isConnected ? (
+                <Wifi className="h-3 w-3 text-emerald-500" />
+              ) : (
+                <WifiOff className="h-3 w-3 text-muted-foreground animate-pulse" />
+              )}
+            </span>
           </div>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
               className="text-xs h-8 text-primary hover:bg-primary/10"
-              onClick={clearAllNotifications}
+              onClick={markAllRead}
             >
               Clear All
             </Button>
           )}
         </div>
         <ScrollArea className="h-[350px]">
-          {loading ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              Loading...
-            </div>
-          ) : notifications.length === 0 ? (
+          {notifications.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">
               No notifications yet.
             </div>
@@ -150,7 +88,7 @@ export function NotificationBell() {
                     !notification.isRead && "bg-accent/30",
                   )}
                   onClick={() =>
-                    !notification.isRead && markAsRead(notification.id)
+                    !notification.isRead && markRead(notification.id)
                   }
                 >
                   <div className="flex items-center justify-between">
@@ -166,24 +104,24 @@ export function NotificationBell() {
                   <p className="text-xs text-muted-foreground line-clamp-2">
                     {notification.message}
                   </p>
-                    {notification.link && (
-                      <Link
-                        href={
-                          notification.link.startsWith(`/${schoolSlug}`)
-                            ? notification.link
-                            : `/${schoolSlug}${notification.link.startsWith("/") ? "" : "/"}${notification.link}`
+                  {notification.link && (
+                    <Link
+                      href={
+                        notification.link.startsWith(`/${schoolSlug}`)
+                          ? notification.link
+                          : `/${schoolSlug}${notification.link.startsWith("/") ? "" : "/"}${notification.link}`
+                      }
+                      className="text-[10px] text-primary hover:underline mt-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!notification.isRead) {
+                          markRead(notification.id);
                         }
-                        className="text-[10px] text-primary hover:underline mt-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!notification.isRead) {
-                            markAsRead(notification.id);
-                          }
-                        }}
-                      >
-                        View details
-                      </Link>
-                    )}
+                      }}
+                    >
+                      View details
+                    </Link>
+                  )}
                 </div>
               ))}
             </div>

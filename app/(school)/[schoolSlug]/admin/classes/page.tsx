@@ -6,7 +6,7 @@ import Link from "next/link";
 import prisma from "@/lib/prisma";
 import { ClassesClient } from "./client";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 
 interface ClassesPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -68,12 +68,20 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
             Manage your school classes and assignments
           </p>
         </div>
-        <Link href={`/${schoolSlug}/admin/classes/new`}>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Class
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href={`/${schoolSlug}/admin/classes/bulk-upload`}>
+            <Button variant="outline">
+              <Upload className="mr-2 h-4 w-4" />
+              Bulk Upload
+            </Button>
+          </Link>
+          <Link href={`/${schoolSlug}/admin/classes/new`}>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              New Class
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <ClassesClient

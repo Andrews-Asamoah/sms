@@ -9,6 +9,9 @@ import dynamic from "next/dynamic";
 import { ReactNode } from "react";
 import type { NavPermissions } from "@/lib/auth/types";
 import type { SubscriptionLifecycleStatus } from "@/lib/subscription/lifecycle";
+import { NotificationsProvider } from "@/lib/notifications-context";
+import { SchoolDataProvider } from "@/lib/school-data-context";
+import type { AcademicYearOption } from "@/lib/layout/get-role-layout-data";
 
 // Defer the onboarding bundle — it reads localStorage + renders a Dialog, so
 // it never needs SSR. Keeps every role layout's initial JS chunk lean.
@@ -39,6 +42,7 @@ interface RoleLayoutWrapperProps {
   };
   academicYear: string;
   currentTerm: string | null;
+  academicYears: AcademicYearOption[];
   currentRole: string;
   availableRoles: string[];
   permissions: NavPermissions;
@@ -58,6 +62,7 @@ export function RoleLayoutWrapper({
   user,
   academicYear,
   currentTerm,
+  academicYears,
   currentRole,
   availableRoles,
   permissions,
@@ -83,12 +88,14 @@ export function RoleLayoutWrapper({
   const subscriptionUrl = `/${schoolSlug}/admin/subscription`;
 
   return (
-    <OnboardingProvider
-      schoolSlug={schoolSlug}
-      userId={user.id}
-      role={currentRole}
-    >
-      <SidebarProvider>
+    <NotificationsProvider schoolSlug={schoolSlug}>
+      <SchoolDataProvider>
+        <OnboardingProvider
+          schoolSlug={schoolSlug}
+          userId={user.id}
+          role={currentRole}
+        >
+        <SidebarProvider>
         <div className="print:hidden">
           <AppSidebarSchool
             schoolSlug={schoolSlug}
@@ -99,6 +106,7 @@ export function RoleLayoutWrapper({
             userId={user.id}
             permissions={permissions}
             currentActiveRole={currentRole}
+            academicYears={academicYears}
           />
         </div>
 
@@ -111,6 +119,7 @@ export function RoleLayoutWrapper({
               currentRole={currentRole}
               availableRoles={availableRoles}
               userId={user.id}
+              academicYears={academicYears}
             />
           </div>
 
@@ -203,8 +212,10 @@ export function RoleLayoutWrapper({
               </div>
             </main>
           )}
-        </SidebarInset>
-      </SidebarProvider>
-    </OnboardingProvider>
+          </SidebarInset>
+        </SidebarProvider>
+      </OnboardingProvider>
+      </SchoolDataProvider>
+    </NotificationsProvider>
   );
 }
