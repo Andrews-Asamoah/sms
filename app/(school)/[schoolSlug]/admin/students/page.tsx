@@ -88,10 +88,6 @@ export default async function StudentsPage({
     orderBy: { name: "asc" },
   });
 
-  if (!classId && classes.length > 0) {
-    redirect(`/${schoolSlug}/admin/students?classId=${classes[0].id}`);
-  }
-
   const effectiveClassId = classId || "all";
 
   return (
