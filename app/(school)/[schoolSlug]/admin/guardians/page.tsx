@@ -1,10 +1,9 @@
 import { Metadata } from "next";
-import { Suspense } from "react";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { DashboardPageHeader } from "@/components/layout/page-header";
 import { ParentsTable } from "@/components/school/parents-table";
-import { Loader2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -100,18 +99,7 @@ export default async function AdminParentsPage({ params }: ParentsPageProps) {
           </Button>
         </Link>
       </DashboardPageHeader>
-      <Suspense
-        fallback={
-          <div className="flex h-64 items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        }
-      >
-        <ParentsTable
-          initialData={normalizedGuardians}
-          schoolSlug={schoolSlug}
-        />
-      </Suspense>
+      <ParentsTable initialData={normalizedGuardians} schoolSlug={schoolSlug} />
     </div>
   );
 }

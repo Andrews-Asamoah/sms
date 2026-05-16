@@ -1,10 +1,9 @@
 import { Metadata } from "next";
-import { Suspense } from "react";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { DashboardPageHeader } from "@/components/layout/page-header";
 import { StaffClient } from "./staff-client";
-import { Loader2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -37,7 +36,7 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
     where: { schoolId: school.id },
     include: {
       profile: {
-        include: { user: { select: { id: true, banned: true, email: true } } }
+        include: { user: { select: { id: true, banned: true, email: true } } },
       },
     },
 
@@ -45,28 +44,30 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
   });
 
   // Normalize data for StaffClient - Only non-teaching staff
-  const staffList = nonTeachingStaff.map((s) => ({
-    id: s.id,
-    profileId: s.profileId,
-    schoolId: s.schoolId,
-    userId: s.profile?.user?.id,
-    isBanned: s.profile?.user?.banned ?? false,
-    employeeId: s.staffNumber || s.staffId,
-    firstName: s.profile?.firstName,
-    lastName: s.profile?.lastName,
-    email: s.profile?.user?.email || null,
-    phone: s.profile?.phone || null,
-    type: s.staffType.replace("_", " "),
-    category: "NON_TEACHING" as const,
-    isActive: s.isActive,
-    hireDate: s.hireDate,
-    gender: s.profile?.gender,
-  })).sort((a, b) => {
-    // Sort by name alphabetically
-    const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
-    const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
+  const staffList = nonTeachingStaff
+    .map((s) => ({
+      id: s.id,
+      profileId: s.profileId,
+      schoolId: s.schoolId,
+      userId: s.profile?.user?.id,
+      isBanned: s.profile?.user?.banned ?? false,
+      employeeId: s.staffNumber || s.staffId,
+      firstName: s.profile?.firstName,
+      lastName: s.profile?.lastName,
+      email: s.profile?.user?.email || null,
+      phone: s.profile?.phone || null,
+      type: s.staffType.replace("_", " "),
+      category: "NON_TEACHING" as const,
+      isActive: s.isActive,
+      hireDate: s.hireDate,
+      gender: s.profile?.gender,
+    }))
+    .sort((a, b) => {
+      // Sort by name alphabetically
+      const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+      const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
@@ -81,15 +82,7 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
           </Button>
         </Link>
       </DashboardPageHeader>
-      <Suspense
-        fallback={
-          <div className="flex h-64 items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        }
-      >
-        <StaffClient initialData={staffList} schoolSlug={schoolSlug} />
-      </Suspense>
+      <StaffClient initialData={staffList} schoolSlug={schoolSlug} />
     </div>
   );
 }
