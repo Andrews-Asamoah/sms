@@ -4,7 +4,9 @@ import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { SubjectsClient } from "./client";
 import { SubjectDialog } from "@/components/school/subjects/subject-dialog";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Upload } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 interface SubjectsPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -112,7 +114,15 @@ export default async function SubjectsPage(props: SubjectsPageProps) {
               Manage subjects and curriculum details
             </p>
           </div>
-          <SubjectDialog schoolSlug={schoolSlug} departments={departments} />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" asChild>
+              <Link href={`/${schoolSlug}/admin/academics/subjects/bulk-upload`}>
+                <Upload className="mr-2 h-4 w-4" />
+                Bulk Upload
+              </Link>
+            </Button>
+            <SubjectDialog schoolSlug={schoolSlug} departments={departments} />
+          </div>
         </div>
 
         <div className="bg-background rounded-lg border shadow-sm p-4">

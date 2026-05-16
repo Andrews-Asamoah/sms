@@ -179,7 +179,7 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
             <CardContent>
               <div className="space-y-6">
                 {stats.recentActivities.length > 0 ? (
-                  stats.recentActivities.map((activity) => (
+                  stats.recentActivities.map((activity: any) => (
                     <div key={activity.id} className="relative flex gap-4">
                       <div className="mt-1 h-2 w-2 rounded-full bg-primary shrink-0" />
                       <div className="flex flex-col gap-1">

@@ -123,54 +123,29 @@ export function SubjectForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <FieldGroup>
-        <FieldLabel htmlFor="name">Name</FieldLabel>
-        <Input
-          id="name"
-          placeholder="General Mathematics"
-          {...register("name")}
-        />
-        {errors.name && <FieldError>{errors.name.message}</FieldError>}
-      </FieldGroup>
+      <div className="grid grid-cols-3 gap-4">
+        <FieldGroup className="col-span-2">
+          <FieldLabel htmlFor="name">Name</FieldLabel>
+          <Input
+            id="name"
+            placeholder="General Mathematics"
+            {...register("name")}
+          />
+          {errors.name && <FieldError>{errors.name.message}</FieldError>}
+        </FieldGroup>
 
-      <div className="grid grid-cols-2 gap-4">
         <FieldGroup>
           <FieldLabel htmlFor="code">Code</FieldLabel>
           <Input id="code" placeholder="MAT101" {...register("code")} />
           {errors.code && <FieldError>{errors.code.message}</FieldError>}
         </FieldGroup>
-
-        <FieldGroup>
-          <FieldLabel htmlFor="periodsPerWeek">Periods per Week</FieldLabel>
-          <Select
-            value={String(watch("periodsPerWeek") ?? 4)}
-            onValueChange={(val) =>
-              setValue("periodsPerWeek", parseInt(val, 10))
-            }
-          >
-            <SelectTrigger id="periodsPerWeek">
-              <SelectValue placeholder="Select periods" />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n} period{n > 1 ? "s" : ""} / week
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {GES_PERIOD_HINT[watch("periodsPerWeek") ?? 4]}
-          </p>
-          {errors.periodsPerWeek && (
-            <FieldError>{errors.periodsPerWeek.message}</FieldError>
-          )}
-        </FieldGroup>
       </div>
+
+
 
       <FieldGroup>
         <FieldLabel>Departments</FieldLabel>
-        <div className="grid grid-cols-2 gap-4 rounded-lg border p-4 bg-muted/30">
+        <div className="grid grid-cols-2 gap-3 rounded-lg border p-3 bg-muted/30 max-h-[120px] overflow-y-auto">
           {departments.map((dept) => (
             <div
               key={dept.id}
@@ -210,6 +185,7 @@ export function SubjectForm({
         <Textarea
           id="description"
           placeholder="Course description..."
+          rows={2}
           {...register("description")}
         />
         {errors.description && (
@@ -217,18 +193,41 @@ export function SubjectForm({
         )}
       </FieldGroup>
 
-      <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-        <div className="space-y-0.5">
-          <Label htmlFor="isActive">Active Status</Label>
-          <p className="text-sm text-muted-foreground">
-            Inactive subjects will be hidden from assignment selections.
-          </p>
+      <div className="grid grid-cols-2 gap-4 items-end">
+        <FieldGroup>
+          <FieldLabel htmlFor="periodsPerWeek">Periods per Week</FieldLabel>
+          <Select
+            value={String(watch("periodsPerWeek") ?? 4)}
+            onValueChange={(val) =>
+              setValue("periodsPerWeek", parseInt(val, 10))
+            }
+          >
+            <SelectTrigger id="periodsPerWeek">
+              <SelectValue placeholder="Select periods" />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n} period{n > 1 ? "s" : ""} / week
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.periodsPerWeek && (
+            <FieldError>{errors.periodsPerWeek.message}</FieldError>
+          )}
+        </FieldGroup>
+
+        <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm h-10 mb-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="isActive" className="text-sm">Active Subject</Label>
+          </div>
+          <Switch
+            id="isActive"
+            checked={watch("isActive")}
+            onCheckedChange={(checked) => setValue("isActive", checked)}
+          />
         </div>
-        <Switch
-          id="isActive"
-          checked={watch("isActive")}
-          onCheckedChange={(checked) => setValue("isActive", checked)}
-        />
       </div>
 
       <Button type="submit" disabled={isLoading} className="w-full">

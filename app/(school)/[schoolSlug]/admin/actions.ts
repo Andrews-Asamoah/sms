@@ -126,7 +126,7 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     include: { profile: true, class: true },
   });
 
-  return {
+  const result = {
     schoolName: school.name,
     currency: school.currency,
     // Context names for dashboard header display
@@ -151,8 +151,10 @@ export async function getAdminDashboardStats(schoolSlug: string) {
     recentActivities: recentStudents.map((s) => ({
       id: s.id,
       title: "New Student Enrolled",
-      description: `${formatStudentName(s.profile.firstName, s.profile.lastName, s.profile.otherNames)} joined ${s.class?.name || "N/A"}`,
-      time: s.createdAt,
+      description: `${s.profile ? formatStudentName(s.profile.firstName, s.profile.lastName, s.profile.otherNames) : 'Unknown Student'} joined ${s.class?.name || "N/A"}`,
+      time: s.createdAt.toISOString(),
     })),
   };
+
+  return JSON.parse(JSON.stringify(result));
 }
