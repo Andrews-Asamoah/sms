@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { PromotionClient } from "./promotion-client";
 import { GraduationCap, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface AdminPromotionPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -13,17 +14,17 @@ interface AdminPromotionPageProps {
 /** Skeleton shown while the heavy data-fetch resolves */
 function PromotionSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
-      <div className="h-10 bg-muted/40 rounded-lg w-2/3" />
+    <div className="space-y-6">
+      <Skeleton className="h-10 w-2/3" />
       <div className="rounded-2xl border p-6 space-y-4">
-        <div className="h-6 bg-muted/30 rounded w-1/4" />
+        <Skeleton className="h-6 w-1/4" />
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="h-10 bg-muted/20 rounded" />
-          <div className="h-10 bg-muted/20 rounded" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 mt-4">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-12 bg-muted/15 rounded" />
+            <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
       </div>
