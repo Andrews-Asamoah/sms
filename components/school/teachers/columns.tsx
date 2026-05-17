@@ -64,7 +64,8 @@ const employmentTypeColors: Record<string, string> = {
 
 export const columns: ColumnDef<Teacher>[] = [
   {
-    accessorKey: "teacher",
+    id: "teacher",
+    accessorFn: (row) => `${row.profile?.firstName || ""} ${row.profile?.lastName || ""}`,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Teacher" />
     ),
@@ -121,12 +122,13 @@ export const columns: ColumnDef<Teacher>[] = [
       const teacher = row.original;
       const profile = teacher.profile;
       const searchString =
-        `${profile?.firstName || ""} ${profile?.lastName || ""} ${profile?.otherNames || ""} ${teacher.teacherId} ${teacher.staffNumber || ""} ${teacher.invitationEmail || ""}`.toLowerCase();
+        `${profile?.firstName || ""} ${profile?.lastName || ""} ${profile?.otherNames || ""} ${teacher.teacherId} ${teacher.staffNumber || ""} ${teacher.invitationEmail || ""} ${profile?.gender || ""} ${teacher.department?.name || ""} ${teacher.house?.name || ""} ${teacher.employmentType.replace("_", " ")} ${teacher.isActive ? "Active" : "Inactive"}`.toLowerCase();
       return searchString.includes(value.toLowerCase());
     },
   },
   {
-    accessorKey: "teacherId",
+    id: "teacherId",
+    accessorFn: (row) => row.teacherId,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Teacher ID" />
     ),
@@ -145,7 +147,8 @@ export const columns: ColumnDef<Teacher>[] = [
     },
   },
   {
-    accessorKey: "department",
+    id: "department",
+    accessorFn: (row) => row.department?.name || "",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Department" />
     ),
@@ -167,7 +170,8 @@ export const columns: ColumnDef<Teacher>[] = [
     },
   },
   {
-    accessorKey: "house",
+    id: "house",
+    accessorFn: (row) => row.house?.name || "",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="House" />
     ),
@@ -185,7 +189,8 @@ export const columns: ColumnDef<Teacher>[] = [
     },
   },
   {
-    accessorKey: "employmentType",
+    id: "employmentType",
+    accessorFn: (row) => row.employmentType,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Employment" />
     ),
@@ -202,7 +207,8 @@ export const columns: ColumnDef<Teacher>[] = [
     },
   },
   {
-    accessorKey: "assignments",
+    id: "assignments",
+    accessorFn: (row) => row._count.subjects,
     header: "Assignments",
     cell: ({ row }) => {
       const teacher = row.original;
@@ -219,13 +225,14 @@ export const columns: ColumnDef<Teacher>[] = [
     },
   },
   {
-    accessorKey: "isActive",
+    id: "isActive",
+    accessorFn: (row) => (row.profile?.user?.banned ? "Banned" : row.isActive ? "Active" : "Inactive"),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
       const teacher = row.original;
-      const isBanned = teacher.profile.user?.banned;
+      const isBanned = teacher.profile?.user?.banned;
       
       if (isBanned) {
         return (

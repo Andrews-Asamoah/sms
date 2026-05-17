@@ -54,7 +54,8 @@ const statusColors: Record<string, string> = {
 
 export const columns: ColumnDef<Student>[] = [
   {
-    accessorKey: "student",
+    id: "student",
+    accessorFn: (row) => `${row.profile.firstName} ${row.profile.lastName}`,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Student" />
     ),
@@ -92,12 +93,13 @@ export const columns: ColumnDef<Student>[] = [
     filterFn: (row, id, value) => {
       const student = row.original;
       const searchString =
-        `${student.profile.firstName} ${student.profile.lastName} ${student.studentId} ${student.admissionNumber || ""}`.toLowerCase();
+        `${student.profile.firstName} ${student.profile.lastName} ${student.studentId} ${student.admissionNumber || ""} ${student.profile.gender} ${student.class?.name || ""} ${student.department?.name || ""} ${student.house?.name || ""} ${student.status}`.toLowerCase();
       return searchString.includes(value.toLowerCase());
     },
   },
   {
-    accessorKey: "studentId",
+    id: "studentId",
+    accessorFn: (row) => row.studentId,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Student ID" />
     ),
@@ -116,7 +118,8 @@ export const columns: ColumnDef<Student>[] = [
     },
   },
   {
-    accessorKey: "class",
+    id: "class",
+    accessorFn: (row) => row.class?.name || "",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Class" />
     ),
@@ -142,7 +145,8 @@ export const columns: ColumnDef<Student>[] = [
     },
   },
   {
-    accessorKey: "department",
+    id: "department",
+    accessorFn: (row) => row.department?.name || "",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Department" />
     ),
@@ -156,7 +160,8 @@ export const columns: ColumnDef<Student>[] = [
     },
   },
   {
-    accessorKey: "gender",
+    id: "gender",
+    accessorFn: (row) => row.profile.gender,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Gender" />
     ),
@@ -169,7 +174,8 @@ export const columns: ColumnDef<Student>[] = [
     },
   },
   {
-    accessorKey: "guardians",
+    id: "guardians",
+    accessorFn: (row) => row._count.guardians,
     header: "Guardians",
     cell: ({ row }) => {
       return (
@@ -180,7 +186,8 @@ export const columns: ColumnDef<Student>[] = [
     },
   },
   {
-    accessorKey: "status",
+    id: "status",
+    accessorFn: (row) => row.status,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
