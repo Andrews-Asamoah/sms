@@ -523,6 +523,7 @@ export function RecordPaymentDialog({
               <Input
                 id="pmt-ref"
                 placeholder="Optional"
+                disabled={paymentMethod === "CASH"}
                 {...register("referenceNumber")}
               />
               <FieldError errors={[errors.referenceNumber]} />

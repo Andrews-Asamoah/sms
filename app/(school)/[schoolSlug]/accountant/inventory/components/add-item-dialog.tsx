@@ -15,6 +15,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Field,
   FieldError,
   FieldGroup,
@@ -54,6 +61,8 @@ export function AddInventoryItemDialog({
     handleSubmit,
     formState: { errors },
     reset,
+    watch,
+    setValue,
   } = useForm<FormValues>({
     resolver: zodResolver(itemSchema),
     defaultValues: {
@@ -122,11 +131,24 @@ export function AddInventoryItemDialog({
               </Field>
               <Field data-invalid={!!errors.unit}>
                 <FieldLabel htmlFor="unit">Unit</FieldLabel>
-                <Input
-                  id="unit"
-                  placeholder="pcs/boxes"
-                  {...register("unit")}
-                />
+                <Select
+                  onValueChange={(val) => setValue("unit", val)}
+                  value={watch("unit")}
+                >
+                  <SelectTrigger id="unit">
+                    <SelectValue placeholder="Select unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pcs">Pieces (pcs)</SelectItem>
+                    <SelectItem value="boxes">Boxes</SelectItem>
+                    <SelectItem value="kg">Kilograms (kg)</SelectItem>
+                    <SelectItem value="liters">Liters (L)</SelectItem>
+                    <SelectItem value="packs">Packs</SelectItem>
+                    <SelectItem value="reams">Reams</SelectItem>
+                    <SelectItem value="bottles">Bottles</SelectItem>
+                    <SelectItem value="rolls">Rolls</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FieldError errors={[errors.unit]} />
               </Field>
             </div>

@@ -10,6 +10,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddInventoryItemDialog } from "./components/add-item-dialog";
+import { EditInventoryItemDialog } from "./components/edit-item-dialog";
 import { InventoryTransactionList } from "./components/transaction-list";
 import { Card } from "@/components/ui/card";
 
@@ -29,6 +30,7 @@ export default function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 
   const fetchItems = async () => {
     try {
@@ -93,7 +95,11 @@ export default function InventoryPage() {
     {
       id: "actions",
       cell: ({ row }) => (
-        <Button variant="ghost" size="sm">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => setEditingItem(row.original)}
+        >
           Edit
         </Button>
       ),
@@ -189,6 +195,15 @@ export default function InventoryPage() {
           open={isAddOpen}
           onOpenChange={setIsAddOpen}
           onSuccess={fetchItems}
+        />
+      )}
+
+      {editingItem && (
+        <EditInventoryItemDialog
+          open={!!editingItem}
+          onOpenChange={(open) => !open && setEditingItem(null)}
+          onSuccess={fetchItems}
+          item={editingItem}
         />
       )}
     </div>

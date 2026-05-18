@@ -283,6 +283,7 @@ export function AddExpenseDialog({
                   <Input
                     id="referenceNumber"
                     placeholder="TXN-123..."
+                    disabled={paymentMethod === "CASH"}
                     {...register("referenceNumber")}
                   />
                   <FieldError errors={[errors.referenceNumber]} />
