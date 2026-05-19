@@ -12,6 +12,16 @@ import { TeacherDialog } from "@/components/school/teachers/teacher-dialog";
 import { TeacherPendingInvitationsList } from "@/components/school/teachers/teacher-pending-invitations-list";
 import { StatCard } from "@/components/ui/stat-card";
 
+/** Safely convert a Prisma Decimal (or cached plain number/string) to number | null */
+const toNum = (v: unknown): number | null => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number") return v;
+  if (typeof v === "object" && typeof (v as { toNumber?: () => number }).toNumber === "function")
+    return (v as { toNumber: () => number }).toNumber();
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+};
+
 interface TeachersPageProps {
   params: Promise<{ schoolSlug: string }>;
 }
@@ -108,9 +118,7 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
           schoolSlug={schoolSlug}
           departments={departments.map((d) => ({
             ...d,
-            promotionPassMark: d.promotionPassMark
-              ? d.promotionPassMark.toNumber()
-              : null,
+            promotionPassMark: toNum(d.promotionPassMark),
           }))}
           houses={houses}
         >
@@ -169,22 +177,16 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
               .map((teacher) => ({
                 ...teacher,
                 profile: teacher.profile!,
-                monthlySalary: teacher.monthlySalary
-                  ? teacher.monthlySalary.toNumber()
-                  : null,
+                monthlySalary: toNum(teacher.monthlySalary),
                 department: {
                   ...teacher.department,
-                  promotionPassMark: teacher.department.promotionPassMark
-                    ? teacher.department.promotionPassMark.toNumber()
-                    : null,
+                  promotionPassMark: toNum(teacher.department?.promotionPassMark),
                 },
               }))}
             schoolSlug={schoolSlug}
             departments={departments.map((dept) => ({
               ...dept,
-              promotionPassMark: dept.promotionPassMark
-                ? dept.promotionPassMark.toNumber()
-                : null,
+              promotionPassMark: toNum(dept.promotionPassMark),
             }))}
             houses={houses}
           />
