@@ -43,25 +43,28 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
-interface PayrollRecord {
+export interface PayrollRecord {
   id: string;
   month: number;
   year: number;
-  status: "DRAFT" | "APPROVED" | "PAID";
-  totalGross: string;
-  totalNet: string;
-  totalTax: string;
-  totalSSNIT: string;
-  createdAt: string;
+  status: "DRAFT" | "APPROVED" | "PAID" | "CANCELLED" | string;
+  totalGross: any;
+  totalNet: any;
+  totalTax: any;
+  totalSSNIT: any;
+  createdAt: Date;
   _count: {
     payslips: number;
   };
 }
 
-export function PayrollClient() {
+interface PayrollClientProps {
+  initialRecords: PayrollRecord[];
+}
+
+export function PayrollClient({ initialRecords }: PayrollClientProps) {
   const { schoolSlug } = useParams();
-  const [records, setRecords] = useState<PayrollRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState<PayrollRecord[]>(initialRecords);
   const [generating, setGenerating] = useState(false);
 
   // Generation Form State
@@ -88,25 +91,6 @@ export function PayrollClient() {
     { length: 5 },
     (_, i) => new Date().getFullYear() - i,
   );
-
-  const fetchPayroll = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/schools/${schoolSlug}/finance/payroll`);
-      const data = await res.json();
-      if (data.payrollRecords) {
-        setRecords(data.payrollRecords);
-      }
-    } catch (error) {
-      toast.error("Failed to load payroll records");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPayroll();
-  }, [schoolSlug]);
 
   const handleGenerate = async () => {
     try {
@@ -239,11 +223,7 @@ export function PayrollClient() {
         </Dialog>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      ) : records.length === 0 ? (
+      {records.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">

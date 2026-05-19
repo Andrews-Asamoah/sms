@@ -34,38 +34,14 @@ type Invoice = {
   feeStructure?: { name: string };
 };
 
-export function InvoicesClient() {
+interface InvoicesClientProps {
+  initialInvoices: Invoice[];
+}
+
+export function InvoicesClient({ initialInvoices }: InvoicesClientProps) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
   const [isPrintOpen, setIsPrintOpen] = useState(false);
-
-  const fetchInvoices = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/schools/${schoolSlug}/finance/invoices`);
-      const data = await res.json();
-      const mappedData = (data || []).map((inv: any) => ({
-        ...inv,
-        studentName: inv.student?.profile
-          ? formatStudentName(
-              inv.student.profile.firstName,
-              inv.student.profile.lastName,
-              inv.student.profile.otherNames,
-            )
-          : "Unknown",
-      }));
-      setInvoices(mappedData);
-    } catch (error) {
-      console.error("Failed to fetch invoices", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchInvoices();
-  }, [schoolSlug]);
 
   const columns: ColumnDef<Invoice>[] = [
     {

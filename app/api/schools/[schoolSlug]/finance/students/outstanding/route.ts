@@ -62,7 +62,7 @@ export async function GET(
         select: { firstName: true, lastName: true, phone: true },
       },
       class: {
-        select: { name: true },
+        select: { id: true, name: true },
       },
       bills: {
         where: {

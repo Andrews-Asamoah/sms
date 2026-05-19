@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -34,6 +35,7 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   searchKey: string;
+  loading?: boolean;
   exportTitle?: string;
   exportOrientation?: "portrait" | "landscape";
 }
@@ -42,6 +44,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   searchKey,
+  loading = false,
   exportTitle,
   exportOrientation = "portrait",
 }: DataTableProps<TData, TValue>) {
@@ -118,7 +121,18 @@ export function DataTable<TData, TValue>({
               ))}
             </TableHeader>
             <TableBody>
-              {table.getRowModel().rows?.length ? (
+              {loading ? (
+                // Skeleton rows — same number of columns as real data
+                Array.from({ length: 8 }).map((_, i) => (
+                  <TableRow key={i} className="hover:bg-transparent">
+                    {columns.map((_, j) => (
+                      <TableCell key={j} className="py-3 px-4">
+                        <Skeleton className="h-4 w-full max-w-[160px]" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}

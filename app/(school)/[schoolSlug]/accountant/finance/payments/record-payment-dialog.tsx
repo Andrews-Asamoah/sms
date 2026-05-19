@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { z } from "zod";
 import { useForm, SubmitHandler, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Search, School, CheckCircle2, ChevronsUpDown, Check } from "lucide-react";
+import { Loader2, School, CheckCircle2, ChevronsUpDown, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "next/navigation";
-import { cn } from "@/lib/utils";
+import useSWR, { mutate as globalMutate } from "swr";
+import { fetcher } from "@/lib/fetchers";
 import {
   Dialog,
   DialogContent,
@@ -51,7 +52,6 @@ import {
 const paymentSchema = z.object({
   studentId: z.string().min(1, "Please select a student"),
   billId: z.string().min(1, "Please select a bill"),
-  amount: z.number().min(0.01, "Amount must be positive"),
   paymentMethod: z.enum(["CASH", "BANK_TRANSFER", "MOBILE_MONEY", "CHEQUE"]),
   referenceNumber: z.string().optional(),
   notes: z.string().optional(),
@@ -69,11 +69,8 @@ type FormValues = z.infer<typeof paymentSchema>;
 interface Student {
   id: string;
   studentId: string;
-  profile: {
-    firstName: string;
-    lastName: string;
-  };
-  class?: { name: string };
+  profile: { firstName: string; lastName: string };
+  class?: { id: string; name: string };
   outstandingBalance: number;
 }
 
@@ -88,9 +85,7 @@ interface Bill {
   balanceAmount: number;
   totalAmount: number;
   paidAmount: number;
-  feeStructure?: {
-    name: string;
-  };
+  feeStructure?: { name: string };
   items: {
     id: string;
     description: string;
@@ -113,17 +108,38 @@ export function RecordPaymentDialog({
   onOpenChange,
   onSuccess,
   initialStudentId,
-  initialAmount,
 }: RecordPaymentDialogProps) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isComboboxOpen, setIsComboboxOpen] = useState(false);
+
+  // ── SWR: Classes — cached 10 min, no re-fetch on focus (classes rarely change)
+  const { data: classes = [] } = useSWR<Class[]>(
+    open ? `/api/schools/${schoolSlug}/classes` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 600_000 }
+  );
+
+  // ── SWR: ALL students fetched ONCE, cached 2 min.
+  // Class filter and search are applied CLIENT-SIDE — zero extra DB calls.
+  const { data: allStudents = [], isLoading: isLoadingStudents } = useSWR<Student[]>(
+    open ? `/api/schools/${schoolSlug}/finance/students/outstanding` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 120_000 }
+  );
+
+  const students = allStudents.filter((s) => {
+    const matchesClass = selectedClassId === "all" || s.class?.id === selectedClassId;
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      s.profile.firstName.toLowerCase().includes(q) ||
+      s.profile.lastName.toLowerCase().includes(q) ||
+      s.studentId.toLowerCase().includes(q);
+    return matchesClass && matchesSearch;
+  });
 
   const {
     register,
@@ -138,7 +154,6 @@ export function RecordPaymentDialog({
     defaultValues: {
       studentId: initialStudentId || "",
       billId: "",
-      amount: initialAmount || 0,
       paymentMethod: "CASH",
       referenceNumber: "",
       notes: "",
@@ -146,102 +161,60 @@ export function RecordPaymentDialog({
     },
   });
 
-  const { fields, append, remove, replace } = useFieldArray({
-    control,
-    name: "items",
-  });
+  const { fields } = useFieldArray({ control, name: "items" });
 
   const studentId = watch("studentId");
   const billId = watch("billId");
   const paymentMethod = watch("paymentMethod");
 
-  // Load Classes on mount
-  useEffect(() => {
-    if (!open) return;
-    const loadClasses = async () => {
-      try {
-        const res = await fetch(`/api/schools/${schoolSlug}/classes`);
-        if (res.ok) setClasses(await res.json());
-      } catch (e) {
-        console.error("Failed to load classes", e);
-      }
-    };
-    loadClasses();
-  }, [open, schoolSlug]);
+  // ── SWR: Bills for selected student — cached 30s, invalidated after payment
+  const billsKey = studentId
+    ? `/api/schools/${schoolSlug}/finance/invoices?studentId=${studentId}&status=PENDING,PARTIALLY_PAID`
+    : null;
 
-  // Load Students with filters and debouncing
-  useEffect(() => {
-    if (!open) return;
-    
-    const handler = setTimeout(async () => {
-      try {
-        setIsLoadingStudents(true);
-        const params = new URLSearchParams();
-        if (selectedClassId !== "all") params.append("classId", selectedClassId);
-        if (searchQuery.trim()) params.append("q", searchQuery.trim());
+  const { data: bills = [] } = useSWR<Bill[]>(
+    billsKey,
+    fetcher,
+    { revalidateOnFocus: true, dedupingInterval: 30_000 }
+  );
 
-        const res = await fetch(
-          `/api/schools/${schoolSlug}/finance/students/outstanding?${params.toString()}`,
-        );
-        if (res.ok) setStudents(await res.json());
-      } catch (e) {
-        console.error("Failed to load students", e);
-      } finally {
-        setIsLoadingStudents(false);
-      }
-    }, 400); // 400ms debounce
+  // Keep a stable ref to bills so the item-population effect doesn't
+  // re-run every time SWR returns a new array reference for the same data.
+  const billsRef = useRef<Bill[]>(bills);
+  billsRef.current = bills;
 
-    return () => clearTimeout(handler);
-  }, [open, schoolSlug, selectedClassId, searchQuery]);
-
-  useEffect(() => {
-    if (!studentId) {
-      setBills([]);
-      return;
-    }
-    const loadBills = async () => {
-      try {
-        const res = await fetch(
-          `/api/schools/${schoolSlug}/finance/invoices?studentId=${studentId}&status=PENDING,PARTIALLY_PAID`,
-        );
-        if (res.ok) {
-          const fetchedBills = await res.json();
-          setBills(fetchedBills);
-        }
-      } catch (e) {
-        console.error("Failed to load bills", e);
-      }
-    };
-    loadBills();
-  }, [studentId, schoolSlug]);
-
+  // Populate form items when the selected bill changes (NOT when bills re-fetches)
   useEffect(() => {
     if (billId) {
-      const b = bills.find((x) => x.id === billId);
+      const b = billsRef.current.find((x) => x.id === billId);
       if (b) {
-        setValue("amount", Number(b.balanceAmount));
-        // Populate items
-        const formItems = b.items.map(item => ({
+        setValue("items", b.items.map(item => ({
           billItemId: item.id,
           description: item.description,
           amount: Number(item.balanceAmount),
           balance: Number(item.balanceAmount),
           selected: true,
-        }));
-        setValue("items", formItems);
+        })));
       }
     } else {
-        setValue("items", []);
+      setValue("items", []);
     }
-  }, [billId, bills, setValue]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billId, setValue]); // bills intentionally excluded — accessed via billsRef
+
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsSubmitting(true);
+
+    // Derive total from items — never trust a hidden field
+    const actualSum =
+      data.items?.filter(i => i.selected).reduce((acc, i) => acc + (Number(i.amount) || 0), 0) || 0;
+
     try {
       const res = await fetch(`/api/schools/${schoolSlug}/finance/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, amount: actualSum }),
       });
 
       if (!res.ok) {
@@ -250,6 +223,8 @@ export function RecordPaymentDialog({
       }
 
       toast.success("Payment recorded successfully");
+      // Invalidate bills cache so the next open shows up-to-date balances
+      if (billsKey) globalMutate(billsKey);
       reset();
       onSuccess();
       onOpenChange(false);
@@ -272,6 +247,7 @@ export function RecordPaymentDialog({
 
         <ScrollArea className="max-h-[80vh] px-1">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pb-6 px-1">
+            {/* Class filter */}
             <FieldGroup className="border-b pb-4 mb-4">
               <Field>
                 <FieldLabel className="text-xs uppercase text-muted-foreground flex items-center mb-2">
@@ -291,9 +267,7 @@ export function RecordPaymentDialog({
                   <SelectContent>
                     <SelectItem value="all">All Classes</SelectItem>
                     {classes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -304,6 +278,7 @@ export function RecordPaymentDialog({
             </FieldGroup>
 
             <FieldGroup>
+              {/* Student combobox */}
               <Field data-invalid={!!errors.studentId}>
                 <FieldLabel htmlFor="pmt-student">Select Student</FieldLabel>
                 <Popover open={isComboboxOpen} onOpenChange={setIsComboboxOpen}>
@@ -381,179 +356,137 @@ export function RecordPaymentDialog({
                 <FieldError errors={[errors.studentId]} />
               </Field>
 
+              {/* Bill selector */}
               <Field data-invalid={!!errors.billId}>
-              <FieldLabel htmlFor="pmt-bill">Select Bill to Pay</FieldLabel>
-              <Select
-                onValueChange={(val) => setValue("billId", val)}
-                value={billId}
-                disabled={!studentId || bills.length === 0}
-              >
-                <SelectTrigger id="pmt-bill">
-                  <SelectValue placeholder="Select outstanding invoice" />
-                </SelectTrigger>
-                <SelectContent>
-                  {bills.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.feeStructure?.name || b.billNumber} (Bal: GHS{" "}
-                      {Number(b.balanceAmount).toFixed(2)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError errors={[errors.billId]} />
-            </Field>
-
-            {billId && fields.length > 0 && (
-              <div className="space-y-3 bg-muted/30 p-4 rounded-lg border">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-primary" />
-                    Payment Distribution
-                  </h4>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {fields.length} Items Found
-                  </Badge>
-                </div>
-                
-                <ScrollArea className="h-[200px] pr-4">
-                  <div className="space-y-3">
-                    {fields.map((field, index) => (
-                      <div key={field.id} className="flex items-start gap-4 p-2 rounded hover:bg-muted/50 transition-colors">
-                        <Checkbox
-                          id={`item-cb-${index}`}
-                          className="mt-1"
-                          checked={watch(`items.${index}.selected`)}
-                          onCheckedChange={(checked) => {
-                            setValue(`items.${index}.selected`, !!checked);
-                            if (!checked) setValue(`items.${index}.amount`, 0);
-                            else setValue(`items.${index}.amount`, field.balance);
-                          }}
-                        />
-                        <div className="flex-1 space-y-1">
-                          <label htmlFor={`item-cb-${index}`} className="text-sm font-medium cursor-pointer">
-                            {field.description}
-                          </label>
-                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                            <span>Balance: GHS {field.balance.toFixed(2)}</span>
-                          </div>
-                        </div>
-                        <div className="w-24">
-                           <Input 
-                             type="number"
-                             step="0.01"
-                             className="h-8 text-xs text-right"
-                             placeholder="Amount"
-                             disabled={!watch(`items.${index}.selected`)}
-                             {...register(`items.${index}.amount` as const, { valueAsNumber: true })}
-                           />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-                
-                <div className="pt-2 border-t flex justify-between items-center px-1">
-                   <span className="text-xs font-medium">Sum of distributed:</span>
-                   <span className="text-xs font-bold text-primary">
-                     GHS {watch("items")?.filter(i => i.selected).reduce((acc, i) => acc + (i.amount || 0), 0).toFixed(2)}
-                   </span>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-               <Field data-invalid={!!errors.amount}>
-                <div className="flex items-center justify-between mb-2">
-                  <FieldLabel htmlFor="pmt-amount" className="font-bold mb-0">Total Payment Amount (GHS)</FieldLabel>
-                  {billId && fields.length > 0 && (
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="xs" 
-                      className="h-6 text-[10px] text-primary hover:text-primary hover:bg-primary/5"
-                      onClick={() => {
-                        const sum = watch("items")?.filter(i => i.selected).reduce((acc, i) => acc + (i.amount || 0), 0);
-                        setValue("amount", sum || 0);
-                      }}
-                    >
-                      Sync with Selection
-                    </Button>
-                  )}
-                </div>
-                <div className="relative">
-                  <Input
-                    id="pmt-amount"
-                    type="number"
-                    step="0.01"
-                    className="pl-8 font-bold text-lg h-12"
-                    {...register("amount", { valueAsNumber: true })}
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₵</span>
-                </div>
-                <FieldError errors={[errors.amount]} />
-                <p className="text-[10px] text-muted-foreground italic mt-1 leading-tight">
-                   Total received. If this exceeds the bill balance, the student will have a credit balance.
-                </p>
-              </Field>
-
-              <Field data-invalid={!!errors.paymentMethod}>
-                <FieldLabel htmlFor="pmt-method">Method</FieldLabel>
+                <FieldLabel htmlFor="pmt-bill">Select Bill to Pay</FieldLabel>
                 <Select
-                  onValueChange={(val) => setValue("paymentMethod", val as "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "CHEQUE")}
-                  value={paymentMethod}
+                  onValueChange={(val) => setValue("billId", val)}
+                  value={billId}
+                  disabled={!studentId || bills.length === 0}
                 >
-                  <SelectTrigger id="pmt-method">
-                    <SelectValue placeholder="Select method" />
+                  <SelectTrigger id="pmt-bill">
+                    <SelectValue placeholder="Select outstanding invoice" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CASH">Cash</SelectItem>
-                    <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
-                    <SelectItem value="MOBILE_MONEY"> Mobile Money</SelectItem>
-                    <SelectItem value="CHEQUE">Cheque</SelectItem>
+                    {bills.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.feeStructure?.name || b.billNumber} (Bal: GHS {Number(b.balanceAmount).toFixed(2)})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <FieldError errors={[errors.paymentMethod]} />
+                <FieldError errors={[errors.billId]} />
               </Field>
-            </div>
 
-            <Field data-invalid={!!errors.referenceNumber}>
-              <FieldLabel htmlFor="pmt-ref">
-                Ref Number (Momo/Bank Txn ID)
-              </FieldLabel>
-              <Input
-                id="pmt-ref"
-                placeholder="Optional"
-                disabled={paymentMethod === "CASH"}
-                {...register("referenceNumber")}
-              />
-              <FieldError errors={[errors.referenceNumber]} />
-            </Field>
+              {/* Payment distribution per item */}
+              {billId && fields.length > 0 && (
+                <div className="space-y-3 bg-muted/30 p-4 rounded-lg border">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      Payment Distribution
+                    </h4>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {fields.length} Items Found
+                    </Badge>
+                  </div>
 
-            <Field data-invalid={!!errors.notes}>
-              <FieldLabel htmlFor="pmt-notes">Notes (Optional)</FieldLabel>
-              <Textarea
-                id="pmt-notes"
-                placeholder="Any receipt remarks..."
-                rows={2}
-                {...register("notes")}
-              />
-              <FieldError errors={[errors.notes]} />
-            </Field>
+                  <ScrollArea className="h-[200px] pr-4">
+                    <div className="space-y-3">
+                      {fields.map((field, index) => (
+                        <div key={field.id} className="flex items-start gap-4 p-2 rounded hover:bg-muted/50 transition-colors">
+                          <Checkbox
+                            id={`item-cb-${index}`}
+                            className="mt-1"
+                            checked={watch(`items.${index}.selected`)}
+                            onCheckedChange={(checked) => {
+                              setValue(`items.${index}.selected`, !!checked);
+                              setValue(`items.${index}.amount`, checked ? field.balance : 0);
+                            }}
+                          />
+                          <div className="flex-1 space-y-1">
+                            <label htmlFor={`item-cb-${index}`} className="text-sm font-medium cursor-pointer">
+                              {field.description}
+                            </label>
+                            <div className="text-[11px] text-muted-foreground">
+                              Balance: GHS {field.balance.toFixed(2)}
+                            </div>
+                          </div>
+                          <div className="w-24">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className="h-8 text-xs text-right"
+                              placeholder="Amount"
+                              disabled={!watch(`items.${index}.selected`)}
+                              {...register(`items.${index}.amount` as const, { valueAsNumber: true })}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
 
+                  <div className="pt-2 border-t flex justify-between items-center px-1">
+                    <span className="text-xs font-medium">Sum of distributed:</span>
+                    <span className="text-xs font-bold text-primary">
+                      GHS {watch("items")?.filter(i => i.selected).reduce((acc, i) => acc + (i.amount || 0), 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Method */}
+              <div className="grid grid-cols-2 gap-4">
+                <Field data-invalid={!!errors.paymentMethod}>
+                  <FieldLabel htmlFor="pmt-method">Method</FieldLabel>
+                  <Select
+                    onValueChange={(val) => setValue("paymentMethod", val as "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "CHEQUE")}
+                    value={paymentMethod}
+                  >
+                    <SelectTrigger id="pmt-method">
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CASH">Cash</SelectItem>
+                      <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                      <SelectItem value="MOBILE_MONEY">Mobile Money</SelectItem>
+                      <SelectItem value="CHEQUE">Cheque</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FieldError errors={[errors.paymentMethod]} />
+                </Field>
+              </div>
+
+              <Field data-invalid={!!errors.referenceNumber}>
+                <FieldLabel htmlFor="pmt-ref">Ref Number (Momo/Bank Txn ID)</FieldLabel>
+                <Input
+                  id="pmt-ref"
+                  placeholder="Optional"
+                  disabled={paymentMethod === "CASH"}
+                  {...register("referenceNumber")}
+                />
+                <FieldError errors={[errors.referenceNumber]} />
+              </Field>
+
+              <Field data-invalid={!!errors.notes}>
+                <FieldLabel htmlFor="pmt-notes">Notes (Optional)</FieldLabel>
+                <Textarea
+                  id="pmt-notes"
+                  placeholder="Any receipt remarks..."
+                  rows={2}
+                  {...register("notes")}
+                />
+                <FieldError errors={[errors.notes]} />
+              </Field>
             </FieldGroup>
 
             <div className="flex justify-end gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Record Payment
               </Button>
             </div>

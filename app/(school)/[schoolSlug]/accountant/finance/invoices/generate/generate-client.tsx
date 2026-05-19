@@ -5,21 +5,21 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { 
-  Loader2, 
-  ArrowLeft, 
-  Receipt, 
-  CheckCircle2, 
-  Bold, 
-  Italic, 
-  List, 
-  ListOrdered, 
-  Heading1, 
-  Heading2, 
-  Quote, 
-  Undo, 
+import {
+  Loader2,
+  ArrowLeft,
+  Receipt,
+  CheckCircle2,
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Heading1,
+  Heading2,
+  Quote,
+  Undo,
   Redo,
-  Type
+  Type,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -29,9 +29,22 @@ import StarterKit from "@tiptap/starter-kit";
 import { DashboardPageHeader } from "@/components/layout/page-header";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -116,7 +129,8 @@ export function GenerateInvoiceClient({
     },
     editorProps: {
       attributes: {
-        class: 'tiptap prose prose-sm dark:prose-invert max-w-none focus:outline-none p-4 min-h-full h-full',
+        class:
+          "tiptap prose prose-sm dark:prose-invert max-w-none focus:outline-none p-4 min-h-full h-full",
       },
     },
   });
@@ -124,11 +138,14 @@ export function GenerateInvoiceClient({
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/schools/${schoolSlug}/finance/invoices/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+      const res = await fetch(
+        `/api/schools/${schoolSlug}/finance/invoices/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+      );
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -136,14 +153,15 @@ export function GenerateInvoiceClient({
       }
 
       const { createdBillsCount } = await res.json();
-      
+
       setGenerationSummary({
         count: createdBillsCount,
         type: data.billType,
       });
-      
-      toast.success(`Successfully generated ${createdBillsCount} ${data.billType.toLowerCase()}s`);
-      
+
+      toast.success(
+        `Successfully generated ${createdBillsCount} ${data.billType.toLowerCase()}s`,
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -153,7 +171,11 @@ export function GenerateInvoiceClient({
 
   const handleSelectAllClasses = (checked: boolean) => {
     if (checked) {
-      setValue("targetClasses", classes.map((c) => c.id), { shouldValidate: true });
+      setValue(
+        "targetClasses",
+        classes.map((c) => c.id),
+        { shouldValidate: true },
+      );
     } else {
       setValue("targetClasses", [], { shouldValidate: true });
     }
@@ -168,17 +190,25 @@ export function GenerateInvoiceClient({
           </div>
           <h2 className="text-2xl font-bold mb-2">Generation Complete!</h2>
           <p className="text-muted-foreground max-w-md mb-8">
-            Successfully generated {generationSummary.count} {generationSummary.type.toLowerCase()}s for the selected classes.
+            Successfully generated {generationSummary.count}{" "}
+            {generationSummary.type.toLowerCase()}s for the selected classes.
           </p>
           <div className="flex gap-4">
-            <Button variant="outline" onClick={() => router.push(`/${schoolSlug}/accountant/finance/invoices`)}>
+            <Button
+              variant="outline"
+              onClick={() =>
+                router.push(`/${schoolSlug}/accountant/finance/invoices`)
+              }
+            >
               View Invoices
             </Button>
-            <Button onClick={() => {
-              setGenerationSummary(null);
-              setValue("targetClasses", []);
-              editor?.commands.clearContent();
-            }}>
+            <Button
+              onClick={() => {
+                setGenerationSummary(null);
+                setValue("targetClasses", []);
+                editor?.commands.clearContent();
+              }}
+            >
               Generate More
             </Button>
           </div>
@@ -188,7 +218,7 @@ export function GenerateInvoiceClient({
   }
 
   return (
-    <div className="flex-1 space-y-6 max-w-5xl mx-auto p-4 md:p-8 pt-6">
+    <div className="flex-1 space-y-6 max-w-5xl mx-auto p-4 md:p-8 pt-6 pb-12">
       <div className="flex items-center gap-4">
         <Link href={`/${schoolSlug}/accountant/finance/invoices`}>
           <Button variant="outline" size="icon">
@@ -201,36 +231,55 @@ export function GenerateInvoiceClient({
         />
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="h-[calc(100vh-140px)] min-h-[600px]">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
-          <div className="md:col-span-2 space-y-6 flex flex-col h-full">
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          <div className="md:col-span-2 space-y-6 flex flex-col">
             {/* Main Configuration Card */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-xl">Billing Details</CardTitle>
-                <CardDescription>Select the fee structure template and type of bill to generate.</CardDescription>
+                <CardDescription>
+                  Select the fee structure template and type of bill to
+                  generate.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                
                 <Field data-invalid={!!errors.billType}>
                   <FieldLabel>Bill Type</FieldLabel>
                   <RadioGroup
                     defaultValue={billType}
-                    onValueChange={(val: "INVOICE" | "PROFORMA") => setValue("billType", val)}
+                    onValueChange={(val: "INVOICE" | "PROFORMA") =>
+                      setValue("billType", val)
+                    }
                     className="flex flex-col space-y-1 sm:flex-row sm:space-x-4 sm:space-y-0"
                   >
                     <div className="flex items-center space-x-2 border rounded-md p-3 flex-1 bg-background/50 cursor-pointer hover:bg-accent transition-colors">
                       <RadioGroupItem value="INVOICE" id="r1" />
                       <div className="grid gap-1.5 cursor-pointer">
-                        <FieldLabel htmlFor="r1" className="font-semibold text-base cursor-pointer">Official Invoice</FieldLabel>
-                        <p className="text-xs text-muted-foreground">Creates a final bill and updates student balances.</p>
+                        <FieldLabel
+                          htmlFor="r1"
+                          className="font-semibold text-base cursor-pointer"
+                        >
+                          Official Invoice
+                        </FieldLabel>
+                        <p className="text-xs text-muted-foreground">
+                          Creates a final bill and updates student balances.
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2 border rounded-md p-3 flex-1 bg-background/50 cursor-pointer hover:bg-accent transition-colors">
                       <RadioGroupItem value="PROFORMA" id="r2" />
                       <div className="grid gap-1.5 cursor-pointer">
-                        <FieldLabel htmlFor="r2" className="font-semibold text-base cursor-pointer">Proforma Invoice</FieldLabel>
-                        <p className="text-xs text-muted-foreground">Creates an estimated bill without updating student balances.</p>
+                        <FieldLabel
+                          htmlFor="r2"
+                          className="font-semibold text-base cursor-pointer"
+                        >
+                          Proforma Invoice
+                        </FieldLabel>
+                        <p className="text-xs text-muted-foreground">
+                          Creates an estimated bill without updating student
+                          balances.
+                        </p>
                       </div>
                     </div>
                   </RadioGroup>
@@ -240,7 +289,10 @@ export function GenerateInvoiceClient({
                 <Separator />
 
                 <Field data-invalid={!!errors.feeStructureId}>
-                  <FieldLabel>Select Fee Structure <span className="text-destructive">*</span></FieldLabel>
+                  <FieldLabel>
+                    Select Fee Structure{" "}
+                    <span className="text-destructive">*</span>
+                  </FieldLabel>
                   <Select
                     onValueChange={(val) => setValue("feeStructureId", val)}
                     defaultValue={feeStructureId}
@@ -255,55 +307,100 @@ export function GenerateInvoiceClient({
                         </SelectItem>
                       ))}
                       {feeStructures.length === 0 && (
-                        <SelectItem value="none" disabled>No fee structures available</SelectItem>
+                        <SelectItem value="none" disabled>
+                          No fee structures available
+                        </SelectItem>
                       )}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-2">
-                    The total amount and line items will be copied from this template to each student's bill.
+                    The total amount and line items will be copied from this
+                    template to each student's bill.
                   </p>
                   <FieldError errors={[errors.feeStructureId]} />
                 </Field>
-
               </CardContent>
             </Card>
 
             {/* Notes / Message Card */}
-            <Card className="flex-1 flex flex-col overflow-hidden">
+            <Card className="flex flex-col">
               <CardHeader>
-                <CardTitle className="text-xl">Additional Notes (Optional)</CardTitle>
-                <CardDescription>Add customized payment instructions, deadlines, or remarks to appear on the bill.</CardDescription>
+                <CardTitle className="text-xl">
+                  Additional Notes (Optional)
+                </CardTitle>
+                <CardDescription>
+                  Add customized payment instructions, deadlines, or remarks to
+                  appear on the bill.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="flex-1 pb-4">
-                 <div className="border rounded-md overflow-hidden bg-background flex flex-col flex-1 min-h-[400px]">
+              <CardContent className="pb-6">
+                <div className="border rounded-md overflow-hidden bg-background flex flex-col min-h-[320px]">
                   <div className="bg-muted/50 px-2 py-1 border-b flex flex-wrap items-center gap-1">
                     <div className="flex items-center gap-0.5 border-r pr-1 mr-0.5 border-border/50">
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('heading', { level: 1 }) ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          editor
+                            ?.chain()
+                            .focus()
+                            .toggleHeading({ level: 1 })
+                            .run()
+                        }
+                        className={cn(
+                          "h-8 w-8 p-0 transition-colors",
+                          editor?.isActive("heading", { level: 1 })
+                            ? "bg-primary/10 text-primary hover:bg-primary/20"
+                            : "hover:bg-muted",
+                        )}
                         title="Heading 1"
                       >
                         <Heading1 className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('heading', { level: 2 }) ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          editor
+                            ?.chain()
+                            .focus()
+                            .toggleHeading({ level: 2 })
+                            .run()
+                        }
+                        className={cn(
+                          "h-8 w-8 p-0 transition-colors",
+                          editor?.isActive("heading", { level: 2 })
+                            ? "bg-primary/10 text-primary hover:bg-primary/20"
+                            : "hover:bg-muted",
+                        )}
                         title="Heading 2"
                       >
                         <Heading2 className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => editor?.chain().focus().clearNodes().setParagraph().run()}
-                        className={cn("h-8 w-8 p-0 transition-colors", (editor?.isActive('paragraph') && !editor?.isActive('heading') && !editor?.isActive('bulletList') && !editor?.isActive('orderedList') && !editor?.isActive('blockquote')) ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          editor
+                            ?.chain()
+                            .focus()
+                            .clearNodes()
+                            .setParagraph()
+                            .run()
+                        }
+                        className={cn(
+                          "h-8 w-8 p-0 transition-colors",
+                          editor?.isActive("paragraph") &&
+                            !editor?.isActive("heading") &&
+                            !editor?.isActive("bulletList") &&
+                            !editor?.isActive("orderedList") &&
+                            !editor?.isActive("blockquote")
+                            ? "bg-primary/10 text-primary hover:bg-primary/20"
+                            : "hover:bg-muted",
+                        )}
                         title="Paragraph"
                       >
                         <Type className="h-4 w-4" />
@@ -311,22 +408,36 @@ export function GenerateInvoiceClient({
                     </div>
 
                     <div className="flex items-center gap-0.5 border-r pr-1 mr-0.5 border-border/50">
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => editor?.chain().focus().toggleBold().run()}
-                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('bold') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          editor?.chain().focus().toggleBold().run()
+                        }
+                        className={cn(
+                          "h-8 w-8 p-0 transition-colors",
+                          editor?.isActive("bold")
+                            ? "bg-primary/10 text-primary hover:bg-primary/20"
+                            : "hover:bg-muted",
+                        )}
                         title="Bold"
                       >
                         <Bold className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => editor?.chain().focus().toggleItalic().run()}
-                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('italic') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          editor?.chain().focus().toggleItalic().run()
+                        }
+                        className={cn(
+                          "h-8 w-8 p-0 transition-colors",
+                          editor?.isActive("italic")
+                            ? "bg-primary/10 text-primary hover:bg-primary/20"
+                            : "hover:bg-muted",
+                        )}
                         title="Italic"
                       >
                         <Italic className="h-4 w-4" />
@@ -334,32 +445,53 @@ export function GenerateInvoiceClient({
                     </div>
 
                     <div className="flex items-center gap-0.5 border-r pr-1 mr-0.5 border-border/50">
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('bulletList') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          editor?.chain().focus().toggleBulletList().run()
+                        }
+                        className={cn(
+                          "h-8 w-8 p-0 transition-colors",
+                          editor?.isActive("bulletList")
+                            ? "bg-primary/10 text-primary hover:bg-primary/20"
+                            : "hover:bg-muted",
+                        )}
                         title="Bullet List"
                       >
                         <List className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('orderedList') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          editor?.chain().focus().toggleOrderedList().run()
+                        }
+                        className={cn(
+                          "h-8 w-8 p-0 transition-colors",
+                          editor?.isActive("orderedList")
+                            ? "bg-primary/10 text-primary hover:bg-primary/20"
+                            : "hover:bg-muted",
+                        )}
                         title="Ordered List"
                       >
                         <ListOrdered className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-                        className={cn("h-8 w-8 p-0 transition-colors", editor?.isActive('blockquote') ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'hover:bg-muted')}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          editor?.chain().focus().toggleBlockquote().run()
+                        }
+                        className={cn(
+                          "h-8 w-8 p-0 transition-colors",
+                          editor?.isActive("blockquote")
+                            ? "bg-primary/10 text-primary hover:bg-primary/20"
+                            : "hover:bg-muted",
+                        )}
                         title="Quote"
                       >
                         <Quote className="h-4 w-4" />
@@ -367,10 +499,10 @@ export function GenerateInvoiceClient({
                     </div>
 
                     <div className="flex items-center gap-0.5">
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => editor?.chain().focus().undo().run()}
                         className="h-8 w-8 p-0 hover:bg-muted transition-colors opacity-70 hover:opacity-100"
                         title="Undo"
@@ -378,10 +510,10 @@ export function GenerateInvoiceClient({
                       >
                         <Undo className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => editor?.chain().focus().redo().run()}
                         className="h-8 w-8 p-0 hover:bg-muted transition-colors opacity-70 hover:opacity-100"
                         title="Redo"
@@ -391,43 +523,56 @@ export function GenerateInvoiceClient({
                       </Button>
                     </div>
                   </div>
-                  <div className="flex-1 overflow-auto bg-card/30">
-                    <EditorContent 
-                      editor={editor} 
-                      className="h-full" 
-                    />
+                  <div
+                    className="flex-1 overflow-auto bg-card/30 cursor-text"
+                    onClick={() => editor?.chain().focus().run()}
+                  >
+                    <EditorContent editor={editor} className="h-full" />
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="md:sticky md:top-6 flex flex-col h-auto md:h-[calc(100vh-140px)] min-h-[500px]">
+          <div className="md:sticky md:top-6 flex flex-col">
             <Card className="flex flex-col h-full overflow-hidden border-primary/10 shadow-lg shadow-primary/5">
               <CardHeader className="bg-primary/[0.02] border-b pb-4">
                 <CardTitle className="text-xl">Target Classes</CardTitle>
-                <CardDescription>Select which classes should receive this bill.</CardDescription>
+                <CardDescription>
+                  Select which classes should receive this bill.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="flex-1 overflow-hidden flex flex-col">
-                <Field data-invalid={!!errors.targetClasses} className="flex-1 flex flex-col overflow-hidden">
+              <CardContent className="flex flex-col gap-3 pt-2 pb-4">
+                <Field
+                  data-invalid={!!errors.targetClasses}
+                  className="flex flex-col"
+                >
                   <div className="mb-4 flex items-center justify-between">
-                     <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="select-all" 
-                          checked={classes.length > 0 && targetClasses.length === classes.length}
-                           onCheckedChange={(checked) => handleSelectAllClasses(!!checked)}
-                        />
-                        <label htmlFor="select-all" className="text-sm font-medium leading-none cursor-pointer">
-                          Select All
-                        </label>
-                     </div>
-                     <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                       {targetClasses.length} Selected
-                     </span>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="select-all"
+                        checked={
+                          classes.length > 0 &&
+                          targetClasses.length === classes.length
+                        }
+                        onCheckedChange={(checked) =>
+                          handleSelectAllClasses(!!checked)
+                        }
+                      />
+                      <label
+                        htmlFor="select-all"
+                        className="text-sm font-medium leading-none cursor-pointer"
+                      >
+                        Select All
+                      </label>
+                    </div>
+                    <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                      {targetClasses.length} Selected
+                    </span>
                   </div>
-                  <div className="border rounded-md flex-1 overflow-hidden">
-                    <ScrollArea className="h-full p-4">
-                      <div className="space-y-4">
+                  <div className="border rounded-md overflow-hidden">
+                    <ScrollArea className="h-56 p-3">
+                        <div className="space-y-1">
                         {classes.length === 0 && (
                           <p className="text-sm text-muted-foreground text-center py-4">
                             No classes available
@@ -436,7 +581,7 @@ export function GenerateInvoiceClient({
                         {classes.map((cls) => (
                           <div
                             key={cls.id}
-                            className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-muted/50 rounded-md transition-colors"
+                            className="flex flex-row items-center space-x-3 space-y-0 px-2 py-1.5 hover:bg-muted/50 rounded-md transition-colors"
                           >
                             <Checkbox
                               id={`class-${cls.id}`}
@@ -456,28 +601,42 @@ export function GenerateInvoiceClient({
                             >
                               {cls.name}
                             </FieldLabel>
-                            <span className="text-xs text-muted-foreground">{cls.level}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {cls.level}
+                            </span>
                           </div>
                         ))}
                       </div>
                     </ScrollArea>
                   </div>
-                  <FieldError errors={[errors.targetClasses]} className="mt-2" />
+                  <FieldError
+                    errors={[errors.targetClasses]}
+                    className="mt-2"
+                  />
                 </Field>
-                
+
                 {billType === "PROFORMA" && (
-                    <Alert className="mt-6 bg-blue-50/50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-800">
-                      <Receipt className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      <AlertTitle className="text-blue-800 dark:text-blue-300">Proforma Notice</AlertTitle>
-                      <AlertDescription className="text-blue-700/80 dark:text-blue-400/80 text-xs">
-                        Proforma invoices are estimates. They won't affect student accounting balances until they are finalized.
-                      </AlertDescription>
-                    </Alert>
+                  <Alert className="mt-6 bg-blue-50/50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-800">
+                    <Receipt className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <AlertTitle className="text-blue-800 dark:text-blue-300">
+                      Proforma Notice
+                    </AlertTitle>
+                    <AlertDescription className="text-blue-700/80 dark:text-blue-400/80 text-xs">
+                      Proforma invoices are estimates. They won't affect student
+                      accounting balances until they are finalized.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </CardContent>
               <CardFooter className="pt-4 border-t mt-auto bg-muted/20 pb-4">
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
                   Generate {billType === "INVOICE" ? "Invoices" : "Proformas"}
                 </Button>
               </CardFooter>

@@ -50,6 +50,7 @@ export function BatchPrintDialog({ open, onOpenChange }: BatchPrintDialogProps) 
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [school, setSchool] = useState<any>(null);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -61,7 +62,30 @@ export function BatchPrintDialog({ open, onOpenChange }: BatchPrintDialogProps) 
         
         const schoolRes = await fetch(`/api/schools/${schoolSlug}`);
         if (schoolRes.ok) {
-          setSchool(await schoolRes.json());
+          const schoolData = await schoolRes.json();
+          setSchool(schoolData);
+
+          // Fetch logo as base64 to bypass @react-pdf/renderer's strict CORS/network limitations
+          if (schoolData.logo) {
+            try {
+              const origin = typeof window !== "undefined" ? window.location.origin : "";
+              const url = schoolData.logo.startsWith("http")
+                ? `${origin}/api/proxy-image?url=${encodeURIComponent(schoolData.logo)}`
+                : schoolData.logo.startsWith("/")
+                ? `${origin}${schoolData.logo}`
+                : schoolData.logo;
+
+              const imgRes = await fetch(url);
+              const blob = await imgRes.blob();
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                setLogoBase64(reader.result as string);
+              };
+              reader.readAsDataURL(blob);
+            } catch (err) {
+              console.error("Failed to fetch base64 logo", err);
+            }
+          }
         } else {
           setError("Failed to load school information. Please check your permissions.");
         }
@@ -177,7 +201,7 @@ export function BatchPrintDialog({ open, onOpenChange }: BatchPrintDialogProps) 
                 <span className="font-bold text-primary">{invoices.length}</span>
               </div>
               
-              {school && school.name ? (
+              {school && school.name && (!school.logo || logoBase64) ? (
                 <PDFDownloadLink
                   document={
                     <BatchInvoicePDF
@@ -187,7 +211,7 @@ export function BatchPrintDialog({ open, onOpenChange }: BatchPrintDialogProps) 
                       schoolEmail={school.email}
                       schoolPhone={school.phone}
                       currency={school.currency === "GH₵" ? "GHS" : (school.currency || "GHS")}
-                      logoUrl={school.logo}
+                      logoUrl={logoBase64 || undefined}
                     />
                   }
                   fileName={`Invoices_${classes.find(c => c.id === selectedClassId)?.name}_${new Date().toLocaleDateString()}.pdf`}

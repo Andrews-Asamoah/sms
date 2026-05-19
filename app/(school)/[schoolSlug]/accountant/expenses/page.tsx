@@ -153,6 +153,7 @@ export default function ExpensesPage() {
           columns={columns} 
           data={expenses} 
           searchKey="description" 
+          loading={loading}
           exportTitle="Expenses Report"
         />
       </div>

@@ -255,7 +255,7 @@ export default function FeesClient({
 
       {/* Enhanced Table Container */}
       <div className="rounded-lg border bg-card shadow-sm p-5">
-        <DataTable columns={columns} data={data} searchKey="name" />
+        <DataTable columns={columns} data={data} searchKey="name" loading={loading} />
       </div>
 
       {/* Edit Dialog */}

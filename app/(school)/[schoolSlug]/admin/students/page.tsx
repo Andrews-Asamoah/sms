@@ -4,6 +4,7 @@ import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import prisma from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 import { Button } from "@/components/ui/button";
 import {
   Plus,
@@ -176,6 +177,35 @@ export default async function StudentsPage({
 // ----------------------------------------------------------------------------
 // Async Server Component for fetching students
 // ----------------------------------------------------------------------------
+
+// Cache per school+class combination for 5 minutes
+const getStudentsList = (schoolId: string, classId: string) =>
+  unstable_cache(
+    () => {
+      const whereClause: Record<string, unknown> = { schoolId };
+      if (classId !== "all") whereClause.classId = classId;
+      return prisma.student.findMany({
+        where: whereClause,
+        include: {
+          profile: {
+            include: {
+              user: {
+                select: { id: true, email: true, image: true, banned: true, banReason: true },
+              },
+            },
+          },
+          class: { include: { academicYear: true } },
+          department: true,
+          house: true,
+          _count: { select: { guardians: true, bills: true } },
+        },
+        orderBy: [{ createdAt: "desc" }],
+      });
+    },
+    [`admin-students-${schoolId}-${classId}`],
+    { revalidate: 300, tags: [`students-${schoolId}`] }
+  )();
+
 async function StudentsListContent({
   schoolId,
   schoolSlug,
@@ -187,43 +217,8 @@ async function StudentsListContent({
   classId: string;
   classes: { id: string; name: string }[];
 }) {
-  const whereClause: any = { schoolId };
-  if (classId !== "all") {
-    whereClause.classId = classId;
-  }
+  const rawStudents = await getStudentsList(schoolId, classId);
 
-  const rawStudents = await prisma.student.findMany({
-    where: whereClause,
-    include: {
-      profile: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              image: true,
-              banned: true,
-              banReason: true,
-            },
-          },
-        },
-      },
-      class: {
-        include: {
-          academicYear: true,
-        },
-      },
-      department: true,
-      house: true,
-      _count: {
-        select: {
-          guardians: true,
-          bills: true,
-        },
-      },
-    },
-    orderBy: [{ createdAt: "desc" }],
-  });
 
   const students = rawStudents.map((s) => ({
     ...s,

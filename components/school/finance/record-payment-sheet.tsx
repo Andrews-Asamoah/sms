@@ -37,7 +37,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 const paymentSchema = z.object({
   studentId: z.string().min(1, "Please select a student"),
   billId: z.string().min(1, "Please select a bill"),
-  amount: z.string().min(1, "Amount is required"),
   paymentMethod: z.enum([
     "CASH",
     "BANK_TRANSFER",
@@ -116,7 +115,6 @@ export function RecordPaymentSheet({
     defaultValues: {
       studentId: studentId || "",
       billId: initialBillId || "",
-      amount: "0",
       paymentMethod: "CASH",
       paymentDate: new Date().toISOString().split("T")[0],
       referenceNumber: "",
@@ -150,9 +148,6 @@ export function RecordPaymentSheet({
 
             if (initialBillId) {
               const bill = data.find((b: Bill) => b.id === initialBillId);
-              if (bill) {
-                setValue("amount", bill.balanceAmount.toString());
-              }
             }
           }
         } catch (error) {
@@ -175,27 +170,16 @@ export function RecordPaymentSheet({
         selected: true,
       }));
       setValue("items", initialItems);
-
-      const total = initialItems.reduce(
-        (sum, item) => sum + (parseFloat(item.amount) || 0),
-        0,
-      );
-      setValue("amount", total.toString());
     }
   }, [selectedBillId, setValue, selectedBill]);
 
-  // Sync total amount when item amounts change
-  useEffect(() => {
-    const total = (formItems || [])
-      .filter((i) => i.selected)
-      .reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-    setValue("amount", total.toString());
-  }, [formItems, setValue]);
-
   const onSubmit = async (values: PaymentFormValues) => {
+    // Calculate the total amount securely from items right before submission
+    const actualSum = values.items?.filter(i => i.selected).reduce((acc, i) => acc + (parseFloat(i.amount) || 0), 0) || 0;
+
     if (
       selectedBill &&
-      parseFloat(values.amount) > Number(selectedBill.balanceAmount)
+      actualSum > Number(selectedBill.balanceAmount)
     ) {
       toast.error(`Amount exceeds bill balance of GHS ${selectedBill.balanceAmount}`);
       return;
@@ -206,7 +190,7 @@ export function RecordPaymentSheet({
       const res = await fetch(`/api/schools/${schoolSlug}/finance/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify({ ...values, amount: actualSum }),
       });
 
       if (!res.ok) {
@@ -350,22 +334,6 @@ export function RecordPaymentSheet({
                 </div>
               </div>
             )}
-
-            <Field data-invalid={!!errors.amount}>
-              <FieldLabel htmlFor="payment-amount">Payment Amount (GHS)</FieldLabel>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="payment-amount"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  className="pl-9"
-                  {...register("amount")}
-                />
-              </div>
-              <FieldError errors={[errors.amount]} />
-            </Field>
 
             <div className="grid grid-cols-2 gap-4">
               <Field data-invalid={!!errors.paymentMethod}>

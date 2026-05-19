@@ -6,7 +6,6 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
   Image,
 } from "@react-pdf/renderer";
 
@@ -46,6 +45,22 @@ const styles = StyleSheet.create({
   logo: {
     width: 60,
     height: 60,
+    objectFit: "contain",
+  },
+  logoPlaceholder: {
+    width: 60,
+    height: 60,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logoPlaceholderText: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#cbd5e1",
   },
   schoolName: {
     fontSize: 18,
@@ -203,6 +218,26 @@ interface BatchInvoicePDFProps {
   logoUrl?: string;
 }
 
+/** Converts TipTap / rich-text HTML to readable plain text for use in react-pdf */
+function htmlToPlainText(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<p[^>]*>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export const BatchInvoicePDF = ({
   invoices,
   schoolName,
@@ -230,10 +265,26 @@ export const BatchInvoicePDF = ({
         <Page key={invoice.billNumber || index} size="A4" style={styles.page}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={{ flexDirection: "row", gap: 15, flex: 1 }}>
-              {logoUrl && (
-                <View>
-                  <Image src={logoUrl} style={styles.logo} />
+            <View style={{ flexDirection: "row", flex: 1 }}>
+              {logoUrl ? (
+                <Image
+                  src={{
+                    uri: logoUrl,
+                    method: "GET",
+                    headers: { "Cache-Control": "no-cache" },
+                    body: ""
+                  }}
+                  style={[styles.logo, { marginRight: 15 }]}
+                />
+              ) : (
+                <View style={[styles.logoPlaceholder, { marginRight: 15 }]}>
+                  <Text style={styles.logoPlaceholderText}>
+                    {schoolName
+                      ?.split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
+                      .substring(0, 2)}
+                  </Text>
                 </View>
               )}
               <View style={styles.schoolInfo}>
@@ -354,18 +405,15 @@ export const BatchInvoicePDF = ({
           {/* Notes */}
           {invoice.notes && (
             <View style={styles.notesSection}>
-              <Text style={styles.notesTitle}>Notes & Instructions</Text>
-              <Text style={styles.notesText}>{invoice.notes}</Text>
+              <Text style={styles.notesTitle}>Notes &amp; Instructions</Text>
+              <Text style={styles.notesText}>
+                {htmlToPlainText(invoice.notes)}
+              </Text>
             </View>
           )}
 
           {/* Footer */}
           <View style={styles.footer} fixed>
-            {/* <Text
-              render={({ pageNumber, totalPages }) =>
-                `Page ${pageNumber} of ${totalPages}`
-              }
-            /> */}
             <Text style={{ marginTop: 2, fontSize: 7, color: "#d1d5db" }}>
               CampusAdesua | Powered by Drews_Tech_Services
             </Text>

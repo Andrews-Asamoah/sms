@@ -3,6 +3,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 import { Button } from "@/components/ui/button";
 import { Plus, Users, GraduationCap, Clock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,53 @@ import { StatCard } from "@/components/ui/stat-card";
 interface TeachersPageProps {
   params: Promise<{ schoolSlug: string }>;
 }
+
+// Cached teacher list — 5 min, tagged
+const getTeachers = (schoolId: string) =>
+  unstable_cache(
+    () =>
+      prisma.teacher.findMany({
+        where: { schoolId, profileId: { not: null } },
+        include: {
+          profile: {
+            include: {
+              user: { select: { id: true, email: true, image: true, banned: true, banReason: true } },
+            },
+          },
+          department: true,
+          house: true,
+          _count: { select: { subjects: true, classesAsClassTeacher: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    [`admin-teachers-${schoolId}`],
+    { revalidate: 300, tags: [`teachers-${schoolId}`] }
+  )();
+
+// Cached pending invitations — 5 min
+const getPendingInvitations = (schoolId: string) =>
+  unstable_cache(
+    () =>
+      prisma.teacher.findMany({
+        where: { schoolId, profileId: null },
+        include: { department: true, house: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    [`admin-teachers-pending-${schoolId}`],
+    { revalidate: 300, tags: [`teachers-${schoolId}`] }
+  )();
+
+// Cached departments + houses — 10 min (rarely change)
+const getDepartmentsAndHouses = (schoolId: string) =>
+  unstable_cache(
+    () =>
+      Promise.all([
+        prisma.department.findMany({ where: { schoolId, isActive: true }, orderBy: { name: "asc" } }),
+        prisma.house.findMany({ where: { schoolId, isActive: true }, orderBy: { name: "asc" } }),
+      ]),
+    [`admin-dept-houses-${schoolId}`],
+    { revalidate: 600, tags: [`departments-${schoolId}`, `houses-${schoolId}`] }
+  )();
 
 export default async function TeachersPage({ params }: TeachersPageProps) {
   const { schoolSlug } = await params;
@@ -29,73 +77,19 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  const school = await prisma.school.findUnique({
-    where: { subdomain: schoolSlug },
-  });
+  const school = await prisma.school.findUnique({ where: { subdomain: schoolSlug } });
+  if (!school) redirect("/");
 
-  if (!school) {
-    redirect("/");
-  }
+  const [allTeachers, pendingInvitations, [departments, houses]] = await Promise.all([
+    getTeachers(school.id),
+    getPendingInvitations(school.id),
+    getDepartmentsAndHouses(school.id),
+  ]);
 
-  const [allTeachers, activeCount, pendingInvitations, departments, houses] =
-    await Promise.all([
-      // Active (linked) teachers only
-      prisma.teacher.findMany({
-        where: { schoolId: school.id, profileId: { not: null } },
-        include: {
-          profile: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  email: true,
-                  image: true,
-                  banned: true,
-                  banReason: true,
-                },
-              },
-            },
-          },
-          department: true,
-          house: true,
-          _count: {
-            select: {
-              subjects: true,
-              classesAsClassTeacher: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-
-      prisma.teacher.count({
-        where: {
-          schoolId: school.id,
-          isActive: true,
-          profileId: { not: null },
-        },
-      }),
-      // Pending invitations (no profile yet)
-      prisma.teacher.findMany({
-        where: { schoolId: school.id, profileId: null },
-        include: {
-          department: true,
-          house: true,
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.department.findMany({
-        where: { schoolId: school.id, isActive: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.house.findMany({
-        where: { schoolId: school.id, isActive: true },
-        orderBy: { name: "asc" },
-      }),
-    ]);
-
+  const activeCount = allTeachers.filter((t) => t.isActive).length;
   const totalActive = allTeachers.length;
   const inactiveCount = totalActive - activeCount;
+
 
   return (
     <div className="space-y-6">

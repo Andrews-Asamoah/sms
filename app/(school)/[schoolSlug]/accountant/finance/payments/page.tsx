@@ -1,157 +1,133 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
-import { DataTable } from "@/components/ui/data-table/data-table";
-import { ColumnDef } from "@tanstack/react-table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { format } from "date-fns";
-import { RecordPaymentDialog } from "./record-payment-dialog";
-import { DashboardPageHeader } from "@/components/layout/page-header";
+import { Suspense } from "react";
+import { getSession } from "@/lib/auth/session";
+import { hasSchoolAccess } from "@/lib/auth/school-access";
+import { redirect } from "next/navigation";
+import { PaymentsClient } from "./payments-client";
+import { Skeleton } from "@/components/ui/skeleton";
+import prisma from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
+import { getActiveContext } from "@/lib/academic/get-active-context";
 import { formatStudentName } from "@/lib/utils/name-formatter";
 
-type Payment = {
-  id: string;
-  paymentNumber: string;
-  amount: number;
-  paymentMethod: string;
-  paymentDate: string;
-  student: {
-    profile: {
-      firstName: string;
-      lastName: string;
-      otherNames?: string | null;
-    };
-  };
-  studentName?: string;
-  bill?: {
-    billNumber: string;
-    feeStructure?: { name: string };
-  };
+export const metadata = {
+  title: "Accountant Payments",
 };
 
-export default function PaymentsPage() {
-  const params = useParams();
-  const schoolSlug = params.schoolSlug as string;
-  const [data, setData] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isRecordOpen, setIsRecordOpen] = useState(false);
+interface AccountantPaymentsPageProps {
+  params: Promise<{ schoolSlug: string }>;
+}
 
-  const fetchPayments = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/schools/${schoolSlug}/finance/payments`);
-      if (res.ok) {
-        const json = await res.json();
-        const mappedData = (json || []).map((p: any) => ({
-          ...p,
-          studentName: p.student?.profile 
-            ? formatStudentName(
-                p.student.profile.firstName,
-                p.student.profile.lastName,
-                p.student.profile.otherNames
-              )
-            : "Unknown"
-        }));
-        setData(mappedData);
+export default async function AccountantPaymentsPage({
+  params,
+}: AccountantPaymentsPageProps) {
+  const { schoolSlug } = await params;
+  return (
+    <Suspense fallback={<PaymentsSkeleton />}>
+      <PaymentsContent schoolSlug={schoolSlug} />
+    </Suspense>
+  );
+}
+
+async function PaymentsContent({ schoolSlug }: { schoolSlug: string }) {
+  const session = await getSession();
+
+  if (!session || !hasSchoolAccess(session, schoolSlug)) {
+    redirect("/login");
+  }
+
+  const school = await prisma.school.findUnique({
+    where: { subdomain: schoolSlug },
+    select: { id: true, settings: true },
+  });
+
+  if (!school) {
+    redirect("/login");
+  }
+
+  // Resolve user-scoped working context
+  const ctx = await getActiveContext(
+    schoolSlug,
+    session.user.id,
+    school.settings as Record<string, string | undefined>,
+    { withNames: false },
+  );
+
+  const effectiveYearId = ctx.academicYearId;
+  const effectiveTermId = ctx.termId;
+
+  const getCachedPayments = unstable_cache(
+    async () => {
+      const whereClause: any = { schoolId: school.id };
+      if (effectiveYearId || effectiveTermId) {
+        whereClause.bill = {
+          ...(effectiveYearId && { academicYearId: effectiveYearId }),
+          ...(effectiveTermId && { termId: effectiveTermId }),
+        };
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+
+      const payments = await prisma.payment.findMany({
+        where: whereClause,
+        include: {
+          student: {
+            select: { profile: true, class: { select: { name: true } } },
+          },
+          bill: {
+            select: {
+              billNumber: true,
+              feeStructure: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return payments.map((p: any) => ({
+        ...p,
+        studentName: p.student?.profile
+          ? formatStudentName(
+              p.student.profile.firstName,
+              p.student.profile.lastName,
+              p.student.profile.otherNames,
+            )
+          : "Unknown",
+      }));
+    },
+    [`payments-${school.id}-${effectiveYearId || 'all'}-${effectiveTermId || 'all'}`],
+    {
+      revalidate: 300, // Cache for 5 minutes
+      tags: [`payments-${school.id}`],
     }
-  };
+  );
 
-  useEffect(() => {
-    fetchPayments();
-  }, [schoolSlug]);
+  const payments = await getCachedPayments();
 
-  const columns: ColumnDef<Payment>[] = [
-    {
-      accessorKey: "paymentNumber",
-      header: "Receipt #",
-    },
-    {
-      id: "studentName",
-      accessorKey: "studentName",
-      header: "Student",
-      cell: ({ row }) => {
-        return row.original.studentName || "-";
-      },
-    },
-    {
-      accessorKey: "bill",
-      header: "For",
-      cell: ({ row }) =>
-        row.original.bill?.feeStructure?.name ||
-        row.original.bill?.billNumber ||
-        "N/A",
-    },
-    {
-      accessorKey: "amount",
-      header: "Amount",
-      cell: ({ row }) => (
-        <span className="font-bold text-green-700">
-          + GHS {Number(row.original.amount).toFixed(2)}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "paymentMethod",
-      header: "Method",
-      cell: ({ row }) => (
-        <Badge variant="outline">
-          {row.original.paymentMethod.replace("_", " ")}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "paymentDate",
-      header: "Date",
-      cell: ({ row }) => format(new Date(row.original.paymentDate), "PPP"),
-    },
-  ];
+  return <PaymentsClient initialPayments={payments} />;
+}
 
+function PaymentsSkeleton() {
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
-      <DashboardPageHeader
-        title="Payments"
-        description="Transaction history and incoming revenue records."
-      >
-        <Button onClick={() => setIsRecordOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Record Payment
-        </Button>
-      </DashboardPageHeader>
-
-      <div className="flex items-center gap-2 bg-muted/30 p-2 px-4 rounded-lg w-fit">
-        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-          Viewing: Selected Academic Period
-        </Badge>
-        <span className="text-xs text-muted-foreground italic">
-          Controlled by sidebar switcher
-        </span>
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-[250px]" />
+          <Skeleton className="h-4 w-[300px]" />
+        </div>
+        <Skeleton className="h-10 w-[150px]" />
       </div>
 
-      <div className="bg-background rounded-md border shadow-sm p-4">
-        <DataTable 
-          columns={columns} 
-          data={data} 
-          searchKey="studentName" 
-          exportTitle="Payments Report"
-          exportOrientation="landscape"
-        />
-      </div>
+      <Skeleton className="h-8 w-[200px]" />
 
-      {isRecordOpen && (
-        <RecordPaymentDialog
-          open={isRecordOpen}
-          onOpenChange={setIsRecordOpen}
-          onSuccess={fetchPayments}
-        />
-      )}
+      <div className="bg-background rounded-md border shadow-sm p-4 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <Skeleton className="h-10 w-[250px]" />
+          <Skeleton className="h-10 w-[100px]" />
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

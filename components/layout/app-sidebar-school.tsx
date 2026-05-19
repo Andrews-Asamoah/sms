@@ -64,12 +64,33 @@ export function AppSidebarSchool({
     [schoolSlug, filteredNavSections, currentActiveRole],
   );
 
+  // Determine the correct dashboard root based on the user's role
+  const dashboardRoot = useMemo(() => {
+    switch (currentActiveRole) {
+      case "accountant":
+        return `/${schoolSlug}/accountant`;
+      case "admin":
+      case "owner":
+      case "headteacher":
+      case "superAdmin":
+        return `/${schoolSlug}/admin`;
+      case "teacher":
+        return `/${schoolSlug}/teacher`;
+      case "student":
+        return `/${schoolSlug}/student`;
+      case "guardian":
+        return `/${schoolSlug}/guardian`;
+      default:
+        return `/${schoolSlug}`;
+    }
+  }, [currentActiveRole, schoolSlug]);
+
   return (
     <BaseSidebar
       logoName={schoolName}
       logoImage={schoolLogo}
       logoPlan={schoolPlan}
-      logoHref={`/${schoolSlug}`}
+      logoHref={dashboardRoot}
       navSections={prefixedNavSections}
       user={user}
       headerContent={

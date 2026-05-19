@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import {
   Megaphone,
@@ -90,14 +90,16 @@ export function AnnouncementsPageContent({
   canManage = false,
   canSendExternal = false,
   showFinancialMessage = false,
+  initialAnnouncements = [],
 }: {
   canManage?: boolean;
   canSendExternal?: boolean;
   showFinancialMessage?: boolean;
+  initialAnnouncements?: Announcement[];
 }) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(initialAnnouncements);
+  const [loading, setLoading] = useState(initialAnnouncements.length === 0);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -145,12 +147,19 @@ export function AnnouncementsPageContent({
     }
   };
 
+  const isMounted = useRef(false);
+
   useEffect(() => {
+    if (!isMounted.current && initialAnnouncements.length > 0) {
+      isMounted.current = true;
+      return;
+    }
     fetchAnnouncements();
   }, [schoolSlug, activeFilter]);
 
   // Debounced search
   useEffect(() => {
+    if (!isMounted.current && initialAnnouncements.length > 0) return;
     const timer = setTimeout(() => fetchAnnouncements(), 400);
     return () => clearTimeout(timer);
   }, [search]);

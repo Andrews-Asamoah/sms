@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import prisma from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { DashboardPageHeader } from "@/components/layout/page-header";
 import { StaffClient } from "./staff-client";
@@ -18,6 +19,23 @@ interface StaffPageProps {
   }>;
 }
 
+// Cached per school for 5 minutes, tagged for on-demand revalidation
+const getNonTeachingStaff = (schoolId: string) =>
+  unstable_cache(
+    () =>
+      prisma.staff.findMany({
+        where: { schoolId },
+        include: {
+          profile: {
+            include: { user: { select: { id: true, banned: true, email: true } } },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    [`admin-staff-${schoolId}`],
+    { revalidate: 300, tags: [`staff-${schoolId}`] }
+  )();
+
 export default async function AdminStaffPage({ params }: StaffPageProps) {
   const { schoolSlug } = await params;
   await requireSchoolAccess(schoolSlug);
@@ -27,21 +45,10 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
     select: { id: true },
   });
 
-  if (!school) {
-    return null;
-  }
+  if (!school) return null;
 
-  // Fetch Non-Teaching Staff
-  const nonTeachingStaff = await prisma.staff.findMany({
-    where: { schoolId: school.id },
-    include: {
-      profile: {
-        include: { user: { select: { id: true, banned: true, email: true } } },
-      },
-    },
+  const nonTeachingStaff = await getNonTeachingStaff(school.id);
 
-    orderBy: { createdAt: "desc" },
-  });
 
   // Normalize data for StaffClient - Only non-teaching staff
   const staffList = nonTeachingStaff

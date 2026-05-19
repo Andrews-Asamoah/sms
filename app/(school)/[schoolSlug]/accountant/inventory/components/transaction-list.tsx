@@ -103,6 +103,7 @@ export function InventoryTransactionList() {
         columns={columns} 
         data={transactions} 
         searchKey="item_name" 
+        loading={loading}
         exportTitle="Inventory Transactions Report"
       />
     </div>

@@ -147,7 +147,7 @@ export default function ExpensesClient({ permissions }: ExpensesClientProps) {
         {/* Add more summary cards if needed */}
       </div>
 
-      <DataTable columns={columns} data={data} searchKey="description" exportTitle="Expenses Report" />
+      <DataTable columns={columns} data={data} searchKey="description" loading={loading} exportTitle="Expenses Report" />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">

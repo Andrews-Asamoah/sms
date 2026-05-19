@@ -107,6 +107,20 @@ export async function POST(
     );
   }
 
+  if (items && Array.isArray(items)) {
+    const calculatedTotal = items
+      .filter((i: any) => i.selected)
+      .reduce((sum: number, i: any) => sum + (parseFloat(i.amount) || 0), 0);
+
+    // Allow a tiny floating point tolerance
+    if (Math.abs(calculatedTotal - parseFloat(amount)) > 0.01) {
+      return NextResponse.json(
+        { error: "The total amount does not match the sum of distributed items." },
+        { status: 400 },
+      );
+    }
+  }
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Find the target Bill and its items

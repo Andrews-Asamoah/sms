@@ -210,6 +210,7 @@ export function StudentFeesClient() {
               columns={billColumns}
               data={bills}
               searchKey="billNumber"
+              loading={loading}
               exportTitle="Invoices & Bills Report"
             />
           </div>
@@ -220,6 +221,7 @@ export function StudentFeesClient() {
               columns={paymentColumns}
               data={payments}
               searchKey="paymentNumber"
+              loading={loading}
               exportTitle="Payment History Report"
             />
           </div>

@@ -72,26 +72,26 @@ interface Installment {
   sentAt?: string | null;
 }
 
-export function FeeReminderScheduler() {
+import { useRouter } from "next/navigation";
+
+export function FeeReminderScheduler({ initialSchedules }: { initialSchedules: Schedule[] }) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const [schedules, setSchedules] = useState<Schedule[]>(initialSchedules);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [triggerTarget, setTriggerTarget] = useState<string | null>(null);
   const [triggering, setTriggering] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const fetchSchedules = async () => {
-    try {
-      const res = await fetch(`/api/schools/${schoolSlug}/fee-reminders`);
-      const data = await res.json();
-      setSchedules(Array.isArray(data) ? data : []);
-    } catch { toast.error("Failed to load schedules"); }
-    finally { setLoading(false); }
-  };
+  // Sync state when props change
+  useEffect(() => {
+    setSchedules(initialSchedules);
+  }, [initialSchedules]);
 
-  useEffect(() => { fetchSchedules(); }, [schoolSlug]);
+  const fetchSchedules = () => {
+    router.refresh();
+  };
 
   const handleToggleActive = async (id: string, current: boolean) => {
     try {
@@ -143,9 +143,7 @@ export function FeeReminderScheduler() {
         </Button>
       </DashboardPageHeader>
 
-      {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-      ) : schedules.length === 0 ? (
+      {schedules.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 rounded-xl border border-dashed bg-muted/20 gap-3">
           <ClipboardList className="h-12 w-12 text-muted-foreground/30" />
           <p className="text-base font-medium text-muted-foreground">No schedules yet</p>

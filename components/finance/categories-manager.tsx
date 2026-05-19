@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Plus, Tag, Receipt, Trash2, Edit2, Loader2 } from "lucide-react";
 import { DashboardPageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -34,12 +34,19 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
-export function CategoriesManager() {
+interface CategoriesManagerProps {
+  initialFeeItems: any[];
+  initialExpenseCategories: any[];
+}
+
+export function CategoriesManager({
+  initialFeeItems,
+  initialExpenseCategories,
+}: CategoriesManagerProps) {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   
-  const [feeItems, setFeeItems] = useState<any[]>([]);
-  const [expenseCategories, setExpenseCategories] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [feeItems, setFeeItems] = useState<any[]>(initialFeeItems);
+  const [expenseCategories, setExpenseCategories] = useState<any[]>(initialExpenseCategories);
   
   // Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -50,7 +57,6 @@ export function CategoriesManager() {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
       const [feeRes, expRes] = await Promise.all([
         fetch(`/api/schools/${schoolSlug}/finance/fee-item-registry`),
         fetch(`/api/schools/${schoolSlug}/finance/expenditure-registry`),
@@ -60,14 +66,10 @@ export function CategoriesManager() {
     } catch (error) {
       console.error("Failed to fetch categories", error);
       toast.error("Failed to load categories.");
-    } finally {
-      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (schoolSlug) fetchData();
-  }, [schoolSlug]);
+  const router = useRouter();
 
   const openDialog = (type: "fee" | "expense") => {
     setDialogType(type);
@@ -110,7 +112,7 @@ export function CategoriesManager() {
       );
       setDialogOpen(false);
       setEditingId(null);
-      fetchData();
+      router.refresh();
     } catch {
       toast.error("An error occurred while saving.");
     } finally {
@@ -162,13 +164,7 @@ export function CategoriesManager() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-center py-6 text-muted-foreground">
-                          Loading...
-                        </TableCell>
-                      </TableRow>
-                    ) : feeItems.length === 0 ? (
+                    {feeItems.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center py-6 text-muted-foreground">
                           No fee items defined yet.
@@ -224,13 +220,7 @@ export function CategoriesManager() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-center py-6 text-muted-foreground">
-                          Loading...
-                        </TableCell>
-                      </TableRow>
-                    ) : expenseCategories.length === 0 ? (
+                    {expenseCategories.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center py-6 text-muted-foreground">
                           No expenditure categories defined yet.

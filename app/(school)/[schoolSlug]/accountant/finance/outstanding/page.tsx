@@ -1,159 +1,150 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
-import { DataTable } from "@/components/ui/data-table/data-table";
-import { ColumnDef } from "@tanstack/react-table";
-import { Badge } from "@/components/ui/badge";
-import { Wallet } from "lucide-react";
-import { RecordPaymentDialog } from "../payments/record-payment-dialog";
-import { Button } from "@/components/ui/button";
+import { Suspense } from "react";
+import { getSession } from "@/lib/auth/session";
+import { hasSchoolAccess } from "@/lib/auth/school-access";
+import { redirect } from "next/navigation";
+import { OutstandingClient } from "./outstanding-client";
+import { Skeleton } from "@/components/ui/skeleton";
+import prisma from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
+import { getActiveContext } from "@/lib/academic/get-active-context";
 import { formatStudentName } from "@/lib/utils/name-formatter";
 
-type StudentDebtor = {
-  id: string;
-  studentId: string; // school specific ID
-  profile: {
-    firstName: string;
-    lastName: string;
-    otherNames?: string | null;
-    phone: string | null;
-  };
-  studentName?: string;
-  class: { name: string } | null;
-  outstandingBalance: number;
-  status: string;
+export const metadata = {
+  title: "Outstanding Fees | Accountant Portal",
 };
 
-export default function OutstandingFeesPage() {
-  const params = useParams();
-  const schoolSlug = params.schoolSlug as string;
-  const [data, setData] = useState<StudentDebtor[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<{id: string, name: string, balance: number} | null>(null);
-  const [isPayOpen, setIsPayOpen] = useState(false);
+interface AccountantOutstandingPageProps {
+  params: Promise<{ schoolSlug: string }>;
+}
 
-  const fetchData = async () => {
-    try {
-      const res = await fetch(
-        `/api/schools/${schoolSlug}/finance/students/outstanding`,
-      );
-      if (res.ok) {
-        const json = await res.json();
-        const mappedData = (json || []).map((s: any) => ({
-          ...s,
-          studentName: s.profile 
+export default async function AccountantOutstandingPage({
+  params,
+}: AccountantOutstandingPageProps) {
+  const { schoolSlug } = await params;
+  return (
+    <div className="p-6">
+      <Suspense fallback={<OutstandingSkeleton />}>
+        <OutstandingContent schoolSlug={schoolSlug} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function OutstandingContent({ schoolSlug }: { schoolSlug: string }) {
+  const session = await getSession();
+
+  if (!session || !hasSchoolAccess(session, schoolSlug)) {
+    redirect("/login");
+  }
+
+  const school = await prisma.school.findUnique({
+    where: { subdomain: schoolSlug },
+    select: { id: true, settings: true },
+  });
+
+  if (!school) {
+    redirect("/login");
+  }
+
+  // Resolve user-scoped working context
+  const ctx = await getActiveContext(
+    schoolSlug,
+    session.user.id,
+    school.settings as Record<string, string | undefined>,
+    { withNames: false },
+  );
+
+  const effectiveYearId = ctx.academicYearId;
+  const effectiveTermId = ctx.termId;
+
+  const getCachedOutstanding = unstable_cache(
+    async () => {
+      // Find students who have unpaid bills in the target period
+      const studentsWithBills = await prisma.student.findMany({
+        where: {
+          schoolId: school.id,
+          bills: {
+            some: {
+              academicYearId: effectiveYearId,
+              ...(effectiveTermId && { termId: effectiveTermId }),
+              status: { not: "PAID" },
+            }
+          }
+        },
+        include: {
+          profile: {
+            select: { firstName: true, lastName: true, phone: true },
+          },
+          class: {
+            select: { id: true, name: true },
+          },
+          bills: {
+            where: {
+              academicYearId: effectiveYearId,
+              ...(effectiveTermId && { termId: effectiveTermId }),
+              status: { not: "PAID" },
+            },
+            select: {
+              balanceAmount: true,
+            }
+          }
+        }
+      });
+
+      // Calculate the period-specific outstanding balance for each student
+      const debtors = studentsWithBills.map(student => {
+        const periodBalance = student.bills.reduce((sum, bill) => sum + Number(bill.balanceAmount), 0);
+        return {
+          ...student,
+          outstandingBalance: periodBalance,
+          studentName: student.profile 
             ? formatStudentName(
-                s.profile.firstName,
-                s.profile.lastName,
-                s.profile.otherNames
+                student.profile.firstName,
+                student.profile.lastName,
+                (student.profile as any).otherNames
               )
-            : "Unknown"
-        }));
-        setData(mappedData);
-      }
-    } catch (e) {
-      console.error(e);
+            : "Unknown",
+        };
+      }).filter(s => s.outstandingBalance > 0)
+        .sort((a, b) => b.outstandingBalance - a.outstandingBalance);
+
+      // Clean up bills to avoid transferring extra data
+      return debtors.map(({ bills, ...rest }) => rest);
+    },
+    [`outstanding-${school.id}-${effectiveYearId || 'all'}-${effectiveTermId || 'all'}`],
+    {
+      revalidate: 300, // Cache for 5 minutes
+      tags: [`outstanding-${school.id}`],
     }
-  };
+  );
 
-  useEffect(() => {
-    fetchData();
-  }, [schoolSlug]);
+  const outstandingData = await getCachedOutstanding();
 
-  const columns: ColumnDef<StudentDebtor>[] = [
-    {
-      id: "studentName",
-      accessorKey: "studentName",
-      header: "Student Name",
-      cell: ({ row }) => (
-        <span className="font-medium text-primary">
-          {row.original.studentName}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "studentId",
-      header: "ID",
-    },
-    {
-      accessorKey: "class",
-      header: "Class",
-      cell: ({ row }) => row.original.class?.name || "N/A",
-    },
-    {
-      accessorKey: "outstandingBalance",
-      header: "Amount Owning (GHS)",
-      cell: ({ row }) => (
-        <div className="font-bold text-red-600">
-          {Number(row.original.outstandingBalance).toFixed(2)}
-        </div>
-      ),
-    },
-    {
-      accessorKey: "profile.phone",
-      header: "Contact",
-      cell: ({ row }) => row.original.profile.phone || "-",
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs gap-1 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-          onClick={() => {
-            setSelectedStudent({
-              id: row.original.id,
-              name: row.original.studentName || "Unknown",
-              balance: row.original.outstandingBalance,
-            });
-            setIsPayOpen(true);
-          }}
-        >
-          <Wallet className="h-3 w-3" />
-          Pay
-        </Button>
-      ),
-    },
-  ];
+  return <OutstandingClient initialData={outstandingData as any} />;
+}
 
+function OutstandingSkeleton() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-red-600">
-            Outstanding Fees
-          </h1>
-          <p className="text-muted-foreground">Students with unpaid balances</p>
+        <div className="space-y-2">
+          <Skeleton className="h-9 w-[300px]" />
+          <Skeleton className="h-4 w-[250px]" />
         </div>
-
-        <div className="flex flex-col items-end gap-2">
-            <Badge variant="outline" className="h-8 px-3 text-xs bg-red-50 text-red-600 border-red-200">
-                Viewing: Current Academic Period
-            </Badge>
-            <span className="text-[10px] text-muted-foreground italic">
-                (Controlled by sidebar switcher)
-            </span>
-        </div>
+        <Skeleton className="h-8 w-[150px]" />
       </div>
 
-      <DataTable 
-        columns={columns} 
-        data={data} 
-        searchKey="studentName" 
-        exportTitle="Outstanding Fees Report"
-        exportOrientation="landscape"
-      />
-
-      {selectedStudent && (
-        <RecordPaymentDialog
-          open={isPayOpen}
-          onOpenChange={setIsPayOpen}
-          onSuccess={fetchData}
-          initialStudentId={selectedStudent.id}
-          initialAmount={selectedStudent.balance}
-        />
-      )}
+      <div className="bg-background rounded-md border shadow-sm p-4">
+        <div className="flex items-center justify-between mb-4">
+          <Skeleton className="h-10 w-[250px]" />
+          <Skeleton className="h-10 w-[100px]" />
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -422,9 +422,9 @@ const ROLE_NAV_SECTIONS: Record<string, string[]> = {
   ],
   teacher: ["Teacher Area", "Communication"],
   accountant: [
+    "Accountant Dashboard",
     "User Management",
     "Operations",
-    "Accountant Dashboard",
     "Communication",
   ],
   student: ["Student Area", "Communication"],
@@ -434,7 +434,8 @@ const ROLE_NAV_SECTIONS: Record<string, string[]> = {
 
 /**
  * Filter navigation sections based on role.
- * This removes entire sections that aren't relevant to the role.
+ * This removes entire sections that aren't relevant to the role,
+ * and sorts them exactly as defined in the ROLE_NAV_SECTIONS array.
  */
 export function filterNavByRole(
   sections: NavSection[],
@@ -446,6 +447,13 @@ export function filterNavByRole(
     .filter(
       (section) => !section.title || allowedSections.includes(section.title),
     )
+    .sort((a, b) => {
+      const indexA = allowedSections.indexOf(a.title || "");
+      const indexB = allowedSections.indexOf(b.title || "");
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    })
     .map((section) => {
       // Custom filtering for Accountant role
       if (role === "accountant") {
@@ -544,6 +552,7 @@ export function getPrefixedNavSections(
           url.includes("/admin/academicYears") ||
           url.includes("/admin/students") ||
           url.includes("/admin/teachers") ||
+          url.includes("/admin/staff") ||
           url.includes("/admin/guardians"))
       ) {
         url = url.replace("/admin", "/accountant");
@@ -579,6 +588,7 @@ export function getPrefixedNavSections(
               subUrl.includes("/admin/academicYears") ||
               subUrl.includes("/admin/students") ||
               subUrl.includes("/admin/teachers") ||
+              subUrl.includes("/admin/staff") ||
               subUrl.includes("/admin/guardians"))
           ) {
             subUrl = subUrl.replace("/admin", "/accountant");

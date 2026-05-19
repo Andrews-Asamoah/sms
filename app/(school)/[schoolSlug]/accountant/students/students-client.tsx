@@ -29,8 +29,9 @@ export const columns: ColumnDef<StudentData>[] = [
     header: "ID",
   },
   {
-    accessorKey: "fullName",
+    id: "fullName",
     header: "Name",
+    accessorFn: (row) => `${row.firstName} ${row.lastName}`,
     cell: ({ row }) => `${row.original.firstName} ${row.original.lastName}`,
   },
   {
