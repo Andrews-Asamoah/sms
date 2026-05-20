@@ -5,6 +5,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { organization, admin, magicLink } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import prisma from "@/lib/prisma";
+import { resolveSubscriptionLimits } from "@/lib/subscription/limits";
 import {
   ac,
   superAdmin,
@@ -404,11 +405,10 @@ export const auth = betterAuth({
               // Get subscription limits
               const subscription = await prisma.subscription.findUnique({
                 where: { schoolId: school.id },
-                select: { maxTeachers: true, maxStaff: true },
+                select: { maxTeachers: true, maxStudents: true, maxStaff: true, planType: true },
               });
 
-              const maxTeachers = subscription?.maxTeachers ?? 5;
-              const maxStaff = subscription?.maxStaff ?? 2;
+              const limits = resolveSubscriptionLimits(subscription);
 
               // TEACHER LINKING
               const teacherCount = await prisma.teacher.count({
@@ -419,7 +419,7 @@ export const auth = betterAuth({
                 },
               });
 
-              if (maxTeachers === null || teacherCount < maxTeachers) {
+              if (limits.teachers === null || teacherCount < limits.teachers) {
                 await prisma.teacher.updateMany({
                   where: {
                     invitationEmail: user.email,
@@ -446,7 +446,7 @@ export const auth = betterAuth({
                   where: { schoolId: school.id, isActive: true },
                 });
 
-                if (maxStaff === null || staffCount < maxStaff) {
+                if (limits.staff === null || staffCount < limits.staff) {
                   const existingStaff = await prisma.staff.findFirst({
                     where: {
                       schoolId: school.id,
@@ -619,11 +619,10 @@ export const auth = betterAuth({
               // Get subscription limits
               const subscription = await prisma.subscription.findUnique({
                 where: { schoolId: school.id },
-                select: { maxTeachers: true, maxStaff: true },
+                select: { maxTeachers: true, maxStudents: true, maxStaff: true, planType: true },
               });
 
-              const maxTeachers = subscription?.maxTeachers ?? 5;
-              const maxStaff = subscription?.maxStaff ?? 2;
+              const limits = resolveSubscriptionLimits(subscription);
 
               // TEACHER LINKING
               const teacherCount = await prisma.teacher.count({
@@ -634,7 +633,7 @@ export const auth = betterAuth({
                 },
               });
 
-              if (maxTeachers === null || teacherCount < maxTeachers) {
+              if (limits.teachers === null || teacherCount < limits.teachers) {
                 await prisma.teacher.updateMany({
                   where: {
                     invitationEmail: invitation.email,
@@ -677,7 +676,7 @@ export const auth = betterAuth({
                   where: { schoolId: school.id, isActive: true },
                 });
 
-                if (maxStaff === null || staffCount < maxStaff) {
+                if (limits.staff === null || staffCount < limits.staff) {
                   const existingStaff = await prisma.staff.findFirst({
                     where: {
                       schoolId: school.id,

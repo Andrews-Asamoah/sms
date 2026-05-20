@@ -42,10 +42,8 @@ export async function GET(request: Request) {
           }
         },
         school: {
-          select: {
-            id: true,
-            name: true,
-            subdomain: true
+          include: {
+            subscription: true
           }
         }
       }
@@ -82,7 +80,46 @@ export async function GET(request: Request) {
           })).filter(n => n.schoolId !== '')
         });
 
-        return Promise.all([...emailPromises, notificationPromise]);
+        // Generate PENDING Invoice for the upcoming billing cycle if one does not exist
+        const sub = org.school?.subscription;
+        let invoicePromise = Promise.resolve();
+        if (sub) {
+          invoicePromise = (async () => {
+            const existingPendingInvoice = await prisma.invoiceRecord.findFirst({
+              where: {
+                subscriptionId: sub.id,
+                status: "PENDING",
+              },
+            });
+
+            if (!existingPendingInvoice) {
+              // Calculate upcoming period dates
+              const periodStart = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd) : new Date();
+              const periodEnd = new Date(periodStart);
+              if (sub.billingCycle === "YEARLY") {
+                periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+              } else {
+                periodEnd.setMonth(periodEnd.getMonth() + 1);
+              }
+
+              await prisma.invoiceRecord.create({
+                data: {
+                  subscriptionId: sub.id,
+                  invoiceNumber: `INV-PEND-${sub.id}-${Date.now()}`,
+                  amount: sub.amount ?? 99.0,
+                  currency: sub.currency ?? "GHS",
+                  status: "PENDING",
+                  periodStart,
+                  periodEnd,
+                },
+              }).catch((e) => {
+                console.error(`[Cron Alert] Failed to auto-generate PENDING invoice for subscription ${sub.id}:`, e);
+              });
+            }
+          })();
+        }
+
+        return Promise.all([...emailPromises, notificationPromise, invoicePromise]);
       })
     );
 

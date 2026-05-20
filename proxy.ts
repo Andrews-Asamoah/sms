@@ -83,17 +83,25 @@ export default async function proxy(request: NextRequest) {
       });
     }
 
-    // 7. If ACTIVE (or unknown), let through
+    // 7. If ACTIVE or TRIALING (or unknown school), let through
     if (
       !subscriptionStatus ||
-      (subscriptionStatus !== "SUSPENDED" && subscriptionStatus !== "EXPIRED")
+      subscriptionStatus === "ACTIVE" ||
+      subscriptionStatus === "TRIALING"
     ) {
       return response;
     }
 
-    // 8. School is SUSPENDED or EXPIRED — determine what the user can access.
-    // We only call getSession() here, so unauthenticated/active-school requests
+    // 8. School has a non-active status — determine what the user can access.
+    //    PAST_DUE  → soft block: redirect admins/owners to billing to re-pay,
+    //                everyone else sees the suspended notice.
+    //    All other blocked statuses (SUSPENDED, EXPIRED, CANCELED, UNPAID,
+    //    INCOMPLETE_EXPIRED) → hard block: billing page for admins, suspended
+    //    notice for everyone else.
+    //
+    // We only call getSession() here so unauthenticated/active-school requests
     // never pay the session-lookup cost.
+    const isPastDue = subscriptionStatus === "PAST_DUE";
     const isBillingPage =
       pathname.includes("/admin/subscription") ||
       pathname.includes("/admin/billing");
@@ -102,6 +110,15 @@ export default async function proxy(request: NextRequest) {
     const session = await auth.api.getSession({ headers: request.headers });
 
     if (!session) {
+      if (isPastDue) {
+        // Unauthenticated users on a past-due school → suspended page
+        if (!isSuspendedPage) {
+          return NextResponse.redirect(
+            new URL(`/${schoolSlug}/suspended`, request.url)
+          );
+        }
+        return response;
+      }
       if (!isSuspendedPage) {
         return NextResponse.redirect(
           new URL(`/${schoolSlug}/suspended`, request.url)
@@ -113,9 +130,8 @@ export default async function proxy(request: NextRequest) {
     const memberRole = (session.user.role ?? "") as string;
     const isSuperAdmin = memberRole === "superAdmin";
 
-    // 9. Check if this user is an admin/owner of the specific suspended org.
-    // This is the only request that requires 2 DB calls (org status + member check),
-    // and it only fires for suspended schools — a rare edge case.
+    // 9. Check if this user is an admin/owner of the specific org.
+    // Only fires for non-active schools — a rare edge case.
     let isOrgAdminOrOwner = false;
     if (!isSuperAdmin && orgId && session.session.activeOrganizationId === orgId) {
       const member = await prisma.member.findFirst({

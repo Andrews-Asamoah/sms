@@ -1,6 +1,7 @@
 // lib/finance/subscription.ts
 import prisma from "@/lib/prisma";
 import { SubscriptionStatus, PlanType } from "@prisma/client";
+import { resolveSubscriptionLimits } from "@/lib/subscription/limits";
 import { SUBSCRIPTION_PLANS } from "@/lib/subscription-plans";
 
 export type ResourceQuotaType = "maxStudents" | "maxTeachers" | "maxStaff";
@@ -11,24 +12,15 @@ export async function checkQuotaInfo(
 ) {
   const subscription = await prisma.subscription.findUnique({
     where: { schoolId },
+    select: { maxStudents: true, maxTeachers: true, maxStaff: true }
   });
 
-  const planType = subscription?.planType || PlanType.FREE;
-  const currentPlan =
-    SUBSCRIPTION_PLANS.find(
-      (p) => p.planType === planType && p.billingCycle === "MONTHLY",
-    ) || SUBSCRIPTION_PLANS[0];
+  const limits = resolveSubscriptionLimits(subscription);
 
-  // Custom limits defined directly on the subscription take precedence,
-  // falling back to the predefined limits from the standard plans.
-  let planLimitValue = null;
-  if (resourceType === "maxStudents")
-    planLimitValue = currentPlan.limits.students;
-  if (resourceType === "maxTeachers")
-    planLimitValue = currentPlan.limits.teachers;
-  if (resourceType === "maxStaff") planLimitValue = currentPlan.limits.staff;
-
-  const limitValue = subscription?.[resourceType] ?? planLimitValue;
+  let limitValue = null;
+  if (resourceType === "maxStudents") limitValue = limits.students;
+  if (resourceType === "maxTeachers") limitValue = limits.teachers;
+  if (resourceType === "maxStaff") limitValue = limits.staff;
 
   let currentCount = 0;
 

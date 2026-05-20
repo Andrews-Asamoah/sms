@@ -3,6 +3,25 @@
 import prisma from "@/lib/prisma";
 import type { SubscriptionStatus as PrismaSubscriptionStatus } from "@prisma/client";
 
+// ── Internal helper ───────────────────────────────────────────────────────────
+// Syncs organization.subscriptionStatus after a lazy EXPIRED write so the proxy
+// cookie cache (which reads that field) immediately reflects the new state.
+async function syncOrgStatusExpired(subscriptionId: string): Promise<void> {
+  try {
+    const sub = await prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      select: { school: { select: { organizationId: true } } },
+    });
+    if (!sub?.school?.organizationId) return;
+    await prisma.organization.update({
+      where: { id: sub.school.organizationId },
+      data: { subscriptionStatus: "EXPIRED" },
+    });
+  } catch (e) {
+    console.error("[Subscription] Failed to sync org status to EXPIRED:", e);
+  }
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -107,6 +126,7 @@ export async function checkSubscriptionStatus(
           isOnTrial: false,
         },
       })
+      .then(() => syncOrgStatusExpired(subscription.id))
       .catch((e) => {
         console.error("[Subscription] Failed to persist EXPIRED (trial):", e);
       });
@@ -132,6 +152,7 @@ export async function checkSubscriptionStatus(
         where: { id: subscription.id },
         data: { status: "EXPIRED" as PrismaSubscriptionStatus },
       })
+      .then(() => syncOrgStatusExpired(subscription.id))
       .catch((e) => {
         console.error("[Subscription] Failed to persist EXPIRED (period):", e);
       });

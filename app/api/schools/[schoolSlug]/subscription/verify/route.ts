@@ -106,6 +106,24 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
+    // Verify school ID matches school slug to prevent cross-tenant verification exploits
+    const schoolFromSlug = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { id: true },
+    });
+
+    if (!schoolFromSlug || schoolFromSlug.id !== metaSchoolId) {
+      console.error(
+        `[Verify] School mismatch: school associated with slug "${schoolSlug}" has ID "${schoolFromSlug?.id}", but transaction metadata has ID "${metaSchoolId}"`
+      );
+      return NextResponse.redirect(
+        new URL(
+          `/${schoolSlug}/admin/subscription?error=school_mismatch`,
+          request.url,
+        ),
+      );
+    }
+
     // ── Card update flow ──────────────────────────────────────────────────────
     if (isCardUpdate) {
       // Store the new authorization code so future charges use the new card.
@@ -241,29 +259,49 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
     });
 
-    // Create invoice record.
-    // The webhook may have already created one — use a unique invoiceNumber
-    // based on the Paystack reference to prevent duplicates.
-    await prisma.invoiceRecord
-      .create({
+    // Mark pending invoice as PAID or create a new invoice record
+    const pendingInvoice = await prisma.invoiceRecord.findFirst({
+      where: {
+        subscriptionId: subscription.id,
+        status: "PENDING",
+      },
+    });
+
+    if (pendingInvoice) {
+      await prisma.invoiceRecord.update({
+        where: { id: pendingInvoice.id },
         data: {
-          subscriptionId: subscription.id,
-          invoiceNumber: `INV-${reference}`,
-          amount: plan?.price ?? 99.0,
-          currency: plan?.currency ?? "GHS",
           status: "PAID",
-          periodStart: currentDate,
-          periodEnd: expiryDate,
           paidAt: data.paid_at ? new Date(data.paid_at) : new Date(),
           paymentMethod: data.channel ?? "card",
+          periodStart: currentDate,
+          periodEnd: expiryDate,
         },
-      })
-      .catch((e) => {
-        // Unique constraint on invoiceNumber — invoice already created by
-        // the webhook. This is expected and safe to ignore.
-        if (e?.code === "P2002") return;
-        console.error("[Verify] Failed to create invoice:", e);
+      }).catch((e) => {
+        console.error("[Verify] Failed to update pending invoice to PAID:", e);
       });
+    } else {
+      await prisma.invoiceRecord
+        .create({
+          data: {
+            subscriptionId: subscription.id,
+            invoiceNumber: `INV-${reference}`,
+            amount: plan?.price ?? 99.0,
+            currency: plan?.currency ?? "GHS",
+            status: "PAID",
+            periodStart: currentDate,
+            periodEnd: expiryDate,
+            paidAt: data.paid_at ? new Date(data.paid_at) : new Date(),
+            paymentMethod: data.channel ?? "card",
+          },
+        })
+        .catch((e) => {
+          // Unique constraint on invoiceNumber — invoice already created by
+          // the webhook. This is expected and safe to ignore.
+          if (e?.code === "P2002") return;
+          console.error("[Verify] Failed to create invoice:", e);
+        });
+    }
 
     // Sync organization status.
     const school = await prisma.school.findUnique({

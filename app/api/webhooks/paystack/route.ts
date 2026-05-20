@@ -166,20 +166,57 @@ async function handleSubscriptionSuccess(data: any) {
 
   if (!school) return;
 
-  // Create invoice
-  await prisma.invoiceRecord.create({
-    data: {
-      subscriptionId: subscription.id,
-      invoiceNumber: `INV-${Date.now()}-${reference || "WH"}`,
-      amount: plan?.price || data.amount / 100,
-      currency: plan?.currency || data.currency,
-      status: "PAID",
-      periodStart: currentDate,
-      periodEnd: expiryDate,
-      paidAt: data.paid_at ? new Date(data.paid_at) : new Date(),
-      paymentMethod: data.channel || "webhook",
-    },
+  // ── Invoice lifecycle: transition PENDING → PAID or create new ──────────
+  //
+  // The cron job pre-generates a PENDING invoice 7 days before expiry.
+  // When the school pays, we must update that record rather than create a
+  // duplicate. If no pending invoice exists (e.g. first-time subscriber or
+  // the cron hasn't run yet), we create a new PAID invoice as usual.
+  //
+  const paidAt = data.paid_at ? new Date(data.paid_at) : new Date();
+  const invoiceAmount = plan?.price || data.amount / 100;
+  const invoiceCurrency = plan?.currency || data.currency;
+
+  const pendingInvoice = await prisma.invoiceRecord.findFirst({
+    where: { subscriptionId: subscription.id, status: "PENDING" },
+    select: { id: true },
   });
+
+  if (pendingInvoice) {
+    await prisma.invoiceRecord.update({
+      where: { id: pendingInvoice.id },
+      data: {
+        status: "PAID",
+        amount: invoiceAmount,
+        currency: invoiceCurrency,
+        periodStart: currentDate,
+        periodEnd: expiryDate,
+        paidAt,
+        paymentMethod: data.channel || "webhook",
+      },
+    });
+  } else {
+    await prisma.invoiceRecord
+      .create({
+        data: {
+          subscriptionId: subscription.id,
+          invoiceNumber: `INV-${Date.now()}-${reference || "WH"}`,
+          amount: invoiceAmount,
+          currency: invoiceCurrency,
+          status: "PAID",
+          periodStart: currentDate,
+          periodEnd: expiryDate,
+          paidAt,
+          paymentMethod: data.channel || "webhook",
+        },
+      })
+      .catch((e: any) => {
+        // P2002 = unique constraint on invoiceNumber — already created by the
+        // verify callback. Safe to ignore.
+        if (e?.code === "P2002") return;
+        console.error("[Webhook] Failed to create invoice:", e);
+      });
+  }
 
   // Sync to organization for global middleware checks
   await prisma.organization.update({

@@ -5,6 +5,7 @@ import { getSchoolRole } from "@/lib/auth/school-access";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { Gender } from "@prisma/client";
+import { resolveSubscriptionLimits, wouldExceedLimit } from "@/lib/subscription/limits";
 
 // Schema for teacher invitation
 const teacherInviteSchema = z.object({
@@ -169,7 +170,7 @@ export async function POST(
         name: true,
         organizationId: true,
         subscription: {
-          select: { maxTeachers: true, planName: true },
+          select: { maxTeachers: true, maxStudents: true, maxStaff: true, planType: true, planName: true },
         },
       },
     });
@@ -183,13 +184,13 @@ export async function POST(
       where: { schoolId: school.id, isActive: true, profileId: { not: null } },
     });
 
-    const maxTeachers = school.subscription?.maxTeachers ?? 5; // Default to 5 for Free Plan
+    const limits = resolveSubscriptionLimits(school.subscription);
 
-    if (maxTeachers !== null && teacherCount >= maxTeachers) {
+    if (wouldExceedLimit(teacherCount, limits.teachers, 1)) {
       return NextResponse.json(
         {
           error: `Teacher limit reached for ${school.subscription?.planName || "Free Plan"}.`,
-          details: `Cumulative Limit reached: ${teacherCount} active teachers out of ${maxTeachers} allowed. Please upgrade your subscription to add more teachers.`,
+          details: `Cumulative Limit reached: ${teacherCount} active teachers out of ${limits.teachers} allowed. Please upgrade your subscription to add more teachers.`,
         },
         { status: 403 },
       );

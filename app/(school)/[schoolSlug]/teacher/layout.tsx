@@ -14,7 +14,7 @@ export default async function TeacherLayout({
 }: TeacherLayoutProps) {
   const { schoolSlug } = await params;
 
-  const { school, academicYear, currentTerm, academicYears, allRoles, permissions, userData } =
+  const { school, academicYear, currentTerm, academicYears, allRoles, permissions, userData, subscriptionStatus } =
     await getRoleLayoutData(schoolSlug, ["teacher", "owner", "admin"]);
 
   return (
@@ -30,6 +30,7 @@ export default async function TeacherLayout({
       currentRole={userData.role}
       availableRoles={allRoles}
       permissions={permissions}
+      subscriptionStatus={subscriptionStatus}
     >
       {children}
     </RoleLayoutWrapper>

@@ -27,6 +27,9 @@ import {
   Clock,
   AlertTriangle,
   Info,
+  Lock,
+  Receipt,
+  BanknoteIcon,
 } from "lucide-react";
 import { Prisma } from "@prisma/client";
 import { useRouter } from "next/navigation";
@@ -50,7 +53,11 @@ import {
 
 type SchoolWithSubscriptionData = Prisma.SchoolGetPayload<{
   include: {
-    subscription: true;
+    subscription: {
+      include: {
+        invoices: true;
+      };
+    };
     organization: {
       include: {
         members: true;
@@ -304,10 +311,48 @@ export function SchoolSubscription({
   const pendingPlanId = (school.subscription?.settings as any)?.pendingPlanId;
   const pendingPlan = pendingPlanId ? getPlanById(pendingPlanId) : null;
 
+  // Derive the pending (unpaid) invoice, if any
+  const pendingInvoice = useMemo(
+    () =>
+      school.subscription?.invoices?.find((inv) => inv.status === "PENDING") ??
+      null,
+    [school.subscription?.invoices],
+  );
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-8">
+      {/* ── Unpaid invoice alert ── */}
+      {pendingInvoice && (
+        <Alert className="border-orange-500/60 bg-orange-50/10 dark:bg-orange-900/10">
+          <BanknoteIcon className="h-4 w-4 text-orange-500" />
+          <AlertTitle className="text-orange-700 dark:text-orange-400 font-semibold">
+            Outstanding Invoice — Payment Required
+          </AlertTitle>
+          <AlertDescription className="text-orange-700/80 dark:text-orange-400/70 space-y-3">
+            <p>
+              Invoice{" "}
+              <span className="font-mono font-medium">
+                {pendingInvoice.invoiceNumber}
+              </span>{" "}
+              for{" "}
+              <span className="font-bold">
+                {pendingInvoice.currency}{" "}
+                {Number(pendingInvoice.amount).toFixed(2)}
+              </span>{" "}
+              is awaiting payment. Please renew your current plan below to settle
+              this balance. Plan changes are locked until this invoice is paid.
+            </p>
+            <p className="text-xs">
+              Period:{" "}
+              {format(new Date(pendingInvoice.periodStart), "PPP")} –{" "}
+              {format(new Date(pendingInvoice.periodEnd), "PPP")}
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Pending downgrade notice */}
       {pendingPlan && (
         <Alert className="border-yellow-500/50 bg-yellow-50/5">
@@ -606,6 +651,17 @@ export function SchoolSubscription({
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                     Current Plan
                   </Button>
+                ) : pendingInvoice && plan.id !== subscriptionStatus.currentPlanId ? (
+                  // Block switching to a DIFFERENT plan while an invoice is outstanding
+                  <Button
+                    variant="outline"
+                    className="w-full opacity-60 cursor-not-allowed"
+                    disabled
+                    title="Settle your outstanding invoice before switching plans"
+                  >
+                    <Lock className="mr-2 h-4 w-4" />
+                    Pay Invoice First
+                  </Button>
                 ) : (
                   <Button
                     className={`w-full ${
@@ -622,7 +678,11 @@ export function SchoolSubscription({
                     ) : (
                       <TrendingUp className="mr-2 h-4 w-4" />
                     )}
-                    {isExpiredCurrentPlan ? "Renew Plan" : "Upgrade"}
+                    {isExpiredCurrentPlan
+                      ? "Renew Plan"
+                      : pendingInvoice
+                        ? "Pay & Renew"
+                        : "Upgrade"}
                   </Button>
                 )}
               </CardFooter>
@@ -635,9 +695,9 @@ export function SchoolSubscription({
       <Card className="backdrop-blur-xl bg-background/60 border-primary/10">
         <CardHeader>
           <CardTitle>Billing Information</CardTitle>
-          <CardDescription>Manage your payment details</CardDescription>
+          <CardDescription>Manage your payment details and invoice history</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {subscriptionStatus.isPremium &&
           school.subscription?.currentPeriodEnd ? (
             <>
@@ -672,7 +732,7 @@ export function SchoolSubscription({
                 </div>
               </div>
 
-              <div className="pt-4 space-y-2">
+              <div className="pt-2 space-y-2">
                 <Button
                   variant="outline"
                   className="w-full"
@@ -734,6 +794,73 @@ export function SchoolSubscription({
               <p className="text-sm text-muted-foreground">
                 No active recurring subscription.
               </p>
+            </div>
+          )}
+
+          {/* ── Invoice History ── */}
+          {school.subscription?.invoices && school.subscription.invoices.length > 0 && (
+            <div className="pt-4 border-t border-border/50">
+              <div className="flex items-center gap-2 mb-4">
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">Invoice History</h3>
+              </div>
+              <div className="rounded-lg border border-border/50 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 border-b border-border/50">
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Invoice</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden sm:table-cell">Period</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Amount</th>
+                      <th className="text-center px-4 py-3 font-medium text-muted-foreground">Status</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Paid On</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {school.subscription.invoices.map((inv, idx) => (
+                      <tr
+                        key={inv.id}
+                        className={`border-b border-border/30 last:border-0 transition-colors ${
+                          inv.status === "PENDING"
+                            ? "bg-orange-50/30 dark:bg-orange-900/10"
+                            : idx % 2 === 0
+                              ? "bg-background"
+                              : "bg-muted/20"
+                        }`}
+                      >
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                          {inv.invoiceNumber}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">
+                          {format(new Date(inv.periodStart), "MMM d, yyyy")} –{" "}
+                          {format(new Date(inv.periodEnd), "MMM d, yyyy")}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium tabular-nums">
+                          {inv.currency} {Number(inv.amount).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge
+                            variant={inv.status === "PAID" ? "default" : inv.status === "PENDING" ? "outline" : "destructive"}
+                            className={`text-[10px] px-2 py-0.5 ${
+                              inv.status === "PAID"
+                                ? "bg-green-100 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400"
+                                : inv.status === "PENDING"
+                                  ? "border-orange-400 text-orange-600 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400"
+                                  : ""
+                            }`}
+                          >
+                            {inv.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right text-xs text-muted-foreground hidden md:table-cell">
+                          {inv.paidAt
+                            ? format(new Date(inv.paidAt), "MMM d, yyyy")
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </CardContent>

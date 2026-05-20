@@ -76,6 +76,45 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const currentSubscription = school.subscription;
+
+    // ── Pending invoice gate ──────────────────────────────────────────────────
+    //
+    // Industry standard: block plan changes while any unpaid invoice is
+    // outstanding. The school admin must settle the balance first. However,
+    // they are allowed to pay/renew their CURRENT plan to clear the invoice.
+    //
+    if (currentSubscription) {
+      const pendingInvoice = await prisma.invoiceRecord.findFirst({
+        where: {
+          subscriptionId: currentSubscription.id,
+          status: "PENDING",
+        },
+        select: { id: true },
+      });
+
+      if (pendingInvoice) {
+        // Determine if the requested plan is the same plan (renewal/payment)
+        // or a different plan (upgrade/downgrade/switch).
+        const currentPlanId = SUBSCRIPTION_PLANS.find(
+          (p: SubscriptionPlan) =>
+            p.planType === currentSubscription.planType &&
+            p.billingCycle === currentSubscription.billingCycle,
+        )?.id;
+
+        const isSwitchingPlans = planId !== currentPlanId;
+
+        if (isSwitchingPlans) {
+          return NextResponse.json(
+            {
+              error:
+                "You have an outstanding unpaid invoice. Please settle all pending invoices before changing your subscription plan. You may renew your current plan to resolve the outstanding balance.",
+            },
+            { status: 402 },
+          );
+        }
+      }
+    }
+
     const planPriority: Record<string, number> = {
       FREE: 0,
       BASIC: 1,

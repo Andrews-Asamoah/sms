@@ -20,7 +20,7 @@ export default async function AdminLayout({
 }) {
   const { schoolSlug } = await params;
 
-  const { school, academicYear, currentTerm, academicYears, allRoles, permissions, userData } =
+  const { school, academicYear, currentTerm, academicYears, allRoles, permissions, userData, subscriptionStatus } =
     await getRoleLayoutData(schoolSlug, ["owner", "admin"]);
 
   return (
@@ -36,6 +36,7 @@ export default async function AdminLayout({
       currentRole={userData.role}
       availableRoles={allRoles}
       permissions={permissions}
+      subscriptionStatus={subscriptionStatus}
     >
       {children}
     </RoleLayoutWrapper>
