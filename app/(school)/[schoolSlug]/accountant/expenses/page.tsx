@@ -140,10 +140,6 @@ export default function ExpensesPage() {
               .reduce((sum, e) => sum + Number(e.amount), 0)
               .toLocaleString()}
           </h3>
-          <p className="text-xs text-red-600 mt-1 flex items-center">
-            <TrendingDown className="h-3 w-3 mr-1" />
-            12% increase from last month
-          </p>
         </div>
         {/* Additional stat cards can go here */}
       </div>

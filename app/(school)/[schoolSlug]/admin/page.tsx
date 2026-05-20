@@ -140,11 +140,6 @@ export default async function AdminDashboard({ params }: AdminDashboardProps) {
                   <kpi.icon className="h-6 w-6" />
                 </div>
               </div>
-              <div className="mt-4 flex items-center text-xs text-muted-foreground">
-                <TrendingUp className="mr-1 h-3 w-3 text-emerald-500" />
-                <span className="text-emerald-500 font-medium">+4%</span>
-                <span className="ml-1">from last term</span>
-              </div>
             </CardContent>
           </Card>
         ))}

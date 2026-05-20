@@ -11,37 +11,6 @@ import { getSchoolRole } from "@/lib/auth/school-access";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-/** Find the active house with the fewest students for this school. */
-async function pickBalancedHouse(
-  schoolId: string,
-  houses: { id: string }[],
-  tx?: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-): Promise<string | null> {
-  if (houses.length === 0) return null;
-
-  const db = tx ?? prisma;
-
-  // Count students per house (school-wide, industry-standard)
-  const counts = await db.student.groupBy({
-    by: ["houseId"],
-    where: {
-      schoolId,
-      houseId: { in: houses.map((h) => h.id) },
-      status: "ACTIVE",
-    },
-    _count: { houseId: true },
-  });
-
-  const countMap = new Map(counts.map((c) => [c.houseId!, c._count.houseId]));
-
-  // Sort houses by count ascending, then by array order for stable tiebreaking
-  const sorted = [...houses].sort(
-    (a, b) => (countMap.get(a.id) ?? 0) - (countMap.get(b.id) ?? 0),
-  );
-
-  return sorted[0].id;
-}
-
 // ─── authorization guard ─────────────────────────────────────────────────────
 
 async function authorize(schoolSlug: string) {
@@ -115,22 +84,61 @@ export async function POST(
       );
     }
 
-    // We need to assign in a balanced way. We do this sequentially to keep
-    // the running counts accurate without a transaction that holds locks.
-    // For each student we re-pick the least-populated house.
-    let assigned = 0;
+    // Fetch current student counts per active house
+    const counts = await prisma.student.groupBy({
+      by: ["houseId"],
+      where: {
+        schoolId: school.id,
+        houseId: { in: houses.map((h) => h.id) },
+        status: "ACTIVE",
+      },
+      _count: { houseId: true },
+    });
 
+    const houseCounts = houses.map((h) => {
+      const group = counts.find((c) => c.houseId === h.id);
+      return {
+        id: h.id,
+        count: group?._count?.houseId ?? 0,
+      };
+    });
+
+    // Balanced in-memory distribution of students to houses
+    const studentAssignments: { studentId: string; houseId: string }[] = [];
     for (const student of unassigned) {
-      const houseId = await pickBalancedHouse(school.id, houses);
-      if (!houseId) break;
+      // Sort houses by number of students in memory (ascending)
+      houseCounts.sort((a, b) => a.count - b.count);
+      const targetHouse = houseCounts[0];
 
-      await prisma.student.update({
-        where: { id: student.id },
-        data: { houseId },
+      studentAssignments.push({
+        studentId: student.id,
+        houseId: targetHouse.id,
       });
 
-      assigned++;
+      // Increment in-memory counter to keep balance accurate for the next iteration
+      targetHouse.count++;
     }
+
+    // Group student IDs by house to minimize database updates
+    const assignmentsByHouse: Record<string, string[]> = {};
+    for (const { studentId, houseId } of studentAssignments) {
+      if (!assignmentsByHouse[houseId]) {
+        assignmentsByHouse[houseId] = [];
+      }
+      assignmentsByHouse[houseId].push(studentId);
+    }
+
+    // Create bulk update tasks
+    const updatePromises = Object.entries(assignmentsByHouse).map(([houseId, studentIds]) =>
+      prisma.student.updateMany({
+        where: { id: { in: studentIds } },
+        data: { houseId },
+      })
+    );
+
+    // Execute bulk updates in a single transaction
+    await prisma.$transaction(updatePromises);
+    const assigned = unassigned.length;
 
     await prisma.auditLog.create({
       data: {

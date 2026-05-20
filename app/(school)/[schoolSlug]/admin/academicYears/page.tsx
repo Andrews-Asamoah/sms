@@ -208,27 +208,27 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
         )}
 
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-0 bg-card/60 backdrop-blur-xl shadow-xl">
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-md shadow-md hover:shadow-lg hover:border-primary/20 transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
+              <CardTitle className="text-sm font-semibold text-muted-foreground">
                 Total Academic Years
               </CardTitle>
               <Calendar className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold tracking-tight">
                 {school.academicYears.length}
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-0 bg-card/60 backdrop-blur-xl shadow-xl">
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-md shadow-md hover:shadow-lg hover:border-primary/20 transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Terms</CardTitle>
+              <CardTitle className="text-sm font-semibold text-muted-foreground">Total Terms</CardTitle>
               <Calendar className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold tracking-tight">
                 {school.academicYears.reduce(
                   (sum, year) => sum + year.terms.length,
                   0,
@@ -237,15 +237,15 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
             </CardContent>
           </Card>
 
-          <Card className="border-0 bg-card/60 backdrop-blur-xl shadow-xl">
+          <Card className="border border-border/40 bg-card/45 backdrop-blur-md shadow-md hover:shadow-lg hover:border-primary/20 transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
+              <CardTitle className="text-sm font-semibold text-muted-foreground">
                 Total Classes
               </CardTitle>
               <Calendar className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold tracking-tight">
                 {school.academicYears.reduce(
                   (sum, year) => sum + year._count.classes,
                   0,
@@ -286,8 +286,8 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
               return (
                 <Card
                   key={year.id}
-                  className={`border-0 bg-card/60 backdrop-blur-xl shadow-xl transition-all duration-300 ${
-                    isGlobal ? "ring-2 ring-primary/50" : ""
+                  className={`border border-border/40 bg-card/50 backdrop-blur-md shadow-lg transition-all duration-300 hover:shadow-xl ${
+                    isGlobal ? "border-primary/45 bg-card/60 ring-1 ring-primary/10 shadow-primary/5" : ""
                   }`}
                 >
                   <CardHeader>
@@ -443,12 +443,14 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
                                 term.id === globalTermId && isGlobal;
 
                               return (
-                                <div
-                                  key={term.id}
-                                  className={`p-4 rounded-lg border bg-background/50 transition-all duration-200 hover:shadow-md ${
-                                    isGlobalTerm ? "ring-2 ring-primary/50" : ""
-                                  }`}
-                                >
+                                  <div
+                                    key={term.id}
+                                    className={`p-5 rounded-xl border transition-all duration-300 hover:shadow-lg hover:border-primary/30 flex flex-col justify-between ${
+                                      isGlobalTerm
+                                        ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10"
+                                        : "border-border/40 bg-background/30"
+                                    }`}
+                                  >
                                   <div className="flex items-start justify-between mb-2">
                                     <div className="flex-1">
                                       <div className="flex items-center gap-2">
