@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { calculatePayrollBreakdown } from "@/lib/finance/payroll-utils";
 import { Prisma } from "@prisma/client";
 import { getActiveContext } from "@/lib/academic/get-active-context";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 
 /**
  * GET /api/schools/[schoolSlug]/finance/payroll
@@ -14,11 +15,10 @@ export async function GET(
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   const { schoolSlug } = await params;
-  const session = await auth.api.getSession({ headers: req.headers });
+  const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin", "accountant"]);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const school = await prisma.school.findUnique({
@@ -66,11 +66,10 @@ export async function POST(
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   const { schoolSlug } = await params;
-  const session = await auth.api.getSession({ headers: req.headers });
+  const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin", "accountant"]);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const { month, year, academicYearId, termId } = await req.json();

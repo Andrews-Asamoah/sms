@@ -1,6 +1,4 @@
-// app/api/schools/[schoolSlug]/subscription/cancel/route.ts
-
-import { getSession } from "@/lib/auth/session";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -10,12 +8,11 @@ type RouteContext = {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { schoolSlug } = await context.params;
+    const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin"]);
+    if (!access.authorized) return access.errorResponse;
+    const { session } = access;
+
 
     // Always resolve by subdomain — the route param is always the slug.
     const school = await prisma.school.findUnique({

@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth/session";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string; billId: string }> }
 ) {
   const { schoolSlug, billId } = await params;
-  const session = await getSession();
+  const access = await verifyApiSchoolAccess(schoolSlug);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },

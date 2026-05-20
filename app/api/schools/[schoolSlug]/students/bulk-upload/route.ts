@@ -7,7 +7,7 @@ import crypto from "crypto";
 import * as XLSX from "xlsx";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
-import type { Gender } from "@prisma/client";
+import { Gender, StudentStatus, EnrollmentStatus } from "@prisma/client";
 import {
   resolveSubscriptionLimits,
   wouldExceedLimit,
@@ -388,15 +388,110 @@ export async function POST(
     // When limits.students is null (unlimited), skip the check entirely —
     // no DB query needed.
 
-    // ── 6. Phase A — sequential reservation of IDs and emails ───────────────
+    // ── 6. Phase A — sequential validation and reservation of IDs/emails ─────
     //
     // All ID generation and email reservation happens sequentially before any
     // DB writes. This guarantees the parallel Phase B never produces duplicate
     // IDs or emails within the same upload batch.
-    //
+    // Also, we strictly enforce valid class names to prevent classless orphans.
+
+    // Preload active students to perform duplicate checks and count slot limits.
+    const activeStudents = await prisma.student.findMany({
+      where: { schoolId: school.id },
+      select: {
+        id: true,
+        studentId: true,
+        admissionNumber: true,
+        classId: true,
+        departmentId: true,
+        houseId: true,
+        previousSchool: true,
+        previousClass: true,
+        bloodGroup: true,
+        allergies: true,
+        medicalConditions: true,
+        status: true,
+        profile: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            dateOfBirth: true,
+            userId: true,
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                accounts: { select: { id: true } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const studentMap = new Map<string, typeof activeStudents[0]>();
+    for (const s of activeStudents) {
+      if (s.profile?.firstName && s.profile?.lastName && s.profile?.dateOfBirth) {
+        try {
+          const key = `${s.profile.firstName.trim().toLowerCase()}_${s.profile.lastName.trim().toLowerCase()}_${new Date(s.profile.dateOfBirth).toISOString().split("T")[0]}`;
+          studentMap.set(key, s);
+        } catch {
+          // Ignore invalid dates in database
+        }
+      }
+    }
+
+    // Enforce limits checks (if not unlimited)
+    if (limits.students !== null) {
+      const currentCount = activeStudents.filter(s => s.status === "ACTIVE").length;
+
+      let newCount = 0;
+      for (const row of studentRows) {
+        if (!row.firstName || !row.lastName || !row.dateOfBirth) {
+          newCount++;
+          continue;
+        }
+        try {
+          const key = `${row.firstName.trim().toLowerCase()}_${row.lastName.trim().toLowerCase()}_${new Date(row.dateOfBirth).toISOString().split("T")[0]}`;
+          if (!studentMap.has(key)) newCount++;
+        } catch {
+          newCount++;
+        }
+      }
+
+      if (wouldExceedLimit(currentCount, limits.students, newCount)) {
+        const remaining = Math.max(0, limits.students - currentCount);
+        return NextResponse.json(
+          {
+            error: `Student limit exceeded for ${school.subscription?.planName ?? "Free Plan"}.`,
+            details: `${currentCount} existing + ${newCount} new > ${limits.students} limit. Only ${remaining} slot(s) available. Upgrade to add more students.`,
+          },
+          { status: 403 },
+        );
+      }
+    }
+
+    // Preload organization members
+    const allMembers = await prisma.member.findMany({
+      where: { organizationId: school.organizationId },
+      select: { userId: true }
+    });
+    const memberUserIds = new Set(allMembers.map(m => m.userId));
+
+    // Preload current academic year/term enrollments
+    const currentEnrollments = await prisma.enrollment.findMany({
+      where: {
+        academicYearId,
+        termId,
+        class: { schoolId: school.id }
+      },
+      select: { studentId: true, classId: true }
+    });
+    const enrollmentKeys = new Set(currentEnrollments.map(e => `${e.studentId}_${e.classId}`));
 
     // Optimization: Bulk fetch existing emails to avoid sequential DB checks.
-    // This makes the email generation instantly fast.
     const existingUsers = await prisma.user.findMany({
       where: {
         email: { endsWith: `@${school.subdomain}.edu.gh` },
@@ -422,6 +517,7 @@ export async function POST(
       if (!row.gender) missing.push("Gender");
       if (!row.dateOfBirth) missing.push("Date of Birth");
       if (!row.admissionDate) missing.push("Admission Date");
+      if (!row.className) missing.push("Class Name");
 
       if (missing.length > 0) {
         prepared.push({
@@ -436,6 +532,26 @@ export async function POST(
           houseId: null,
           valid: false,
           validationError: `Missing required fields: ${missing.join(", ")}`,
+        });
+        continue;
+      }
+
+      const classRecord = school.classes.find(
+        (c) => c.name.toLowerCase() === row.className!.trim().toLowerCase()
+      );
+      if (!classRecord) {
+        prepared.push({
+          index: i,
+          row,
+          studentId: "",
+          admissionNumber: "",
+          studentEmail: "",
+          temporaryPassword: "",
+          classId: null,
+          departmentId: null,
+          houseId: null,
+          valid: false,
+          validationError: `Class "${row.className}" not found. Please create this class first.`,
         });
         continue;
       }
@@ -506,15 +622,12 @@ export async function POST(
         existingEmails,
       );
 
-      const classRecord = row.className
-        ? (school.classes.find((c) => c.name === row.className) ?? null)
-        : null;
       let departmentId = row.departmentName
         ? (school.departments.find((d) => d.name === row.departmentName)?.id ??
           null)
         : null;
 
-      if (classRecord?.departmentId && !departmentId) {
+      if (classRecord.departmentId && !departmentId) {
         departmentId = classRecord.departmentId;
       }
 
@@ -529,17 +642,23 @@ export async function POST(
         admissionNumber,
         studentEmail,
         temporaryPassword: crypto.randomBytes(4).toString("hex"),
-        classId: classRecord?.id ?? null,
+        classId: classRecord.id,
         departmentId: departmentId,
         houseId: house?.id ?? null,
         valid: true,
       });
     }
 
-    // ── 7. Phase B — parallel processing in batches of 3 ────────────────────
-    // A small batch size prevents `bcryptjs` from freezing the Node event loop.
-    const BATCH_SIZE = 3;
+    // ── 7. Phase B — Parallel processing in larger batches ───────────────────
+    const BATCH_SIZE = 15;
     const results: ProcessResult[] = [];
+
+    // Memory accumulators for downstream bulk writes
+    const profilesToCreate: any[] = [];
+    const studentsToCreate: any[] = [];
+    const membersToCreate: any[] = [];
+    const enrollmentsToCreate: any[] = [];
+    const repairUpdates: Array<{ id: string; passwordUpdate: string; memberToCreate?: any }> = [];
 
     for (let i = 0; i < prepared.length; i += BATCH_SIZE) {
       const batch = prepared.slice(i, i + BATCH_SIZE);
@@ -565,31 +684,15 @@ export async function POST(
           }
 
           try {
-            // ── Duplicate check + account repair ─────────────────────────
-            const existingStudent = await prisma.student.findFirst({
-              where: {
-                schoolId: school.id,
-                profile: {
-                  firstName: row.firstName,
-                  lastName: row.lastName,
-                  dateOfBirth: new Date(row.dateOfBirth),
-                },
-              },
-              include: {
-                profile: {
-                  include: {
-                    user: { include: { accounts: true } },
-                  },
-                },
-              },
-            });
+            // Check duplicate in-memory map
+            const key = `${row.firstName.trim().toLowerCase()}_${row.lastName.trim().toLowerCase()}_${new Date(row.dateOfBirth).toISOString().split("T")[0]}`;
+            const existingStudent = studentMap.get(key);
 
             if (existingStudent) {
               const existingUser = existingStudent.profile?.user;
 
               if (existingUser && existingUser.accounts.length === 0) {
-                // Repair: user exists but missing account row (created before
-                // the signUpEmail fix) — recreate it atomically.
+                // Repair: user exists but missing account row. Create it atomically.
                 await auth.api.signUpEmail({
                   body: {
                     email: existingUser.email,
@@ -599,28 +702,22 @@ export async function POST(
                   headers: req.headers,
                 });
 
-                await prisma.student.update({
-                  where: { id: existingStudent.id },
-                  data: { plainTextPassword: p.temporaryPassword },
+                // Schedule password text save
+                repairUpdates.push({
+                  id: existingStudent.id,
+                  passwordUpdate: p.temporaryPassword,
+                  memberToCreate: memberUserIds.has(existingUser.id)
+                    ? undefined
+                    : {
+                        id: crypto.randomUUID(),
+                        organizationId: school.organizationId,
+                        userId: existingUser.id,
+                        role: "student",
+                        banned: false,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                      },
                 });
-
-                const existingMember = await prisma.member.findFirst({
-                  where: {
-                    organizationId: school.organizationId,
-                    userId: existingUser.id,
-                  },
-                });
-
-                if (!existingMember) {
-                  await auth.api.addMember({
-                    body: {
-                      organizationId: school.organizationId,
-                      userId: existingUser.id,
-                      role: "student",
-                    },
-                    headers: req.headers,
-                  });
-                }
 
                 return {
                   row: rowNumber,
@@ -651,10 +748,7 @@ export async function POST(
               };
             }
 
-            // ── New student ───────────────────────────────────────────────
-            // Since `p.studentEmail` is guaranteed unique across DB & batch (Phase A),
-            // we can confidently create a new user without a lookup collision.
-            
+            // Create New Better Auth User
             const signUpResult = await auth.api.signUpEmail({
               body: {
                 email: p.studentEmail,
@@ -669,23 +763,15 @@ export async function POST(
             }
 
             const userId = signUpResult.user.id;
+            const profileId = crypto.randomUUID();
+            const studentDbId = crypto.randomUUID();
+            const memberDbId = crypto.randomUUID();
+            const enrollmentDbId = crypto.randomUUID();
 
-            const existingMember = await prisma.member.findFirst({
-              where: { organizationId: school.organizationId, userId },
-            });
-
-            if (!existingMember) {
-              await auth.api.addMember({
-                body: {
-                  organizationId: school.organizationId,
-                  userId,
-                  role: "student",
-                },
-                headers: req.headers,
-              });
-            }
-
-            const profileData = {
+            // Accumulate User Profile details
+            profilesToCreate.push({
+              id: profileId,
+              userId,
               firstName: row.firstName,
               lastName: row.lastName,
               otherNames: row.otherNames ?? null,
@@ -702,73 +788,56 @@ export async function POST(
               emergencyContactName: row.emergencyContactName ?? null,
               emergencyContactPhone: row.emergencyContactPhone ?? null,
               emergencyRelationship: row.emergencyRelationship ?? null,
-            };
-
-            const userProfile = await prisma.userProfile.upsert({
-              where: { userId },
-              update: profileData,
-              create: { userId, ...profileData },
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
             });
 
-            let student = await prisma.student.findFirst({
-              where: { schoolId: school.id, profileId: userProfile.id },
+            // Accumulate Student Entity details
+            studentsToCreate.push({
+              id: studentDbId,
+              profileId,
+              schoolId: school.id,
+              studentId: p.studentId,
+              admissionNumber: p.admissionNumber,
+              admissionDate: new Date(row.admissionDate),
+              classId: p.classId,
+              departmentId: p.departmentId,
+              houseId: p.houseId,
+              previousSchool: row.previousSchool ?? null,
+              previousClass: row.previousClass ?? null,
+              bloodGroup: row.bloodGroup ?? null,
+              allergies: row.allergies ?? null,
+              medicalConditions: row.medicalConditions ?? null,
+              status: "ACTIVE",
+              plainTextPassword: p.temporaryPassword,
+              createdAt: new Date(),
+              updatedAt: new Date(),
             });
 
-            if (!student) {
-              student = await prisma.student.create({
-                data: {
-                  schoolId: school.id,
-                  profileId: userProfile.id,
-                  studentId: p.studentId,
-                  admissionNumber: p.admissionNumber,
-                  admissionDate: new Date(row.admissionDate),
-                  classId: p.classId,
-                  departmentId: p.departmentId,
-                  houseId: p.houseId,
-                  previousSchool: row.previousSchool ?? null,
-                  previousClass: row.previousClass ?? null,
-                  bloodGroup: row.bloodGroup ?? null,
-                  allergies: row.allergies ?? null,
-                  medicalConditions: row.medicalConditions ?? null,
-                  status: "ACTIVE",
-                  plainTextPassword: p.temporaryPassword,
-                },
-              });
-            } else {
-              student = await prisma.student.update({
-                where: { id: student.id },
-                data: {
-                  classId: p.classId ?? student.classId,
-                  departmentId: p.departmentId ?? student.departmentId,
-                  houseId: p.houseId ?? student.houseId,
-                  previousSchool: row.previousSchool ?? student.previousSchool,
-                  previousClass: row.previousClass ?? student.previousClass,
-                  bloodGroup: row.bloodGroup ?? student.bloodGroup,
-                  allergies: row.allergies ?? student.allergies,
-                  medicalConditions:
-                    row.medicalConditions ?? student.medicalConditions,
-                },
-              });
-            }
+            // Accumulate Member relation details
+            membersToCreate.push({
+              id: memberDbId,
+              organizationId: school.organizationId,
+              userId,
+              role: "student",
+              banned: false,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
 
+            // Accumulate Enrollment details
             if (p.classId) {
-              await prisma.enrollment.upsert({
-                where: {
-                  studentId_classId_academicYearId_termId: {
-                    studentId: student.id,
-                    classId: p.classId,
-                    academicYearId,
-                    termId,
-                  },
-                },
-                update: { status: "ACTIVE" },
-                create: {
-                  studentId: student.id,
-                  classId: p.classId,
-                  academicYearId,
-                  termId,
-                  status: "ACTIVE",
-                },
+              enrollmentsToCreate.push({
+                id: enrollmentDbId,
+                studentId: studentDbId,
+                classId: p.classId,
+                academicYearId,
+                termId,
+                status: "ACTIVE",
+                enrolledAt: new Date(),
+                createdAt: new Date(),
+                updatedAt: new Date(),
               });
             }
 
@@ -803,7 +872,55 @@ export async function POST(
       results.push(...batchResults);
     }
 
-    // ── 8. Audit log ─────────────────────────────────────────────────────────
+    // ── 8. Execute Downstream Bulk Writes ──────────────────────────────────
+    if (profilesToCreate.length > 0) {
+      const newUserIds = profilesToCreate.map((p) => p.userId);
+
+      // 1. Mark new users' emails as verified in bulk
+      await prisma.user.updateMany({
+        where: { id: { in: newUserIds } },
+        data: { emailVerified: true },
+      });
+
+      // 2. Create User Profiles in bulk
+      await prisma.userProfile.createMany({
+        data: profilesToCreate,
+      });
+
+      // 3. Create Students in bulk
+      await prisma.student.createMany({
+        data: studentsToCreate,
+      });
+
+      // 4. Create Organization Members in bulk
+      await prisma.member.createMany({
+        data: membersToCreate,
+      });
+
+      // 5. Create Enrollments in bulk
+      await prisma.enrollment.createMany({
+        data: enrollmentsToCreate,
+      });
+    }
+
+    // Execute repair updates
+    if (repairUpdates.length > 0) {
+      await Promise.all(
+        repairUpdates.map(async (u) => {
+          await prisma.student.update({
+            where: { id: u.id },
+            data: { plainTextPassword: u.passwordUpdate },
+          });
+          if (u.memberToCreate) {
+            await prisma.member.create({
+              data: u.memberToCreate,
+            });
+          }
+        })
+      );
+    }
+
+    // ── 9. Audit log ─────────────────────────────────────────────────────────
     const successful = results.filter(
       (r) => r.status === "success" && r.action === "created",
     ).length;

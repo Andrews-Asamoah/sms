@@ -6,15 +6,17 @@ import {
   EnrollmentStatus,
   PromotionType,
 } from "@prisma/client";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   const { schoolSlug } = await params;
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin", "headteacher"]);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
+
 
   const { searchParams } = new URL(req.url);
   const classId = searchParams.get("classId");
@@ -112,6 +114,7 @@ export async function GET(
         totalRawScore,
         totalMaxScore,
         hasPassed,
+        outstandingBalance: Number(student.outstandingBalance ?? 0),
         status: "PENDING",
       };
     });
@@ -133,9 +136,10 @@ export async function POST(
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   const { schoolSlug } = await params;
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin", "headteacher"]);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
+
 
   try {
     const body = await req.json();
@@ -263,6 +267,81 @@ export async function POST(
               studentId,
               classId: targetClassId,
             });
+
+            // Carry forward outstanding balances for promoted/skipped students
+            const oldUnpaidBills = await tx.bill.findMany({
+              where: {
+                studentId,
+                schoolId: school.id,
+                status: { in: ["PENDING", "PARTIALLY_PAID", "OVERDUE"] },
+                balanceAmount: { gt: 0 },
+              },
+            });
+
+            const totalArrears = oldUnpaidBills.reduce(
+              (sum, b) => sum + Number(b.balanceAmount),
+              0
+            );
+
+            if (totalArrears > 0) {
+              const billCount = await tx.bill.count({ where: { schoolId: school.id } });
+              const billNumber = `ARR-${school.id.substring(0, 4)}-${new Date().getTime()}-${Math.floor(100 + Math.random() * 900)}`;
+
+              const noteDetails = `Arrears carried forward to next academic year. Consolidated: ${oldUnpaidBills
+                .map((b) => `${b.billNumber} (${Number(b.balanceAmount).toFixed(2)})`)
+                .join(", ")}`;
+
+              // 1. Create the new arrears bill in the target academic year/term
+              await tx.bill.create({
+                data: {
+                  schoolId: school.id,
+                  studentId,
+                  academicYearId: targetAcademicYearId,
+                  termId: resolvedTermId,
+                  billNumber,
+                  totalAmount: totalArrears,
+                  balanceAmount: totalArrears,
+                  status: "PENDING",
+                  notes: noteDetails,
+                  billType: "INVOICE",
+                  classId: targetClassId || null,
+                  items: {
+                    create: [
+                      {
+                        description: "Previous Balance (Arrears)",
+                        amount: totalArrears,
+                        totalAmount: totalArrears,
+                        balanceAmount: totalArrears,
+                        status: "UNPAID",
+                      },
+                    ],
+                  },
+                },
+              });
+
+              // 2. Mark old bills as CANCELLED and set balances to 0 to prevent double billing
+              for (const oldBill of oldUnpaidBills) {
+                await tx.bill.update({
+                  where: { id: oldBill.id },
+                  data: {
+                    status: "CANCELLED",
+                    balanceAmount: 0,
+                    notes: `${oldBill.notes || ""}\n[System] Balance carried forward to ${billNumber} for next academic year.`.trim(),
+                  },
+                });
+
+                await tx.billItem.updateMany({
+                  where: {
+                    billId: oldBill.id,
+                    status: { in: ["UNPAID", "PARTIALLY_PAID"] },
+                  },
+                  data: {
+                    status: "FULLY_PAID",
+                    balanceAmount: 0,
+                  },
+                });
+              }
+            }
           } else if (type === "REPEATED") {
             enrollmentsToCreate.push({
               studentId,
@@ -272,6 +351,81 @@ export async function POST(
               status: EnrollmentStatus.ACTIVE,
             });
             // Repeated students stay in the same class — no classId update needed
+
+            // Carry forward outstanding balances for repeated students moving into next academic year
+            const oldUnpaidBills = await tx.bill.findMany({
+              where: {
+                studentId,
+                schoolId: school.id,
+                status: { in: ["PENDING", "PARTIALLY_PAID", "OVERDUE"] },
+                balanceAmount: { gt: 0 },
+              },
+            });
+
+            const totalArrears = oldUnpaidBills.reduce(
+              (sum, b) => sum + Number(b.balanceAmount),
+              0
+            );
+
+            if (totalArrears > 0) {
+              const billCount = await tx.bill.count({ where: { schoolId: school.id } });
+              const billNumber = `ARR-${school.id.substring(0, 4)}-${new Date().getTime()}-${Math.floor(100 + Math.random() * 900)}`;
+
+              const noteDetails = `Arrears carried forward. Consolidated: ${oldUnpaidBills
+                .map((b) => `${b.billNumber} (${Number(b.balanceAmount).toFixed(2)})`)
+                .join(", ")}`;
+
+              // 1. Create the new arrears bill in the target academic year/term
+              await tx.bill.create({
+                data: {
+                  schoolId: school.id,
+                  studentId,
+                  academicYearId: targetAcademicYearId,
+                  termId: resolvedTermId,
+                  billNumber,
+                  totalAmount: totalArrears,
+                  balanceAmount: totalArrears,
+                  status: "PENDING",
+                  notes: noteDetails,
+                  billType: "INVOICE",
+                  classId: sourceClassId || null,
+                  items: {
+                    create: [
+                      {
+                        description: "Previous Balance (Arrears)",
+                        amount: totalArrears,
+                        totalAmount: totalArrears,
+                        balanceAmount: totalArrears,
+                        status: "UNPAID",
+                      },
+                    ],
+                  },
+                },
+              });
+
+              // 2. Mark old bills as CANCELLED and set balances to 0 to prevent double billing
+              for (const oldBill of oldUnpaidBills) {
+                await tx.bill.update({
+                  where: { id: oldBill.id },
+                  data: {
+                    status: "CANCELLED",
+                    balanceAmount: 0,
+                    notes: `${oldBill.notes || ""}\n[System] Balance carried forward to ${billNumber} for next academic year.`.trim(),
+                  },
+                });
+
+                await tx.billItem.updateMany({
+                  where: {
+                    billId: oldBill.id,
+                    status: { in: ["UNPAID", "PARTIALLY_PAID"] },
+                  },
+                  data: {
+                    status: "FULLY_PAID",
+                    balanceAmount: 0,
+                  },
+                });
+              }
+            }
           } else if (type === "GRADUATED") {
             graduatedStudentIds.push(studentId);
           }

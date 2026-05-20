@@ -49,20 +49,34 @@ import {
   CommandList,
 } from "@/components/ui/command";
 
-const paymentSchema = z.object({
-  studentId: z.string().min(1, "Please select a student"),
-  billId: z.string().min(1, "Please select a bill"),
-  paymentMethod: z.enum(["CASH", "BANK_TRANSFER", "MOBILE_MONEY", "CHEQUE"]),
-  referenceNumber: z.string().optional(),
-  notes: z.string().optional(),
-  items: z.array(z.object({
-    billItemId: z.string(),
-    amount: z.number().min(0),
-    selected: z.boolean(),
-    description: z.string(),
-    balance: z.number(),
-  })).optional(),
-});
+const paymentSchema = z
+  .object({
+    studentId: z.string().min(1, "Please select a student"),
+    billId: z.string().min(1, "Please select a bill"),
+    paymentMethod: z.enum(["CASH", "BANK_TRANSFER", "MOBILE_MONEY", "CHEQUE"]),
+    referenceNumber: z.string().optional(),
+    notes: z.string().optional(),
+    items: z
+      .array(
+        z.object({
+          billItemId: z.string(),
+          amount: z.number().min(0),
+          selected: z.boolean(),
+          description: z.string(),
+          balance: z.number(),
+        }),
+      )
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.paymentMethod !== "CASH" && !data.referenceNumber?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Reference number is required for this payment method",
+        path: ["referenceNumber"],
+      });
+    }
+  });
 
 type FormValues = z.infer<typeof paymentSchema>;
 
@@ -459,11 +473,21 @@ export function RecordPaymentDialog({
               </div>
 
               <Field data-invalid={!!errors.referenceNumber}>
-                <FieldLabel htmlFor="pmt-ref">Ref Number (Momo/Bank Txn ID)</FieldLabel>
+                <FieldLabel htmlFor="pmt-ref">
+                  Ref Number
+                  {paymentMethod === "CASH" ? (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">(Optional)</span>
+                  ) : (
+                    <span className="ml-1 text-red-500">*</span>
+                  )}
+                </FieldLabel>
                 <Input
                   id="pmt-ref"
-                  placeholder="Optional"
-                  disabled={paymentMethod === "CASH"}
+                  placeholder={
+                    paymentMethod === "CASH"
+                      ? "Optional for cash payments"
+                      : "Transaction / Reference ID"
+                  }
                   {...register("referenceNumber")}
                 />
                 <FieldError errors={[errors.referenceNumber]} />

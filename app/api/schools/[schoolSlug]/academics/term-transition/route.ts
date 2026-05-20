@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 
 /**
  * POST /api/schools/[schoolSlug]/academics/term-transition
@@ -17,11 +18,10 @@ export async function POST(
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   const { schoolSlug } = await params;
-  const session = await auth.api.getSession({ headers: req.headers });
+  const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin"]);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const school = await prisma.school.findUnique({
@@ -304,11 +304,10 @@ export async function GET(
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   const { schoolSlug } = await params;
-  const session = await auth.api.getSession({ headers: req.headers });
+  const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin"]);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const school = await prisma.school.findUnique({

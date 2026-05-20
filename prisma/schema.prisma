@@ -287,6 +287,7 @@ model School {
   staffAssignments    StaffAssignment[]
   promotionRecords    PromotionRecord[]
   auditLogs           AuditLog[]
+  inventoryCategories InventoryCategory[]
 
   @@index([code])
   @@index([subdomain])
@@ -360,6 +361,7 @@ model Student {
   graduationDate     DateTime?     @db.Date
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
 
   profile          UserProfile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
   school           School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -386,6 +388,7 @@ model Student {
   @@index([departmentId])
   @@index([houseId])
   @@index([profileId])
+  @@index([schoolId, deletedAt])
   @@map("students")
 }
 
@@ -410,6 +413,7 @@ model Teacher {
   isActive        Boolean        @default(true)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
 
   profile               UserProfile?     @relation(fields: [profileId], references: [id], onDelete: Cascade)
   school                School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -437,6 +441,7 @@ model Teacher {
   @@index([houseId])
   @@index([profileId])
   @@index([invitationEmail])
+  @@index([schoolId, deletedAt])
   @@map("teachers")
 }
 
@@ -462,6 +467,7 @@ model Staff {
   isActive        Boolean        @default(true)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
 
   profile    UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -477,6 +483,7 @@ model Staff {
   @@index([schoolId, isActive])
   @@index([staffType])
   @@index([profileId])
+  @@index([schoolId, deletedAt])
   @@map("staff")
 }
 
@@ -504,6 +511,7 @@ model Guardian {
   isActive           Boolean      @default(true)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
+  deletedAt          DateTime?
 
   profile  UserProfile?      @relation(fields: [profileId], references: [id], onDelete: Cascade)
   school   School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -514,6 +522,7 @@ model Guardian {
   @@index([profileId])
   @@index([email])
   @@index([canLogin])
+  @@index([schoolId, deletedAt])
   @@map("guardians")
 }
 
@@ -675,6 +684,7 @@ model Class {
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
 
   school                    School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   academicYear              AcademicYear              @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
@@ -709,6 +719,7 @@ model Class {
   @@index([schoolId, isActive])
   @@index([academicYearId])
   @@index([classTeacherId])
+  @@index([schoolId, deletedAt])
   @@map("classes")
 }
 
@@ -752,6 +763,7 @@ model Subject {
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
 
   school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   departments      Department[]      @relation("DepartmentSubjects")
@@ -762,6 +774,7 @@ model Subject {
 
   @@unique([code, schoolId])
   @@index([schoolId, isActive])
+  @@index([schoolId, deletedAt])
   @@map("subjects")
 }
 
@@ -1745,6 +1758,21 @@ model InventoryItem {
   @@unique([name, schoolId])
   @@index([schoolId])
   @@map("inventory_items")
+}
+
+model InventoryCategory {
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([name, schoolId])
+  @@index([schoolId])
+  @@map("inventory_categories")
 }
 
 model InventoryTransaction {

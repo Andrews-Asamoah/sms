@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 
 export async function POST(
   req: Request,
@@ -9,11 +10,10 @@ export async function POST(
 ) {
   try {
     const { schoolSlug, setId } = await params;
-    const session = await auth.api.getSession({ headers: await headers() });
+    const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin", "headteacher"]);
+    if (!access.authorized) return access.errorResponse;
+    const { session } = access;
 
-    if (!session) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
 
     const set = await prisma.reportCardSet.findUnique({
       where: { id: setId },

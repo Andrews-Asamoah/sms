@@ -34,13 +34,6 @@ export async function getAdminDashboardStats(schoolSlug: string) {
         where: {
           schoolId: school.id,
           status: "ACTIVE",
-          enrollments: {
-            some: {
-              academicYearId: currentAcademicYearId || undefined,
-              termId: currentTermId || undefined,
-              status: "ACTIVE",
-            },
-          },
         },
       }),
       prisma.teacher.count({
@@ -98,9 +91,6 @@ export async function getAdminDashboardStats(schoolSlug: string) {
         schoolId: school.id,
         status: "ACTIVE",
         profile: { gender: "MALE" },
-        enrollments: {
-          some: { academicYearId: currentAcademicYearId || undefined, status: "ACTIVE" },
-        },
       },
     }),
     prisma.student.count({
@@ -108,9 +98,6 @@ export async function getAdminDashboardStats(schoolSlug: string) {
         schoolId: school.id,
         status: "ACTIVE",
         profile: { gender: "FEMALE" },
-        enrollments: {
-          some: { academicYearId: currentAcademicYearId || undefined, status: "ACTIVE" },
-        },
       },
     }),
   ]).then(([male, female]) => [

@@ -6,7 +6,6 @@ import {
   ClipboardList, 
   Users, 
   AlertCircle,
-  Loader2,
   CheckCircle2
 } from "lucide-react";
 import { 
@@ -19,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { AssessmentsWidgetSkeleton } from "@/components/dashboard/dashboard-skeletons";
 
 interface Assessment {
   id: string;
@@ -54,13 +54,7 @@ export function UpcomingAssessments() {
   }, [schoolSlug]);
 
   if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center h-48">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </CardContent>
-      </Card>
-    );
+    return <AssessmentsWidgetSkeleton />;
   }
 
   return (

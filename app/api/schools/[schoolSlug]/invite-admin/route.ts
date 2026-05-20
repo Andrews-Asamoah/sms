@@ -5,6 +5,7 @@ import { z } from "zod";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 
 // All roles that can be assigned via invitation
 // These map directly to Member.role in the DB via Better Auth custom roles
@@ -59,33 +60,18 @@ export async function POST(
   try {
     const { schoolSlug } = await context.params;
 
-    // Authenticate
-    const requestHeaders = await headers();
-    const session = await auth.api.getSession({
-      headers: requestHeaders,
-    });
+    // Authenticate and authorize via unified guard
+    const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin"]);
+    if (!access.authorized) return access.errorResponse;
+    const { session } = access;
 
-    if (!session) {
-      return NextResponse.json(
-        { success: false, error: "Authentication required" },
-        { status: 401 },
-      );
-    }
+    const requestHeaders = await headers();
 
     // ========================================================================
-    // Get school and check permissions
+    // Get school
     // ========================================================================
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      include: {
-        organization: {
-          include: {
-            members: {
-              where: { userId: session.user.id },
-            },
-          },
-        },
-      },
     });
 
     if (!school) {
@@ -93,29 +79,6 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: "School not found" },
         { status: 404 },
-      );
-    }
-
-    // Check permissions via database
-    const userRecord = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true },
-    });
-
-    const isSuperAdmin = userRecord?.role === "superAdmin";
-    const membership = school.organization.members[0];
-    const isOwnerOrAdmin =
-      membership &&
-      (membership.role === "owner" || membership.role === "admin");
-
-    if (!isSuperAdmin && !isOwnerOrAdmin) {
-      console.error("[INVITE_ADMIN] Insufficient permissions");
-      return NextResponse.json(
-        {
-          success: false,
-          error: "You must be an owner or admin to invite users",
-        },
-        { status: 403 },
       );
     }
 
@@ -298,52 +261,18 @@ export async function GET(
   try {
     const { schoolSlug } = await context.params;
 
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { success: false, error: "Authentication required" },
-        { status: 401 },
-      );
-    }
+    // Authenticate and authorize via unified guard
+    const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin"]);
+    if (!access.authorized) return access.errorResponse;
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      include: {
-        organization: {
-          include: {
-            members: {
-              where: { userId: session.user.id },
-            },
-          },
-        },
-      },
     });
 
     if (!school) {
       return NextResponse.json(
         { success: false, error: "School not found" },
         { status: 404 },
-      );
-    }
-
-    const userRecord = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true },
-    });
-
-    const isSuperAdmin = userRecord?.role === "superAdmin";
-    const membership = school.organization.members[0];
-    const isOwnerOrAdmin =
-      membership &&
-      (membership.role === "owner" || membership.role === "admin");
-
-    if (!isSuperAdmin && !isOwnerOrAdmin) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 403 },
       );
     }
 

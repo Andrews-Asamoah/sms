@@ -7,7 +7,7 @@
 // All payment processing is handled by the Paystack webhook at /api/webhooks/paystack.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 import prisma from "@/lib/prisma";
 import { getPlanById } from "@/lib/subscription-plans";
 
@@ -23,10 +23,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const { schoolSlug } = await context.params;
 
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.redirect(new URL("/auth/login", request.url));
+    const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin"]);
+    if (!access.authorized) {
+      if (access.errorResponse.status === 401) {
+        return NextResponse.redirect(new URL("/auth/login", request.url));
+      }
+      return NextResponse.redirect(
+        new URL(
+          `/${schoolSlug}/admin/subscription?error=unauthorized`,
+          request.url,
+        ),
+      );
     }
+    const { session } = access;
 
     const { searchParams } = new URL(request.url);
     const reference =

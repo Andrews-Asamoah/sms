@@ -3,6 +3,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import {
   Card,
   CardContent,
@@ -40,60 +41,83 @@ export default async function GuardianDashboard({
   const { schoolSlug } = await params;
   const session = await requireSchoolAccess(schoolSlug);
 
-  const school = await prisma.school.findUnique({
-    where: { subdomain: schoolSlug },
-  });
+  const getCachedSchool = unstable_cache(
+    async (slug: string) => {
+      return prisma.school.findUnique({
+        where: { subdomain: slug },
+      });
+    },
+    [`school-${schoolSlug}`],
+    {
+      revalidate: 3600, // Cache for 1 hour
+      tags: [`school-${schoolSlug}`],
+    }
+  );
+
+  const school = await getCachedSchool(schoolSlug);
 
   if (!school) {
     redirect("/");
   }
 
   // Get guardian with all related data
-  const guardian = await prisma.guardian.findFirst({
-    where: {
-      schoolId: school.id,
-      profile: {
-        userId: session.user.id,
-      },
-    },
-    include: {
-      students: {
+  const getCachedGuardian = unstable_cache(
+    async (schoolId: string, userId: string) => {
+      const startOfMonth = new Date(
+        new Date().getFullYear(),
+        new Date().getMonth(),
+        1
+      );
+      return prisma.guardian.findFirst({
+        where: {
+          schoolId: schoolId,
+          profile: {
+            userId: userId,
+          },
+        },
         include: {
-          student: {
+          students: {
             include: {
-              profile: true,
-              class: {
+              student: {
                 include: {
-                  academicYear: true,
-                },
-              },
-              bills: {
-                where: {
-                  status: {
-                    in: ["PENDING", "PARTIALLY_PAID", "OVERDUE"],
+                  profile: true,
+                  class: {
+                    include: {
+                      academicYear: true,
+                    },
                   },
-                },
-                include: {
-                  items: true
-                }
-              },
-              attendances: {
-                where: {
-                  date: {
-                    gte: new Date(
-                      new Date().getFullYear(),
-                      new Date().getMonth(),
-                      1,
-                    ),
+                  bills: {
+                    where: {
+                      status: {
+                        in: ["PENDING", "PARTIALLY_PAID", "OVERDUE"],
+                      },
+                    },
+                    include: {
+                      items: true
+                    }
+                  },
+                  attendances: {
+                    where: {
+                      date: {
+                        gte: startOfMonth,
+                      },
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
+      });
     },
-  });
+    [`guardian-profile-${session.user.id}-${school.id}`],
+    {
+      revalidate: 300, // 5 minutes
+      tags: [`guardian-profile-${session.user.id}`],
+    }
+  );
+
+  const guardian = await getCachedGuardian(school.id, session.user.id);
 
   if (!guardian) {
     redirect(`/${schoolSlug}/unauthorized`);

@@ -1,6 +1,7 @@
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 import {
   Card,
   CardContent,
@@ -34,9 +35,20 @@ export default async function StudentDashboardPage({
   const { schoolSlug } = await params;
   const session = await requireSchoolAccess(schoolSlug);
 
-  const school = await prisma.school.findUnique({
-    where: { subdomain: schoolSlug },
-  });
+  const getCachedSchool = unstable_cache(
+    async (slug: string) => {
+      return prisma.school.findUnique({
+        where: { subdomain: slug },
+      });
+    },
+    [`school-${schoolSlug}`],
+    {
+      revalidate: 3600, // Cache for 1 hour
+      tags: [`school-${schoolSlug}`],
+    }
+  );
+
+  const school = await getCachedSchool(schoolSlug);
 
   if (!school) {
     redirect("/");
@@ -45,56 +57,67 @@ export default async function StudentDashboardPage({
   const { currentAcademicYearId, currentTermId } = (school.settings as any) || {};
 
   // Fetch student profile with related information
-  const student = await prisma.student.findFirst({
-    where: {
-      profile: {
-        userId: session.user.id,
-      },
-    },
-    include: {
-      profile: true,
-      department: true,
-      enrollments: {
+  const getCachedStudent = unstable_cache(
+    async (userId: string, yearId?: string, termId?: string) => {
+      return prisma.student.findFirst({
         where: {
-          academicYearId: currentAcademicYearId,
-          termId: currentTermId || undefined,
-          status: "ACTIVE"
-        },
-        include: {
-          class: {
-            include: {
-              academicYear: true,
-            }
-          }
-        },
-        take: 1
-      },
-      house: {
-        include: {
-          houseTeacher: {
-            include: {
-              profile: true,
-            },
+          profile: {
+            userId: userId,
           },
         },
-      },
-      clubMembers: {
         include: {
-          club: true,
+          profile: true,
+          department: true,
+          enrollments: {
+            where: {
+              academicYearId: yearId,
+              termId: termId || undefined,
+              status: "ACTIVE"
+            },
+            include: {
+              class: {
+                include: {
+                  academicYear: true,
+                }
+              }
+            },
+            take: 1
+          },
+          house: {
+            include: {
+              houseTeacher: {
+                include: {
+                  profile: true,
+                },
+              },
+            },
+          },
+          clubMembers: {
+            include: {
+              club: true,
+            },
+          },
+          assessmentScores: {
+            include: {
+              subject: true,
+              term: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 5,
+          },
         },
-      },
-      assessmentScores: {
-        include: {
-          subject: true,
-          term: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 5,
-      },
+      });
     },
-  });
+    [`student-profile-${session.user.id}`],
+    {
+      revalidate: 300, // 5 minutes
+      tags: [`student-profile-${session.user.id}`],
+    }
+  );
+
+  const student = await getCachedStudent(session.user.id, currentAcademicYearId, currentTermId);
 
   if (!student) {
     // If user is a student but no student record exists yet
@@ -114,16 +137,17 @@ export default async function StudentDashboardPage({
   const activeClass = currentEnrollment?.class;
 
   // Fetch some classmates (same class in current year/term)
-  const classmates = activeClass
-    ? await prisma.student.findMany({
+  const getCachedClassmates = unstable_cache(
+    async (classId: string, yearId?: string, termId?: string, sId?: string) => {
+      return prisma.student.findMany({
         where: {
-          id: { not: student.id },
+          id: { not: sId },
           status: "ACTIVE",
           enrollments: {
             some: {
-              classId: activeClass.id,
-              academicYearId: currentAcademicYearId,
-              termId: currentTermId || undefined,
+              classId: classId,
+              academicYearId: yearId,
+              termId: termId || undefined,
               status: "ACTIVE"
             }
           }
@@ -132,7 +156,17 @@ export default async function StudentDashboardPage({
           profile: true,
         },
         take: 4,
-      })
+      });
+    },
+    [`student-classmates-${activeClass?.id || 'none'}`],
+    {
+      revalidate: 300, // 5 minutes
+      tags: [`student-classmates-${activeClass?.id || 'none'}`],
+    }
+  );
+
+  const classmates = activeClass
+    ? await getCachedClassmates(activeClass.id, currentAcademicYearId, currentTermId, student.id)
     : [];
 
   const initials =

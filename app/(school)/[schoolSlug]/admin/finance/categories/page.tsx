@@ -34,7 +34,7 @@ async function AdminCategoriesContent({ schoolSlug }: { schoolSlug: string }) {
 
   const getCachedData = unstable_cache(
     async () => {
-      const [feeItems, expenseCategories] = await Promise.all([
+      const [feeItems, expenseCategories, inventoryCategories] = await Promise.all([
         prisma.feeItemRegistry.findMany({
           where: { schoolId: school.id },
           orderBy: { name: "asc" },
@@ -43,8 +43,12 @@ async function AdminCategoriesContent({ schoolSlug }: { schoolSlug: string }) {
           where: { schoolId: school.id },
           orderBy: { name: "asc" },
         }),
+        prisma.inventoryCategory.findMany({
+          where: { schoolId: school.id },
+          orderBy: { name: "asc" },
+        }),
       ]);
-      return { feeItems, expenseCategories };
+      return { feeItems, expenseCategories, inventoryCategories };
     },
     [`categories-${school.id}`],
     {
@@ -53,12 +57,13 @@ async function AdminCategoriesContent({ schoolSlug }: { schoolSlug: string }) {
     }
   );
 
-  const { feeItems, expenseCategories } = await getCachedData();
+  const { feeItems, expenseCategories, inventoryCategories } = await getCachedData();
 
   return (
     <CategoriesManager
       initialFeeItems={feeItems}
       initialExpenseCategories={expenseCategories}
+      initialInventoryCategories={inventoryCategories}
     />
   );
 }

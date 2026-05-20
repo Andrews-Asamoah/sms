@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 import { DayOfWeek } from "@prisma/client";
 import { format } from "date-fns";
 
@@ -9,11 +9,9 @@ export async function GET(
   { params }: { params: Promise<{ schoolSlug: string }> },
 ) {
   const { schoolSlug } = await params;
-  const session = await auth.api.getSession({ headers: req.headers });
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const access = await verifyApiSchoolAccess(schoolSlug, ["teacher"]);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
 
   try {
     const school = await prisma.school.findUnique({

@@ -70,15 +70,31 @@ async function CategoriesContent({ schoolSlug }: { schoolSlug: string }) {
     }
   );
 
-  const [feeItems, expenseCategories] = await Promise.all([
+  const getCachedInventoryCategories = unstable_cache(
+    async () => {
+      return prisma.inventoryCategory.findMany({
+        where: { schoolId: school.id },
+        orderBy: { name: "asc" },
+      });
+    },
+    [`inventory-categories-${school.id}`],
+    {
+      revalidate: 3600, // Cache for 1 hour
+      tags: [`inventory-categories-${school.id}`],
+    }
+  );
+
+  const [feeItems, expenseCategories, inventoryCategories] = await Promise.all([
     getCachedFeeItems(),
-    getCachedExpenseCategories()
+    getCachedExpenseCategories(),
+    getCachedInventoryCategories(),
   ]);
 
   return (
     <CategoriesManager 
       initialFeeItems={feeItems} 
       initialExpenseCategories={expenseCategories} 
+      initialInventoryCategories={inventoryCategories}
     />
   );
 }
@@ -94,6 +110,7 @@ function CategoriesSkeleton() {
       <div className="space-y-4">
         <div className="flex gap-2">
           <Skeleton className="h-10 w-[150px]" />
+          <Skeleton className="h-10 w-[180px]" />
           <Skeleton className="h-10 w-[180px]" />
         </div>
         

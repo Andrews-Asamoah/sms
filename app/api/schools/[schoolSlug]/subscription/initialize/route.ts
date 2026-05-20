@@ -1,7 +1,7 @@
 // app/api/schools/[schoolSlug]/subscription/initialize/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 import prisma from "@/lib/prisma";
 import {
   getPlanById,
@@ -19,14 +19,13 @@ type RouteContext = {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { schoolSlug } = await context.params;
+    const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin"]);
+    if (!access.authorized) return access.errorResponse;
+    const { session } = access;
 
     const body = await request.json();
     const { planId, billingCycle, requestType } = body;
-    const { schoolSlug } = await context.params;
 
     // ── Load school once — used for all flows ────────────────────────────────
     const school = await prisma.school.findFirst({
@@ -35,28 +34,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
       include: {
         subscription: true,
-        organization: {
-          include: {
-            members: {
-              where: { userId: session.user.id },
-              select: { role: true },
-            },
-          },
-        },
       },
     });
 
     if (!school) {
       return NextResponse.json({ error: "School not found" }, { status: 404 });
-    }
-
-    const isSuperAdmin = session.user.role === "superAdmin";
-    const isOwnerOrAdmin = school.organization.members.some(
-      (m) => m.role === "owner" || m.role === "admin",
-    );
-
-    if (!isSuperAdmin && !isOwnerOrAdmin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     // ── Card update flow ──────────────────────────────────────────────────────

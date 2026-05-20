@@ -104,30 +104,14 @@ async function PaymentsContent({ schoolSlug }: { schoolSlug: string }) {
   return <PaymentsClient initialPayments={payments} />;
 }
 
+import { TableSkeleton, DashboardHeaderSkeleton } from "@/components/dashboard/dashboard-skeletons";
+
 function PaymentsSkeleton() {
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-[250px]" />
-          <Skeleton className="h-4 w-[300px]" />
-        </div>
-        <Skeleton className="h-10 w-[150px]" />
-      </div>
-
-      <Skeleton className="h-8 w-[200px]" />
-
-      <div className="bg-background rounded-md border shadow-sm p-4 mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <Skeleton className="h-10 w-[250px]" />
-          <Skeleton className="h-10 w-[100px]" />
-        </div>
-        <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      </div>
+      <DashboardHeaderSkeleton />
+      <TableSkeleton rowCount={6} columnCount={5} className="mt-6" />
     </div>
   );
 }
+

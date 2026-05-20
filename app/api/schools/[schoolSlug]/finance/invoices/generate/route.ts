@@ -142,6 +142,26 @@ export async function POST(
           });
 
           if (!existingBill) {
+            // Fetch any unpaid bills from previous periods or from promotion placeholder (ARR-)
+            const oldUnpaidBills = await tx.bill.findMany({
+              where: {
+                studentId: student.id,
+                schoolId: school.id,
+                status: { in: ["PENDING", "PARTIALLY_PAID", "OVERDUE"] },
+                balanceAmount: { gt: 0 },
+                OR: [
+                  { academicYearId: { not: currentYearId } },
+                  { termId: { not: currentTermId } },
+                  { billNumber: { startsWith: "ARR-" } }
+                ]
+              },
+            });
+
+            const totalArrears = oldUnpaidBills.reduce(
+              (sum, b) => sum + Number(b.balanceAmount),
+              0
+            );
+
             // Check for overpayment/credit (negative balance)
             const credit =
               Number(student.outstandingBalance) < 0
@@ -152,7 +172,7 @@ export async function POST(
 
             const createdBillItems = feeStructure.items.map((item) => ({
               description: item.name,
-              feeItemId: item.id,
+              feeItemId: item.id as string | null | undefined,
               quantity: 1,
               amount: item.amount,
               totalAmount: item.amount,
@@ -160,6 +180,20 @@ export async function POST(
               balanceAmount: item.amount,
               status: "UNPAID" as any,
             }));
+
+            if (totalArrears > 0) {
+              createdBillItems.push({
+                description: "Previous Balance (Arrears)",
+                feeItemId: null,
+                quantity: 1,
+                amount: totalArrears as any,
+                totalAmount: totalArrears as any,
+                paidAmount: 0 as any,
+                balanceAmount: totalArrears as any,
+                status: "UNPAID" as any,
+              });
+              finalBillTotal += totalArrears;
+            }
 
             if (credit > 0) {
               // Note: Currently Prisma schema for BillItem doesn't seem to have a free-text description
@@ -189,6 +223,31 @@ export async function POST(
                 },
               },
             });
+
+            // If arrears were consolidated, close the old bills
+            if (totalArrears > 0) {
+              for (const oldBill of oldUnpaidBills) {
+                await tx.bill.update({
+                  where: { id: oldBill.id },
+                  data: {
+                    status: "CANCELLED",
+                    balanceAmount: 0,
+                    notes: `${oldBill.notes || ""}\n[System] Balance carried forward and consolidated into invoice ${bill.billNumber}.`.trim(),
+                  },
+                });
+
+                await tx.billItem.updateMany({
+                  where: {
+                    billId: oldBill.id,
+                    status: { in: ["UNPAID", "PARTIALLY_PAID"] },
+                  },
+                  data: {
+                    status: "FULLY_PAID",
+                    balanceAmount: 0,
+                  },
+                });
+              }
+            }
 
             // Only increment outstanding balance if it's an INVOICE, not PROFORMA
             if (billType === "INVOICE") {

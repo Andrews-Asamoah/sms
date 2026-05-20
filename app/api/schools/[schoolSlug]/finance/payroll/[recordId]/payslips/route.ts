@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { verifyApiSchoolAccess } from "@/lib/auth/guards";
 
 /**
  * GET /api/schools/[schoolSlug]/finance/payroll/[recordId]/payslips
@@ -10,12 +11,11 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string; recordId: string }> },
 ) {
-  const { recordId } = await params;
-  const session = await auth.api.getSession({ headers: req.headers });
+  const { schoolSlug, recordId } = await params;
+  const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin", "accountant"]);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const payslips = await prisma.payslip.findMany({
@@ -48,12 +48,11 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ schoolSlug: string; recordId: string }> },
 ) {
-  const { recordId } = await params;
-  const session = await auth.api.getSession({ headers: req.headers });
+  const { schoolSlug, recordId } = await params;
+  const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin", "accountant"]);
+  if (!access.authorized) return access.errorResponse;
+  const { session } = access;
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const { status, paidAt } = await req.json();

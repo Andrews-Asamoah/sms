@@ -6,7 +6,6 @@ import {
   BookOpen, 
   Clock, 
   MapPin, 
-  Loader2,
   CalendarDays
 } from "lucide-react";
 import { 
@@ -19,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { TimetableWidgetSkeleton } from "@/components/dashboard/dashboard-skeletons";
 
 interface TimetableEntry {
   id: string;
@@ -72,13 +72,7 @@ export function ClassesToday() {
   };
 
   if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center h-48">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </CardContent>
-      </Card>
-    );
+    return <TimetableWidgetSkeleton />;
   }
 
   return (

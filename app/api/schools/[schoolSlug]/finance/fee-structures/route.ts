@@ -165,6 +165,53 @@ export async function POST(
           const termCode = term ? `T${term.termNumber}` : "T1";
 
           for (const student of studentsToBill) {
+            // Fetch any unpaid bills from previous periods or from promotion placeholder (ARR-)
+            const oldUnpaidBills = await tx.bill.findMany({
+              where: {
+                studentId: student.id,
+                schoolId: school.id,
+                status: { in: ["PENDING", "PARTIALLY_PAID", "OVERDUE"] },
+                balanceAmount: { gt: 0 },
+                OR: [
+                  { academicYearId: { not: effectiveYearId as string } },
+                  { termId: { not: effectiveTermId as string } },
+                  { billNumber: { startsWith: "ARR-" } }
+                ]
+              },
+            });
+
+            const totalArrears = oldUnpaidBills.reduce(
+              (sum, b) => sum + Number(b.balanceAmount),
+              0
+            );
+
+            let finalBillTotal = totalAmount;
+
+            const createdBillItems = feeStructure.items.map((item) => ({
+              description: item.name,
+              amount: item.amount,
+              quantity: 1,
+              totalAmount: item.amount,
+              feeItemId: item.id as string | null | undefined,
+              paidAmount: 0,
+              balanceAmount: item.amount,
+              status: "UNPAID" as any,
+            }));
+
+            if (totalArrears > 0) {
+              createdBillItems.push({
+                description: "Previous Balance (Arrears)",
+                amount: totalArrears as any,
+                quantity: 1,
+                totalAmount: totalArrears as any,
+                feeItemId: null,
+                paidAmount: 0,
+                balanceAmount: totalArrears as any,
+                status: "UNPAID" as any,
+              });
+              finalBillTotal += totalArrears;
+            }
+
             // Generate Unique Bill Code: B-YEAR-TERM-NUMBERS
             const randomNum = Math.floor(100000 + Math.random() * 900000);
             const billCode = `B-${yearCode}-${termCode}-${randomNum}`;
@@ -178,27 +225,43 @@ export async function POST(
                 feeStructureId: feeStructure.id,
                 billNumber: billCode, // Using billCode for billNumber as well for simplicity if unique
                 billCode: billCode,
-                totalAmount: totalAmount,
-                balanceAmount: totalAmount,
+                totalAmount: finalBillTotal,
+                balanceAmount: finalBillTotal,
                 paidAmount: 0,
                 status: "PENDING",
                 dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 items: {
-                  create: feeStructure.items.map((item) => ({
-                    description: item.name,
-                    amount: item.amount,
-                    quantity: 1,
-                    totalAmount: item.amount,
-                    feeItemId: item.id,
-                    paidAmount: 0,
-                    balanceAmount: item.amount,
-                    status: "UNPAID",
-                  })),
+                  create: createdBillItems,
                 },
               },
             });
 
-            // Update Student Outstanding Balance
+            // If arrears were consolidated, close the old bills
+            if (totalArrears > 0) {
+              for (const oldBill of oldUnpaidBills) {
+                await tx.bill.update({
+                  where: { id: oldBill.id },
+                  data: {
+                    status: "CANCELLED",
+                    balanceAmount: 0,
+                    notes: `${oldBill.notes || ""}\n[System] Balance carried forward and consolidated into invoice ${bill.billNumber}.`.trim(),
+                  },
+                });
+
+                await tx.billItem.updateMany({
+                  where: {
+                    billId: oldBill.id,
+                    status: { in: ["UNPAID", "PARTIALLY_PAID"] },
+                  },
+                  data: {
+                    status: "FULLY_PAID",
+                    balanceAmount: 0,
+                  },
+                });
+              }
+            }
+
+            // Update Student Outstanding Balance (increment by base fee structure only)
             await tx.student.update({
               where: { id: student.id },
               data: {

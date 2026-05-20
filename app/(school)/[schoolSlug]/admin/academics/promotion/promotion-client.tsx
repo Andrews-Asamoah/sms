@@ -42,6 +42,9 @@ import {
   CheckCircle2,
   RefreshCcw,
   Zap,
+  Receipt,
+  Check,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -75,6 +78,7 @@ interface StudentPromotionData {
   totalRawScore: number;
   totalMaxScore: number;
   hasPassed: boolean;
+  outstandingBalance: number;
   status: string;
 }
 
@@ -305,17 +309,41 @@ export function PromotionClient({
 
   const summary = getSummary();
 
+  const arrearsSummary = Object.values(assignments).reduce((sum, a) => {
+    const student = students.find((s) => s.id === a.studentId);
+    if (!student) return sum;
+    if (a.type === "PROMOTED" || a.type === "SKIPPED" || a.type === "REPEATED") {
+      return sum + (student.outstandingBalance || 0);
+    }
+    return sum;
+  }, 0);
+
+  const studentsWithArrearsCount = Object.values(assignments).filter((a) => {
+    const student = students.find((s) => s.id === a.studentId);
+    if (!student) return false;
+    return (
+      (a.type === "PROMOTED" || a.type === "SKIPPED" || a.type === "REPEATED") &&
+      (student.outstandingBalance || 0) > 0
+    );
+  }).length;
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>End of Year Promotion</CardTitle>
-          <CardDescription>
-            Target Academic Year:{" "}
-            <span className="font-medium text-foreground">
-              {targetAcademicYearName}
-            </span>
-          </CardDescription>
+      <Card className="border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.03] via-purple-500/[0.01] to-transparent shadow-[0_0_30px_rgba(99,102,241,0.06)] backdrop-blur-xl rounded-3xl overflow-hidden">
+        <CardHeader className="border-b border-indigo-500/10 bg-indigo-500/[0.02] p-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <CardTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+                End of Year Promotion Evaluation
+              </CardTitle>
+              <CardDescription className="text-muted-foreground mt-1">
+                Target Academic Year:{" "}
+                <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                  {targetAcademicYearName}
+                </span>
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
@@ -437,6 +465,7 @@ export function PromotionClient({
                       <TableHead>Student</TableHead>
                       <TableHead>Score</TableHead>
                       <TableHead>Recommendation</TableHead>
+                      <TableHead>Financial Status</TableHead>
                       <TableHead>Action</TableHead>
                       <TableHead>Target Class / Reason</TableHead>
                     </TableRow>
@@ -490,7 +519,27 @@ export function PromotionClient({
                                 variant="secondary"
                                 className="bg-red-500/10 text-destructive"
                               >
+                                <AlertCircle className="h-3 w-3 mr-1" />
                                 Fail
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {student.outstandingBalance > 0 ? (
+                              <Badge
+                                variant="secondary"
+                                className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-semibold rounded-lg px-2.5 py-1 flex items-center gap-1.5 w-fit"
+                              >
+                                <Receipt className="h-3.5 w-3.5" />
+                                GHS {student.outstandingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="secondary"
+                                className="bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 font-medium rounded-lg px-2.5 py-1 flex items-center gap-1.5 w-fit"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Clear
                               </Badge>
                             )}
                           </TableCell>
@@ -571,8 +620,8 @@ export function PromotionClient({
                 </Table>
               </div>
 
-              <div className="flex items-center justify-between pt-4 border-t">
-                <div className="flex gap-3 text-sm text-muted-foreground flex-wrap">
+              <div className="flex items-center justify-between pt-4 border-t flex-wrap gap-4">
+                <div className="flex gap-3 text-sm text-muted-foreground flex-wrap items-center">
                   {summary.promoted > 0 && (
                     <span className="flex items-center gap-1 text-green-600 dark:text-green-400 font-medium">
                       <ArrowRight className="h-3.5 w-3.5" />
@@ -597,11 +646,17 @@ export function PromotionClient({
                       {summary.skipped} Skipped
                     </span>
                   )}
+                  {arrearsSummary > 0 && (
+                    <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-lg text-xs ml-2">
+                      <Receipt className="h-3.5 w-3.5" />
+                      Carry-Forward: GHS {arrearsSummary.toLocaleString(undefined, { minimumFractionDigits: 2 })} ({studentsWithArrearsCount} Students)
+                    </span>
+                  )}
                 </div>
                 <Button
                   onClick={() => setShowConfirm(true)}
                   disabled={isPromoting || !canExecute}
-                  className="min-w-[200px]"
+                  className="min-w-[200px] rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium shadow-md transition-all duration-300"
                 >
                   {isPromoting && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -623,69 +678,104 @@ export function PromotionClient({
 
       {/* Confirmation Dialog */}
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent>
+        <DialogContent className="max-w-md rounded-3xl border border-indigo-500/20 bg-card/90 backdrop-blur-xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle>Confirm Promotion Execution</DialogTitle>
-            <DialogDescription>
-              You are about to process promotions for{" "}
-              <strong>{summary.total} students</strong> from{" "}
-              <strong>{selectedClass?.name}</strong>.
+            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+              Confirm Promotion Execution
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground mt-1">
+              You are about to process academic year-end promotions for{" "}
+              <strong className="text-foreground">{summary.total} students</strong> from{" "}
+              <strong className="text-foreground">{selectedClass?.name}</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-4">
-            {summary.promoted > 0 && (
-              <div className="flex items-center gap-2 rounded-lg border p-3 bg-green-500/5">
-                <ArrowRight className="h-4 w-4 text-green-600" />
-                <div>
-                  <p className="text-sm font-medium">{summary.promoted}</p>
-                  <p className="text-xs text-muted-foreground">Promoted</p>
+
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-2.5">
+              {summary.promoted > 0 && (
+                <div className="flex items-center gap-2.5 rounded-2xl border border-green-500/10 p-3 bg-green-500/[0.02]">
+                  <div className="p-1.5 rounded-lg bg-green-500/10 text-green-600">
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-green-600 dark:text-green-400">{summary.promoted}</p>
+                    <p className="text-[11px] text-muted-foreground">Promoted</p>
+                  </div>
+                </div>
+              )}
+              {summary.repeated > 0 && (
+                <div className="flex items-center gap-2.5 rounded-2xl border border-amber-500/10 p-3 bg-amber-500/[0.02]">
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600">
+                    <RefreshCcw className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">{summary.repeated}</p>
+                    <p className="text-[11px] text-muted-foreground">Repeated</p>
+                  </div>
+                </div>
+              )}
+              {summary.graduated > 0 && (
+                <div className="flex items-center gap-2.5 rounded-2xl border border-blue-500/10 p-3 bg-blue-500/[0.02]">
+                  <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600">
+                    <GraduationCap className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{summary.graduated}</p>
+                    <p className="text-[11px] text-muted-foreground">Graduated</p>
+                  </div>
+                </div>
+              )}
+              {summary.skipped > 0 && (
+                <div className="flex items-center gap-2.5 rounded-2xl border border-purple-500/10 p-3 bg-purple-500/[0.02]">
+                  <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-600">
+                    <Zap className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-purple-600 dark:text-purple-400">{summary.skipped}</p>
+                    <p className="text-[11px] text-muted-foreground">Skipped</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {arrearsSummary > 0 && (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.02] p-4 space-y-2">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold text-sm">
+                  <Receipt className="h-4 w-4 animate-pulse" />
+                  <span>Financial Carry-Forward Integration</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  A total of <strong className="text-foreground">GHS {arrearsSummary.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> in outstanding balances for <strong className="text-foreground">{studentsWithArrearsCount} students</strong> will be safely carried forward as arrears invoices in the target academic period.
+                </p>
+                <div className="flex items-start gap-1.5 text-[10px] text-amber-600 dark:text-amber-400/80 bg-amber-500/5 p-2 rounded-lg">
+                  <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  <span>Historical bills will be set to CANCELLED to maintain perfect accountant audit trails and avoid double billing.</span>
                 </div>
               </div>
             )}
-            {summary.repeated > 0 && (
-              <div className="flex items-center gap-2 rounded-lg border p-3 bg-amber-500/5">
-                <RefreshCcw className="h-4 w-4 text-amber-600" />
-                <div>
-                  <p className="text-sm font-medium">{summary.repeated}</p>
-                  <p className="text-xs text-muted-foreground">Repeated</p>
-                </div>
-              </div>
-            )}
-            {summary.graduated > 0 && (
-              <div className="flex items-center gap-2 rounded-lg border p-3 bg-blue-500/5">
-                <GraduationCap className="h-4 w-4 text-blue-600" />
-                <div>
-                  <p className="text-sm font-medium">{summary.graduated}</p>
-                  <p className="text-xs text-muted-foreground">Graduated</p>
-                </div>
-              </div>
-            )}
-            {summary.skipped > 0 && (
-              <div className="flex items-center gap-2 rounded-lg border p-3 bg-purple-500/5">
-                <Zap className="h-4 w-4 text-purple-600" />
-                <div>
-                  <p className="text-sm font-medium">{summary.skipped}</p>
-                  <p className="text-xs text-muted-foreground">Skipped</p>
-                </div>
-              </div>
-            )}
+
+            <Alert className="border-indigo-500/10 bg-indigo-500/[0.02] rounded-2xl">
+              <AlertCircle className="h-4 w-4 text-indigo-500" />
+              <AlertDescription className="text-xs text-muted-foreground">
+                Executing promotions creates active enrollments, registers student promotion records, and assigns teacher loads. This cannot be undone.
+              </AlertDescription>
+            </Alert>
           </div>
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              This action will create new enrollments and promotion records. Graduated
-              students will be marked as graduated. This cannot be undone.
-            </AlertDescription>
-          </Alert>
-          <DialogFooter>
+
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
               onClick={() => setShowConfirm(false)}
               disabled={isPromoting}
+              className="rounded-xl border border-indigo-500/10 hover:bg-indigo-500/5"
             >
               Cancel
             </Button>
-            <Button onClick={executePromotion} disabled={isPromoting}>
+            <Button
+              onClick={executePromotion}
+              disabled={isPromoting}
+              className="rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-md"
+            >
               {isPromoting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
