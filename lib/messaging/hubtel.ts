@@ -4,6 +4,13 @@
  * Uses HTTP Basic Auth: clientId:clientSecret
  */
 
+export interface HubtelConfig {
+  useCustomSMS?: boolean;
+  hubtelClientId?: string | null;
+  hubtelClientSecret?: string | null;
+  hubtelSenderId?: string | null;
+}
+
 interface HubtelSMSResult {
   success: boolean;
   messageId?: string;
@@ -13,10 +20,16 @@ interface HubtelSMSResult {
 }
 
 interface HubtelSMSResponse {
-  Status: number;
+  status?: number;
+  Status?: number;
+  messageId?: string;
   MessageId?: string;
+  rate?: number;
   Rate?: number;
+  networkId?: string;
   NetworkId?: string;
+  statusDescription?: string | null;
+  message?: string;
   Message?: string;
 }
 
@@ -65,13 +78,23 @@ export function truncateSMS(text: string, max = 160): string {
 export async function sendSMS(
   to: string,
   message: string,
-  from?: string
+  configOrFrom?: string | HubtelConfig
 ): Promise<HubtelSMSResult> {
-  const clientId = process.env.HUBTEL_CLIENT_ID;
-  const clientSecret = process.env.HUBTEL_CLIENT_SECRET;
-  const senderId = from || process.env.HUBTEL_SENDER_ID || "School";
+  let clientId = process.env.HUBTEL_CLIENT_ID;
+  let clientSecret = process.env.HUBTEL_CLIENT_SECRET;
+  let senderId = process.env.HUBTEL_SENDER_ID || "School";
 
-  if (!clientId || !clientSecret) {
+  if (configOrFrom && typeof configOrFrom === "object") {
+    if (configOrFrom.useCustomSMS) {
+      clientId = configOrFrom.hubtelClientId || clientId;
+      clientSecret = configOrFrom.hubtelClientSecret || clientSecret;
+      senderId = configOrFrom.hubtelSenderId || senderId;
+    }
+  } else if (typeof configOrFrom === "string") {
+    senderId = configOrFrom;
+  }
+
+  if (!clientId || !clientSecret || clientId === "your_hubtel_client_id") {
     console.warn("[Hubtel] SMS credentials not configured — skipping SMS delivery.");
     return { success: false, error: "Hubtel not configured" };
   }
@@ -88,9 +111,9 @@ export async function sendSMS(
         Accept: "application/json",
       },
       body: JSON.stringify({
-        From: senderId,
-        To: normalizedTo,
-        Content: message,
+        from: senderId,
+        to: normalizedTo,
+        content: message,
       }),
     });
 
@@ -101,18 +124,22 @@ export async function sendSMS(
     }
 
     const data: HubtelSMSResponse = await response.json();
+    const status = typeof data.status === "number" ? data.status : data.Status;
+    const messageId = data.messageId || data.MessageId;
+    const rate = typeof data.rate === "number" ? data.rate : data.Rate;
+    const errorMessage = data.statusDescription || data.message || data.Message;
 
-    if (data.Status === 0) {
-      console.log(`✅ [Hubtel] SMS sent to ${normalizedTo}, messageId: ${data.MessageId}`);
+    if (status === 0) {
+      console.log(`✅ [Hubtel] SMS sent to ${normalizedTo}, messageId: ${messageId}`);
       return {
         success: true,
-        messageId: data.MessageId,
-        rate: data.Rate,
+        messageId: messageId,
+        rate: rate,
         status: "sent",
       };
     } else {
       console.error(`[Hubtel] SMS rejected for ${normalizedTo}: ${JSON.stringify(data)}`);
-      return { success: false, error: data.Message || `Status ${data.Status}` };
+      return { success: false, error: errorMessage || `Status ${status}` };
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
@@ -127,10 +154,10 @@ export async function sendSMS(
  */
 export async function sendBulkSMS(
   recipients: { phone: string; message: string }[],
-  from?: string
+  configOrFrom?: string | HubtelConfig
 ): Promise<{ phone: string; result: HubtelSMSResult }[]> {
   const results = await Promise.allSettled(
-    recipients.map(({ phone, message }) => sendSMS(phone, message, from))
+    recipients.map(({ phone, message }) => sendSMS(phone, message, configOrFrom))
   );
 
   return recipients.map((r, i) => ({

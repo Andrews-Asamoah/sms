@@ -1,10 +1,11 @@
 import { Separator } from "@/components/ui/separator";
 import { SchoolLogoEditor } from "@/components/settings/school-logo-editor";
 import { SchoolInfoForm } from "@/components/settings/school-info-form";
+import { SMSSettingsForm } from "@/components/settings/sms-settings-form";
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Image as ImageIcon } from "lucide-react";
+import { Building2, Image as ImageIcon, MessageSquare } from "lucide-react";
 
 interface SettingsPageProps {
   params: Promise<{
@@ -26,6 +27,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       address: true,
       logo: true,
       website: true,
+      settings: true,
     },
   });
 
@@ -67,8 +69,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           </Card>
         </div>
 
-        {/* Basic Info Management */}
+        {/* Basic Info & SMS Settings Management */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Basic Info Card */}
           <Card className="border-none shadow-md overflow-hidden">
             <CardHeader className="pb-3 border-b bg-slate-50/50 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
@@ -79,6 +82,23 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             </CardHeader>
             <CardContent className="pt-8">
               <SchoolInfoForm school={school} />
+            </CardContent>
+          </Card>
+
+          {/* SMS Settings Card */}
+          <Card className="border-none shadow-md overflow-hidden">
+            <CardHeader className="pb-3 border-b bg-slate-50/50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-blue-500" />
+                <CardTitle className="text-xl">SMS Gateway Settings</CardTitle>
+              </div>
+              <CardDescription>Configure your school-specific Hubtel SMS credentials</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-8">
+              <SMSSettingsForm 
+                schoolId={school.id} 
+                initialSettings={(school.settings as any) || {}} 
+              />
             </CardContent>
           </Card>
         </div>

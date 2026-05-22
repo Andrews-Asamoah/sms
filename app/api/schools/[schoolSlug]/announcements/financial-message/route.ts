@@ -33,7 +33,7 @@ export async function POST(
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      select: { id: true, name: true, currency: true },
+      select: { id: true, name: true, currency: true, settings: true },
     });
     if (!school) return NextResponse.json({ error: "School not found" }, { status: 404 });
 
@@ -131,7 +131,7 @@ export async function POST(
           const smsBody = truncateSMS(
             `[${school.name}] ${data.subject}\n${studentName}: ${school.currency} ${balance.toFixed(2)} outstanding.\n${plainContent.substring(0, 80)}`
           );
-          const smsResult = await sendSMS(guardian.phone, smsBody);
+          const smsResult = await sendSMS(guardian.phone, smsBody, school.settings as any);
           if (smsResult.success) results.smsSent++;
           else results.smsFailed++;
         }

@@ -88,3 +88,77 @@ export async function updateSchoolBasicInfo(
     };
   }
 }
+
+export async function updateSchoolSMSSettings(
+  schoolId: string,
+  data: {
+    useCustomSMS: boolean;
+    hubtelClientId?: string | null;
+    hubtelClientSecret?: string | null;
+    hubtelSenderId?: string | null;
+  }
+) {
+  const session = await getAuthSession();
+  if (!session) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { organizationId: true, subdomain: true, settings: true },
+    });
+
+    if (!school) {
+      return { success: false, error: "School not found" };
+    }
+
+    const member = await prisma.member.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: school.organizationId,
+          userId: session.user.id,
+        },
+      },
+      select: { role: true },
+    });
+
+    const isAuthorized =
+      session.isSuperAdmin ||
+      (member &&
+        (member.role.includes("owner") || member.role.includes("admin")));
+
+    if (!isAuthorized) {
+      return {
+        success: false,
+        error: "Permission denied. Only owners or admins can update school settings.",
+      };
+    }
+
+    const currentSettings = (school.settings as Record<string, unknown>) || {};
+    const updatedSettings = {
+      ...currentSettings,
+      useCustomSMS: data.useCustomSMS,
+      hubtelClientId: data.hubtelClientId,
+      hubtelClientSecret: data.hubtelClientSecret,
+      hubtelSenderId: data.hubtelSenderId,
+    };
+
+    await prisma.school.update({
+      where: { id: schoolId },
+      data: {
+        settings: updatedSettings as any,
+      },
+    });
+
+    revalidatePath(`/${school.subdomain}/admin/settings`);
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("updateSchoolSMSSettings error:", error);
+    return {
+      success: false,
+      error: "An unexpected error occurred during update",
+    };
+  }
+}

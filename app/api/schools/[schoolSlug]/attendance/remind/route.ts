@@ -36,61 +36,80 @@ export async function POST(
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 1. Get all active classes for this school
+    // Fetch all active classes with their teacher user IDs
     const classes = await prisma.class.findMany({
       where: {
         schoolId: school.id,
         isActive: true,
         classTeacherId: { not: null },
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
         classTeacher: {
-          include: {
-            profile: {
-              select: { userId: true },
-            },
+          select: {
+            profile: { select: { userId: true } },
           },
         },
-        students: {
-          select: { id: true },
+        students: { select: { id: true } },
+      },
+    });
+
+    // Single batch query: which classes already have attendance today?
+    const markedToday = await prisma.attendance.groupBy({
+      by: ["studentId"],
+      where: {
+        date: today,
+        student: {
+          schoolId: school.id,
+          classId: { in: classes.map((c) => c.id) },
         },
       },
     });
 
-    let remindersSent = 0;
-
-    for (const cls of classes) {
-      if (!cls.classTeacher?.profile?.userId) continue;
-
-      // 2. Check if any student in this class has an attendance record for today
-      const attendanceExist = await prisma.attendance.findFirst({
-        where: {
-          date: today,
-          student: {
-            classId: cls.id,
-          },
+    // Get distinct class IDs that have at least one record today
+    const attendedClassStudents = await prisma.attendance.findMany({
+      where: {
+        date: today,
+        student: {
+          schoolId: school.id,
+          classId: { in: classes.map((c) => c.id) },
         },
-      });
+      },
+      select: { student: { select: { classId: true } } },
+      distinct: ["studentId"],
+    });
 
-      if (!attendanceExist) {
-        // 3. Send notification to the teacher
-        await prisma.notification.create({
-          data: {
-            schoolId: school.id,
-            userId: cls.classTeacher.profile.userId,
-            type: "GENERAL",
-            title: "Attendance Reminder",
-            message: `Don't forget to mark attendance for class ${cls.name} today.`,
-            isRead: false,
-          },
-        });
-        remindersSent++;
-      }
+    const classesWithAttendance = new Set(
+      attendedClassStudents.map((a) => a.student.classId).filter(Boolean),
+    );
+
+    // Build notification payloads for classes that have NOT been marked
+    const notificationsToCreate = classes
+      .filter(
+        (cls) =>
+          !classesWithAttendance.has(cls.id) &&
+          cls.classTeacher?.profile?.userId,
+      )
+      .map((cls) => ({
+        schoolId: school.id,
+        userId: cls.classTeacher!.profile!.userId,
+        type: "GENERAL" as const,
+        title: "Attendance Reminder",
+        message: `Don't forget to mark attendance for class ${cls.name} today.`,
+        isRead: false,
+      }));
+
+    // Batch-insert all notifications in a single transaction
+    if (notificationsToCreate.length > 0) {
+      await prisma.$transaction(
+        notificationsToCreate.map((n) => prisma.notification.create({ data: n })),
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: `${remindersSent} attendance reminders sent successfully.`,
+      message: `${notificationsToCreate.length} attendance reminders sent successfully.`,
     });
   } catch (error) {
     console.error("[ATTENDANCE_REMIND_POST] Error:", error);

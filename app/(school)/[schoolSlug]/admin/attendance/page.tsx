@@ -47,18 +47,26 @@ export default async function AdminAttendancePage({
   });
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">
-          School Attendance (Admin)
-        </h2>
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-muted/40">
+      <div className="space-y-6 p-6 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+              Attendance
+            </h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Mark and review daily student attendance across all classes
+            </p>
+          </div>
+        </div>
+        <AttendanceClient
+          initialClasses={classes}
+          schoolSlug={schoolSlug}
+          editableClassIds={[]}
+          isAdmin={true}
+        />
       </div>
-      <AttendanceClient
-        initialClasses={classes}
-        schoolSlug={schoolSlug}
-        editableClassIds={[]}
-        isAdmin={true}
-      />
     </div>
   );
 }

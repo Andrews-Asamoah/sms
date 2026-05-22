@@ -35,7 +35,7 @@ export async function POST(
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      select: { id: true, name: true, currency: true },
+      select: { id: true, name: true, currency: true, settings: true },
     });
 
     if (!school) return NextResponse.json({ error: "School not found" }, { status: 404 });
@@ -120,6 +120,7 @@ export async function POST(
         schoolSlug,
         announcementId: announcement.id,
         schoolId: school.id,
+        schoolSettings: school.settings,
       }).catch((err) => console.error("[ANNOUNCEMENT] External delivery error:", err));
     }
 
@@ -273,8 +274,9 @@ async function deliverExternalMessages(opts: {
   schoolSlug: string;
   announcementId: string;
   schoolId: string;
+  schoolSettings: any;
 }) {
-  const { members, title, plainContent, contentHtml, sendSms, sendEmail, schoolName, schoolSlug } = opts;
+  const { members, title, plainContent, contentHtml, sendSms, sendEmail, schoolName, schoolSlug, schoolSettings } = opts;
 
   // Get user profiles for phone numbers
   const userIds = members.map((m) => m.userId);
@@ -294,7 +296,7 @@ async function deliverExternalMessages(opts: {
       const email = m.user.email;
 
       if (sendSms && phone) {
-        const result = await sendSMS(phone, smsText);
+        const result = await sendSMS(phone, smsText, schoolSettings);
         if (result.success) smsCount++;
       }
 

@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       include: {
         schedule: {
           include: {
-            school: { select: { id: true, name: true, currency: true, subdomain: true } },
+            school: { select: { id: true, name: true, currency: true, subdomain: true, settings: true } },
           },
         },
       },
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
         const result = await processReminderSend({
           schedule,
           installment,
-          school: { id: school.id, name: school.name, currency: school.currency },
+          school: { id: school.id, name: school.name, currency: school.currency, settings: school.settings },
           schoolSlug: school.subdomain,
           isManual: false,
         });

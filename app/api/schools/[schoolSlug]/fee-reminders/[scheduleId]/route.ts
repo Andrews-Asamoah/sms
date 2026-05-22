@@ -102,7 +102,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const school = await prisma.school.findUnique({
       where: { subdomain: schoolSlug },
-      select: { id: true, name: true, currency: true },
+      select: { id: true, name: true, currency: true, settings: true },
     });
     if (!school) return NextResponse.json({ error: "School not found" }, { status: 404 });
 
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     const result = await processReminderSend({
       schedule,
       installment: mockInstallment,
-      school: { id: school.id, name: school.name, currency: school.currency },
+      school: { id: school.id, name: school.name, currency: school.currency, settings: school.settings },
       schoolSlug,
       isManual: true,
     });
@@ -148,7 +148,7 @@ export async function processReminderSend(opts: {
     smsTemplate?: string | null;
   };
   installment: { id: string | null; label: string; dueDate: Date };
-  school: { id: string; name: string; currency: string };
+  school: { id: string; name: string; currency: string; settings?: any };
   schoolSlug: string;
   isManual?: boolean;
 }) {
@@ -270,7 +270,7 @@ export async function processReminderSend(opts: {
       smsEmailProcessed.add(guardian.id);
 
       if (schedule.sendSms && guardian.phone) {
-        const smsResult = await sendSMS(guardian.phone, personalizedSMS);
+        const smsResult = await sendSMS(guardian.phone, personalizedSMS, school.settings);
         if (smsResult.success) smsSent++;
         logs.push({ guardianId: guardian.id, guardianName, guardianPhone: guardian.phone, studentName, outstandingBalance: balance, channel: "SMS", status: smsResult.success ? "SENT" : "FAILED", error: smsResult.error });
       }
