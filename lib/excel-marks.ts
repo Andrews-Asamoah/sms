@@ -2,6 +2,12 @@
  * Excel Marks Utility
  * Handles generation and parsing of marks entry Excel files.
  * Uses the `xlsx` (SheetJS) library for cross-platform compatibility.
+ *
+ * Security note: Internal database IDs are never written to the user-facing
+ * "Marks Entry" sheet. The admission number (institution's own reference) is
+ * used as the staff-facing identifier. The hidden __meta__ sheet stores an
+ * admissionNumber→studentId lookup that the import parser uses to resolve DB
+ * IDs — keeping infrastructure details out of downloadable documents.
  */
 import * as XLSX from "xlsx";
 import { AssessmentComponent, GradebookStudent, GradebookTemplate } from "@/app/(school)/[schoolSlug]/teacher/classes/[classSlug]/gradebook/types";
@@ -71,11 +77,13 @@ export function downloadMarksTemplate(
   const cols = buildColumnDefs(template.components);
 
   // ── Build header row ──────────────────────────────────────────────────────
+  // NOTE: We intentionally do NOT include the internal DB student ID in the
+  // user-facing sheet. The admission number is the institution's own reference
+  // and is the correct identifier for staff-facing documents.
   const headerRow = [
     "#",
     "Student Name",
     "Admission No",
-    "__student_id__", // Hidden column used during import to reliably map rows
     ...cols.map((c) => c.header),
   ];
 
@@ -86,7 +94,6 @@ export function downloadMarksTemplate(
       idx + 1,
       name,
       student.admissionNumber ?? "",
-      student.id, // Hidden ID
     ];
 
     for (const col of cols) {
@@ -117,7 +124,6 @@ export function downloadMarksTemplate(
     { wch: 5 },  // #
     { wch: 28 }, // Student Name
     { wch: 18 }, // Admission No
-    { wch: 0 },  // Hidden ID (width 0 effectively hides it visually)
     ...cols.map(() => ({ wch: 22 })),
   ];
 
@@ -136,9 +142,15 @@ export function downloadMarksTemplate(
     };
   }
 
+  // ── Metadata sheet ────────────────────────────────────────────────────────
+  // Stores template info and an admissionNumber→studentId lookup table.
+  // This allows the import parser to resolve DB IDs without exposing them
+  // in the user-facing sheet.
+  const admNoToIdMap = students.map((s) => [
+    s.admissionNumber ?? "",
+    s.id,
+  ]);
 
-
-  // Metadata sheet for the import to validate template compatibility
   const metaWs = XLSX.utils.aoa_to_sheet([
     ["template_id", template.id],
     ["template_name", template.name],
@@ -147,6 +159,9 @@ export function downloadMarksTemplate(
     ["component_ids", cols.map((c) => c.componentId).join("|")],
     ["repeat_indices", cols.map((c) => c.repeatIndex ?? "").join("|")],
     ["max_marks", cols.map((c) => c.maxMarks).join("|")],
+    // Admission number → DB student ID map (one row per student)
+    // Format: ["adm_map", "ADM001", "<cuid>"]
+    ...admNoToIdMap.map(([admNo, id]) => ["adm_map", admNo, id]),
   ]);
 
   XLSX.utils.book_append_sheet(wb, ws, "Marks Entry");
@@ -199,9 +214,9 @@ export async function parseMarksExcel(
     };
   }
 
-  const metaData = XLSX.utils.sheet_to_json<[string, string]>(metaSheet, {
+  const metaData = XLSX.utils.sheet_to_json<any[]>(metaSheet, {
     header: 1,
-  }) as [string, string][];
+  }) as any[][];
   const meta: Record<string, string> = {};
   for (const [key, value] of metaData) {
     if (key) meta[key] = String(value ?? "");
@@ -251,21 +266,40 @@ export async function parseMarksExcel(
     };
   }
 
+  // ── Build admissionNumber → studentId lookup from metadata ──────────────
+  // The user-facing sheet only contains the admission number (institution ref).
+  // The hidden __meta__ sheet carries the adm_map rows so we can resolve
+  // the DB student ID without ever exposing it in the downloadable document.
+  const admNoToStudentId: Record<string, string> = {};
+  for (const [key, admNo, studentId] of metaData) {
+    if (key === "adm_map" && admNo && studentId) {
+      admNoToStudentId[String(admNo).trim()] = String(studentId).trim();
+    }
+  }
+
   // Row 0 is header, skip it
   const parsedStudents: ParsedStudentMarks[] = [];
 
   for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) {
     const row = rows[rowIdx] as (string | number)[];
-    const studentId = String(row[3] ?? "").trim();
+    // Column layout: #(0), Student Name(1), Admission No(2), [marks from col 3+]
+    const admissionNo = String(row[2] ?? "").trim();
+    const studentId = admNoToStudentId[admissionNo] ?? "";
 
-    if (!studentId) continue; // Skip blank rows
+    if (!admissionNo) continue; // Skip blank rows
+    if (!studentId) {
+      globalWarnings.push(
+        `Row ${rowIdx + 1}: Admission number "${admissionNo}" does not match any student in this class — row skipped.`
+      );
+      continue;
+    }
 
     const warnings: string[] = [];
     // Build a temporary accumulator for repeatable components
     const marksAccumulator: Record<string, number | "" | (number | "")[]> = {};
 
     for (let colIdx = 0; colIdx < colKeys.length; colIdx++) {
-      const rawValue = row[4 + colIdx]; // +4 offset: #, Name, AdmNo, StudentId
+      const rawValue = row[3 + colIdx]; // +3 offset: #, Name, AdmNo (no longer StudentId col)
       const componentId = componentIds[colIdx];
       const repeatIndexStr = repeatIndicesRaw[colIdx];
       const maxMark = Number(maxMarksRaw[colIdx]);

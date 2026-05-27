@@ -1,6 +1,6 @@
-// components/layout/site-header-school.tsx
 "use client";
 
+import { useMemo } from "react";
 import { BaseHeader } from "./base-header";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock } from "lucide-react";
@@ -35,10 +35,30 @@ export function SiteHeaderSchool({
   const isPrivileged = PRIVILEGED_ROLES.includes(currentRole);
   const sidebarCollapsed = state === "collapsed";
 
+  const dashboardRoot = useMemo(() => {
+    switch (currentRole) {
+      case "accountant":
+        return `/${schoolSlug}/accountant`;
+      case "admin":
+      case "owner":
+      case "headteacher":
+      case "superAdmin":
+        return `/${schoolSlug}/admin`;
+      case "teacher":
+        return `/${schoolSlug}/teacher`;
+      case "student":
+        return `/${schoolSlug}/student`;
+      case "guardian":
+        return `/${schoolSlug}/guardian`;
+      default:
+        return `/${schoolSlug}`;
+    }
+  }, [currentRole, schoolSlug]);
+
   return (
     <BaseHeader
       rootLabel="Dashboard"
-      rootHref={`/${schoolSlug}`}
+      rootHref={dashboardRoot}
       prefixToRemove={`/${schoolSlug}`}
       rightContent={
         <div className="flex items-center gap-2">

@@ -79,6 +79,9 @@ export function MarksEntrySheet({
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // Optimistic lock: flip true immediately on a successful submission so the UI
+  // grays out right away, before router.refresh() finishes the server round-trip.
+  const [isSubmittedLocally, setIsSubmittedLocally] = useState(false);
 
   // ── Excel Upload State ──────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +110,7 @@ export function MarksEntrySheet({
   const isReviewed = useMemo(() => existingScores.some((s) => s.status === "REVIEWED"), [existingScores]);
 
   const isSystemLocked =
-    forceReadOnly || isPublished || isGlobalLocked || isDeadlinePassed || isApproved || isReviewed;
+    forceReadOnly || isPublished || isGlobalLocked || isDeadlinePassed || isApproved || isReviewed || isSubmittedLocally;
 
   const [isRequestingEdit, setIsRequestingEdit] = useState(false);
   const [requestReason, setRequestReason] = useState("");
@@ -526,6 +529,7 @@ export function MarksEntrySheet({
 
       if (result.success) {
         toast.success(result.message ?? "Gradebook submitted for review");
+        setIsSubmittedLocally(true); // Immediately gray-out the sheet
         router.refresh();
       } else {
         toast.error(result.error);
@@ -690,17 +694,30 @@ export function MarksEntrySheet({
                     if changes are needed.
                   </p>
                 </>
-              ) : isApproved || isReviewed ? (
+              ) : isApproved || isReviewed || isSubmittedLocally ? (
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                      Marks have been finalized by the administration.
-                    </p>
-                    <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
-                      These marks are now locked. Request edit access if you need to make corrections.
-                    </p>
+                    {isSubmittedLocally && !isApproved && !isReviewed ? (
+                      <>
+                        <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                          Gradebook submitted for review.
+                        </p>
+                        <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                          Your marks have been sent to the administrator for approval. This gradebook is now read-only.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                          Marks have been finalized by the administration.
+                        </p>
+                        <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                          These marks are now locked. Request edit access if you need to make corrections.
+                        </p>
+                      </>
+                    )}
                   </div>
-                  {!isAdminView && (
+                  {!isAdminView && !isSubmittedLocally && (
                     <Dialog open={isRequestingEdit} onOpenChange={setIsRequestingEdit}>
                       <DialogTrigger asChild>
                         <Button variant="outline" size="sm" className="bg-background border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 h-8 shrink-0">

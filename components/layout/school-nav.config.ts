@@ -254,6 +254,11 @@ export const schoolNavSections: NavSection[] = [
         icon: Users,
       },
       {
+        title: "Gradebook",
+        url: "/teacher/gradebook",
+        icon: Award,
+      },
+      {
         title: "Schedule",
         url: "/teacher/schedule",
         icon: Calendar,

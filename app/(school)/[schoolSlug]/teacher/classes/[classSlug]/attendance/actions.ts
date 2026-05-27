@@ -54,32 +54,34 @@ export async function saveAttendanceBatch(
       }
     }
 
-    // Use a transaction to save all entries
-    await prisma.$transaction(async (tx) => {
-      for (const entry of entries) {
-        await tx.attendance.upsert({
+    // Use a transaction to save all entries in batch
+    await prisma.$transaction(
+      async (tx) => {
+        const studentIds = entries.map((e) => e.studentId);
+
+        // 1. Delete existing attendance records for these students on this date in one query
+        await tx.attendance.deleteMany({
           where: {
-            studentId_date: {
-              studentId: entry.studentId,
-              date: date,
-            },
+            date: date,
+            studentId: { in: studentIds },
           },
-          update: {
-            status: entry.status,
-            remarks: entry.remarks,
-            markedById: session.user.id,
-            updatedAt: new Date(),
-          },
-          create: {
+        });
+
+        // 2. Create the new attendance records in bulk in one query
+        await tx.attendance.createMany({
+          data: entries.map((entry) => ({
             studentId: entry.studentId,
             date: date,
             status: entry.status,
             remarks: entry.remarks,
             markedById: session.user.id,
-          },
+          })),
         });
+      },
+      {
+        timeout: 30000, // 30 seconds timeout limit
       }
-    });
+    );
 
     revalidatePath(`/${schoolSlug}/teacher/classes/${classSlug}/attendance`);
     return { success: true };
