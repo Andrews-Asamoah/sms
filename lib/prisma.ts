@@ -57,7 +57,7 @@ export const prisma = basePrisma.$extends({
           }
           if (operation === "findUnique" || operation === "findUniqueOrThrow") {
             const record = await query(args);
-            if (record && (record as any).deletedAt !== null) {
+            if (record && (record as any).deletedAt !== undefined && (record as any).deletedAt !== null) {
               if (operation === "findUniqueOrThrow") {
                 throw new Error("Record not found (soft deleted)");
               }
@@ -110,7 +110,7 @@ export async function withTenantContext<T>(
               }
               if (operation === "findUnique" || operation === "findUniqueOrThrow") {
                 const record = await query(args);
-                if (record && (record as any).deletedAt !== null) {
+                if (record && (record as any).deletedAt !== undefined && (record as any).deletedAt !== null) {
                   if (operation === "findUniqueOrThrow") {
                     throw new Error("Record not found (soft deleted)");
                   }

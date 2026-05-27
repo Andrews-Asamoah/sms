@@ -69,7 +69,7 @@ export async function assignTicket(
 
 // ─── Superadmin: add reply ────────────────────────────────────────────────────
 
-export async function addTicketReply(ticketId: string, message: string) {
+export async function addTicketReply(ticketId: string, message: string, attachmentUrl?: string) {
   try {
     const session = await requireSuperAdmin();
 
@@ -78,6 +78,7 @@ export async function addTicketReply(ticketId: string, message: string) {
         ticketId,
         authorId: session.user.id,
         message,
+        attachmentUrl,
       },
     });
 
@@ -125,6 +126,9 @@ export async function createSupportTicket(data: {
   subject: string;
   description: string;
   priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  category?: string;
+  attachmentUrl?: string;
+  isInternal?: boolean;
   schoolId: string;
   schoolSlug: string;
 }) {
@@ -136,28 +140,56 @@ export async function createSupportTicket(data: {
         subject: data.subject,
         description: data.description,
         priority: data.priority || "MEDIUM",
+        category: data.category,
+        attachmentUrl: data.attachmentUrl,
+        isInternal: data.isInternal || false,
         schoolId: data.schoolId,
         submittedById: session.user.id,
       },
     });
 
-    // Notify all superadmins
-    const superAdmins = await prisma.user.findMany({
-      where: { role: "superAdmin" },
-      select: { id: true },
-    });
-
-    if (superAdmins.length > 0) {
-      await prisma.notification.createMany({
-        data: superAdmins.map((admin) => ({
-          schoolId: data.schoolId,
-          userId: admin.id,
-          type: "GENERAL",
-          title: "New Support Ticket",
-          message: `A new ticket "${data.subject}" has been submitted.`,
-          link: `/support/${ticket.id}`,
-        })),
+    // Notify appropriately based on whether it's internal or external
+    if (data.isInternal) {
+      // Internal ticket: notify school admins
+      const schoolAdmins = await prisma.member.findMany({
+        where: {
+          organization: { school: { id: data.schoolId } },
+          role: { in: ["admin", "owner", "headteacher"] }
+        },
+        select: { userId: true },
       });
+      
+      if (schoolAdmins.length > 0) {
+        await prisma.notification.createMany({
+          data: schoolAdmins.map((admin) => ({
+            schoolId: data.schoolId,
+            userId: admin.userId,
+            type: "GENERAL",
+            title: "New Internal Support Ticket",
+            message: `A new ticket "${data.subject}" has been submitted by a school member.`,
+            link: `/${data.schoolSlug}/admin/support`, // Will link to the internal tab once implemented
+          })),
+        });
+      }
+    } else {
+      // External ticket: notify all superadmins
+      const superAdmins = await prisma.user.findMany({
+        where: { role: "superAdmin" },
+        select: { id: true },
+      });
+
+      if (superAdmins.length > 0) {
+        await prisma.notification.createMany({
+          data: superAdmins.map((admin) => ({
+            schoolId: data.schoolId,
+            userId: admin.id,
+            type: "GENERAL",
+            title: "New Support Ticket",
+            message: `A new ticket "${data.subject}" has been submitted.`,
+            link: `/support/${ticket.id}`,
+          })),
+        });
+      }
     }
 
     revalidatePath(`/${data.schoolSlug}/admin/support`);
@@ -173,6 +205,7 @@ export async function addAdminReply(
   ticketId: string,
   message: string,
   schoolSlug: string,
+  attachmentUrl?: string
 ) {
   try {
     const session = await requireAuth();
@@ -191,6 +224,7 @@ export async function addAdminReply(
         ticketId,
         authorId: session.user.id,
         message,
+        attachmentUrl,
       },
     });
 

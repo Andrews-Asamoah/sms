@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
+import { revalidatePath } from "next/cache";
 
 const announcementUpdateSchema = z.object({
   title: z.string().min(1, "Title is required").optional(),
@@ -72,6 +73,12 @@ export async function PUT(
       },
     });
 
+    // Invalidate cache
+    revalidatePath(`/${schoolSlug}/admin/announcements`);
+    revalidatePath(`/${schoolSlug}/teacher/announcements`);
+    revalidatePath(`/${schoolSlug}/student/announcements`);
+    revalidatePath(`/${schoolSlug}/guardian/announcements`);
+
     return NextResponse.json(updatedAnnouncement);
   } catch (error) {
     console.error("[ANNOUNCEMENT_PUT] Error:", error);
@@ -136,6 +143,11 @@ export async function DELETE(
       where: { id: announcementId },
     });
 
+    // Invalidate cache
+    revalidatePath(`/${schoolSlug}/admin/announcements`);
+    revalidatePath(`/${schoolSlug}/teacher/announcements`);
+    revalidatePath(`/${schoolSlug}/student/announcements`);
+    revalidatePath(`/${schoolSlug}/guardian/announcements`);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[ANNOUNCEMENT_DELETE] Error:", error);

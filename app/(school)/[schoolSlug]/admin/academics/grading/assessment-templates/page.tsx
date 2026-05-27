@@ -88,6 +88,26 @@ export default async function AssessmentTemplatesPage({
     }),
   ]);
 
+  // Serialize Decimal objects to plain numbers for Client Components
+  const serializedTemplates = templates.map((template) => ({
+    ...template,
+    components: template.components.map((comp) => ({
+      ...comp,
+      maxMarks: Number(comp.maxMarks),
+      weight: Number(comp.weight),
+    })),
+  }));
+
+  const serializedGradingSystems = gradingSystems.map((gs: any) => ({
+    ...gs,
+    gradeScales: gs.gradeScales?.map((scale: any) => ({
+      ...scale,
+      minScore: Number(scale.minScore),
+      maxScore: Number(scale.maxScore),
+      gradePoint: Number(scale.gradePoint),
+    })) || [],
+  }));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -109,7 +129,7 @@ export default async function AssessmentTemplatesPage({
         </div>
         <AssessmentTemplateDialog
           schoolSlug={schoolSlug}
-          gradingSystems={gradingSystems}
+          gradingSystems={serializedGradingSystems}
           classes={schoolClasses}
         >
           <Button>
@@ -120,7 +140,7 @@ export default async function AssessmentTemplatesPage({
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {templates.map((template) => (
+        {serializedTemplates.map((template) => (
           <Card key={template.id} className="flex flex-col">
             <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
               <div>
@@ -139,7 +159,7 @@ export default async function AssessmentTemplatesPage({
               <AssessmentTemplateActions
                 template={template}
                 schoolSlug={schoolSlug}
-                gradingSystems={gradingSystems}
+                gradingSystems={serializedGradingSystems}
                 classes={schoolClasses}
               />
             </CardHeader>
@@ -180,8 +200,8 @@ export default async function AssessmentTemplatesPage({
                             {Number(comp.maxMarks)} pts
                           </Badge>
                           <Badge
-                            variant="secondary"
-                            className="bg-primary/10 text-primary hover:bg-primary/20"
+                              variant="secondary"
+                              className="bg-primary/10 text-primary hover:bg-primary/20"
                           >
                             {Number(comp.weight)}%
                           </Badge>
@@ -202,7 +222,7 @@ export default async function AssessmentTemplatesPage({
           </Card>
         ))}
 
-        {templates.length === 0 && (
+        {serializedTemplates.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-lg bg-muted/20">
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
               <Percent className="h-6 w-6 text-primary" />
@@ -214,7 +234,7 @@ export default async function AssessmentTemplatesPage({
             </p>
             <AssessmentTemplateDialog
               schoolSlug={schoolSlug}
-              gradingSystems={gradingSystems}
+              gradingSystems={serializedGradingSystems}
               classes={schoolClasses}
             >
               <Button>

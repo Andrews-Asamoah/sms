@@ -2294,6 +2294,9 @@ model SupportTicket {
   description String
   status      TicketStatus   @default(OPEN)
   priority    TicketPriority @default(MEDIUM)
+  category    String?
+  attachmentUrl String?
+  isInternal  Boolean        @default(false)
 
   // Who submitted the ticket (any User)
   submittedById String
@@ -2322,6 +2325,7 @@ model TicketReply {
   ticketId String
   authorId String
   message  String
+  attachmentUrl String?
 
   ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   author user          @relation(fields: [authorId], references: [id])

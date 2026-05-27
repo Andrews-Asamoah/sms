@@ -3,6 +3,7 @@ import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { revalidatePath } from "next/cache";
 
 const createSetSchema = z.object({
   templateId: z.string().min(1, "Template is required"),
@@ -115,6 +116,8 @@ export async function POST(
         targetClasses: true,
       },
     });
+
+    revalidatePath(`/${schoolSlug}/admin/reports/report-cards`);
 
     return NextResponse.json(set);
   } catch (error) {

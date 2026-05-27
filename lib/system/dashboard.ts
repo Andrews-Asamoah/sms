@@ -49,7 +49,7 @@ export async function getSuperAdminDashboardData() {
       users: userCount,
       schools: schoolCount,
       students: studentCount,
-      revenue: revenueData._sum.amount?.toNumber() || 0,
+      revenue: revenueData._sum.amount != null ? Number(revenueData._sum.amount) : 0,
     },
     recentActivity: recentActivity.map((log) => ({
       id: log.id,

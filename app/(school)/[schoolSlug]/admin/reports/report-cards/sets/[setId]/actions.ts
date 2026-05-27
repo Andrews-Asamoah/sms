@@ -108,6 +108,13 @@ export async function updateReportCardSet(
       return { success: false, error: "Unauthorized" };
     }
 
+    const set = await prisma.reportCardSet.findUnique({
+      where: { id: setId },
+      select: { schoolId: true },
+    });
+
+    if (!set) return { success: false, error: "Report card set not found" };
+
     await prisma.reportCardSet.update({
       where: { id: setId },
       data: {

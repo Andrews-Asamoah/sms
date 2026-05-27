@@ -113,11 +113,6 @@ export const schoolNavSections: NavSection[] = [
         icon: Award,
         items: [
           {
-            title: "Examinations",
-            url: "/admin/academics/examinations",
-            permission: "canManageTeachers",
-          },
-          {
             title: "Grading Systems",
             url: "/admin/academics/grading",
             permission: "canManageGrading",
@@ -283,6 +278,11 @@ export const schoolNavSections: NavSection[] = [
         url: "/teacher/house",
         icon: Home,
       },
+      {
+        title: "Reports & Support",
+        url: "/teacher/reports",
+        icon: HelpCircle,
+      },
     ],
   },
   {
@@ -347,6 +347,11 @@ export const schoolNavSections: NavSection[] = [
         url: "/student/clubs",
         icon: Trophy,
       },
+      {
+        title: "Support & Help",
+        url: "/student/support",
+        icon: HelpCircle,
+      },
     ],
   },
   {
@@ -376,6 +381,11 @@ export const schoolNavSections: NavSection[] = [
         title: "Clubs",
         url: "/guardian/clubs",
         icon: Users,
+      },
+      {
+        title: "Support & Help",
+        url: "/guardian/support",
+        icon: HelpCircle,
       },
     ],
   },

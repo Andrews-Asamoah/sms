@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
+import { randomUUID } from "crypto";
 
 interface SaveMarksData {
   studentId: string;
@@ -121,17 +122,19 @@ export async function getMarksData(
     }
 
     // 2. Find Active Assessment Template
-    // Logic: Try to find specific template for (ClassLevel + Subject),
-    // fallback to (ClassLevel only), fallback to (Subject only), fallback to Default
+    // Logic: Try to find specific template for this class (direct or join table),
+    // fallback to (ClassLevel + Subject), fallback to ClassLevel only, fallback to Subject only,
+    // and finally fallback to school-wide default.
 
-    // For simplicity in this MVP, we'll fetch all active templates for the school and filter in code logic
-    // or just find the best match. Let's try precise matching first.
-
+    // Priority 1: Specific template linked to this class ID (directly or via the classes join table)
     let template = await prisma.assessmentTemplate.findFirst({
       where: {
         school: { subdomain: schoolSlug },
         isActive: true,
-        classId: classId,
+        OR: [
+          { classId: classId },
+          { classes: { some: { classId: classId } } },
+        ],
       },
       include: {
         components: { orderBy: { displayOrder: "asc" } },
@@ -143,7 +146,68 @@ export async function getMarksData(
       },
     });
 
-    // Fallback: Global School-wide template (neither class nor subject restricted)
+    // Fallback 1: specific template matching both class level and subject code
+    if (!template && classData.level && subjectData.code) {
+      template = await prisma.assessmentTemplate.findFirst({
+        where: {
+          school: { subdomain: schoolSlug },
+          isActive: true,
+          classLevel: classData.level,
+          subjectCode: subjectData.code,
+        },
+        include: {
+          components: { orderBy: { displayOrder: "asc" } },
+          gradingSystem: {
+            include: {
+              gradeScales: { orderBy: { minScore: "desc" } },
+            },
+          },
+        },
+      });
+    }
+
+    // Fallback 2: specific template matching class level
+    if (!template && classData.level) {
+      template = await prisma.assessmentTemplate.findFirst({
+        where: {
+          school: { subdomain: schoolSlug },
+          isActive: true,
+          classLevel: classData.level,
+          subjectCode: null,
+        },
+        include: {
+          components: { orderBy: { displayOrder: "asc" } },
+          gradingSystem: {
+            include: {
+              gradeScales: { orderBy: { minScore: "desc" } },
+            },
+          },
+        },
+      });
+    }
+
+    // Fallback 3: specific template matching subject code
+    if (!template && subjectData.code) {
+      template = await prisma.assessmentTemplate.findFirst({
+        where: {
+          school: { subdomain: schoolSlug },
+          isActive: true,
+          subjectCode: subjectData.code,
+          classLevel: null,
+          classId: null,
+        },
+        include: {
+          components: { orderBy: { displayOrder: "asc" } },
+          gradingSystem: {
+            include: {
+              gradeScales: { orderBy: { minScore: "desc" } },
+            },
+          },
+        },
+      });
+    }
+
+    // Fallback 4: Global School-wide template (neither class nor subject restricted)
     if (!template) {
       template = await prisma.assessmentTemplate.findFirst({
         where: {
@@ -219,7 +283,12 @@ export async function getMarksData(
     // 4. Get Existing Scores
     const [existingScores, extension, school, publishedSet] = await Promise.all([
       prisma.assessmentScore.findMany({
-        where: { subjectId, termId, templateId: template.id },
+        where: {
+          subjectId,
+          termId,
+          templateId: template.id,
+          studentId: { in: students.map((s) => s.id) },
+        },
         include: { componentScores: true },
       }),
       prisma.assessmentExtension.findFirst({
@@ -384,171 +453,200 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
       }
     }
 
-    // Process each student's marks
-    // We use a transaction to ensure integrity
-    await prisma.$transaction(async (tx) => {
-      for (const studentEntry of marks) {
-        let totalWeightedScore = 0;
-        let totalMaxWeight = 0; // To normalize if needed, but assuming 100%
+    // Process each student's marks in a single roundtrip batch
+    const studentIds = marks.map((m) => m.studentId);
+    const existingScores = await prisma.assessmentScore.findMany({
+      where: {
+        subjectId,
+        termId,
+        templateId,
+        studentId: { in: studentIds },
+      },
+      include: {
+        componentScores: true,
+      },
+    });
 
-        // Calculate totals
-        for (const compScore of studentEntry.componentScores) {
-          const component = template.components.find(
-            (c) => c.id === compScore.componentId,
-          );
-          if (component) {
-            let processedMarks = 0;
-            const maxMarks = Number(component.maxMarks);
+    const ops: any[] = [];
+    const componentScoresToCreate: any[] = [];
+    const scoreIdsToDelete = existingScores.map((es) => es.id);
 
-            if (Array.isArray(compScore.marks)) {
-              // Averaged occurrences
-              const validScores = compScore.marks.filter(m => typeof m === "number") as number[];
-              if (validScores.length > 0) {
-                // Check if any single score exceeds maxMarks
-                for (const score of validScores) {
-                  if (score > maxMarks) {
-                     throw new Error(`Marks entered for student ${studentEntry.studentId} exceed max marks for ${component.name}`);
-                  }
-                }
-                const sum = validScores.reduce((acc, val) => acc + val, 0);
-                // Compute average over the valid entered subset (or should it divide by expectedCount?) -> typically divided by inputs available
-                processedMarks = sum / validScores.length; 
-              }
-            } else {
-              processedMarks = Number(compScore.marks);
-              if (processedMarks > maxMarks) {
-                 throw new Error(`Marks entered for student ${studentEntry.studentId} exceed max marks for ${component.name}`);
-              }
-            }
-
-            const weight = Number(component.weight);
-            const weighted = (processedMarks / maxMarks) * weight;
-            totalWeightedScore += weighted;
-            totalMaxWeight += weight;
-          }
-        }
-
-        // Determine Grade
-        // totalWeightedScore is effectively the percentage if totalMaxWeight is 100
-        const percentage = totalWeightedScore; // Assuming sum of weights is 100
-
-        let grade = "F";
-        let gradePoint = 0;
-        let remarks = "";
-
-        // Find matching grade scale
-        const scale = template.gradingSystem.gradeScales.find(
-          (s) =>
-            percentage >= Number(s.minScore) &&
-            percentage <= Number(s.maxScore),
-        );
-
-        if (scale) {
-          grade = scale.grade;
-          gradePoint = Number(scale.gradePoint);
-          // remarks = scale.description; // Optional
-        }
-
-        // Upsert AssessmentScore
-        const assessmentScore = await tx.assessmentScore.upsert({
+    // 1. Delete existing component scores first to avoid conflicts and allow fresh creation
+    if (scoreIdsToDelete.length > 0) {
+      ops.push(
+        prisma.componentScore.deleteMany({
           where: {
-            studentId_subjectId_termId_templateId: {
+            assessmentScoreId: { in: scoreIdsToDelete },
+          },
+        })
+      );
+    }
+
+    for (const studentEntry of marks) {
+      let totalWeightedScore = 0;
+      let totalMaxWeight = 0; // To normalize if needed, but assuming 100%
+
+      // Calculate totals
+      for (const compScore of studentEntry.componentScores) {
+        const component = template.components.find(
+          (c) => c.id === compScore.componentId,
+        );
+        if (component) {
+          let processedMarks = 0;
+          const maxMarks = Number(component.maxMarks);
+
+          if (Array.isArray(compScore.marks)) {
+            // Averaged occurrences
+            const validScores = compScore.marks.filter(m => typeof m === "number") as number[];
+            if (validScores.length > 0) {
+              // Check if any single score exceeds maxMarks
+              for (const score of validScores) {
+                if (score > maxMarks) {
+                   throw new Error(`Marks entered for student ${studentEntry.studentId} exceed max marks for ${component.name}`);
+                }
+              }
+              const sum = validScores.reduce((acc, val) => acc + val, 0);
+              processedMarks = sum / validScores.length; 
+            }
+          } else {
+            processedMarks = Number(compScore.marks);
+            if (processedMarks > maxMarks) {
+               throw new Error(`Marks entered for student ${studentEntry.studentId} exceed max marks for ${component.name}`);
+            }
+          }
+
+          const weight = Number(component.weight);
+          const weighted = (processedMarks / maxMarks) * weight;
+          totalWeightedScore += weighted;
+          totalMaxWeight += weight;
+        }
+      }
+
+      // Determine Grade
+      const percentage = totalWeightedScore; // Assuming sum of weights is 100
+
+      let grade = "F";
+      let gradePoint = 0;
+
+      // Find matching grade scale
+      const scale = template.gradingSystem.gradeScales.find(
+        (s) =>
+          percentage >= Number(s.minScore) &&
+          percentage <= Number(s.maxScore),
+      );
+
+      if (scale) {
+        grade = scale.grade;
+        gradePoint = Number(scale.gradePoint);
+      }
+
+      const existingScore = existingScores.find(
+        (es) => es.studentId === studentEntry.studentId,
+      );
+      const scoreId = existingScore ? existingScore.id : randomUUID();
+
+      // Upsert AssessmentScore (separated into explicit create/update calls)
+      if (existingScore) {
+        ops.push(
+          prisma.assessmentScore.update({
+            where: { id: scoreId },
+            data: {
+              totalScore: percentage,
+              percentage: percentage,
+              grade,
+              gradePoint,
+              status: req.status || "DRAFT",
+              remarks: null,
+              updatedAt: new Date(),
+            },
+          })
+        );
+      } else {
+        ops.push(
+          prisma.assessmentScore.create({
+            data: {
+              id: scoreId,
               studentId: studentEntry.studentId,
               subjectId,
               termId,
               templateId,
+              totalScore: percentage,
+              percentage: percentage,
+              grade,
+              gradePoint,
+              status: req.status || "DRAFT",
             },
-          },
-          create: {
-            studentId: studentEntry.studentId,
-            subjectId,
-            termId,
-            templateId,
-            totalScore: percentage, // In this system, totalScore seems to be percentage? Or absolute sum?
-            // The schema has totalScore and percentage. width weighted system, percentage IS the total score out of 100.
-            percentage: percentage,
-            grade,
-            gradePoint,
-            status: req.status || "DRAFT",
-          },
-          update: {
-            templateId, // Update template ID if changed (rare)
-            totalScore: percentage,
-            percentage: percentage,
-            grade,
-            gradePoint,
-            status: req.status || "DRAFT",
-            remarks: null,
-            updatedAt: new Date(),
-          },
-        });
-
-        // Upsert ComponentScores
-        for (const compScore of studentEntry.componentScores) {
-          const component = template.components.find(
-            (c) => c.id === compScore.componentId,
-          );
-          if (!component) continue;
-
-          let finalMarks = 0;
-          let rawScoresJson: any = undefined;
-
-          if (Array.isArray(compScore.marks)) {
-            const validScores = compScore.marks.filter(m => typeof m === "number") as number[];
-            if (validScores.length > 0) {
-              const sum = validScores.reduce((acc, val) => acc + val, 0);
-              finalMarks = sum / validScores.length;
-            }
-            rawScoresJson = compScore.marks;
-          } else {
-            finalMarks = Number(compScore.marks);
-          }
-
-          const weight = Number(component.weight);
-          const maxMarks = Number(component.maxMarks);
-          const weighted = (finalMarks / maxMarks) * weight;
-          const percentageComp = (finalMarks / maxMarks) * 100;
-
-          await tx.componentScore.upsert({
-            where: {
-              assessmentScoreId_componentId_occurrenceIndex: {
-                assessmentScoreId: assessmentScore.id,
-                componentId: compScore.componentId,
-                occurrenceIndex: 0, // default occurrence for non-repeatable components
-              },
-            },
-            create: {
-              assessmentScoreId: assessmentScore.id,
-              componentId: compScore.componentId,
-              marksObtained: finalMarks,
-              maxMarks: maxMarks,
-              percentage: percentageComp,
-              weightedScore: weighted,
-              rawScores: rawScoresJson,
-              recordedById: session.user.id,
-            },
-            update: {
-              marksObtained: finalMarks,
-              maxMarks: maxMarks,
-              percentage: percentageComp,
-              weightedScore: weighted,
-              rawScores: rawScoresJson,
-              recordedById: session.user.id,
-              updatedAt: new Date(),
-            },
-          });
-        }
+          })
+        );
       }
+
+      // Prepare ComponentScores to be created
+      for (const compScore of studentEntry.componentScores) {
+        const component = template.components.find(
+          (c) => c.id === compScore.componentId,
+        );
+        if (!component) continue;
+
+        let finalMarks = 0;
+        let rawScoresJson: any = null;
+
+        if (Array.isArray(compScore.marks)) {
+          const validScores = compScore.marks.filter(m => typeof m === "number") as number[];
+          if (validScores.length > 0) {
+            const sum = validScores.reduce((acc, val) => acc + val, 0);
+            finalMarks = sum / validScores.length;
+          }
+          rawScoresJson = compScore.marks;
+        } else {
+          finalMarks = Number(compScore.marks);
+        }
+
+        const weight = Number(component.weight);
+        const maxMarks = Number(component.maxMarks);
+        const weighted = (finalMarks / maxMarks) * weight;
+        const percentageComp = (finalMarks / maxMarks) * 100;
+
+        componentScoresToCreate.push({
+          id: randomUUID(),
+          assessmentScoreId: scoreId,
+          componentId: compScore.componentId,
+          occurrenceIndex: 0,
+          marksObtained: finalMarks,
+          maxMarks: maxMarks,
+          percentage: percentageComp,
+          weightedScore: weighted,
+          rawScores: rawScoresJson,
+          recordedById: session.user.id,
+        });
+      }
+    }
+
+    // 2. Batch insert component scores
+    if (componentScoresToCreate.length > 0) {
+      ops.push(
+        prisma.componentScore.createMany({
+          data: componentScoresToCreate,
+        })
+      );
+    }
+
+    // Execute all database operations in a single database transaction batch
+    await prisma.$transaction(ops, {
+      maxWait: 15000,
+      timeout: 60000,
     });
 
     const clsFlat = await prisma.class.findUnique({
       where: { id: classId },
-      select: { slug: true },
+      select: { slug: true, schoolId: true },
     });
 
     revalidatePath(
       `/${schoolSlug}/teacher/classes/${clsFlat?.slug || classId}/gradebook`,
     );
+    if (clsFlat?.schoolId) {
+      revalidatePath(`/${schoolSlug}/admin/reports/gradebook-tracking`);
+    }
 
     return { success: true, message: "Marks saved successfully" };
   } catch (error) {
@@ -557,6 +655,86 @@ export async function saveMarksEntry(req: SaveMarksRequest) {
       success: false,
       error: error instanceof Error ? error.message : "Failed to save marks",
     };
+  }
+}
+
+// ============================================================================
+// SUBMIT FOR REVIEW (lightweight — status update only, no marks reprocessing)
+// ============================================================================
+
+export async function submitGradebookForReview(req: {
+  schoolSlug: string;
+  classId: string;
+  subjectId: string;
+  termId: string;
+  templateId: string;
+}) {
+  try {
+    const { schoolSlug, classId, subjectId, termId, templateId } = req;
+    const session = await requireSchoolAccess(schoolSlug);
+    const activeRole = await getActiveSchoolRole(session, schoolSlug);
+    const effectiveRole = activeRole?.effectiveRole || "teacher";
+
+    if (!["teacher", "admin", "owner", "headteacher"].includes(effectiveRole) && !session.isSuperAdmin) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Only update records that are in DRAFT status — do NOT demote REVIEWED/FINAL records
+    const updated = await prisma.assessmentScore.updateMany({
+      where: {
+        subjectId,
+        termId,
+        templateId,
+        student: {
+          OR: [
+            { classId },
+            { enrollments: { some: { classId, status: "ACTIVE" } } },
+          ],
+        },
+        status: "DRAFT",
+      },
+      data: {
+        status: "SUBMITTED",
+        updatedAt: new Date(),
+      },
+    });
+
+    if (updated.count === 0) {
+      // Check if already submitted (no DRAFT records to promote)
+      const existing = await prisma.assessmentScore.count({
+        where: {
+          subjectId,
+          termId,
+          templateId,
+          student: {
+            OR: [
+              { classId },
+              { enrollments: { some: { classId, status: "ACTIVE" } } },
+            ],
+          },
+        },
+      });
+
+      if (existing === 0) {
+        return { success: false, error: "No marks have been saved yet. Please save marks before submitting." };
+      }
+
+      // Records exist but none were DRAFT — already submitted or higher status
+      return { success: true, message: "Gradebook has already been submitted for review." };
+    }
+
+    const clsFlat = await prisma.class.findUnique({
+      where: { id: classId },
+      select: { slug: true, schoolId: true },
+    });
+
+    revalidatePath(`/${schoolSlug}/teacher/classes/${clsFlat?.slug || classId}/gradebook`);
+    revalidatePath(`/${schoolSlug}/admin/reports/gradebook-tracking`);
+
+    return { success: true, message: `Gradebook submitted for review (${updated.count} student records updated)` };
+  } catch (error) {
+    console.error("[SUBMIT_FOR_REVIEW] Error:", error);
+    return { success: false, error: "Failed to submit gradebook for review" };
   }
 }
 
@@ -603,7 +781,12 @@ export async function reviewGradebookSubmission(req: {
       where: {
         subjectId,
         termId,
-        student: { classId }
+        student: {
+          OR: [
+            { classId },
+            { enrollments: { some: { classId, status: "ACTIVE" } } },
+          ],
+        },
       },
       data: {
         status,
@@ -614,7 +797,7 @@ export async function reviewGradebookSubmission(req: {
 
     const clsFlat = await prisma.class.findUnique({
       where: { id: classId },
-      select: { slug: true },
+      select: { slug: true, schoolId: true },
     });
 
     revalidatePath(

@@ -372,15 +372,15 @@ export default async function AcademicOverviewPage(
                 <FileText className="h-8 w-8 text-primary group-hover:scale-110 transition-transform" />
                 <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
               </div>
-              <CardTitle className="mt-4">Examinations</CardTitle>
+              <CardTitle className="mt-4">Assessment Templates</CardTitle>
               <CardDescription>
-                Schedule and manage examinations and assessments
+                Define structure, weightings, and components for exams and continuous assessment
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full" variant="outline">
-                <Link href={`/${schoolSlug}/admin/academics/examinations`}>
-                  Manage Exams
+                <Link href={`/${schoolSlug}/admin/academics/grading/assessment-templates`}>
+                  Manage Templates
                 </Link>
               </Button>
             </CardContent>

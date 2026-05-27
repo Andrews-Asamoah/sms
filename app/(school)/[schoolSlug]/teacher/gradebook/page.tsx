@@ -103,6 +103,10 @@ export default async function TeacherGradebookPage({
             where: { id: { in: classIds } },
             select: {
               id: true,
+              subjects: {
+                where: { teacherId },
+                select: { subjectId: true },
+              },
               students: {
                 where: { status: "ACTIVE" },
                 select: {
@@ -111,9 +115,8 @@ export default async function TeacherGradebookPage({
                       termId: currentTerm.id,
                       status: { in: ["SUBMITTED", "FINAL"] },
                     },
-                    select: { id: true },
+                    select: { id: true, subjectId: true },
                   },
-                  _count: { select: { assessmentScores: { where: { termId: currentTerm.id } } } },
                 },
               },
               _count: { select: { students: { where: { status: "ACTIVE" } } } },
@@ -135,9 +138,15 @@ export default async function TeacherGradebookPage({
       for (const cls of submittedStats) {
         const totalActive = cls._count.students;
         if (totalActive === 0) continue;
-        const allSubmitted = cls.students.every(
-          (s) => s.assessmentScores.length > 0
-        );
+        const teacherSubjectIds = cls.subjects.map((s) => s.subjectId);
+        if (teacherSubjectIds.length === 0) {
+          allScoresSubmittedByClass.set(cls.id, false);
+          continue;
+        }
+        const allSubmitted = cls.students.every((s) => {
+          const submittedSubjectIds = s.assessmentScores.map((score) => score.subjectId);
+          return teacherSubjectIds.every((id) => submittedSubjectIds.includes(id));
+        });
         allScoresSubmittedByClass.set(cls.id, allSubmitted);
       }
     }

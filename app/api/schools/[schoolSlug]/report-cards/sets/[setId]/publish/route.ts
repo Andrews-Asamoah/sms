@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { verifyApiSchoolAccess } from "@/lib/auth/guards";
+import { revalidatePath } from "next/cache";
 
 export async function POST(
   req: Request,
@@ -58,6 +59,8 @@ export async function POST(
         }),
       ),
     ]);
+
+    revalidatePath(`/${schoolSlug}/admin/reports/report-cards`);
 
     return NextResponse.json({ success: true });
   } catch (error) {

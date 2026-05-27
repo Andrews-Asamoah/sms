@@ -213,60 +213,82 @@ export default async function GradebookPage({
     }
   }
 
+  const selectedSubjectData = selectedSubject
+    ? assignedSubjects.find((s) => s.subject.id === selectedSubject.id)
+    : null;
+
   return (
-    <div className="container py-6 max-w-[1600px] mx-auto space-y-6">
-      {/* Header & Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href={`/${schoolSlug}/teacher/gradebook`}>
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              {classData.name} Gradebook
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              {activeTerm ? activeTerm.name : "No Term"} •{" "}
-              {classData.academicYear?.name || "No Academic Year"}
-            </p>
+    <div className="min-h-screen">
+      {/* ── Page Header ─────────────────────────────────────────────── */}
+      <div className="border-b bg-background/80 backdrop-blur-sm">
+        <div className="container max-w-[1600px] mx-auto px-6 py-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Left: back + title */}
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full shrink-0"
+                asChild
+              >
+                <Link href={`/${schoolSlug}/teacher/gradebook`}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </Button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold tracking-tight">
+                    {classData.name}
+                  </h1>
+                  <span className="text-muted-foreground/60 text-xl font-light">/</span>
+                  <span className="text-xl font-semibold text-primary">Gradebook</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {activeTerm ? activeTerm.name : "No active term"}
+                  {classData.academicYear?.name && (
+                    <span> · {classData.academicYear.name}</span>
+                  )}
+                  {selectedSubjectData && (
+                    <span className="ml-2 font-medium text-foreground/70">
+                      — {selectedSubjectData.subject.name}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Right: subject/term selectors */}
+            <GradebookToolbar
+              schoolSlug={schoolSlug}
+              classId={classData.id}
+              subjects={assignedSubjects.map((s) => ({
+                id: s.subject.id,
+                name: s.subject.name,
+                code: s.subject.code,
+              }))}
+              terms={terms.map((t) => ({
+                id: t.id,
+                name: t.name,
+                isCurrent: t.isCurrent,
+              }))}
+              selectedSubjectId={selectedSubject?.id}
+              selectedTermId={selectedTermId}
+            />
           </div>
         </div>
-
-        <GradebookToolbar
-          schoolSlug={schoolSlug}
-          classId={classData.id}
-          subjects={assignedSubjects.map((s) => ({
-            id: s.subject.id,
-            name: s.subject.name,
-            code: s.subject.code,
-          }))}
-          terms={terms.map((t) => ({
-            id: t.id,
-            name: t.name,
-            isCurrent: t.isCurrent,
-          }))}
-          selectedSubjectId={selectedSubject?.id}
-          selectedTermId={selectedTermId}
-        />
       </div>
 
-      {/* Content Area */}
-      <div className="bg-card rounded-xl border shadow-sm min-h-[600px]">
+      {/* ── Main Content ────────────────────────────────────────────── */}
+      <div className="container max-w-[1600px] mx-auto px-6 py-6">
         {error ? (
-          <div className="flex flex-col items-center justify-center h-[400px] text-center p-8">
-            <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
-              <AlertCircle className="h-6 w-6 text-red-600" />
+          <div className="flex flex-col items-center justify-center h-[500px] text-center">
+            <div className="h-14 w-14 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <AlertCircle className="h-7 w-7 text-destructive" />
             </div>
-            <h3 className="text-lg font-medium text-foreground">
-              Unable to load gradebook
-            </h3>
-            <p className="text-muted-foreground max-w-sm mt-2">{error}</p>
+            <h3 className="text-lg font-semibold">Unable to load gradebook</h3>
+            <p className="text-muted-foreground max-w-sm mt-2 text-sm">{error}</p>
             {!selectedSubject && (
-              <p className="text-sm mt-4 text-blue-600">
-                Please select a subject.
-              </p>
+              <p className="text-sm mt-4 text-primary">Please select a subject above.</p>
             )}
           </div>
         ) : marksData ? (
@@ -280,10 +302,12 @@ export default async function GradebookPage({
             termId={selectedTermId!}
             extension={marksData.extension}
             isPublished={marksData.isPublished}
+            className={classData.name}
           />
         ) : (
-          <div className="flex items-center justify-center h-[400px]">
+          <div className="flex flex-col items-center justify-center h-[500px] gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading gradebook…</p>
           </div>
         )}
       </div>

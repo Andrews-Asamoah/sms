@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { formatStudentName } from "@/lib/utils/name-formatter";
 import { verifyApiSchoolAccess } from "@/lib/auth/guards";
+import { revalidatePath } from "next/cache";
 
 export async function POST(
   req: Request,
@@ -297,6 +298,8 @@ export async function POST(
       where: { id: setId },
       data: { status: "GENERATED" },
     });
+
+    revalidatePath(`/${schoolSlug}/admin/reports/report-cards`);
 
     return NextResponse.json({ success: true });
   } catch (error) {

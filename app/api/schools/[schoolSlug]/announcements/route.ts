@@ -6,6 +6,7 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
 import { sendSMS, htmlToPlainText, truncateSMS } from "@/lib/messaging/hubtel";
 import { sendAnnouncementEmail } from "@/lib/email/resend";
+import { revalidatePath } from "next/cache";
 
 const announcementSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -124,6 +125,11 @@ export async function POST(
       }).catch((err) => console.error("[ANNOUNCEMENT] External delivery error:", err));
     }
 
+    // Invalidate cache for all roles that view announcements
+    revalidatePath(`/${schoolSlug}/admin/announcements`);
+    revalidatePath(`/${schoolSlug}/teacher/announcements`);
+    revalidatePath(`/${schoolSlug}/student/announcements`);
+    revalidatePath(`/${schoolSlug}/guardian/announcements`);
     return NextResponse.json(announcement, { status: 201 });
   } catch (error) {
     console.error("[ANNOUNCEMENT_POST] Error:", error);

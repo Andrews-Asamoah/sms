@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { GradingSystemsClient } from "./client";
 import { GradingSystemDialog } from "@/components/school/grading/grading-system-dialog";
 import { TrendingUp } from "lucide-react";
+import { ensureSystemDefaultGradingSystems } from "./actions";
 
 interface GradingPageProps {
   params: Promise<{ schoolSlug: string }>;
@@ -33,6 +34,9 @@ export default async function GradingPage(props: GradingPageProps) {
   if (!school) {
     redirect("/");
   }
+
+  // Ensure default system grading scales exist in the database
+  await ensureSystemDefaultGradingSystems();
 
   const [gradingSystemsRaw, systemDefaultsRaw] = await Promise.all([
     prisma.gradingSystem.findMany({

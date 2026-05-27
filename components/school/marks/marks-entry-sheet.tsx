@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -12,8 +12,11 @@ import {
   Clock,
   Send,
   MessageSquare,
-  BadgeDollarSign,
-  LayoutDashboard,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  TriangleAlert,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,10 +41,14 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   saveMarksEntry,
+  submitGradebookForReview,
   requestGradebookEdit 
 } from "@/app/(school)/[schoolSlug]/teacher/classes/[classSlug]/gradebook/actions";
+import { downloadMarksTemplate, parseMarksExcel, type ParsedStudentMarks } from "@/lib/excel-marks";
 
 import { MarksEntrySheetProps } from "@/app/(school)/[schoolSlug]/teacher/classes/[classSlug]/gradebook/types";
 
@@ -66,11 +73,21 @@ export function MarksEntrySheet({
   isPublished = false,
   forceReadOnly = false,
   isAdminView = false,
+  className,
 }: MarksEntrySheetProps & { forceReadOnly?: boolean; isAdminView?: boolean }) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // ── Excel Upload State ──────────────────────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isParsingExcel, setIsParsingExcel] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    parsedStudents: ParsedStudentMarks[];
+    warnings: string[];
+    allWarnings: string[];
+  } | null>(null);
 
   // Locking Logic
   const now = new Date();
@@ -186,6 +203,20 @@ export function MarksEntrySheet({
 
     setMarksData(initialData);
   }, [students, existingScores, template]);
+
+  // Before-unload warning to prevent data loss with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "You have unsaved changes in your gradebook. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   const handleMarkChange = (
     studentId: string,
@@ -321,17 +352,108 @@ export function MarksEntrySheet({
     });
   }, [students, template.components, marksData]);
 
-  const handleSave = async (status: "DRAFT" | "SUBMITTED" = "DRAFT") => {
+  // ── Excel Download ────────────────────────────────────────────────────────
+  const handleDownloadTemplate = () => {
+    const safeTemplateName = template.name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+    const safeClassName = className ? `_${className.replace(/[^a-z0-9]/gi, "_").toLowerCase()}` : "";
+    downloadMarksTemplate(
+      template,
+      students,
+      marksData,
+      `marks_${safeTemplateName}${safeClassName}`
+    );
+    toast.success("Template downloaded. Fill in the marks and upload it back.");
+  };
+
+  // ── Excel Upload ─────────────────────────────────────────────────────────
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset the input so the same file can be re-uploaded if needed
+    e.target.value = "";
+
+    if (!file.name.match(/\.xlsx?$/i)) {
+      toast.error("Please upload an Excel file (.xlsx or .xls)");
+      return;
+    }
+
+    setIsParsingExcel(true);
+    try {
+      const result = await parseMarksExcel(file, template);
+
+      if (!result.success) {
+        toast.error(result.error ?? "Failed to parse the uploaded file.");
+        return;
+      }
+
+      // Collect all row-level warnings
+      const allWarnings = [
+        ...result.warnings,
+        ...result.students.flatMap((s) => s.warnings),
+      ];
+
+      // Show preview/confirmation dialog
+      setImportPreview({
+        parsedStudents: result.students,
+        warnings: result.warnings,
+        allWarnings,
+      });
+    } catch (err) {
+      console.error("Excel parse error:", err);
+      toast.error("An unexpected error occurred while reading the file.");
+    } finally {
+      setIsParsingExcel(false);
+    }
+  };
+
+  const applyImportedMarks = () => {
+    if (!importPreview) return;
+
+    setMarksData((prev) => {
+      const updated = { ...prev };
+      let applied = 0;
+
+      for (const parsed of importPreview.parsedStudents) {
+        // Only apply for students that are actually in the current class
+        if (!updated[parsed.studentId]) continue;
+
+        const studentMarks = { ...updated[parsed.studentId] };
+        for (const [componentId, value] of Object.entries(parsed.marks)) {
+          if (
+            value !== "" &&
+            !(Array.isArray(value) && value.every((v) => v === ""))
+          ) {
+            studentMarks[componentId] = value;
+            applied++;
+          }
+        }
+        updated[parsed.studentId] = studentMarks;
+      }
+
+      if (applied > 0) {
+        toast.success(
+          `Successfully imported marks for ${importPreview.parsedStudents.filter(
+            (s) => updated[s.studentId]
+          ).length} students.`
+        );
+        setHasUnsavedChanges(true);
+      } else {
+        toast.warning("No marks were imported — the file may have been empty.");
+      }
+
+      return updated;
+    });
+
+    setImportPreview(null);
+  };
+
+  const handleSave = async () => {
     if (hasInvalidMarks) {
       toast.error("Please correct invalid marks before saving");
       return;
     }
 
-    if (status === "SUBMITTED") {
-      setIsSubmitting(true);
-    } else {
-      setIsSaving(true);
-    }
+    setIsSaving(true);
 
     try {
       const payload = students
@@ -357,8 +479,6 @@ export function MarksEntrySheet({
 
       if (payload.length === 0) {
         toast.error("No marks entered to save");
-        setIsSaving(false);
-        setIsSubmitting(false);
         return;
       }
 
@@ -368,16 +488,12 @@ export function MarksEntrySheet({
         subjectId,
         termId,
         templateId: template.id,
-        status,
+        status: "DRAFT",
         marks: payload,
       });
 
       if (result.success) {
-        toast.success(
-          status === "SUBMITTED"
-            ? "Marks submitted for review"
-            : "Marks saved successfully",
-        );
+        toast.success("Marks saved successfully");
         setHasUnsavedChanges(false);
         router.refresh();
       } else {
@@ -388,86 +504,180 @@ export function MarksEntrySheet({
       toast.error("Failed to save marks");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Lightweight submit: only changes DRAFT → SUBMITTED status, no marks reprocessing
+  const handleSubmitForReview = async () => {
+    if (hasUnsavedChanges) {
+      toast.error("You have unsaved changes. Please save your marks first before submitting.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await submitGradebookForReview({
+        schoolSlug,
+        classId,
+        subjectId,
+        termId,
+        templateId: template.id,
+      });
+
+      if (result.success) {
+        toast.success(result.message ?? "Gradebook submitted for review");
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to submit for review");
+    } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between sticky top-0 bg-background/95 backdrop-blur-md z-30 py-6 px-4 -mx-4 border-b shadow-sm gap-4">
+    <div className="space-y-4">
+      {/* ── Action Bar (sticky within the page, no border card) ────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl bg-card border px-5 py-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <CheckCircle2 className="h-6 w-6 text-primary" />
+          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Marks Entry Sheet
-            </h2>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm text-muted-foreground">Template:</span>
-              <Badge variant="secondary" className="font-semibold">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-bold tracking-tight">Marks Entry Sheet</h2>
+              <Badge variant="secondary" className="text-xs font-medium">
                 {template.name}
               </Badge>
               {hasUnsavedChanges && (
                 <Badge
                   variant="outline"
-                  className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                  className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
                 >
                   <AlertCircle className="w-3 h-3 mr-1" />
-                  Unsaved Changes
+                  Unsaved
                 </Badge>
               )}
             </div>
+            {effectiveDeadline && !isSystemLocked && (
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Deadline: <span className="font-medium text-foreground/80">{effectiveDeadline.toLocaleString()}</span>
+              </p>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Excel download button — always available */}
           <Button
             variant="outline"
-            className="h-10 px-4"
-            onClick={() => handleSave("DRAFT")}
-            disabled={
-              isSaving ||
-              isSubmitting ||
-              !hasUnsavedChanges ||
-              hasInvalidMarks ||
-              isSystemLocked
-            }
+            size="sm"
+            className="h-8 gap-1.5 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
+            onClick={handleDownloadTemplate}
+            title="Download an Excel template with student names pre-filled"
           >
-            {isSaving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            Save Draft
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Download</span> Template
           </Button>
-          <Button
-            className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => handleSave("SUBMITTED")}
-            disabled={
-              isSaving || isSubmitting || hasInvalidMarks || isSystemLocked
-            }
-          >
-            {isSubmitting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="mr-2 h-4 w-4" />
-            )}
-            Submit for Review
-          </Button>
+
+          {/* Excel upload button — only when not locked */}
+          {!isSystemLocked && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleFileSelected}
+                aria-label="Upload Excel marks file"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-blue-700 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/10 hover:border-blue-500/50"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isParsingExcel}
+                title="Upload a filled-in Excel marks file"
+              >
+                {isParsingExcel ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden sm:inline">Upload</span> Marks
+              </Button>
+            </>
+          )}
+
+          {/* Save / Submit — hidden in admin view */}
+          {!isAdminView && (
+            <>
+              <Separator orientation="vertical" className="h-6 mx-0.5 hidden sm:block" />
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-4"
+                onClick={handleSave}
+                disabled={
+                  isSaving ||
+                  isSubmitting ||
+                  !hasUnsavedChanges ||
+                  hasInvalidMarks ||
+                  isSystemLocked
+                }
+              >
+                {isSaving ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Save Draft
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 px-4 bg-emerald-600 hover:bg-emerald-700"
+                onClick={handleSubmitForReview}
+                disabled={
+                  isSaving || isSubmitting || hasInvalidMarks || isSystemLocked || hasUnsavedChanges
+                }
+                title={hasUnsavedChanges ? "Save your marks first before submitting" : "Submit gradebook for admin review"}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Submit for Review
+              </Button>
+            </>
+          )}
+
         </div>
       </div>
 
-      {isSystemLocked && (
+      {isSystemLocked && !isAdminView && (
         <Card
           className={
             isPublished
               ? "border-blue-500/20 bg-blue-500/5"
+              : isApproved || isReviewed
+              ? "border-amber-500/20 bg-amber-500/5"
               : "border-destructive/20 bg-destructive/5"
           }
         >
           <CardContent className="flex items-center gap-4 p-4">
             <Lock
-              className={`h-5 w-5 ${isPublished ? "text-blue-600" : "text-red-600"}`}
+              className={`h-5 w-5 shrink-0 ${
+                isPublished
+                  ? "text-blue-600"
+                  : isApproved || isReviewed
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-red-600"
+              }`}
             />
             <div className="flex-1">
               {isPublished ? (
@@ -483,18 +693,17 @@ export function MarksEntrySheet({
               ) : isApproved || isReviewed ? (
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                      Gradebook is currently locked (Approved/Reviewed).
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                      Marks have been finalized by the administration.
                     </p>
-                    <p className="text-xs text-red-600/80 dark:text-red-400/80">
-                      The administration has finalized these marks. You cannot make any further changes.
+                    <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                      These marks are now locked. Request edit access if you need to make corrections.
                     </p>
                   </div>
-                  {/* Only teachers can request edit access — admins already have control */}
                   {!isAdminView && (
                     <Dialog open={isRequestingEdit} onOpenChange={setIsRequestingEdit}>
                       <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="bg-background border-red-500/20 text-red-600 hover:bg-red-500/10 h-8">
+                        <Button variant="outline" size="sm" className="bg-background border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 h-8 shrink-0">
                           Request Edit Access
                         </Button>
                       </DialogTrigger>
@@ -547,19 +756,10 @@ export function MarksEntrySheet({
         </Card>
       )}
 
-      {effectiveDeadline && !isSystemLocked && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground px-1">
-          <Clock className="h-4 w-4" />
-          <span>
-            Deadline: <b>{effectiveDeadline.toLocaleString()}</b>
-          </span>
-        </div>
-      )}
-
       {reviewerRemarks && !isSystemLocked && (
         <Card className="border-amber-500/20 bg-amber-500/5 animate-pulse-subtle">
           <CardContent className="flex items-start gap-4 p-4">
-            <div className="p-2 bg-amber-500/20 rounded-lg">
+            <div className="p-2 bg-amber-500/20 rounded-lg shrink-0">
               <MessageSquare className="h-5 w-5 text-amber-600" />
             </div>
             <div className="flex-1">
@@ -577,23 +777,27 @@ export function MarksEntrySheet({
         </Card>
       )}
 
-      <div className="border rounded-xl overflow-hidden bg-card shadow-sm">
-        <Table>
+      {/* ── Marks Table ───────────────────────────────────────────── */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="overflow-auto max-h-[750px] scrollbar-thin">
+        <Table className="border-collapse">
           <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="w-[250px]">Student</TableHead>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className="sticky top-0 z-20 bg-muted/90 backdrop-blur-sm w-[250px] font-semibold text-sm border-b">
+                Student
+              </TableHead>
               {template.components.map((comp) => {
                 if (comp.isRepeatable && comp.expectedCount) {
                   return Array.from({ length: comp.expectedCount }).map(
                     (_, idx) => (
                       <TableHead
                         key={`${comp.id}-${idx}`}
-                        className="text-center min-w-[70px] border-l"
+                        className="text-center min-w-[90px] border-l sticky top-0 z-20 bg-muted/90 backdrop-blur-sm font-semibold border-b"
                       >
-                        <div className="text-sm font-semibold">
+                        <div className="text-sm">
                           {comp.name} {idx + 1}
                         </div>
-                        <div className="text-[10px] font-normal opacity-60">
+                        <div className="text-[10px] opacity-60 font-normal mt-0.5">
                           Max: {comp.maxMarks}
                         </div>
                       </TableHead>
@@ -604,19 +808,19 @@ export function MarksEntrySheet({
                 return (
                   <TableHead
                     key={comp.id}
-                    className="text-center min-w-[100px] border-l"
+                    className="text-center min-w-[120px] border-l sticky top-0 z-20 bg-muted/90 backdrop-blur-sm font-semibold border-b"
                   >
-                    <div className="text-sm font-semibold">{comp.name}</div>
-                    <div className="text-[10px] font-normal opacity-60">
+                    <div className="text-sm">{comp.name}</div>
+                    <div className="text-[10px] opacity-60 font-normal mt-0.5">
                       Max: {comp.maxMarks} ({comp.weight}%)
                     </div>
                   </TableHead>
                 );
               })}
-              <TableHead className="text-center w-[100px] font-bold bg-muted/60">
+              <TableHead className="text-center w-[110px] font-bold sticky top-0 z-20 bg-muted/90 backdrop-blur-sm border-l border-b">
                 Total (%)
               </TableHead>
-              <TableHead className="text-center w-[100px] font-bold bg-muted/60">
+              <TableHead className="text-center w-[110px] font-bold sticky top-0 z-20 bg-muted/90 backdrop-blur-sm border-l border-b">
                 Grade
               </TableHead>
             </TableRow>
@@ -631,12 +835,12 @@ export function MarksEntrySheet({
                 studentScore?.status && studentScore.status !== "DRAFT";
 
               return (
-                <TableRow key={student.id} className="hover:bg-muted/30">
+                <TableRow key={student.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell className="p-4">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8 border">
+                      <Avatar className="h-8 w-8 border shadow-sm">
                         <AvatarImage src={student.user.image || undefined} />
-                        <AvatarFallback>
+                        <AvatarFallback className="font-medium bg-primary/10 text-primary">
                           {student.user.firstName[0]}
                           {student.user.lastName[0]}
                         </AvatarFallback>
@@ -645,7 +849,7 @@ export function MarksEntrySheet({
                         <div className="font-semibold text-sm">
                           {student.user.firstName} {student.user.lastName}
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="text-[10px] text-muted-foreground font-mono">
                           {student.admissionNumber || "No ID"}
                         </div>
                       </div>
@@ -756,6 +960,87 @@ export function MarksEntrySheet({
           </TableBody>
         </Table>
       </div>
+      </div>
+
+      {/* ── Import Preview / Confirmation Dialog ──────────────────────────── */}
+      <Dialog open={!!importPreview} onOpenChange={(open) => !open && setImportPreview(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-blue-500" />
+              Review Imported Marks
+            </DialogTitle>
+            <DialogDescription>
+              The file has been parsed successfully. Review the summary below before applying the marks to the gradebook.
+            </DialogDescription>
+          </DialogHeader>
+
+          {importPreview && (
+            <div className="space-y-4 py-1">
+              {/* Summary stats */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border bg-muted/40 p-3 text-center">
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    {importPreview.parsedStudents.filter((s) => marksData[s.studentId]).length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Students matched</p>
+                </div>
+                <div className="rounded-lg border bg-muted/40 p-3 text-center">
+                  <p className={`text-2xl font-bold ${
+                    importPreview.allWarnings.length > 0
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  }`}>
+                    {importPreview.allWarnings.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {importPreview.allWarnings.length === 0 ? "No issues" : "Warnings"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Warnings list */}
+              {importPreview.allWarnings.length > 0 && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                    <TriangleAlert className="h-4 w-4 shrink-0" />
+                    <span className="text-sm font-semibold">Warnings</span>
+                  </div>
+                  <ScrollArea className="max-h-40">
+                    <ul className="space-y-1">
+                      {importPreview.allWarnings.map((w, i) => (
+                        <li key={i} className="text-xs text-amber-600/90 dark:text-amber-400/80 leading-relaxed">
+                          • {w}
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                </div>
+              )}
+
+              <p className="text-sm text-muted-foreground">
+                Cells with warnings were skipped. Existing marks for students not in the file will remain unchanged. Only cells with valid data will be overwritten.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setImportPreview(null)}
+              className="gap-1.5"
+            >
+              <X className="h-4 w-4" /> Cancel
+            </Button>
+            <Button
+              onClick={applyImportedMarks}
+              className="gap-1.5 bg-blue-600 hover:bg-blue-700"
+            >
+              <CheckCircle2 className="h-4 w-4" /> Apply Marks
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -64,6 +64,7 @@ export async function GET(
         isActive: true,
         OR: [
           { classId: { in: Array.from(teacherClassIds) } },
+          { classes: { some: { classId: { in: Array.from(teacherClassIds) } } } },
           { classId: null } // Global assessments (might need filtering by subjectCode too)
         ]
       },

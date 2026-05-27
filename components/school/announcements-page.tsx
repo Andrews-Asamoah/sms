@@ -150,8 +150,12 @@ export function AnnouncementsPageContent({
   const isMounted = useRef(false);
 
   useEffect(() => {
-    if (!isMounted.current && initialAnnouncements.length > 0) {
+    if (!isMounted.current) {
       isMounted.current = true;
+      // If we don't have initialAnnouncements, we should fetch them
+      if (initialAnnouncements.length === 0 && !loading) {
+        fetchAnnouncements();
+      }
       return;
     }
     fetchAnnouncements();
@@ -159,7 +163,7 @@ export function AnnouncementsPageContent({
 
   // Debounced search
   useEffect(() => {
-    if (!isMounted.current && initialAnnouncements.length > 0) return;
+    if (!isMounted.current) return;
     const timer = setTimeout(() => fetchAnnouncements(), 400);
     return () => clearTimeout(timer);
   }, [search]);

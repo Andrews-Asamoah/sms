@@ -63,4 +63,5 @@ export interface MarksEntrySheetProps {
     deadline: string;
   } | null;
   isPublished?: boolean;
+  className?: string;
 }

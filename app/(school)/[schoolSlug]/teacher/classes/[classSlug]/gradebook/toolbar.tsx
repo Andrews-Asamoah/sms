@@ -49,7 +49,7 @@ export function GradebookToolbar({
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-4 bg-muted/30 p-4 rounded-lg border">
+    <div className="flex flex-wrap items-center gap-3">
       <div className="grid w-full max-w-xs items-center gap-1.5">
         <Label htmlFor="subject" className="text-xs text-muted-foreground">
           Subject
