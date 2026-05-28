@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole, getActiveSchoolRole } from "@/lib/auth/school-access";
 import { randomUUID } from "crypto";
+import { sendGradebookRejectedEmail } from "@/lib/email/resend";
 
 interface SaveMarksData {
   studentId: string;
@@ -725,8 +726,48 @@ export async function submitGradebookForReview(req: {
 
     const clsFlat = await prisma.class.findUnique({
       where: { id: classId },
-      select: { slug: true, schoolId: true },
+      select: { slug: true, name: true, schoolId: true },
     });
+
+    const subject = await prisma.subject.findUnique({
+      where: { id: subjectId },
+      select: { name: true },
+    });
+
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { id: true, name: true }
+    });
+
+    if (updated.count > 0 && clsFlat && subject && school) {
+      const administrators = await prisma.member.findMany({
+        where: {
+          organization: { school: { id: school.id } },
+          role: { in: ["admin", "owner"] }
+        },
+        select: { userId: true }
+      });
+
+      const recipientIds = new Set<string>();
+      administrators.forEach(admin => recipientIds.add(admin.userId));
+      recipientIds.delete(session.user.id);
+
+      if (recipientIds.size > 0) {
+        const link = `/${schoolSlug}/admin/reports/gradebook-tracking/review?classId=${classId}&subjectId=${subjectId}&termId=${termId}`;
+        await prisma.notification.createMany({
+          data: Array.from(recipientIds).map(userId => ({
+            schoolId: school.id,
+            userId,
+            type: "GENERAL",
+            title: `Gradebook Submitted: ${clsFlat.name}`,
+            message: `${session.user.name || "A teacher"} has submitted the gradebook for ${subject.name} for review.`,
+            link,
+          }))
+        }).catch(err => {
+          console.error("Failed to create admin notifications on gradebook submit:", err);
+        });
+      }
+    }
 
     revalidatePath(`/${schoolSlug}/teacher/classes/${clsFlat?.slug || classId}/gradebook`);
     revalidatePath(`/${schoolSlug}/admin/reports/gradebook-tracking`);
@@ -797,8 +838,87 @@ export async function reviewGradebookSubmission(req: {
 
     const clsFlat = await prisma.class.findUnique({
       where: { id: classId },
-      select: { slug: true, schoolId: true },
+      select: { slug: true, name: true, schoolId: true },
     });
+
+    const subject = await prisma.subject.findUnique({
+      where: { id: subjectId },
+      select: { name: true },
+    });
+
+    const school = await prisma.school.findUnique({
+      where: { subdomain: schoolSlug },
+      select: { id: true, name: true }
+    });
+
+    if (status === "DRAFT" && clsFlat && subject && school) {
+      try {
+        const classSubject = await prisma.classSubject.findFirst({
+          where: { classId, subjectId },
+          include: {
+            teacher: {
+              include: {
+                profile: {
+                  include: {
+                    user: true
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        if (classSubject?.teacher) {
+          const teacher = classSubject.teacher;
+          const teacherUserId = teacher.profile?.userId;
+          const teacherEmail = teacher.profile?.user?.email || teacher.invitationEmail;
+          
+          let teacherName = "Teacher";
+          if (teacher.profile) {
+            if (teacher.profile.firstName || teacher.profile.lastName) {
+              teacherName = `${teacher.profile.firstName} ${teacher.profile.lastName}`.trim();
+            } else if (teacher.profile.user?.name) {
+              teacherName = teacher.profile.user.name;
+            }
+          } else if (teacher.firstName && teacher.lastName) {
+            teacherName = `${teacher.firstName} ${teacher.lastName}`.trim();
+          }
+
+          const gradebookUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/${schoolSlug}/teacher/classes/${clsFlat.slug || classId}/gradebook`;
+
+          if (teacherUserId) {
+            await prisma.notification.create({
+              data: {
+                schoolId: school.id,
+                userId: teacherUserId,
+                type: "GENERAL",
+                title: `Gradebook Returned: ${clsFlat.name}`,
+                message: `Your gradebook submission for ${subject.name} has been returned for correction.${remarks ? ` Remarks: ${remarks}` : ""}`,
+                link: `/${schoolSlug}/teacher/classes/${clsFlat.slug || classId}/gradebook`,
+              }
+            }).catch(err => {
+              console.error("Failed to create teacher notification on rejection:", err);
+            });
+          }
+
+          if (teacherEmail) {
+            sendGradebookRejectedEmail({
+              to: teacherEmail,
+              teacherName,
+              className: clsFlat.name,
+              subjectName: subject.name,
+              schoolName: school.name,
+              remarks: remarks || "",
+              gradebookUrl,
+            }).catch(err => {
+              console.error("Failed to send gradebook rejection email to teacher:", err);
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error processing teacher rejection notifications:", err);
+      }
+    }
 
     revalidatePath(
       `/${schoolSlug}/teacher/classes/${clsFlat?.slug || classId}/gradebook`,

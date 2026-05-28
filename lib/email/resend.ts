@@ -444,3 +444,71 @@ export async function sendTestEmail(to: string): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Send email to a teacher when their gradebook is rejected
+ */
+export async function sendGradebookRejectedEmail(params: {
+  to: string;
+  teacherName: string;
+  className: string;
+  subjectName: string;
+  schoolName: string;
+  remarks: string;
+  gradebookUrl: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const { to, teacherName, className, subjectName, schoolName, remarks, gradebookUrl } = params;
+
+  try {
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Gradebook Submission Returned</title></head>
+<body style="font-family:'Inter',Arial,sans-serif;background:#f3f4f6;margin:0;padding:0">
+  <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+    <div style="background:#dc2626;padding:28px 40px;text-align:center">
+      <h1 style="color:#fff;margin:0;font-size:22px">${schoolName}</h1>
+      <p style="color:#fca5a5;margin:4px 0 0;font-size:13px;text-transform:uppercase;letter-spacing:.05em">Gradebook Returned</p>
+    </div>
+    <div style="padding:32px 40px">
+      <p style="color:#374151;font-size:15px;margin:0 0 20px">Dear ${teacherName},</p>
+      <h2 style="color:#111827;font-size:18px;margin:0 0 16px">Gradebook for ${className} (${subjectName}) has been returned for correction</h2>
+      <p style="color:#374151;font-size:14px;line-height:1.7">The administrator has reviewed your gradebook submission and requested some corrections before approval.</p>
+      
+      ${remarks ? `
+      <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;margin:20px 0;border-radius:0 8px 8px 0">
+        <strong style="color:#991b1b;font-size:14px;display:block;margin-bottom:4px">Reviewer Remarks:</strong>
+        <p style="color:#7f1d1d;font-size:14px;margin:0;line-height:1.5">${remarks}</p>
+      </div>
+      ` : ""}
+      
+      <p style="color:#374151;font-size:14px;line-height:1.7">Please review the remarks, make the necessary corrections, and re-submit the gradebook.</p>
+      
+      <div style="margin:28px 0 0;text-align:center">
+        <a href="${gradebookUrl}"
+           style="background:#dc2626;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Open Gradebook</a>
+      </div>
+    </div>
+    <div style="background:#dc2626;padding:16px 40px;text-align:center">
+      <p style="color:#fca5a5;font-size:12px;margin:0">© ${new Date().getFullYear()} ${schoolName}</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `Gradebook Returned: ${className} - ${subjectName}`,
+      html,
+    });
+
+    console.log(`✅ [Email] Gradebook rejection email sent to ${to}`);
+    return { success: true };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    console.error(`❌ [Email] Gradebook rejection email failed for ${to}:`, error);
+    return { success: false, error: msg };
+  }
+}
+

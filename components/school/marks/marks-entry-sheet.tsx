@@ -79,6 +79,8 @@ export function MarksEntrySheet({
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [dirtyStudentIds, setDirtyStudentIds] = useState<Set<string>>(new Set());
+  const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
   // Optimistic lock: flip true immediately on a successful submission so the UI
   // grays out right away, before router.refresh() finishes the server round-trip.
   const [isSubmittedLocally, setIsSubmittedLocally] = useState(false);
@@ -249,6 +251,11 @@ export function MarksEntrySheet({
         ...prev,
         [studentId]: studentMarks,
       };
+    });
+    setDirtyStudentIds((prev) => {
+      const next = new Set(prev);
+      next.add(studentId);
+      return next;
     });
     setHasUnsavedChanges(true);
   };
@@ -439,6 +446,15 @@ export function MarksEntrySheet({
             (s) => updated[s.studentId]
           ).length} students.`
         );
+        setDirtyStudentIds((prev) => {
+          const next = new Set(prev);
+          importPreview.parsedStudents.forEach((s) => {
+            if (updated[s.studentId]) {
+              next.add(s.studentId);
+            }
+          });
+          return next;
+        });
         setHasUnsavedChanges(true);
       } else {
         toast.warning("No marks were imported — the file may have been empty.");
@@ -497,6 +513,7 @@ export function MarksEntrySheet({
 
       if (result.success) {
         toast.success("Marks saved successfully");
+        setDirtyStudentIds(new Set());
         setHasUnsavedChanges(false);
         router.refresh();
       } else {
@@ -507,6 +524,72 @@ export function MarksEntrySheet({
       toast.error("Failed to save marks");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveStudent = async (studentId: string) => {
+    if (hasInvalidMarks) {
+      toast.error("Please correct invalid marks before saving");
+      return;
+    }
+
+    setSavingStudentId(studentId);
+
+    try {
+      const student = students.find((s) => s.id === studentId);
+      if (!student) {
+        toast.error("Student not found");
+        return;
+      }
+
+      const studentMarks = marksData[studentId] || {};
+      const componentScores = Object.entries(studentMarks)
+        .filter(([_, mark]) => {
+          if (Array.isArray(mark))
+            return mark.some((m) => typeof m === "number");
+          return typeof mark === "number";
+        })
+        .map(([componentId, mark]) => ({
+          componentId,
+          marks: mark as number | (number | "")[],
+        }));
+
+      const payload = [{
+        studentId: student.id,
+        componentScores,
+      }];
+
+      const result = await saveMarksEntry({
+        schoolSlug,
+        classId,
+        subjectId,
+        termId,
+        templateId: template.id,
+        status: "DRAFT",
+        marks: payload,
+      });
+
+      if (result.success) {
+        toast.success(`Marks saved successfully for ${student.user.firstName} ${student.user.lastName}`);
+        
+        setDirtyStudentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(studentId);
+          if (next.size === 0) {
+            setHasUnsavedChanges(false);
+          }
+          return next;
+        });
+
+        router.refresh();
+      } else {
+        toast.error(result.error || "Failed to save marks");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to save marks");
+    } finally {
+      setSavingStudentId(null);
     }
   };
 
@@ -840,6 +923,11 @@ export function MarksEntrySheet({
               <TableHead className="text-center w-[110px] font-bold sticky top-0 z-20 bg-muted/90 backdrop-blur-sm border-l border-b">
                 Grade
               </TableHead>
+              {!isSystemLocked && !isAdminView && (
+                <TableHead className="text-center w-[80px] font-bold sticky top-0 z-20 bg-muted/90 backdrop-blur-sm border-l border-b">
+                  Actions
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -971,6 +1059,26 @@ export function MarksEntrySheet({
                       "-"
                     )}
                   </TableCell>
+                  {!isSystemLocked && !isAdminView && (
+                    <TableCell className="text-center p-2 border-l w-[80px]">
+                      {dirtyStudentIds.has(student.id) ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 transition-colors"
+                          onClick={() => handleSaveStudent(student.id)}
+                          disabled={savingStudentId === student.id}
+                          title="Save this row"
+                        >
+                          {savingStudentId === student.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}

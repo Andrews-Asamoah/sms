@@ -7,7 +7,7 @@ const createPrismaClient = () =>
       connectionString: process.env.DATABASE_URL!,
       max: 10,
       idleTimeoutMillis: 20000,
-      connectionTimeoutMillis: 3000,
+      connectionTimeoutMillis: 15000,
     }),
     log:
       process.env.NODE_ENV === "development"
