@@ -77,8 +77,29 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    backgroundColor: "#f9fafb",
+    borderColor: "#cbd5e1",
+    backgroundColor: "#f8fafc",
+  },
+  studentPhotoContainer: {
+    width: 60,
+    height: 70,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 4,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8fafc",
+  },
+  studentPhotoImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover" as const,
+  },
+  photoPlaceholderText: {
+    fontSize: 6,
+    color: "#94a3b8",
+    textAlign: "center" as const,
   },
   infoGrid: {
     flexDirection: "row",
@@ -191,22 +212,33 @@ const styles = StyleSheet.create({
   },
 
   signatureArea: {
-    marginTop: 50,
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
+    marginTop: 25,
+    paddingTop: 10,
+  },
+  signatureBlock: {
+    width: "45%",
+    alignItems: "center",
   },
   signatureLine: {
-    width: "40%",
     borderTopWidth: 1,
-    borderTopColor: "#000",
-    textAlign: "center",
-    paddingTop: 5,
+    borderTopColor: "#000000",
+    paddingTop: 4,
+    alignItems: "center",
+    width: "100%",
   },
   signatureName: {
-    fontSize: 8,
-    fontWeight: "bold",
+    fontSize: 7,
+    color: "#64748b",
+    textAlign: "center" as const,
     marginTop: 2,
-    color: "#1e293b",
+  },
+  signatureImage: {
+    height: 25,
+    width: 70,
+    objectFit: "contain" as const,
+    marginBottom: 2,
   },
 
   // Superscript Suffix
@@ -379,6 +411,19 @@ export const ReportCardPDF = ({ data, school }: ReportCardPDFProps) => {
               </Text>
             </View>
           </View>
+
+          {/* Student Photo */}
+          <View style={{ justifyContent: "center", alignItems: "flex-end" }}>
+            {data.studentImage ? (
+              <View style={styles.studentPhotoContainer}>
+                <Image src={data.studentImage} style={styles.studentPhotoImage} />
+              </View>
+            ) : (
+              <View style={styles.studentPhotoContainer}>
+                <Text style={styles.photoPlaceholderText}>NO PHOTO</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Academic Table */}
@@ -446,26 +491,39 @@ export const ReportCardPDF = ({ data, school }: ReportCardPDFProps) => {
           </View>
         </View>
 
-        {/* Signature */}
+        {/* Signatures */}
         <View style={styles.signatureArea}>
-          <View style={styles.signatureLine}>
-            <Image
-              src="https://upload.wikimedia.org/wikipedia/commons/3/3a/Jon_Kirsch_Signature.png"
-              style={{
-                height: 20,
-                width: 60,
-                alignSelf: "center",
-                marginBottom: -5,
-              }}
-            />
-            <Text>Headteacher</Text>
-            <Text style={styles.signatureName}>
-              (
-              {data.headmasterName ||
-                school.headmasterName ||
-                "AYEH ESSEL EDWINA OHENESI DR"}
-              )
-            </Text>
+          {/* Class Teacher */}
+          <View style={styles.signatureBlock}>
+            {data.classTeacherSignature && (
+              <Image
+                src={data.classTeacherSignature}
+                style={styles.signatureImage}
+              />
+            )}
+            <View style={styles.signatureLine}>
+              <Text>Class Teacher</Text>
+              <Text style={styles.signatureName}>
+                ({data.classTeacherName || "Class Teacher"})
+              </Text>
+            </View>
+          </View>
+          {/* Headteacher */}
+          <View style={styles.signatureBlock}>
+            {data.headmasterSignature && (
+              <Image
+                src={data.headmasterSignature}
+                style={styles.signatureImage}
+              />
+            )}
+            <View style={styles.signatureLine}>
+              <Text>Headteacher</Text>
+              <Text style={styles.signatureName}>
+                ({data.headmasterName ||
+                  school.headmasterName ||
+                  "Headteacher"})
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -614,6 +672,19 @@ export const BulkReportPDF = ({
               </Text>
             </View>
           </View>
+
+          {/* Student Photo */}
+          <View style={{ justifyContent: "center", alignItems: "flex-end" }}>
+            {rc.data.studentImage ? (
+              <View style={styles.studentPhotoContainer}>
+                <Image src={rc.data.studentImage} style={styles.studentPhotoImage} />
+              </View>
+            ) : (
+              <View style={styles.studentPhotoContainer}>
+                <Text style={styles.photoPlaceholderText}>NO PHOTO</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Academic Table */}
@@ -681,26 +752,39 @@ export const BulkReportPDF = ({
           </View>
         </View>
 
-        {/* Signature */}
+        {/* Signatures */}
         <View style={styles.signatureArea}>
-          <View style={styles.signatureLine}>
-            <Image
-              src="https://upload.wikimedia.org/wikipedia/commons/3/3a/Jon_Kirsch_Signature.png"
-              style={{
-                height: 20,
-                width: 60,
-                alignSelf: "center",
-                marginBottom: -5,
-              }}
-            />
-            <Text>Headteacher</Text>
-            <Text style={styles.signatureName}>
-              (
-              {rc.data.headmasterName ||
-                school.headmasterName ||
-                "AYEH ESSEL EDWINA OHENESI DR"}
-              )
-            </Text>
+          {/* Class Teacher */}
+          <View style={styles.signatureBlock}>
+            {rc.data.classTeacherSignature && (
+              <Image
+                src={rc.data.classTeacherSignature}
+                style={styles.signatureImage}
+              />
+            )}
+            <View style={styles.signatureLine}>
+              <Text>Class Teacher</Text>
+              <Text style={styles.signatureName}>
+                ({rc.data.classTeacherName || "Class Teacher"})
+              </Text>
+            </View>
+          </View>
+          {/* Headteacher */}
+          <View style={styles.signatureBlock}>
+            {rc.data.headmasterSignature && (
+              <Image
+                src={rc.data.headmasterSignature}
+                style={styles.signatureImage}
+              />
+            )}
+            <View style={styles.signatureLine}>
+              <Text>Headteacher</Text>
+              <Text style={styles.signatureName}>
+                ({rc.data.headmasterName ||
+                  school.headmasterName ||
+                  "Headteacher"})
+              </Text>
+            </View>
           </View>
         </View>
 

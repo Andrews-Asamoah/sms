@@ -153,27 +153,49 @@ export async function POST(
     }
 
     // ========================================================================
-    // Check for pending invitation
+    // Check for pending/expired invitation
     // ========================================================================
     const pendingInvitation = await prisma.invitation.findFirst({
       where: {
         email: data.email,
         organizationId: school.organizationId,
-        status: "pending",
+        status: { in: ["pending", "expired"] },
       },
     });
 
     if (pendingInvitation) {
-      console.error("[INVITE_ADMIN] Pending invitation exists");
-      return NextResponse.json(
-        {
-          success: false,
-          error: `An invitation has already been sent to ${data.email}`,
-          pending: true,
-          invitationId: pendingInvitation.id,
-        },
-        { status: 409 },
-      );
+      const isExpired = new Date(pendingInvitation.expiresAt) < new Date();
+      if (isExpired) {
+        // Automatically delete the expired invitation so we can send a new one
+        try {
+          const reqHeaders = await headers();
+          await auth.api.cancelInvitation({
+            headers: {
+              "x-organization-id": school.organizationId,
+              ...reqHeaders,
+            },
+            body: {
+              invitationId: pendingInvitation.id,
+            },
+          });
+        } catch (cancelError) {
+          console.warn("[INVITE_ADMIN] Cancel invitation API failed, direct DB delete:", cancelError);
+          await prisma.invitation.delete({
+            where: { id: pendingInvitation.id },
+          });
+        }
+      } else {
+        console.error("[INVITE_ADMIN] Active pending invitation exists");
+        return NextResponse.json(
+          {
+            success: false,
+            error: `An active invitation has already been sent to ${data.email}`,
+            pending: true,
+            invitationId: pendingInvitation.id,
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // CREATE INVITATION via Better Auth

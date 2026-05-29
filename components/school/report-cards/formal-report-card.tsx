@@ -86,6 +86,7 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
   const scales = gradingSystem?.gradeScales ?? [];
 
   const generalRemark = remarks.find((r) => r.remarkType === "GENERAL")?.content || "";
+  const headteacherRemark = remarks.find((r) => r.remarkType === "HEADTEACHER")?.content || data?.headmasterRemark || "";
   const behavioralRaw = remarks.find((r) => r.remarkType === "BEHAVIORAL")?.content || "";
   const behavioral = parseBehavioralRemark(behavioralRaw);
 
@@ -168,26 +169,41 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
         </div>
 
         <div className="px-8 py-5 space-y-5">
-          {/* ── Student Info ── */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-0.5">
-              <InfoRow label="Student Name" value={`${student.profile.firstName} ${student.profile.otherNames ?? ""} ${student.profile.lastName}`.trim()} />
-              <InfoRow label="Student ID" value={student.studentId} />
-              <InfoRow label="Class" value={data?.class || student.class?.name} />
-              <InfoRow label="Academic Year" value={set.academicYear.name} />
+          {/* ── Student Info & Photo ── */}
+          <div className="flex justify-between items-start gap-6 border-b border-gray-100 pb-4">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-1 flex-1">
+              <div className="space-y-0.5">
+                <InfoRow label="Student Name" value={`${student.profile.firstName} ${student.profile.otherNames ?? ""} ${student.profile.lastName}`.trim()} />
+                <InfoRow label="Student ID" value={student.studentId} />
+                <InfoRow label="Class" value={data?.class || student.class?.name} />
+                <InfoRow label="Academic Year" value={set.academicYear.name} />
+              </div>
+              <div className="space-y-0.5">
+                <InfoRow label="Term" value={set.term.name} />
+                {position && (
+                  <InfoRow label="Class Position" value={
+                    <span>{position}<sup>{positionSuffix}</sup> out of {classCount ?? "?"}</span>
+                  } />
+                )}
+                {aggregateScore !== null && (
+                  <InfoRow label="Aggregate (Best-6)" value={aggregateScore.toString()} />
+                )}
+                {attendance && (
+                  <InfoRow label="Attendance" value={attendance} />
+                )}
+              </div>
             </div>
-            <div className="space-y-0.5">
-              <InfoRow label="Term" value={set.term.name} />
-              {position && (
-                <InfoRow label="Class Position" value={
-                  <span>{position}<sup>{positionSuffix}</sup> out of {classCount ?? "?"}</span>
-                } />
-              )}
-              {aggregateScore !== null && (
-                <InfoRow label="Aggregate (Best-6)" value={aggregateScore.toString()} />
-              )}
-              {attendance && (
-                <InfoRow label="Attendance" value={attendance} />
+
+            {/* Student Photo */}
+            <div className="w-20 h-24 border border-gray-200 rounded overflow-hidden shrink-0 bg-gray-50 flex items-center justify-center shadow-sm mr-2">
+              {student.profile.user?.image || data?.studentImage ? (
+                <img
+                  src={student.profile.user?.image || data?.studentImage}
+                  alt="Student Photo"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider text-center px-1">No Photo</span>
               )}
             </div>
           </div>
@@ -282,7 +298,7 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
               <div className="border rounded p-3 bg-gray-50">
                 <p className="text-xs font-semibold text-gray-500 mb-1">Headmaster's Remark</p>
                 <p className="text-sm italic text-gray-800 min-h-[32px]">
-                  {data?.headmasterRemark || "—"}
+                  {headteacherRemark || "—"}
                 </p>
               </div>
             </div>
@@ -291,12 +307,30 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
           {/* ── Signatures ── */}
           <section className="mt-8 grid grid-cols-2 gap-8">
             <div className="text-center">
+              {data?.classTeacherSignature && (
+                <div className="flex justify-center mb-1">
+                  <img
+                    src={data.classTeacherSignature}
+                    alt="Class Teacher Signature"
+                    className="max-h-10 max-w-[80px] object-contain"
+                  />
+                </div>
+              )}
               <div className="border-t border-gray-800 pt-1">
                 <p className="text-xs font-semibold">Class Teacher's Signature</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">{data?.classTeacherName || "Class Teacher"}</p>
               </div>
             </div>
             <div className="text-center">
+              {data?.headmasterSignature && (
+                <div className="flex justify-center mb-1">
+                  <img
+                    src={data.headmasterSignature}
+                    alt="Headmaster Signature"
+                    className="max-h-10 max-w-[80px] object-contain"
+                  />
+                </div>
+              )}
               <div className="border-t border-gray-800 pt-1">
                 <p className="text-xs font-semibold">Headmaster's Signature</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">{data?.headmasterName || school.headmasterName || "Headmaster"}</p>

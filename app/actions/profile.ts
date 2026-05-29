@@ -56,6 +56,8 @@ export async function getCurrentUserProfile(): Promise<UserProfileData | null> {
             user.userProfile.emergencyContactPhone ?? undefined,
           emergencyRelationship:
             user.userProfile.emergencyRelationship ?? undefined,
+          signatureUrl:
+            user.userProfile.signatureUrl ?? undefined,
         }
       : undefined,
   };

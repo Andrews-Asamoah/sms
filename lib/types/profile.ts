@@ -29,6 +29,7 @@ export interface UserProfileData {
     emergencyContactName?: string;
     emergencyContactPhone?: string;
     emergencyRelationship?: string;
+    signatureUrl?: string;
   };
 }
 

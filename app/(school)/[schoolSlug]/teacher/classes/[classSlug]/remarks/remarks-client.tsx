@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { Loader2, Save, Sparkles, CheckCircle2, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ─── Behavioral Trait Definitions ────────────────────────────────────────────
+// --- Behavioral Trait Definitions --------------------------------------------
 
 const CONDUCT_OPTIONS = [
   "Exemplary",
@@ -50,13 +50,14 @@ const PUNCTUALITY_OPTIONS = [
   "Needs significant improvement",
 ];
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// --- Types --------------------------------------------------------------------
 
 interface StudentRemark {
   conduct: string;
   attitude: string;
   punctuality: string;
   general: string;
+  headteacher: string;
   isGenerating?: boolean;
 }
 
@@ -65,9 +66,10 @@ interface RemarksClientProps {
   classId: string;
   termId: string;
   students: any[];
+  effectiveRole: string;
 }
 
-// ─── Helper: is a row "complete"? ────────────────────────────────────────────
+// --- Helper: is a row "complete"? --------------------------------------------
 function isRowComplete(r: StudentRemark) {
   return r.conduct && r.attitude && r.punctuality && r.general.trim();
 }
@@ -76,23 +78,28 @@ function hasTraits(r: StudentRemark) {
   return r.conduct && r.attitude && r.punctuality;
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// --- Main Component -----------------------------------------------------------
 
 export function RemarksClient({
   schoolSlug,
   classId,
   termId,
   students,
+  effectiveRole,
 }: RemarksClientProps) {
   const [remarks, setRemarks] = useState<Record<string, StudentRemark>>({});
-  // Snapshot of the last persisted state — used for dirty tracking
+  // Snapshot of the last persisted state - used for dirty tracking
   const savedRemarks = useRef<Record<string, StudentRemark>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [dirtyCount, setDirtyCount] = useState(0);
+  const isHeadteacher =
+    effectiveRole === "headteacher" ||
+    effectiveRole === "admin" ||
+    effectiveRole === "owner";
 
-  // ── Load existing remarks ──────────────────────────────────────────────────
+  // -- Load existing remarks --------------------------------------------------
   useEffect(() => {
     const fetchExistingRemarks = async () => {
       setLoading(true);
@@ -109,6 +116,8 @@ export function RemarksClient({
 
             const generalRm =
               data.find((r: any) => r.remarkType === "GENERAL")?.content || "";
+            const headteacherRm =
+              data.find((r: any) => r.remarkType === "HEADTEACHER")?.content || "";
             const behavioralRm = data.find(
               (r: any) => r.remarkType === "BEHAVIORAL",
             )?.content;
@@ -146,6 +155,7 @@ export function RemarksClient({
               attitude,
               punctuality,
               general: generalRm,
+              headteacher: headteacherRm,
             };
           }),
         );
@@ -158,6 +168,7 @@ export function RemarksClient({
               attitude: "",
               punctuality: "",
               general: "",
+              headteacher: "",
             };
           }
         });
@@ -175,7 +186,7 @@ export function RemarksClient({
     fetchExistingRemarks();
   }, [schoolSlug, students, termId]);
 
-  // ── Dirty count updater ───────────────────────────────────────────────────
+  // -- Dirty count updater ---------------------------------------------------
   const recomputeDirty = useCallback(
     (updated: Record<string, StudentRemark>) => {
       const count = Object.keys(updated).filter((id) => {
@@ -186,13 +197,15 @@ export function RemarksClient({
             cur.conduct ||
             cur.attitude ||
             cur.punctuality ||
-            cur.general.trim()
+            cur.general.trim() ||
+            cur.headteacher.trim()
           );
         return (
           cur.conduct !== sav.conduct ||
           cur.attitude !== sav.attitude ||
           cur.punctuality !== sav.punctuality ||
-          cur.general !== sav.general
+          cur.general !== sav.general ||
+          cur.headteacher !== sav.headteacher
         );
       }).length;
       setDirtyCount(count);
@@ -200,7 +213,7 @@ export function RemarksClient({
     [],
   );
 
-  // ── Field updater ─────────────────────────────────────────────────────────
+  // -- Field updater ---------------------------------------------------------
   const updateField = useCallback(
     (
       studentId: string,
@@ -220,7 +233,7 @@ export function RemarksClient({
     [recomputeDirty],
   );
 
-  // ── Generate remark for a single student ─────────────────────────────────
+  // -- Generate remark for a single student ---------------------------------
   const generateForStudent = useCallback(
     async (studentId: string, studentName: string) => {
       const row = remarks[studentId];
@@ -259,7 +272,7 @@ export function RemarksClient({
     [remarks, schoolSlug, updateField],
   );
 
-  // ── Generate all remarks for students that have traits but no remark ──────
+  // -- Generate all remarks for students that have traits but no remark ------
   const generateAll = useCallback(async () => {
     const pending = students.filter((s) => {
       const r = remarks[s.id];
@@ -284,7 +297,7 @@ export function RemarksClient({
     toast.success("Auto-generation complete!");
   }, [students, remarks, generateForStudent]);
 
-  // ── Save All (dirty-only) ─────────────────────────────────────────────────
+  // -- Save All (dirty-only) -------------------------------------------------
   const handleSaveAll = async () => {
     // Collect only students with changes
     const dirtyStudents = students.filter((student) => {
@@ -296,14 +309,16 @@ export function RemarksClient({
           cur.conduct ||
           cur.attitude ||
           cur.punctuality ||
-          cur.general.trim()
+          cur.general.trim() ||
+          cur.headteacher.trim()
         );
       }
       return (
         cur.conduct !== sav.conduct ||
         cur.attitude !== sav.attitude ||
         cur.punctuality !== sav.punctuality ||
-        cur.general !== sav.general
+        cur.general !== sav.general ||
+        cur.headteacher !== sav.headteacher
       );
     });
 
@@ -337,6 +352,25 @@ export function RemarksClient({
                 }),
               }),
             );
+          }
+
+          // Save HEADTEACHER remark only if changed and user is headteacher/admin
+          if (isHeadteacher) {
+            const headteacherChanged = r.headteacher !== (sav?.headteacher ?? "");
+            if (headteacherChanged && r.headteacher.trim()) {
+              payload.push(
+                fetch(`/api/schools/${schoolSlug}/remarks`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    studentId: student.id,
+                    termId,
+                    remarkType: "HEADTEACHER",
+                    content: r.headteacher,
+                  }),
+                }),
+              );
+            }
           }
 
           // Save BEHAVIORAL only if any trait changed
@@ -380,7 +414,7 @@ export function RemarksClient({
     }
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // --- Render ---------------------------------------------------------------
 
   if (loading) {
     return (
@@ -406,7 +440,7 @@ export function RemarksClient({
 
   return (
     <div className="space-y-4">
-      {/* ── Top Bar ── */}
+      {/* -- Top Bar -- */}
       <div className="flex flex-wrap justify-between items-center gap-3 bg-card p-4 rounded-xl border shadow-sm">
         <div className="flex items-center gap-3 flex-wrap">
           <Badge variant="outline" className="text-sm px-3 py-1">
@@ -463,7 +497,7 @@ export function RemarksClient({
         </div>
       </div>
 
-      {/* ── Table ── */}
+      {/* -- Table -- */}
       <div className="border rounded-xl overflow-hidden shadow-sm bg-card">
         <Table>
           <TableHeader>
@@ -471,6 +505,9 @@ export function RemarksClient({
               <TableHead className="w-[180px] font-semibold">Student</TableHead>
               <TableHead className="w-[160px] font-semibold">Traits</TableHead>
               <TableHead className="font-semibold">Class Teacher's Remark</TableHead>
+              {isHeadteacher && (
+                <TableHead className="font-semibold">Headmaster's Remark</TableHead>
+              )}
               <TableHead className="w-[48px]" />
             </TableRow>
           </TableHeader>
@@ -481,6 +518,7 @@ export function RemarksClient({
                 attitude: "",
                 punctuality: "",
                 general: "",
+                headteacher: "",
               };
               const fullName = formatStudentName(
                 student.firstName,
@@ -511,7 +549,7 @@ export function RemarksClient({
                           {fullName}
                         </p>
                         <p className="text-[11px] text-muted-foreground font-mono">
-                          {student.admissionNumber || "—"}
+                          {student.admissionNumber || "-"}
                         </p>
                       </div>
                     </div>
@@ -600,6 +638,21 @@ export function RemarksClient({
                     />
                   </TableCell>
 
+                  {/* Headmaster's Remark */}
+                  {isHeadteacher && (
+                    <TableCell className="py-3 align-top">
+                      <Textarea
+                        placeholder="Enter Headmaster's remark for this student…"
+                        value={r.headteacher}
+                        onChange={(e) =>
+                          updateField(student.id, "headteacher", e.target.value)
+                        }
+                        className="text-xs min-h-[120px] resize-none focus-visible:ring-primary/50 w-full"
+                        rows={5}
+                      />
+                    </TableCell>
+                  )}
+
                   {/* AI Generate Button */}
                   <TableCell className="py-3 align-top">
                     <Button
@@ -638,7 +691,7 @@ export function RemarksClient({
         </Table>
       </div>
 
-      {/* ── Bottom Save Bar ── */}
+      {/* -- Bottom Save Bar -- */}
       <div className="flex justify-end">
         <Button
           onClick={handleSaveAll}

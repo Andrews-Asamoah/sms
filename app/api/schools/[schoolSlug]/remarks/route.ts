@@ -14,6 +14,7 @@ const writeRemarkSchema = z.object({
     "GENERAL",
     "ACHIEVEMENT",
     "CONCERN",
+    "HEADTEACHER",
   ]),
   content: z.string(),
 });

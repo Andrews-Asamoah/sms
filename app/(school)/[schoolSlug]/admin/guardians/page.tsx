@@ -24,41 +24,51 @@ export default async function AdminParentsPage({ params }: ParentsPageProps) {
 
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
-    select: { id: true },
+    select: { id: true, organizationId: true },
   });
 
   if (!school) {
     return null;
   }
 
-  // Fetch Guardians heavily loaded with nested students
-  const guardians = await prisma.guardian.findMany({
-    where: { schoolId: school.id },
-    include: {
-      profile: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              banned: true,
-              banReason: true,
+  // Fetch Guardians and pending invitations in parallel
+  const [guardians, pendingInvitations] = await Promise.all([
+    prisma.guardian.findMany({
+      where: { schoolId: school.id },
+      include: {
+        profile: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                banned: true,
+                banReason: true,
+              },
+            },
+          },
+        },
+        students: {
+          include: {
+            student: {
+              include: {
+                profile: true,
+                class: { select: { name: true } },
+              },
             },
           },
         },
       },
-      students: {
-        include: {
-          student: {
-            include: {
-              profile: true,
-              class: { select: { name: true } },
-            },
-          },
-        },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.invitation.findMany({
+      where: {
+        organizationId: school.organizationId,
+        status: { in: ["pending", "expired"] },
+        role: "guardian",
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   // Normalize data for the UI
   const normalizedGuardians = guardians.map((g) => {
@@ -99,7 +109,18 @@ export default async function AdminParentsPage({ params }: ParentsPageProps) {
           </Button>
         </Link>
       </DashboardPageHeader>
-      <ParentsTable initialData={normalizedGuardians} schoolSlug={schoolSlug} />
+      <ParentsTable
+        initialData={normalizedGuardians}
+        schoolSlug={schoolSlug}
+        initialInvitations={pendingInvitations.map((inv) => ({
+          id: inv.id,
+          email: inv.email,
+          role: inv.role || "guardian",
+          status: inv.status,
+          expiresAt: inv.expiresAt,
+          createdAt: inv.createdAt,
+        }))}
+      />
     </div>
   );
 }

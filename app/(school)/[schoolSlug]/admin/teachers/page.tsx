@@ -90,9 +90,17 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
   const school = await prisma.school.findUnique({ where: { subdomain: schoolSlug } });
   if (!school) redirect("/");
 
-  const [allTeachers, pendingInvitations, [departments, houses]] = await Promise.all([
+  const [allTeachers, pendingTeachers, inviteRecords, [departments, houses]] = await Promise.all([
     getTeachers(school.id),
     getPendingInvitations(school.id),
+    prisma.invitation.findMany({
+      where: {
+        organizationId: school.organizationId,
+        status: { in: ["pending", "expired"] },
+        role: "teacher",
+      },
+      orderBy: { createdAt: "desc" },
+    }),
     getDepartmentsAndHouses(school.id),
   ]);
 
@@ -100,6 +108,24 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
   const totalActive = allTeachers.length;
   const inactiveCount = totalActive - activeCount;
 
+  // Correlate pending teacher records with Better Auth invitation records
+  const mappedPending = pendingTeachers.map((t) => {
+    const matchingInvite = inviteRecords.find(
+      (inv) => inv.email.toLowerCase() === t.invitationEmail?.toLowerCase()
+    );
+    return {
+      id: t.id,
+      firstName: t.firstName,
+      lastName: t.lastName,
+      invitationEmail: t.invitationEmail,
+      employmentType: t.employmentType,
+      createdAt: t.createdAt,
+      department: t.department ? { name: t.department.name } : { name: "N/A" },
+      invitationId: matchingInvite?.id || "",
+      expiresAt: matchingInvite?.expiresAt || new Date(),
+      status: matchingInvite?.status || "pending",
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -150,48 +176,33 @@ export default async function TeachersPage({ params }: TeachersPageProps) {
         />
         <StatCard
           title="Pending Invitations"
-          value={pendingInvitations.length}
+          value={mappedPending.length}
           icon={Clock}
           iconClassName="text-yellow-600"
         />
       </div>
 
-      {/* Pending Invitations */}
-      <TeacherPendingInvitationsList
-        pendingInvitations={pendingInvitations}
+      {/* Teachers client table and pending invitations wrapped in uniform tabs */}
+      <TeachersClient
+        data={allTeachers
+          .filter((t) => t.profile !== null)
+          .map((teacher) => ({
+            ...teacher,
+            profile: teacher.profile!,
+            monthlySalary: toNum(teacher.monthlySalary),
+            department: {
+              ...teacher.department,
+              promotionPassMark: toNum(teacher.department?.promotionPassMark),
+            },
+          }))}
         schoolSlug={schoolSlug}
+        departments={departments.map((dept) => ({
+          ...dept,
+          promotionPassMark: toNum(dept.promotionPassMark),
+        }))}
+        houses={houses}
+        initialInvitations={mappedPending}
       />
-
-      {/* Teachers Table */}
-      <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-        <CardHeader>
-          <CardTitle>All Teachers</CardTitle>
-          <CardDescription>
-            View and manage all teaching staff and their assignments
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TeachersClient
-            data={allTeachers
-              .filter((t) => t.profile !== null)
-              .map((teacher) => ({
-                ...teacher,
-                profile: teacher.profile!,
-                monthlySalary: toNum(teacher.monthlySalary),
-                department: {
-                  ...teacher.department,
-                  promotionPassMark: toNum(teacher.department?.promotionPassMark),
-                },
-              }))}
-            schoolSlug={schoolSlug}
-            departments={departments.map((dept) => ({
-              ...dept,
-              promotionPassMark: toNum(dept.promotionPassMark),
-            }))}
-            houses={houses}
-          />
-        </CardContent>
-      </Card>
     </div>
   );
 }

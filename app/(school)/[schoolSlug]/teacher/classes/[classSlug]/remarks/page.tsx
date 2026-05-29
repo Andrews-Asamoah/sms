@@ -138,6 +138,7 @@ export default async function RemarksPage({ params }: RemarksPageProps) {
         classId={classData.id}
         termId={activeTerm.id}
         students={normalizedStudents}
+        effectiveRole={effectiveRole}
       />
     </div>
   );

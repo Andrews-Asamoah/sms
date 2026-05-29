@@ -102,6 +102,25 @@ export async function POST(
       // Brand-new user — send an invitation. The invitation handler will assign
       // them the guardian role upon acceptance without touching any other roles.
       const { auth } = await import("@/lib/auth");
+
+      // Clean up any existing invitations for this email in this organization
+      await prisma.invitation.deleteMany({
+        where: {
+          email: data.email,
+          organizationId: school.organizationId,
+          status: { in: ["pending", "expired"] },
+        },
+      });
+
+      // Clean up any existing pending guardian records (profileId is null) for this email/school
+      await prisma.guardian.deleteMany({
+        where: {
+          email: data.email,
+          schoolId: school.id,
+          profileId: null,
+        },
+      });
+
       const invitation = await auth.api.createInvitation({
         headers: request.headers,
         body: {

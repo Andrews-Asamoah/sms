@@ -1,11 +1,10 @@
 "use client";
 
-
 import { DataTable } from "@/components/ui/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, GraduationCap, Phone } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Users, GraduationCap, Phone, Clock, Mail } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import {
   HoverCard,
@@ -13,7 +12,9 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { BanUserButton } from "@/components/school/ban-user-button";
-
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PendingInvitationRow } from "@/components/ui/pending-invitation-row";
+import { PendingInvitationActionButtons } from "@/components/school/pending-invitation-action-buttons";
 
 export type WardInfo = {
   id: string;
@@ -37,13 +38,26 @@ export type GuardianData = {
   wards: WardInfo[];
 };
 
+type InvitationData = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  expiresAt: Date;
+  createdAt: Date;
+};
 
 interface ParentsTableProps {
   schoolSlug: string;
   initialData: GuardianData[];
+  initialInvitations?: InvitationData[];
 }
 
-export function ParentsTable({ schoolSlug, initialData: data }: ParentsTableProps) {
+export function ParentsTable({
+  schoolSlug,
+  initialData: data,
+  initialInvitations: invitations = [],
+}: ParentsTableProps) {
 
   const columns: ColumnDef<GuardianData>[] = [
     {
@@ -160,6 +174,20 @@ export function ParentsTable({ schoolSlug, initialData: data }: ParentsTableProp
     },
   ];
 
+  const getExpiryText = (expiresAt: Date) => {
+    const diffMs = new Date(expiresAt).getTime() - new Date().getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (diffMs < 0) {
+      const expiredDays = Math.abs(Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+      return `Expired ${expiredDays === 0 ? "today" : `${expiredDays} day${expiredDays > 1 ? "s" : ""} ago`}`;
+    }
+    if (diffDays === 0) {
+      const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
+      return `Expires in ${diffHours} hour${diffHours > 1 ? "s" : ""}`;
+    }
+    return `Expires in ${diffDays} day${diffDays > 1 ? "s" : ""}`;
+  };
+
   const totalWards = data.reduce((acc, curr) => acc + curr.wards.length, 0);
 
   return (
@@ -178,9 +206,96 @@ export function ParentsTable({ schoolSlug, initialData: data }: ParentsTableProp
         />
       </div>
 
-      <div className="bg-background rounded-md border shadow-sm p-4">
-        <DataTable columns={columns} data={data} searchKey="name" />
-      </div>
+      <Tabs defaultValue="directory" className="space-y-6">
+        <TabsList className="bg-muted/60 p-1 border">
+          <TabsTrigger value="directory">
+            Active Guardians ({data.length})
+          </TabsTrigger>
+          <TabsTrigger value="pending" className="relative">
+            Pending Invitations
+            {invitations.length > 0 && (
+              <Badge
+                variant="secondary"
+                className="ml-2 bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200 border-none shrink-0 font-semibold"
+              >
+                {invitations.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="directory" className="space-y-6">
+          <div className="bg-background rounded-md border shadow-sm p-4">
+            <DataTable columns={columns} data={data} searchKey="name" />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="pending" className="space-y-6">
+          <Card className="backdrop-blur-sm bg-card/50 border-border/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                Pending Guardian Invitations
+              </CardTitle>
+              <CardDescription>
+                These parents or guardians have been invited but haven&apos;t joined the portal yet.
+                Their uncompleted profiles will be activated and linked to their wards once they accept and sign up.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {invitations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground border-2 border-dashed rounded-lg">
+                  <Mail className="h-8 w-8 mb-2 opacity-40" />
+                  <p className="text-sm">No pending guardian invitations</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {invitations.map((inv) => {
+                    const isExpired = new Date(inv.expiresAt) < new Date();
+                    const timeText = getExpiryText(inv.expiresAt);
+
+                    return (
+                      <PendingInvitationRow
+                        key={inv.id}
+                        isError={isExpired}
+                        primary={<span className="font-semibold">{inv.email}</span>}
+                        secondary={
+                          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                            <span>Sent on {new Date(inv.createdAt).toLocaleDateString("en-GB", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}</span>
+                            <span>•</span>
+                            <span className={isExpired ? "text-red-500 font-medium" : "text-muted-foreground"}>
+                              {timeText}
+                            </span>
+                          </span>
+                        }
+                        badges={
+                          <Badge
+                            variant={isExpired ? "destructive" : "outline"}
+                            className={isExpired ? "" : "text-yellow-600 border-yellow-500/50 shrink-0 bg-yellow-50/50 dark:bg-yellow-950/20"}
+                          >
+                            {isExpired ? "Expired" : "Awaiting signup"}
+                          </Badge>
+                        }
+                        action={
+                          <PendingInvitationActionButtons
+                            schoolSlug={schoolSlug}
+                            invitationId={inv.id}
+                            email={inv.email}
+                          />
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

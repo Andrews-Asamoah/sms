@@ -10,11 +10,14 @@ import { SetDetailClient } from "./client";
 
 interface SetDetailPageProps {
   params: Promise<{ schoolSlug: string; setId: string }>;
+  searchParams: Promise<{ classId?: string }>;
 }
 
 export default async function SetDetailPage(props: SetDetailPageProps) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const { schoolSlug, setId } = params;
+  const initialClassId = searchParams.classId;
 
   const session = await requireSchoolAccess(schoolSlug);
   const role = getSchoolRole(session, schoolSlug);
@@ -129,6 +132,7 @@ export default async function SetDetailPage(props: SetDetailPageProps) {
           set={{ ...set, displayClasses, totalStudents }}
           schoolSlug={schoolSlug}
           school={school}
+          initialClassId={initialClassId}
         />
       </div>
     </div>

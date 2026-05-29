@@ -19,6 +19,7 @@ import {
   MapPin,
   AlertCircle,
   Calendar,
+  PenLine,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -47,6 +48,7 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ProfileImageEditor } from "@/components/settings/profile-image-editor";
+import { SignatureEditor } from "@/components/settings/signature-editor";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -105,6 +107,9 @@ export function ProfileForm({ userData }: ProfileFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [displayName, setDisplayName] = useState(userData.name);
+  const showSignatureTab = ["superadmin", "owner", "admin", "teacher", "headteacher"].includes(
+    userData.role.toLowerCase(),
+  );
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -250,6 +255,15 @@ export function ProfileForm({ userData }: ProfileFormProps) {
                 <AlertCircle className="h-4 w-4" />
                 <span className="hidden sm:inline">Emergency</span>
               </TabsTrigger>
+              {showSignatureTab && (
+                <TabsTrigger
+                  value="signature"
+                  className="gap-2 px-6 rounded-xl data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+                >
+                  <PenLine className="h-4 w-4" />
+                  <span className="hidden sm:inline">Signature</span>
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -745,6 +759,31 @@ export function ProfileForm({ userData }: ProfileFormProps) {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {showSignatureTab && (
+              <TabsContent value="signature" className="mt-0">
+                <Card className="border-black/5 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-3xl shadow-2xl rounded-3xl overflow-hidden transition-colors">
+                  <CardHeader className="border-b border-black/5 dark:border-white/5 p-8">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400">
+                        <PenLine className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-2xl font-bold tracking-tight">
+                          Digital Signature
+                        </CardTitle>
+                        <CardDescription>
+                          Manage your digital signature used on official school documents
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-8">
+                    <SignatureEditor currentSignatureUrl={userData.profile?.signatureUrl} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
           </div>
         </Tabs>
 

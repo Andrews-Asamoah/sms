@@ -42,13 +42,22 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
 
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
-    select: { id: true },
+    select: { id: true, organizationId: true },
   });
 
   if (!school) return null;
 
-  const nonTeachingStaff = await getNonTeachingStaff(school.id);
-
+  const [nonTeachingStaff, pendingInvitations] = await Promise.all([
+    getNonTeachingStaff(school.id),
+    prisma.invitation.findMany({
+      where: {
+        organizationId: school.organizationId,
+        status: { in: ["pending", "expired"] },
+        role: { in: ["admin", "headteacher", "accountant", "staff"] },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   // Normalize data for StaffClient - Only non-teaching staff
   const staffList = nonTeachingStaff
@@ -89,7 +98,18 @@ export default async function AdminStaffPage({ params }: StaffPageProps) {
           </Button>
         </Link>
       </DashboardPageHeader>
-      <StaffClient initialData={staffList} schoolSlug={schoolSlug} />
+      <StaffClient
+        initialData={staffList}
+        schoolSlug={schoolSlug}
+        initialInvitations={pendingInvitations.map((inv) => ({
+          id: inv.id,
+          email: inv.email,
+          role: inv.role || "staff",
+          status: inv.status,
+          expiresAt: inv.expiresAt,
+          createdAt: inv.createdAt,
+        }))}
+      />
     </div>
   );
 }

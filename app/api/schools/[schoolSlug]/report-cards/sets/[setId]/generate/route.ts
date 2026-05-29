@@ -1,6 +1,4 @@
-import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { formatStudentName } from "@/lib/utils/name-formatter";
 import { verifyApiSchoolAccess } from "@/lib/auth/guards";
@@ -10,12 +8,10 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ schoolSlug: string; setId: string }> },
 ) {
+  const { schoolSlug, setId } = await params;
   try {
-    const { schoolSlug, setId } = await params;
     const access = await verifyApiSchoolAccess(schoolSlug, ["owner", "admin", "headteacher", "teacher"]);
     if (!access.authorized) return access.errorResponse;
-    const { session } = access;
-
 
     const set = await prisma.reportCardSet.findUnique({
       where: { id: setId },
@@ -53,25 +49,38 @@ export async function POST(
       data: { status: "GENERATING" },
     });
 
-    // Determine all target class IDs
-    const classIds = set.classId ? [set.classId] : set.targetClasses.map(tc => tc.classId);
-
-    // Build a map of classes by ID for quick lookup during generation
-    const classMap = new Map<string, any>();
-    if (set.class) {
-      classMap.set(set.class.id, set.class);
-    }
-    set.targetClasses.forEach(tc => {
-      classMap.set(tc.classId, tc.class);
-    });
+    // Mirror the same class-resolution logic used by the frontend (page.tsx):
+    // targetClasses (multi-class) takes priority over the legacy single classId.
+    const classIds: string[] =
+      set.targetClasses.length > 0
+        ? set.targetClasses.map((tc) => tc.classId)
+        : set.classId
+        ? [set.classId]
+        : [];
 
     if (classIds.length === 0) {
       return new NextResponse("Report card set has no target classes", { status: 400 });
     }
 
+    // Optional class filter from request body — must be one of the set's classes.
+    let targetClassIds: string[] = classIds;
+    try {
+      const body = await req.json();
+      if (body?.classId && typeof body.classId === "string" && classIds.includes(body.classId)) {
+        targetClassIds = [body.classId];
+      }
+    } catch {
+      // No body or invalid JSON — generate for all classes.
+    }
+
+    // Build a lookup map: classId → full class object (with students, teacher, dept)
+    const classMap = new Map<string, any>();
+    if (set.class) classMap.set(set.class.id, set.class);
+    set.targetClasses.forEach((tc) => classMap.set(tc.classId, tc.class));
+
     // 1. Fetch all students in the selected classes
     const students = await prisma.student.findMany({
-      where: { classId: { in: classIds }, schoolId: set.schoolId, status: "ACTIVE" },
+      where: { classId: { in: targetClassIds }, schoolId: set.schoolId, status: "ACTIVE" },
       include: {
         profile: {
           include: {
@@ -118,14 +127,53 @@ export async function POST(
       }),
     ]);
 
-    // Pre-calculate total school days per class (unique dates marked for each class)
+    // 2c. Fetch class teacher and headteacher signature URLs
+    const classTeacherProfileIds = new Set<string>();
+    classMap.forEach((cls) => {
+      if (cls?.classTeacher?.profile?.userId) {
+        classTeacherProfileIds.add(cls.classTeacher.profile.userId);
+      }
+    });
+
+    // Find headteacher member for this school
+    const headteacherMember = await prisma.member.findFirst({
+      where: {
+        organization: { school: { id: set.schoolId } },
+        role: { in: ["headteacher", "owner"] },
+      },
+      include: {
+        user: {
+          include: {
+            userProfile: {
+              select: { signatureUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    const headteacherSignatureUrl = headteacherMember?.user?.userProfile?.signatureUrl || null;
+
+    // Fetch class teacher signatures
+    const teacherSignatures = await prisma.userProfile.findMany({
+      where: {
+        userId: { in: Array.from(classTeacherProfileIds) },
+        signatureUrl: { not: null },
+      },
+      select: { userId: true, signatureUrl: true },
+    });
+    const teacherSigMap = new Map(teacherSignatures.map((t) => [t.userId, t.signatureUrl]));
+
+    // Pre-calculate total school days per class (unique attendance dates per class)
     const classTotalDaysMap = new Map<string, number>();
-    classIds.forEach(cid => {
-      const classStudentIds = students.filter(s => s.classId === cid).map(s => s.id);
+    targetClassIds.forEach((cid) => {
+      const classStudentIds = new Set(
+        students.filter((s) => s.classId === cid).map((s) => s.id),
+      );
       const uniqueDates = new Set(
         attendanceRecords
-          .filter(a => classStudentIds.includes(a.studentId))
-          .map(a => a.date.toISOString().split('T')[0])
+          .filter((a) => classStudentIds.has(a.studentId))
+          .map((a) => a.date.toISOString().split("T")[0]),
       );
       classTotalDaysMap.set(cid, uniqueDates.size);
     });
@@ -182,6 +230,7 @@ export async function POST(
       const bRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "BEHAVIORAL")?.content;
       const aRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "ACADEMIC")?.content;
       const gRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "GENERAL")?.content;
+      const htRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "HEADTEACHER")?.content;
 
       return {
         studentId: student.id,
@@ -197,23 +246,31 @@ export async function POST(
         behavioral: bRemark,
         academic: aRemark,
         general: gRemark,
+        headteacher: htRemark,
       };
     });
 
-    // 4. Calculate Ranks (Positions)
-    const rankedResults = [...studentResults].sort(
-      (a, b) => b.totalMarks - a.totalMarks,
-    );
+    // 4. Calculate Ranks (Positions) — scoped per-class so position reflects
+    //    standing within the student's own class, not across the whole set.
+    const classGroupMap = new Map<string, typeof studentResults>();
+    studentResults.forEach((res) => {
+      const cid = res.classId ?? "__unknown__";
+      if (!classGroupMap.has(cid)) classGroupMap.set(cid, []);
+      classGroupMap.get(cid)!.push(res);
+    });
 
-    // Assign positions (handling ties)
-    let currentRank = 0;
-    let lastScore = -1;
-    rankedResults.forEach((res, index) => {
-      if (res.totalMarks !== lastScore) {
-        currentRank = index + 1;
-      }
-      (res as any).position = currentRank;
-      lastScore = res.totalMarks;
+    classGroupMap.forEach((group) => {
+      const sorted = [...group].sort((a, b) => b.totalMarks - a.totalMarks);
+      let currentRank = 0;
+      let lastScore = -1;
+      sorted.forEach((res, idx) => {
+        if (res.totalMarks !== lastScore) {
+          currentRank = idx + 1;
+        }
+        (res as any).position = currentRank;
+        (res as any).outOf = group.length;
+        lastScore = res.totalMarks;
+      });
     });
 
     // 5. Save/Update ReportCards
@@ -255,6 +312,11 @@ export async function POST(
           headmasterName:
             (school?.settings as any)?.headmasterName ||
             "AYEH ESSEL EDWINA OHENESI DR",
+          classTeacherSignature: studentClass?.classTeacher?.profile?.userId
+            ? teacherSigMap.get(studentClass.classTeacher.profile.userId) || null
+            : null,
+          headmasterSignature: headteacherSignatureUrl,
+          headmasterRemark: res.headteacher ?? null,
 
           term: set.term.name,
           academicYear: set.academicYear.name,
@@ -262,6 +324,7 @@ export async function POST(
           average: res.averageMarks.toFixed(2),
           aggregate: res.aggregate,
           position: (res as any).position,
+          outOf: (res as any).outOf,
           positionSuffix: getOrdinalSuffix((res as any).position),
           department: studentClass?.department?.name || "N/A",
           studentImage: studentInfo?.profile.user?.image,
@@ -291,6 +354,9 @@ export async function POST(
           },
         });
       }),
+      {
+        timeout: 60000, // 60 seconds timeout to prevent interactive transaction timeouts on large batches
+      }
     );
 
     // Update status to GENERATED
@@ -300,10 +366,20 @@ export async function POST(
     });
 
     revalidatePath(`/${schoolSlug}/admin/reports/report-cards`);
+    revalidatePath(`/${schoolSlug}/admin/reports/report-cards/sets/${setId}`);
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[REPORT_CARD_GENERATION_POST]", error);
+    try {
+      // Reset status back to DRAFT to prevent set from locking in GENERATING state
+      await prisma.reportCardSet.update({
+        where: { id: setId },
+        data: { status: "DRAFT" },
+      });
+    } catch (dbErr) {
+      console.error("Failed to reset set status on error:", dbErr);
+    }
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

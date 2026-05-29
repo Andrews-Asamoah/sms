@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   FileText,
   Send,
@@ -22,6 +22,11 @@ import dynamic_next from "next/dynamic";
 
 const PDFDownloadLink = dynamic_next(
   () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+  { ssr: false },
+);
+
+const BlobProvider = dynamic_next(
+  () => import("@react-pdf/renderer").then((mod) => mod.BlobProvider),
   { ssr: false },
 );
 
@@ -84,12 +89,14 @@ interface SetDetailClientProps {
   set: any;
   schoolSlug: string;
   school: any;
+  initialClassId?: string;
 }
 
 export function SetDetailClient({
   set,
   schoolSlug,
   school,
+  initialClassId,
 }: SetDetailClientProps) {
   const router = useRouter();
   const [processing, setProcessing] = useState(false);
@@ -104,25 +111,54 @@ export function SetDetailClient({
     setMounted(true);
   }, []);
 
+
+
   const displayClasses: any[] = set.displayClasses ?? [];
 
-  const [activeClassId, setActiveClassId] = useState<string>(
-    displayClasses.length > 0 ? displayClasses[0].id : "",
+  const pathname = usePathname();
+
+  const [activeClassId, setActiveClassIdState] = useState<string>(
+    initialClassId || (displayClasses.length > 0 ? displayClasses[0].id : ""),
   );
   const [sortKey, setSortKey] = useState<SortKey>("name");
+
+  useEffect(() => {
+    if (initialClassId && initialClassId !== activeClassId) {
+      setActiveClassIdState(initialClassId);
+    }
+  }, [initialClassId, activeClassId]);
+
+  const setActiveClassId = (id: string) => {
+    setActiveClassIdState(id);
+    const params = new URLSearchParams(window.location.search);
+    if (id) {
+      params.set("classId", id);
+    } else {
+      params.delete("classId");
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   const activeClass =
     displayClasses.find((c) => c.id === activeClassId) ?? displayClasses[0];
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (classId?: string) => {
     setProcessing(true);
     try {
       const response = await fetch(
         `/api/schools/${schoolSlug}/report-cards/sets/${set.id}/generate`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(classId ? { classId } : {}),
+        },
       );
       if (!response.ok) throw new Error("Generation failed");
-      toast.success("Report cards generated successfully");
+      toast.success(
+        classId
+          ? `Report cards generated for ${activeClass?.name ?? "selected class"}`
+          : "Report cards generated successfully",
+      );
       router.refresh();
     } catch {
       toast.error("Failed to generate report cards");
@@ -200,6 +236,7 @@ export function SetDetailClient({
       setSendingEmail(false);
     }
   };
+
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -280,22 +317,39 @@ export function SetDetailClient({
             </div>
             <div className="flex gap-2 flex-wrap justify-end">
               {["DRAFT", "GENERATED", "PUBLISHED"].includes(set.status) && (
-                <Button
-                  onClick={handleGenerate}
-                  disabled={processing}
-                  variant={
-                    ["GENERATED", "PUBLISHED"].includes(set.status)
-                      ? "outline"
-                      : "default"
-                  }
-                >
-                  <RefreshCw
-                    className={`w-4 h-4 mr-2 ${processing ? "animate-spin" : ""}`}
-                  />
-                  {["GENERATED", "PUBLISHED"].includes(set.status)
-                    ? "Regenerate"
-                    : "Generate All"}
-                </Button>
+                <>
+                  {/* Generate / Regenerate all */}
+                  <Button
+                    onClick={() => handleGenerate()}
+                    disabled={processing}
+                    variant={
+                      ["GENERATED", "PUBLISHED"].includes(set.status)
+                        ? "outline"
+                        : "default"
+                    }
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 mr-2 ${processing ? "animate-spin" : ""}`}
+                    />
+                    {["GENERATED", "PUBLISHED"].includes(set.status)
+                      ? "Regenerate All"
+                      : "Generate All"}
+                  </Button>
+
+                  {/* Class-scoped generate — only shown when multiple classes exist */}
+                  {displayClasses.length > 1 && activeClassId && (
+                    <Button
+                      onClick={() => handleGenerate(activeClassId)}
+                      disabled={processing}
+                      variant="secondary"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 mr-2 ${processing ? "animate-spin" : ""}`}
+                      />
+                      Generate {activeClass?.name ?? "Class"}
+                    </Button>
+                  )}
+                </>
               )}
               {/* Unpublish — only when PUBLISHED */}
               {set.status === "PUBLISHED" && (
@@ -494,6 +548,34 @@ export function SetDetailClient({
                                     <Download className="w-4 h-4 opacity-50" />
                                   </Button>
                                 )}
+                                {mounted && (
+                                  <BlobProvider
+                                    document={
+                                      <ReportCardPDF
+                                        data={reportData}
+                                        school={school}
+                                      />
+                                    }
+                                  >
+                                    {({ url, loading }) => (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={loading || !url}
+                                        onClick={() => {
+                                          if (url) window.open(url, "_blank");
+                                        }}
+                                      >
+                                        <Printer
+                                          className={cn(
+                                            "w-4 h-4",
+                                            loading && "animate-pulse",
+                                          )}
+                                        />
+                                      </Button>
+                                    )}
+                                  </BlobProvider>
+                                )}
                               </div>
                             )}
                           </TableCell>
@@ -548,30 +630,73 @@ export function SetDetailClient({
                 <FileText className="w-4 h-4 mr-2" /> Class Broad Sheet
               </Link>
             </Button>
-            {set.reportCards.length > 0 && mounted && (
-              <PDFDownloadLink
-                document={
-                  <BulkReportPDF
-                    reportCards={set.reportCards}
-                    school={school}
-                  />
-                }
-                fileName={`${set.name}_All_Reports.pdf`}
-              >
-                {({ loading }) => (
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    disabled={loading}
-                  >
-                    <Printer
-                      className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
-                    />
-                    {loading ? "Preparing Reports..." : "Print All Reports"}
-                  </Button>
-                )}
-              </PDFDownloadLink>
-            )}
+            {set.reportCards.length > 0 && mounted && (() => {
+              // Filter report cards that belong to students in the active class
+              const activeStudentIds = new Set(
+                (activeClass?.students ?? []).map((s: any) => s.id),
+              );
+              const classReportCards = set.reportCards.filter((r: any) =>
+                activeStudentIds.has(r.studentId),
+              );
+
+              return (
+                <>
+                  {/* Print only the active class */}
+                  {classReportCards.length > 0 && (
+                    <PDFDownloadLink
+                      document={
+                        <BulkReportPDF
+                          reportCards={classReportCards}
+                          school={school}
+                        />
+                      }
+                      fileName={`${set.name}_${activeClass?.name ?? "Class"}_Reports.pdf`}
+                    >
+                      {({ loading }) => (
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start"
+                          disabled={loading}
+                        >
+                          <Printer
+                            className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
+                          />
+                          {loading
+                            ? "Preparing..."
+                            : `Print ${activeClass?.name ?? "Class"} Reports`}
+                        </Button>
+                      )}
+                    </PDFDownloadLink>
+                  )}
+
+                  {/* Print all classes (only shown when there are multiple) */}
+                  {displayClasses.length > 1 && (
+                    <PDFDownloadLink
+                      document={
+                        <BulkReportPDF
+                          reportCards={set.reportCards}
+                          school={school}
+                        />
+                      }
+                      fileName={`${set.name}_All_Reports.pdf`}
+                    >
+                      {({ loading }) => (
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-muted-foreground"
+                          disabled={loading}
+                        >
+                          <Printer
+                            className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
+                          />
+                          {loading ? "Preparing..." : "Print All Reports"}
+                        </Button>
+                      )}
+                    </PDFDownloadLink>
+                  )}
+                </>
+              );
+            })()}
 
             {set.status === "DRAFT" && (
               <AlertDialog>

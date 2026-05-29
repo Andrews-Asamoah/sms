@@ -9,17 +9,12 @@ import { ReportCardEditorDialog } from "@/components/school/report-cards/report-
 import { updateReportCardData } from "../../actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+// Import statically — ReportCardPDF only uses @react-pdf/renderer primitives (no browser/DOM APIs)
+// and must be a real Document element, not a Next.js dynamic wrapper, for the PDF renderer to parse it.
+import { ReportCardPDF } from "@/components/school/report-cards/report-card-pdf";
 
 const PDFDownloadLink = dynamic_next(
   () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-  { ssr: false },
-);
-
-const ReportCardPDF = dynamic_next(
-  () =>
-    import("@/components/school/report-cards/report-card-pdf").then(
-      (mod) => mod.ReportCardPDF,
-    ),
   { ssr: false },
 );
 
@@ -40,9 +35,10 @@ export function AdminReportCardClient({
 }: AdminReportCardClientProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Wire up the print button in the parent toolbar
   useEffect(() => {
+    setMounted(true);
     const btn = document.getElementById("print-report-btn");
     if (btn) btn.onclick = () => window.print();
   }, []);
@@ -73,25 +69,32 @@ export function AdminReportCardClient({
   return (
     <div className="flex-1 flex flex-col">
       {/* Action bar */}
-      <div className="p-3 bg-white border-b flex justify-end gap-2 print:hidden">
+      <div className="p-3 bg-background border-b flex justify-end gap-2 print:hidden">
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
           <Pencil className="w-4 h-4 mr-2" /> Edit Data
         </Button>
-        <PDFDownloadLink
-          document={<ReportCardPDF data={pdfData} school={school} />}
-          fileName={`${report.student.profile.firstName}_${report.student.profile.lastName}_Report.pdf`}
-        >
-          {({ loading }) => (
-            <Button variant="outline" size="sm" disabled={loading}>
-              {loading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4 mr-2" />
-              )}
-              {loading ? "Preparing PDF…" : "Download PDF"}
-            </Button>
-          )}
-        </PDFDownloadLink>
+        {mounted ? (
+          <PDFDownloadLink
+            document={<ReportCardPDF data={pdfData} school={school} />}
+            fileName={`${report.student.profile.firstName}_${report.student.profile.lastName}_Report.pdf`}
+          >
+            {({ loading }) => (
+              <Button variant="outline" size="sm" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                {loading ? "Preparing PDF…" : "Download PDF"}
+              </Button>
+            )}
+          </PDFDownloadLink>
+        ) : (
+          <Button variant="outline" size="sm" disabled>
+            <Download className="w-4 h-4 mr-2 opacity-50" />
+            Download PDF
+          </Button>
+        )}
       </div>
 
       {/* Formal web report card */}

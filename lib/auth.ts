@@ -207,107 +207,100 @@ export const auth = betterAuth({
       organizationLimit: 100,
       membershipLimit: 1000,
       requireEmailVerificationOnInvitation: false,
+      sendInvitationEmail: async (data) => {
+        try {
+          // Get organization with school data
+          const org = await prisma.organization.findUnique({
+            where: { id: data.organization.id },
+            include: {
+              school: {
+                select: {
+                  name: true,
+                  id: true,
+                },
+              },
+            },
+          });
+
+          if (!org || !org.school) {
+            console.error("[Auth] sendInvitationEmail: Organization or school not found");
+            return;
+          }
+
+          // Get invitation details for expiresAt
+          const invitationRecord = await prisma.invitation.findUnique({
+            where: { id: data.id },
+            select: {
+              role: true,
+              expiresAt: true,
+            },
+          });
+
+          if (!invitationRecord) {
+            console.error("[Auth] sendInvitationEmail: Invitation not found");
+            return;
+          }
+
+          // Determine if this is a guardian invitation
+          const isGuardianRole =
+            invitationRecord.role?.toLowerCase() === "guardian";
+
+          const guardian = await prisma.guardian.findFirst({
+            where: {
+              email: data.email,
+              schoolId: org.school.id,
+            },
+            include: {
+              students: {
+                include: {
+                  student: {
+                    include: {
+                      profile: true,
+                    },
+                  },
+                },
+              },
+            },
+          });
+
+          if (isGuardianRole || (guardian && guardian.students.length > 0)) {
+            const firstStudent = guardian?.students?.[0]?.student;
+            const studentName = firstStudent
+              ? `${firstStudent.profile.firstName} ${firstStudent.profile.lastName}`
+              : "your child";
+            const guardianName = guardian
+              ? `${guardian.firstName} ${guardian.lastName}`
+              : data.email;
+
+            await sendGuardianInvitationEmail({
+              to: data.email,
+              guardianName,
+              studentName,
+              schoolName: org.school.name,
+              invitationId: data.id,
+              expiresAt: invitationRecord.expiresAt,
+            });
+          } else {
+            await sendAdminInvitationEmail({
+              to: data.email,
+              inviterName: data.inviter.user.name || data.inviter.user.email,
+              schoolName: org.school.name,
+              role: invitationRecord.role || "member",
+              invitationId: data.id,
+              expiresAt: invitationRecord.expiresAt,
+            });
+          }
+
+          console.log(`[Auth] sendInvitationEmail: Email sent to ${data.email} for ${org.school.name}`);
+        } catch (error) {
+          console.error("[Auth] Error in sendInvitationEmail:", error);
+        }
+      },
 
       // ======================================================================
       // HOOKS: Organization lifecycle events
       // ======================================================================
       organizationHooks: {
-        // =====================================================================
-        // AFTER CREATE INVITATION - Send email here!
-        // =====================================================================
-        afterCreateInvitation: async ({
-          invitation,
-          inviter,
-          organization,
-        }) => {
-          try {
-            // Get organization with school data
-            const org = await prisma.organization.findUnique({
-              where: { id: organization.id },
-              include: {
-                school: {
-                  select: {
-                    name: true,
-                    id: true,
-                  },
-                },
-              },
-            });
-
-            if (!org || !org.school) {
-              console.error("[Auth] Organization or school not found");
-              return;
-            }
-
-            // Get invitation details
-            const invitationRecord = await prisma.invitation.findUnique({
-              where: { id: invitation.id },
-              select: {
-                role: true,
-                expiresAt: true,
-              },
-            });
-
-            if (!invitationRecord) {
-              console.error("[Auth] Invitation not found");
-              return;
-            }
-
-            // Determine if this is a guardian invitation
-            const isGuardianRole =
-              invitationRecord.role?.toLowerCase() === "guardian";
-
-            const guardian = await prisma.guardian.findFirst({
-              where: {
-                email: invitation.email,
-                schoolId: org.school.id,
-              },
-              include: {
-                students: {
-                  include: {
-                    student: {
-                      include: {
-                        profile: true,
-                      },
-                    },
-                  },
-                },
-              },
-            });
-
-            if (isGuardianRole || (guardian && guardian.students.length > 0)) {
-              const firstStudent = guardian?.students?.[0]?.student;
-              const studentName = firstStudent
-                ? `${firstStudent.profile.firstName} ${firstStudent.profile.lastName}`
-                : "your child";
-              const guardianName = guardian
-                ? `${guardian.firstName} ${guardian.lastName}`
-                : invitation.email;
-
-              await sendGuardianInvitationEmail({
-                to: invitation.email,
-                guardianName,
-                studentName,
-                schoolName: org.school.name,
-                invitationId: invitation.id,
-                expiresAt: invitationRecord.expiresAt,
-              });
-            } else {
-              await sendAdminInvitationEmail({
-                to: invitation.email,
-                inviterName: inviter.name || inviter.email,
-                schoolName: org.school.name,
-                role: invitationRecord.role || "member",
-                invitationId: invitation.id,
-                expiresAt: invitationRecord.expiresAt,
-              });
-            }
-          } catch (error) {
-            console.error("[Auth] Error in afterCreateInvitation:", error);
-            // Don't throw - invitation was created successfully
-          }
-        },
-
         // =====================================================================
         // AFTER ADD MEMBER
         // =====================================================================

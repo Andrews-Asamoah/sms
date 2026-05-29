@@ -324,6 +324,7 @@ model UserProfile {
   emergencyContactName  String?
   emergencyContactPhone String?
   emergencyRelationship String?
+  signatureUrl          String?
   isActive              Boolean   @default(true)
   lastLoginAt           DateTime?
   createdAt             DateTime  @default(now())
@@ -2065,6 +2066,7 @@ enum RemarkType {
   GENERAL
   ACHIEVEMENT
   CONCERN
+  HEADTEACHER
 }
 
 enum AccountType {
