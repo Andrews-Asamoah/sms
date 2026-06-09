@@ -14,8 +14,7 @@ export async function deleteReportCardSet(
     const role = getSchoolRole(session, schoolSlug);
 
     if (
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner" &&
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
       !session.isSuperAdmin
     ) {
       return { success: false, error: "Unauthorized" };
@@ -53,8 +52,7 @@ export async function unpublishReportCardSet(
     const role = getSchoolRole(session, schoolSlug);
 
     if (
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner" &&
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
       !session.isSuperAdmin
     ) {
       return { success: false, error: "Unauthorized" };
@@ -101,8 +99,7 @@ export async function updateReportCardSet(
     const role = getSchoolRole(session, schoolSlug);
 
     if (
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner" &&
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
       !session.isSuperAdmin
     ) {
       return { success: false, error: "Unauthorized" };
@@ -143,8 +140,7 @@ export async function updateReportCardData(
     const role = getSchoolRole(session, schoolSlug);
 
     if (
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner" &&
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
       !session.isSuperAdmin
     ) {
       return { success: false, error: "Unauthorized" };

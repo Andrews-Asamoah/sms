@@ -29,12 +29,12 @@ export default async function AdminAnnouncementsPage({
 
 async function AnnouncementsContent({ schoolSlug }: { schoolSlug: string }) {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) redirect("/auth/login");
 
   const role = await getActiveSchoolRole(session, schoolSlug);
   if (!role || !["admin", "owner", "headteacher"].includes(role.effectiveRole)) {
     // If somehow they get here without admin rights (though middleware should catch)
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const school = await prisma.school.findUnique({
@@ -42,7 +42,7 @@ async function AnnouncementsContent({ schoolSlug }: { schoolSlug: string }) {
     select: { id: true },
   });
 
-  if (!school) redirect("/login");
+  if (!school) redirect("/auth/login");
 
   const userId = session.user.id;
   const effectiveRole = role.effectiveRole;

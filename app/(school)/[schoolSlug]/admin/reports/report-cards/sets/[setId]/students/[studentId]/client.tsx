@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { FormalReportCard } from "@/components/school/report-cards/formal-report-card";
 import dynamic_next from "next/dynamic";
 import { Button } from "@/components/ui/button";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, ChevronLeft, Printer } from "lucide-react";
 import { ReportCardPDF } from "@/components/school/report-cards/report-card-pdf";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -35,17 +36,10 @@ export function AdminReportCardClient({
   remarks,
   gradingSystem,
 }: AdminReportCardClientProps) {
-  const [mounted, setMounted] = useState(false);
   const [activeDownload, setActiveDownload] = useState<{
     reportData: any;
     fileName: string;
   } | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    const btn = document.getElementById("print-report-btn");
-    if (btn) btn.onclick = () => window.print();
-  }, []);
 
   const pdfData = {
     ...report.data,
@@ -58,20 +52,51 @@ export function AdminReportCardClient({
 
   return (
     <div className="flex-1 flex flex-col">
-      {/* Action bar */}
-      <div className="p-3 bg-background border-b flex justify-end gap-2 print:hidden">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            setActiveDownload({
-              reportData: pdfData,
-              fileName: `${report.student.profile.firstName}_${report.student.profile.lastName}_Report.pdf`,
-            })
-          }
-        >
-          <Download className="w-4 h-4 mr-2" /> Download PDF
-        </Button>
+      {/* Unified Toolbar */}
+      <div className="flex items-center justify-between p-4 border-b bg-background shadow-sm print:hidden">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link
+              href={`/${schoolSlug}/admin/reports/report-cards/sets/${report.setId}`}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div className="text-left">
+            <h2 className="text-lg font-bold">
+              {report.student.profile.firstName}{" "}
+              {report.student.profile.lastName}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {report.set.term.name} &bull; {report.set.academicYear.name}
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => window.print()}
+          >
+            <Printer className="h-4 w-4" />
+            Print
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() =>
+              setActiveDownload({
+                reportData: pdfData,
+                fileName: `${report.student.profile.firstName}_${report.student.profile.lastName}_Report.pdf`,
+              })
+            }
+          >
+            <Download className="w-4 h-4" /> Download PDF
+          </Button>
+        </div>
       </div>
 
       {/* Formal web report card */}
@@ -90,6 +115,7 @@ export function AdminReportCardClient({
               data={activeDownload.reportData}
               school={school}
               remarks={remarks}
+              gradingSystem={gradingSystem}
             />
           }
         >

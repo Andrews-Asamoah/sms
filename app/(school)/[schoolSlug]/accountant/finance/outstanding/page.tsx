@@ -34,7 +34,7 @@ async function OutstandingContent({ schoolSlug }: { schoolSlug: string }) {
   const session = await getSession();
 
   if (!session || !hasSchoolAccess(session, schoolSlug)) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const school = await prisma.school.findUnique({
@@ -43,7 +43,7 @@ async function OutstandingContent({ schoolSlug }: { schoolSlug: string }) {
   });
 
   if (!school) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   // Resolve user-scoped working context

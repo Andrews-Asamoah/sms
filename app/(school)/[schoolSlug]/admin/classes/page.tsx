@@ -20,8 +20,7 @@ export default async function ClassesPage({ params }: ClassesPageProps) {
 
   // Check authorization
   if (
-    role?.effectiveRole !== "admin" &&
-    role?.effectiveRole !== "owner" &&
+    role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
     !session.isSuperAdmin
   ) {
     redirect(`/${schoolSlug}/unauthorized`);

@@ -36,8 +36,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
 
   // Check authorization
   if (
-    role?.effectiveRole !== "admin" &&
-    role?.effectiveRole !== "owner" &&
+    role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
     !session.isSuperAdmin
   ) {
     redirect(`/${schoolSlug}/unauthorized`);
@@ -94,8 +93,7 @@ export default async function AcademicYearsPage(props: AcademicYearsPageProps) {
   );
 
   const canManageGlobal =
-    role?.effectiveRole === "admin" ||
-    role?.effectiveRole === "owner" ||
+    role?.effectiveRole === "admin" || role?.effectiveRole === "owner" || role?.effectiveRole === "headteacher" ||
     session.isSuperAdmin;
 
   const now = new Date();

@@ -34,6 +34,26 @@ export const AdminInvitationEmail = ({
     day: "numeric",
   });
 
+  const formatRole = (role: string) => {
+    const roleLower = role.toLowerCase();
+    switch (roleLower) {
+      case "admin":
+        return { displayName: "Administrator", prefix: "an" };
+      case "headteacher":
+        return { displayName: "Head Teacher", prefix: "a" };
+      case "accountant":
+        return { displayName: "Accountant", prefix: "an" };
+      case "teacher":
+        return { displayName: "Teacher", prefix: "a" };
+      case "owner":
+        return { displayName: "School Owner", prefix: "a" };
+      default:
+        return { displayName: role, prefix: "a" };
+    }
+  };
+
+  const { displayName, prefix } = formatRole(role);
+
   return (
     <Html>
       <Head>
@@ -51,15 +71,12 @@ export const AdminInvitationEmail = ({
 
             <Text style={paragraph}>
               <strong>{inviterName}</strong> has invited you to join{" "}
-              <strong>{schoolName}</strong>&apos;s School Management System as
-              {["admin", "accountant"].includes(role.toLowerCase())
-                ? " an "
-                : " a "}
-              <strong>{role}</strong>.
+              <strong>{schoolName}</strong>&apos;s School Management System as{" "}
+              {prefix} <strong>{displayName}</strong>.
             </Text>
 
             <Text style={paragraph}>
-              As a {role}, you&apos;ll be able to access the school&apos;s
+              As {prefix === "an" ? "an" : "a"} {displayName}, you&apos;ll be able to access the school&apos;s
               management dashboard and collaborate with the team to manage
               school operations effectively.
             </Text>

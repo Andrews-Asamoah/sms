@@ -29,17 +29,17 @@ export default async function AccountantAnnouncementsPage({
 
 async function AnnouncementsContent({ schoolSlug }: { schoolSlug: string }) {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) redirect("/auth/login");
 
   const role = await getActiveSchoolRole(session, schoolSlug);
-  if (!role || role.effectiveRole !== "accountant") redirect("/login");
+  if (!role || role.effectiveRole !== "accountant") redirect("/auth/login");
 
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
     select: { id: true },
   });
 
-  if (!school) redirect("/login");
+  if (!school) redirect("/auth/login");
 
   const userId = session.user.id;
 

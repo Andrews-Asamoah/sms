@@ -13,22 +13,18 @@ export default async function SchoolIndexPage({ params }: SchoolIndexProps) {
   // Fetch the active session
   const session = await getSession();
   if (!session) {
-    console.log(`[School Index] No active session found. Redirecting to login for ${schoolSlug}.`);
     redirect(`/auth/login?callbackUrl=/${schoolSlug}`);
   }
 
   // Get the user's role profile for this school
   const schoolRole = getSchoolRole(session, schoolSlug);
   if (!schoolRole) {
-    console.log(`[School Index] User does not have access to school: ${schoolSlug}.`);
     redirect(`/${schoolSlug}/unauthorized`);
   }
 
-  // Resolve the active active school role context
+  // Resolve the active school role context (supports multi-role users switching dashboards)
   const activeSchoolRole = await getActiveSchoolRole(session, schoolSlug);
   const currentActiveRole = activeSchoolRole?.effectiveRole ?? schoolRole.effectiveRole;
-
-  console.log(`[School Index] Redirecting ${schoolSlug} for active role: ${currentActiveRole}`);
 
   switch (currentActiveRole) {
     case "accountant":

@@ -41,8 +41,7 @@ export async function createSubject(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return {
         success: false,
@@ -151,8 +150,7 @@ export async function updateSubject(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return {
         success: false,
@@ -264,8 +262,7 @@ export async function deleteSubject(schoolSlug: string, subjectId: string) {
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return {
         success: false,
@@ -363,8 +360,7 @@ export async function assignTeacherToSubject(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return {
         success: false,
@@ -434,8 +430,7 @@ export async function removeTeacherFromSubject(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return {
         success: false,
@@ -499,8 +494,7 @@ export async function bulkAssignSubjectToDepartment(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return { success: false, error: "Unauthorized" };
     }

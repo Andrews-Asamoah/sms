@@ -53,8 +53,7 @@ export async function createAssessmentTemplate(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return {
         success: false,
@@ -174,8 +173,7 @@ export async function updateAssessmentTemplate(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return { success: false, error: "Unauthorized" };
     }
@@ -298,8 +296,7 @@ export async function deleteAssessmentTemplate(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return { success: false, error: "Unauthorized" };
     }

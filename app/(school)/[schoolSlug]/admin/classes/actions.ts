@@ -16,8 +16,7 @@ export async function assignSubjectsToClass(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return { success: false, error: "Unauthorized" };
     }
@@ -74,8 +73,7 @@ export async function updateClassSubjectTeacher(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return { success: false, error: "Unauthorized" };
     }
@@ -112,8 +110,7 @@ export async function bulkAssignSubjectsToLevel(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return { success: false, error: "Unauthorized" };
     }
@@ -168,8 +165,7 @@ export async function syncSubjectTeacherAcrossSections(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return { success: false, error: "Unauthorized" };
     }

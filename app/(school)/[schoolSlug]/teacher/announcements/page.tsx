@@ -25,17 +25,17 @@ export default async function PortalAnnouncementsPage({
 
 async function AnnouncementsContent({ schoolSlug }: { schoolSlug: string }) {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) redirect("/auth/login");
 
   const role = await getActiveSchoolRole(session, schoolSlug);
-  if (!role) redirect("/login");
+  if (!role) redirect("/auth/login");
 
   const school = await prisma.school.findUnique({
     where: { subdomain: schoolSlug },
     select: { id: true },
   });
 
-  if (!school) redirect("/login");
+  if (!school) redirect("/auth/login");
 
   const userId = session.user.id;
   const effectiveRole = role.effectiveRole;

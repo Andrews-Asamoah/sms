@@ -22,7 +22,7 @@ export default async function AdminFinanceCategoriesPage({ params }: AdminFinanc
 async function AdminCategoriesContent({ schoolSlug }: { schoolSlug: string }) {
   const session = await getSession();
   if (!session || !hasSchoolAccess(session, schoolSlug)) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const school = await prisma.school.findUnique({
@@ -30,7 +30,7 @@ async function AdminCategoriesContent({ schoolSlug }: { schoolSlug: string }) {
     select: { id: true },
   });
 
-  if (!school) redirect("/login");
+  if (!school) redirect("/auth/login");
 
   const getCachedData = unstable_cache(
     async () => {

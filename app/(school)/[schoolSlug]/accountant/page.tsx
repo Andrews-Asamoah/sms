@@ -30,7 +30,7 @@ async function DashboardContent({ schoolSlug }: { schoolSlug: string }) {
   const session = await getSession();
 
   if (!session || !hasSchoolAccess(session, schoolSlug)) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const stats = await getDashboardStats(schoolSlug, session);

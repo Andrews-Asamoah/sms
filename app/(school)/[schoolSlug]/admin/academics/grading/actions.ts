@@ -14,8 +14,7 @@ export async function adoptSystemDefaultGrading(
     const role = getSchoolRole(session, schoolSlug);
 
     if (
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner" &&
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
       !session.isSuperAdmin
     ) {
       return { success: false, error: "Unauthorized" };

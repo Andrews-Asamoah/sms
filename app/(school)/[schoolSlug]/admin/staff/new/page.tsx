@@ -35,7 +35,7 @@ import {
 
 const staffInviteSchema = z.object({
   email: z.string().email("Valid email is required"),
-  role: z.enum(["STAFF", "ACCOUNTANT", "ADMIN", "HEADTEACHER"]),
+  role: z.enum(["ACCOUNTANT", "ADMIN", "HEADTEACHER"]),
   firstName: z
     .string()
     .min(2, "First name is optional but recommended")
@@ -66,7 +66,7 @@ export default function InviteStaffPage() {
     resolver: zodResolver(staffInviteSchema),
     defaultValues: {
       email: "",
-      role: "STAFF",
+      role: "ADMIN",
       firstName: "",
       lastName: "",
     },
@@ -196,7 +196,6 @@ export default function InviteStaffPage() {
                     <SelectItem value="ADMIN">Administrator</SelectItem>
                     <SelectItem value="HEADTEACHER">Head Teacher</SelectItem>
                     <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
-                    <SelectItem value="STAFF">General Staff</SelectItem>
                   </SelectContent>
                 </Select>
                 <FieldDescription>

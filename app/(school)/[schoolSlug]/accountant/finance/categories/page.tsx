@@ -30,7 +30,7 @@ async function CategoriesContent({ schoolSlug }: { schoolSlug: string }) {
   const session = await getSession();
 
   if (!session || !hasSchoolAccess(session, schoolSlug)) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const school = await prisma.school.findUnique({
@@ -39,7 +39,7 @@ async function CategoriesContent({ schoolSlug }: { schoolSlug: string }) {
   });
 
   if (!school) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const getCachedFeeItems = unstable_cache(

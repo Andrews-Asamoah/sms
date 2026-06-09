@@ -21,7 +21,7 @@ export default async function AdminLayout({
   const { schoolSlug } = await params;
 
   const { school, academicYear, currentTerm, academicYears, allRoles, permissions, userData, subscriptionStatus } =
-    await getRoleLayoutData(schoolSlug, ["owner", "admin"]);
+    await getRoleLayoutData(schoolSlug, ["owner", "admin", "headteacher"]);
 
   return (
     <RoleLayoutWrapper

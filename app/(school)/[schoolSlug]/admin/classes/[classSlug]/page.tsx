@@ -32,8 +32,7 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
 
   // Check authorization
   if (
-    role?.effectiveRole !== "admin" &&
-    role?.effectiveRole !== "owner" &&
+    role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
     !session.isSuperAdmin
   ) {
     redirect(`/${schoolSlug}/unauthorized`);

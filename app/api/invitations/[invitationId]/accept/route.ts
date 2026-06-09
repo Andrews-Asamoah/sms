@@ -222,7 +222,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       rolePath = "guardian";
     } else if (invitedRole === "staff") {
       rolePath = "staff";
-    } else if (invitedRole === "admin" || invitedRole === "owner") {
+    } else if (invitedRole === "admin" || invitedRole === "owner" || invitedRole === "headteacher") {
       rolePath = "admin";
     }
 

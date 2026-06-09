@@ -37,8 +37,7 @@ export default async function ClassesBulkUploadPage({
   const role = getSchoolRole(session, schoolSlug);
 
   if (
-    role?.effectiveRole !== "admin" &&
-    role?.effectiveRole !== "owner" &&
+    role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
     !session.isSuperAdmin
   ) {
     redirect(`/${schoolSlug}/unauthorized`);

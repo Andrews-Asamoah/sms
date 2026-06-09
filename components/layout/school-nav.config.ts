@@ -435,6 +435,14 @@ const ROLE_NAV_SECTIONS: Record<string, string[]> = {
     "Communication",
     "System",
   ],
+  headteacher: [
+    "Main",
+    "User Management",
+    "Academics",
+    "Operations",
+    "Reporting",
+    "Communication",
+  ],
   teacher: ["Teacher Area", "Communication"],
   accountant: [
     "Accountant Dashboard",
@@ -548,9 +556,9 @@ export function getPrefixedNavSections(
   currentRole?: string,
 ): NavSection[] {
   const safeSlug = schoolSlug.replace(/^\/+/, "");
-  // Default non-admin roles to their own prefix. For owner/admin, keep default or use admin prefix
+  // Default non-admin roles to their own prefix. For owner/admin/headteacher, keep default or use admin prefix
   const rolePrefix =
-    currentRole && !["owner", "admin"].includes(currentRole)
+    currentRole && !["owner", "admin", "headteacher"].includes(currentRole)
       ? currentRole
       : "admin";
 

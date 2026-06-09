@@ -2,9 +2,6 @@ import { requireSchoolAccess } from "@/lib/auth/guards";
 import { getSchoolRole } from "@/lib/auth/school-access";
 import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { ChevronLeft, Printer } from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { AdminReportCardClient } from "./client";
 
 interface StudentReportPageProps {
@@ -19,8 +16,7 @@ export default async function StudentReportPage(props: StudentReportPageProps) {
   const role = getSchoolRole(session, schoolSlug);
 
   if (
-    role?.effectiveRole !== "admin" &&
-    role?.effectiveRole !== "owner" &&
+    role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
     !session.isSuperAdmin
   ) {
     redirect(`/${schoolSlug}/unauthorized`);
@@ -191,39 +187,7 @@ export default async function StudentReportPage(props: StudentReportPageProps) {
   
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between p-4 border-b bg-background shadow-sm print:hidden">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link
-              href={`/${schoolSlug}/admin/reports/report-cards/sets/${setId}`}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h2 className="text-lg font-bold">
-              {report.student.profile.firstName}{" "}
-              {report.student.profile.lastName}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {report.set.term.name} &bull; {report.set.academicYear.name}
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 print:hidden"
-          onClick={undefined} // handled client-side
-          id="print-report-btn"
-        >
-          <Printer className="h-4 w-4" />
-          Print
-        </Button>
-      </div>
-
+    <div className="flex flex-col min-h-screen bg-gray-100 print:bg-transparent print:min-h-0">
       <AdminReportCardClient
         report={serializedReport}
         school={serializedSchool}

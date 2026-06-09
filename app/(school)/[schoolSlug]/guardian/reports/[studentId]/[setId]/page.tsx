@@ -1,9 +1,6 @@
 import { requireSchoolAccess } from "@/lib/auth/guards";
 import { redirect, notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft } from "lucide-react";
 import { GuardianReportCardView } from "./client";
 
 interface GuardianReportDetailPageProps {
@@ -98,28 +95,11 @@ export default async function GuardianReportDetailPage({
   const serializedGradingSystem = JSON.parse(JSON.stringify(gradingSystem));
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header bar */}
-      <div className="flex items-center gap-3 p-4 bg-white border-b shadow-sm print:hidden">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/${schoolSlug}/guardian/reports`}>
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h2 className="text-base font-bold">
-            {report.student.profile.firstName} {report.student.profile.lastName}{" "}
-            — {report.set.term.name}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {report.set.academicYear.name}
-          </p>
-        </div>
-      </div>
-
+    <div className="min-h-screen bg-gray-100 print:bg-transparent print:min-h-0">
       <GuardianReportCardView
         report={serializedReport}
         school={serializedSchool}
+        schoolSlug={schoolSlug}
         remarks={serializedRemarks}
         gradingSystem={serializedGradingSystem}
       />

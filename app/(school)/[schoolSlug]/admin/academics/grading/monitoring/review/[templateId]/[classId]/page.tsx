@@ -30,7 +30,7 @@ export default async function GradeReviewPage({ params }: ReviewPageProps) {
   const session = await requireSchoolAccess(schoolSlug);
   const activeRole = await getActiveSchoolRole(session, schoolSlug);
   
-  if (activeRole?.effectiveRole !== "admin" && activeRole?.effectiveRole !== "owner" && !session.isSuperAdmin) {
+  if (activeRole?.effectiveRole !== "admin" && activeRole?.effectiveRole !== "owner" && activeRole?.effectiveRole !== "headteacher" && !session.isSuperAdmin) {
     redirect(`/${schoolSlug}/unauthorized`);
   }
 

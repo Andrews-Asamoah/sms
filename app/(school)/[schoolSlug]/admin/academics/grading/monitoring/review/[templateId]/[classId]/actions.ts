@@ -17,7 +17,7 @@ export async function finalizeGrades(
     const session = await requireSchoolAccess(schoolSlug);
     const activeRole = await getActiveSchoolRole(session, schoolSlug);
 
-    if (activeRole?.effectiveRole !== "admin" && activeRole?.effectiveRole !== "owner" && !session.isSuperAdmin) {
+    if (activeRole?.effectiveRole !== "admin" && activeRole?.effectiveRole !== "owner" && activeRole?.effectiveRole !== "headteacher" && !session.isSuperAdmin) {
       return { success: false, error: "Unauthorized" };
     }
 
@@ -53,7 +53,7 @@ export async function revertGradesToDraft(
     const session = await requireSchoolAccess(schoolSlug);
     const activeRole = await getActiveSchoolRole(session, schoolSlug);
 
-    if (activeRole?.effectiveRole !== "admin" && activeRole?.effectiveRole !== "owner" && !session.isSuperAdmin) {
+    if (activeRole?.effectiveRole !== "admin" && activeRole?.effectiveRole !== "owner" && activeRole?.effectiveRole !== "headteacher" && !session.isSuperAdmin) {
       return { success: false, error: "Unauthorized" };
     }
 

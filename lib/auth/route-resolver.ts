@@ -20,6 +20,7 @@ export function getDefaultRoute(session: ExtendedSession): string {
   switch (effectiveRole) {
     case "owner":
     case "admin":
+    case "headteacher":
       return `/${subdomain}/admin`;
 
     case "teacher":
@@ -61,12 +62,12 @@ export function canAccessRoute(
   const routeRole = roleMatch[1];
 
   const roleRequirements: Record<string, string[]> = {
-    admin: ["owner", "admin"],
-    teacher: ["teacher", "owner", "admin"],
-    student: ["student", "owner", "admin"],
-    staff: ["staff", "owner", "admin"],
-    accountant: ["accountant", "owner", "admin"],
-    guardian: ["guardian", "owner", "admin"],
+    admin: ["owner", "admin", "headteacher"],
+    teacher: ["teacher", "owner", "admin", "headteacher"],
+    student: ["student", "owner", "admin", "headteacher"],
+    staff: ["staff", "owner", "admin", "headteacher"],
+    accountant: ["accountant", "owner", "admin", "headteacher"],
+    guardian: ["guardian", "owner", "admin", "headteacher"],
   };
 
   const requiredRoles = roleRequirements[routeRole];
@@ -100,7 +101,8 @@ export function getAccessibleRoutes(
 
   if (
     hasRoleInSchool(session, subdomain, "owner") ||
-    hasRoleInSchool(session, subdomain, "admin")
+    hasRoleInSchool(session, subdomain, "admin") ||
+    hasRoleInSchool(session, subdomain, "headteacher")
   ) {
     routes.push(`/${subdomain}/admin`);
   }

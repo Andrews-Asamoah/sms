@@ -180,8 +180,7 @@
     .data-table-pagination,
     .data-table-view-options,
     .data-table-export,
-    .plus-icon,
-    .mr-2 {
+    .plus-icon {
       display: none !important;
     }
 
@@ -221,21 +220,21 @@
     }
 
     /* Format table for printing */
-    table {
+    table:not(#report-card-page *) {
       width: 100% !important;
       border-collapse: collapse !important;
       border: 1px solid black !important;
     }
 
-    th,
-    td {
+    th:not(#report-card-page *),
+    td:not(#report-card-page *) {
       border: 1px solid #e5e7eb !important;
       padding: 8px !important;
       font-size: 10pt !important;
       color: black !important;
     }
 
-    th {
+    th:not(#report-card-page *) {
       background-color: #f3f4f6 !important;
       font-weight: bold !important;
     }

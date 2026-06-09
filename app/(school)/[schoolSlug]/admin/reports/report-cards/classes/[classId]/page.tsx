@@ -36,8 +36,7 @@ export default async function ClassReportsPage(props: ClassReportsPageProps) {
   const role = getSchoolRole(session, schoolSlug);
 
   if (
-    role?.effectiveRole !== "admin" &&
-    role?.effectiveRole !== "owner" &&
+    role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher" &&
     role?.effectiveRole !== "teacher" &&
     !session.isSuperAdmin
   ) {

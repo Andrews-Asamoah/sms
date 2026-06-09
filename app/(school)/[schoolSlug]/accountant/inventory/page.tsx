@@ -31,7 +31,7 @@ async function InventoryContent({ schoolSlug }: { schoolSlug: string }) {
   const session = await getSession();
 
   if (!session || !hasSchoolAccess(session, schoolSlug)) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const school = await prisma.school.findUnique({
@@ -40,7 +40,7 @@ async function InventoryContent({ schoolSlug }: { schoolSlug: string }) {
   });
 
   if (!school) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const getCachedInventory = unstable_cache(

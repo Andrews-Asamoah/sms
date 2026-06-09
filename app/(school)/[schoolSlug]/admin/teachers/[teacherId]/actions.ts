@@ -21,8 +21,7 @@ export async function updateTeacherAssignments(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return { success: false, error: "Unauthorized" };
     }
@@ -82,8 +81,7 @@ export async function cancelTeacherInvitation(
 
     if (
       !session.isSuperAdmin &&
-      role?.effectiveRole !== "admin" &&
-      role?.effectiveRole !== "owner"
+      role?.effectiveRole !== "admin" && role?.effectiveRole !== "owner" && role?.effectiveRole !== "headteacher"
     ) {
       return { success: false, error: "Unauthorized" };
     }
