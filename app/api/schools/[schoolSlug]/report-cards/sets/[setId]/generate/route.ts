@@ -111,7 +111,35 @@ export async function POST(
       },
     });
 
-    // 2b. Fetch attendance and remarks for these students in this term
+    // 2b. Fetch sibling terms with same name to capture duplicate terms remarks
+    const siblingTerms = await prisma.term.findMany({
+      where: {
+        name: set.term.name,
+        academicYear: { schoolId: set.schoolId },
+      },
+      select: { id: true },
+    });
+
+    // Also fetch the active term for this school to serve as a fallback
+    const activeTerm = await prisma.term.findFirst({
+      where: { academicYear: { schoolId: set.schoolId } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    const activeTermId = activeTerm?.id;
+
+    // Collect all unique term IDs to query remarks for
+    const termIds = Array.from(
+      new Set(
+        [
+          ...siblingTerms.map((t) => t.id),
+          set.termId,
+          activeTermId,
+        ].filter(Boolean) as string[],
+      ),
+    );
+
+    // Fetch attendance and remarks for these students in this term/siblings
     const [attendanceRecords, studentRemarks] = await Promise.all([
       prisma.attendance.findMany({
         where: {
@@ -122,10 +150,32 @@ export async function POST(
       prisma.remark.findMany({
         where: {
           studentId: { in: students.map((s) => s.id) },
-          termId: set.termId,
+          termId: { in: termIds },
         },
       }),
     ]);
+
+    // Fetch the school's grading system
+    let gradingSystem = await prisma.gradingSystem.findFirst({
+      where: { schoolId: set.schoolId, isSchoolDefault: true },
+      include: { gradeScales: { orderBy: { minScore: "desc" } } },
+    });
+
+    if (!gradingSystem) {
+      gradingSystem = await prisma.gradingSystem.findFirst({
+        where: { schoolId: set.schoolId, isActive: true },
+        include: { gradeScales: { orderBy: { minScore: "desc" } } },
+      });
+    }
+
+    if (!gradingSystem) {
+      gradingSystem = await prisma.gradingSystem.findFirst({
+        where: { isSystemDefault: true },
+        include: { gradeScales: { orderBy: { minScore: "desc" } } },
+      });
+    }
+
+    const scales = gradingSystem?.gradeScales ?? [];
 
     // 2c. Fetch class teacher and headteacher signature URLs
     const classTeacherProfileIds = new Set<string>();
@@ -196,17 +246,31 @@ export async function POST(
             (cs) => cs.component.componentType === "FINAL_EXAM",
           )?.weightedScore || 0;
 
+        const scoreValue = Number(score.totalScore);
+        
+        // Find description from grading scales
+        let gradeDescription = "";
+        if (scales.length > 0) {
+          const sortedScales = [...scales].sort((a, b) => Number(b.minScore) - Number(a.minScore));
+          for (const scale of sortedScales) {
+            if (scoreValue >= Number(scale.minScore) && scoreValue <= Number(scale.maxScore)) {
+              gradeDescription = scale.description;
+              break;
+            }
+          }
+        }
+
         return {
           subjectId: score.subjectId,
           subjectName: score.subject.name,
           subjectCode: score.subject.code,
           classWorkScore: Number(classWorkScore),
           examScore: Number(examScore),
-          totalScore: Number(score.totalScore),
+          totalScore: scoreValue,
           percentage: Number(score.percentage),
           grade: score.grade || "N/A",
           gradeValue: parseInt(score.grade || "9") || 9, // For aggregation
-          remarks: score.remarks,
+          remarks: gradeDescription || score.remarks || "—",
         };
       });
 
@@ -226,11 +290,35 @@ export async function POST(
       const presentCount = studentAttendance.filter(a => ["PRESENT", "LATE", "PERMISSION"].includes(a.status)).length;
       const totalPossible = classTotalDaysMap.get(student.classId!) || 0;
 
-      // Get relevant remarks
-      const bRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "BEHAVIORAL")?.content;
-      const aRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "ACADEMIC")?.content;
-      const gRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "GENERAL")?.content;
-      const htRemark = studentRemarks.find(r => r.studentId === student.id && r.remarkType === "HEADTEACHER")?.content;
+      // Get relevant remarks (preferring exact termId match, fallback to siblings, fallback to activeTerm)
+      const studentAllRemarks = studentRemarks.filter(r => r.studentId === student.id);
+      
+      const getRemarkByType = (type: string) => {
+        // Priority 1: Exact termId match
+        const exactMatch = studentAllRemarks.find(r => r.remarkType === type && r.termId === set.termId);
+        if (exactMatch) return exactMatch.content;
+        
+        // Priority 2: Sibling terms (excluding active term if it is different)
+        const siblingMatch = studentAllRemarks.find(
+          r => r.remarkType === type && r.termId !== activeTermId
+        );
+        if (siblingMatch) return siblingMatch.content;
+
+        // Priority 3: Active term fallback
+        if (activeTermId) {
+          const activeMatch = studentAllRemarks.find(
+            r => r.remarkType === type && r.termId === activeTermId
+          );
+          if (activeMatch) return activeMatch.content;
+        }
+
+        return undefined;
+      };
+
+      const bRemark = getRemarkByType("BEHAVIORAL");
+      const aRemark = getRemarkByType("ACADEMIC");
+      const gRemark = getRemarkByType("GENERAL");
+      const htRemark = getRemarkByType("HEADTEACHER");
 
       return {
         studentId: student.id,

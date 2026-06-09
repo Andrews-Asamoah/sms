@@ -682,9 +682,9 @@ model Class {
   capacity Int?
 
   classTeacherId String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
   school                    School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -755,15 +755,15 @@ model StaffAssignment {
 }
 
 model Subject {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   schoolId       String
   name           String
   code           String
   description    String?
-  periodsPerWeek Int      @default(4)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  periodsPerWeek Int       @default(4)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
   school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -2291,14 +2291,14 @@ enum TicketPriority {
 }
 
 model SupportTicket {
-  id          String         @id @default(cuid())
-  subject     String
-  description String
-  status      TicketStatus   @default(OPEN)
-  priority    TicketPriority @default(MEDIUM)
-  category    String?
+  id            String         @id @default(cuid())
+  subject       String
+  description   String
+  status        TicketStatus   @default(OPEN)
+  priority      TicketPriority @default(MEDIUM)
+  category      String?
   attachmentUrl String?
-  isInternal  Boolean        @default(false)
+  isInternal    Boolean        @default(false)
 
   // Who submitted the ticket (any User)
   submittedById String
@@ -2323,10 +2323,10 @@ model SupportTicket {
 }
 
 model TicketReply {
-  id       String @id @default(cuid())
-  ticketId String
-  authorId String
-  message  String
+  id            String  @id @default(cuid())
+  ticketId      String
+  authorId      String
+  message       String
   attachmentUrl String?
 
   ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)

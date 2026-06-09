@@ -61,50 +61,88 @@ export default async function StudentReportPage(props: StudentReportPageProps) {
     redirect(`/${schoolSlug}/admin/reports/report-cards/sets/${setId}`);
   }
 
-  // Fetch teacher/headmaster remarks for this student + term
-  // Strategy: First look for remarks matching the report set's termId exactly.
-  // If no GENERAL remark found, also look for any remark in the same academic period
-  // (the teacher portal may have used a different term record with the same name).
-  let remarks = await prisma.remark.findMany({
-    where: { studentId, termId: report.set.termId },
+  // Fetch active term for this school to serve as a fallback
+  const activeTerm = await prisma.term.findFirst({
+    where: { academicYear: { schoolId: school.id } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  const activeTermId = activeTerm?.id;
+
+  // Find all sibling terms with the same name
+  const siblingTerms = await prisma.term.findMany({
+    where: {
+      name: report.set.term.name,
+      academicYear: { schoolId: school.id },
+    },
+    select: { id: true },
   });
 
-  // If no GENERAL remark found, try finding remarks for this student via the term name
-  if (!remarks.find((r) => r.remarkType === "GENERAL")) {
-    const termName = report.set.term.name;
-    // Find all terms with the same name for this school
-    const siblingTerms = await prisma.term.findMany({
-      where: {
-        name: termName,
-        academicYear: { schoolId: school.id },
-        id: { not: report.set.termId },
-      },
-      select: { id: true },
-    });
-    if (siblingTerms.length > 0) {
-      const siblingRemarks = await prisma.remark.findMany({
-        where: {
-          studentId,
-          termId: { in: siblingTerms.map((t) => t.id) },
-          remarkType: { in: ["GENERAL", "BEHAVIORAL"] },
-        },
-      });
-      // Merge: use sibling remarks for any type not already found in primary
-      const foundTypes = new Set(remarks.map((r) => r.remarkType));
-      for (const sr of siblingRemarks) {
-        if (!foundTypes.has(sr.remarkType)) {
-          remarks = [...remarks, sr];
-          foundTypes.add(sr.remarkType);
-        }
+  const termIds = Array.from(
+    new Set(
+      [
+        report.set.termId,
+        ...siblingTerms.map((t) => t.id),
+        activeTermId,
+      ].filter(Boolean) as string[]
+    )
+  );
+
+  // Fetch all remarks for the student across these term candidates
+  const allCandidateRemarks = await prisma.remark.findMany({
+    where: {
+      studentId,
+      termId: { in: termIds },
+    },
+  });
+
+  // Resolve and filter unique remarks based on precedence: Exact > Sibling > Active fallback
+  const finalRemarksMap = new Map<string, any>();
+  const remarkTypes = ["GENERAL", "BEHAVIORAL", "ACADEMIC", "HEADTEACHER", "ATTENDANCE", "ACHIEVEMENT", "CONCERN"];
+
+  for (const type of remarkTypes) {
+    // 1. Exact match
+    const exact = allCandidateRemarks.find((r) => r.remarkType === type && r.termId === report.set.termId);
+    if (exact) {
+      finalRemarksMap.set(type, exact);
+      continue;
+    }
+    // 2. Sibling match (excluding active fallback if different)
+    const sibling = allCandidateRemarks.find((r) => r.remarkType === type && r.termId !== activeTermId);
+    if (sibling) {
+      finalRemarksMap.set(type, sibling);
+      continue;
+    }
+    // 3. Active fallback match
+    if (activeTermId) {
+      const activeMatch = allCandidateRemarks.find((r) => r.remarkType === type && r.termId === activeTermId);
+      if (activeMatch) {
+        finalRemarksMap.set(type, activeMatch);
       }
     }
   }
 
+  const remarks = Array.from(finalRemarksMap.values());
+
   // Fetch the school's default grading system for grade descriptions
-  const gradingSystem = await prisma.gradingSystem.findFirst({
+  let gradingSystem = await prisma.gradingSystem.findFirst({
     where: { schoolId: school.id, isSchoolDefault: true },
     include: { gradeScales: { orderBy: { minScore: "desc" } } },
   });
+
+  if (!gradingSystem) {
+    gradingSystem = await prisma.gradingSystem.findFirst({
+      where: { schoolId: school.id, isActive: true },
+      include: { gradeScales: { orderBy: { minScore: "desc" } } },
+    });
+  }
+
+  if (!gradingSystem) {
+    gradingSystem = await prisma.gradingSystem.findFirst({
+      where: { isSystemDefault: true },
+      include: { gradeScales: { orderBy: { minScore: "desc" } } },
+    });
+  }
 
   // Calculate live attendance for the term
   // Fall back to what was stored at generation time if term dates are missing

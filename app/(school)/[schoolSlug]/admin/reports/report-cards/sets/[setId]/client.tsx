@@ -90,6 +90,7 @@ interface SetDetailClientProps {
   schoolSlug: string;
   school: any;
   initialClassId?: string;
+  gradingSystem?: any;
 }
 
 export function SetDetailClient({
@@ -97,6 +98,7 @@ export function SetDetailClient({
   schoolSlug,
   school,
   initialClassId,
+  gradingSystem,
 }: SetDetailClientProps) {
   const router = useRouter();
   const [processing, setProcessing] = useState(false);
@@ -106,6 +108,22 @@ export function SetDetailClient({
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  const [activeDownload, setActiveDownload] = useState<{
+    studentId: string;
+    reportData: any;
+    fileName: string;
+  } | null>(null);
+
+  const [activePrint, setActivePrint] = useState<{
+    studentId: string;
+    reportData: any;
+  } | null>(null);
+
+  const [activeBulkPrint, setActiveBulkPrint] = useState<{
+    reportCards: any[];
+    fileName: string;
+  } | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -518,64 +536,31 @@ export function SetDetailClient({
                                     <Eye className="w-4 h-4" />
                                   </Link>
                                 </Button>
-                                {mounted ? (
-                                  <PDFDownloadLink
-                                    document={
-                                      <ReportCardPDF
-                                        data={reportData}
-                                        school={school}
-                                      />
-                                    }
-                                    fileName={`${student.profile.firstName}_${student.profile.lastName}_Report.pdf`}
-                                  >
-                                    {({ loading }) => (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        disabled={loading}
-                                      >
-                                        <Download
-                                          className={cn(
-                                            "w-4 h-4",
-                                            loading && "animate-pulse",
-                                          )}
-                                        />
-                                      </Button>
-                                    )}
-                                  </PDFDownloadLink>
-                                ) : (
-                                  <Button variant="ghost" size="icon" disabled>
-                                    <Download className="w-4 h-4 opacity-50" />
-                                  </Button>
-                                )}
-                                {mounted && (
-                                  <BlobProvider
-                                    document={
-                                      <ReportCardPDF
-                                        data={reportData}
-                                        school={school}
-                                      />
-                                    }
-                                  >
-                                    {({ url, loading }) => (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        disabled={loading || !url}
-                                        onClick={() => {
-                                          if (url) window.open(url, "_blank");
-                                        }}
-                                      >
-                                        <Printer
-                                          className={cn(
-                                            "w-4 h-4",
-                                            loading && "animate-pulse",
-                                          )}
-                                        />
-                                      </Button>
-                                    )}
-                                  </BlobProvider>
-                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setActiveDownload({
+                                      studentId: student.id,
+                                      reportData: reportData,
+                                      fileName: `${student.profile.firstName}_${student.profile.lastName}_Report.pdf`,
+                                    })
+                                  }
+                                >
+                                  <Download className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setActivePrint({
+                                      studentId: student.id,
+                                      reportData: reportData,
+                                    })
+                                  }
+                                >
+                                  <Printer className="w-4 h-4" />
+                                </Button>
                               </div>
                             )}
                           </TableCell>
@@ -630,7 +615,7 @@ export function SetDetailClient({
                 <FileText className="w-4 h-4 mr-2" /> Class Broad Sheet
               </Link>
             </Button>
-            {set.reportCards.length > 0 && mounted && (() => {
+            {set.reportCards.length > 0 && (() => {
               // Filter report cards that belong to students in the active class
               const activeStudentIds = new Set(
                 (activeClass?.students ?? []).map((s: any) => s.id),
@@ -643,56 +628,36 @@ export function SetDetailClient({
                 <>
                   {/* Print only the active class */}
                   {classReportCards.length > 0 && (
-                    <PDFDownloadLink
-                      document={
-                        <BulkReportPDF
-                          reportCards={classReportCards}
-                          school={school}
-                        />
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() =>
+                        setActiveBulkPrint({
+                          reportCards: classReportCards,
+                          fileName: `${set.name}_${activeClass?.name ?? "Class"}_Reports.pdf`,
+                        })
                       }
-                      fileName={`${set.name}_${activeClass?.name ?? "Class"}_Reports.pdf`}
                     >
-                      {({ loading }) => (
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start"
-                          disabled={loading}
-                        >
-                          <Printer
-                            className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
-                          />
-                          {loading
-                            ? "Preparing..."
-                            : `Print ${activeClass?.name ?? "Class"} Reports`}
-                        </Button>
-                      )}
-                    </PDFDownloadLink>
+                      <Printer className="w-4 h-4 mr-2" />
+                      Print {activeClass?.name ?? "Class"} Reports
+                    </Button>
                   )}
 
                   {/* Print all classes (only shown when there are multiple) */}
                   {displayClasses.length > 1 && (
-                    <PDFDownloadLink
-                      document={
-                        <BulkReportPDF
-                          reportCards={set.reportCards}
-                          school={school}
-                        />
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-muted-foreground"
+                      onClick={() =>
+                        setActiveBulkPrint({
+                          reportCards: set.reportCards,
+                          fileName: `${set.name}_All_Reports.pdf`,
+                        })
                       }
-                      fileName={`${set.name}_All_Reports.pdf`}
                     >
-                      {({ loading }) => (
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-muted-foreground"
-                          disabled={loading}
-                        >
-                          <Printer
-                            className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
-                          />
-                          {loading ? "Preparing..." : "Print All Reports"}
-                        </Button>
-                      )}
-                    </PDFDownloadLink>
+                      <Printer className="w-4 h-4 mr-2" />
+                      Print All Reports
+                    </Button>
                   )}
                 </>
               );
@@ -793,6 +758,197 @@ export function SetDetailClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dynamic Lazy PDF Downloader */}
+      {activeDownload && (
+        <BlobProvider
+          document={<ReportCardPDF data={activeDownload.reportData} school={school} gradingSystem={gradingSystem} />}
+        >
+          {({ url, loading }) => {
+            return (
+              <PdfDownloaderModal
+                url={url}
+                loading={loading}
+                fileName={activeDownload.fileName}
+                onClose={() => setActiveDownload(null)}
+              />
+            );
+          }}
+        </BlobProvider>
+      )}
+
+      {/* Dynamic Lazy PDF Printer */}
+      {activePrint && (
+        <BlobProvider
+          document={<ReportCardPDF data={activePrint.reportData} school={school} gradingSystem={gradingSystem} />}
+        >
+          {({ url, loading }) => {
+            return (
+              <PdfPrinterModal
+                url={url}
+                loading={loading}
+                onClose={() => setActivePrint(null)}
+              />
+            );
+          }}
+        </BlobProvider>
+      )}
+
+      {/* Dynamic Lazy Bulk PDF Printer */}
+      {activeBulkPrint && (
+        <BlobProvider
+          document={
+            <BulkReportPDF
+              reportCards={activeBulkPrint.reportCards}
+              school={school}
+              gradingSystem={gradingSystem}
+            />
+          }
+        >
+          {({ url, loading }) => {
+            return (
+              <PdfPrinterModal
+                url={url}
+                loading={loading}
+                onClose={() => setActiveBulkPrint(null)}
+                isBulk={true}
+                bulkCount={activeBulkPrint.reportCards.length}
+              />
+            );
+          }}
+        </BlobProvider>
+      )}
     </div>
+  );
+}
+
+// Helper component for dynamic PDF downloads
+function PdfDownloaderModal({
+  url,
+  loading,
+  fileName,
+  onClose,
+}: {
+  url: string | null;
+  loading: boolean;
+  fileName: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!loading && url) {
+      try {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        onClose();
+      } catch (err) {
+        console.error("Automatic download failed", err);
+      }
+    }
+  }, [url, loading, fileName, onClose]);
+
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                Generating PDF...
+              </>
+            ) : (
+              "PDF Generated successfully"
+            )}
+          </DialogTitle>
+          <DialogDescription>
+            {loading
+              ? "We are preparing your report card PDF download. This will only take a moment."
+              : "Your download has started. If it didn't start automatically, please use the button below."}
+          </DialogDescription>
+        </DialogHeader>
+        {!loading && url && (
+          <DialogFooter className="flex-col gap-2 sm:flex-row mt-4">
+            <Button asChild className="w-full">
+              <a href={url} download={fileName} onClick={onClose}>
+                Download PDF
+              </a>
+            </Button>
+            <Button variant="outline" onClick={onClose} className="w-full">
+              Cancel
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Helper component for dynamic PDF print/open
+function PdfPrinterModal({
+  url,
+  loading,
+  onClose,
+  isBulk = false,
+  bulkCount = 0,
+}: {
+  url: string | null;
+  loading: boolean;
+  onClose: () => void;
+  isBulk?: boolean;
+  bulkCount?: number;
+}) {
+  useEffect(() => {
+    if (!loading && url) {
+      try {
+        const newWindow = window.open(url, "_blank");
+        if (newWindow) {
+          onClose();
+        }
+      } catch (err) {
+        console.error("Automatic print tab opening failed", err);
+      }
+    }
+  }, [url, loading, onClose]);
+
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                {isBulk ? `Compiling ${bulkCount} reports...` : "Preparing PDF..."}
+              </>
+            ) : (
+              "PDF Compiled successfully"
+            )}
+          </DialogTitle>
+          <DialogDescription>
+            {loading
+              ? isBulk
+                ? `We are compiling all ${bulkCount} report cards into a single PDF document. This may take a few seconds.`
+                : "We are preparing your report card PDF for printing. This will only take a moment."
+              : "The PDF is ready. If it didn't open in a new tab automatically (blocked by popup blocker), click below."}
+          </DialogDescription>
+        </DialogHeader>
+        {!loading && url && (
+          <DialogFooter className="flex-col gap-2 sm:flex-row mt-4">
+            <Button asChild className="w-full">
+              <a href={url} target="_blank" rel="noopener noreferrer" onClick={onClose}>
+                Open PDF to Print
+              </a>
+            </Button>
+            <Button variant="outline" onClick={onClose} className="w-full">
+              Cancel
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -115,11 +115,11 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
     : null;
 
   return (
-    <div className="flex justify-center p-4 md:p-8 bg-slate-200 dark:bg-slate-200 min-h-screen print:bg-white print:p-0">
-      {/* A4-ish page */}
+    <div className="flex justify-center p-4 md:p-8 bg-slate-200 dark:bg-slate-800 min-h-screen print:bg-white print:p-0">
+      {/* A4-ish page — force light mode colors so text is always visible on the white paper */}
       <div
         id="report-card-page"
-        className="w-full max-w-3xl bg-white shadow-xl rounded-lg overflow-hidden print:shadow-none print:rounded-none"
+        className="w-full max-w-3xl bg-white dark:bg-white text-black dark:text-black shadow-xl rounded-lg overflow-hidden print:shadow-none print:rounded-none"
         style={{ fontFamily: "'Times New Roman', Times, serif" }}
       >
         {/* ── School Header ── */}
@@ -262,26 +262,7 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
             </table>
           </section>
 
-          {/* ── Behavioural Assessment ── */}
-          {(behavioral.conduct || behavioral.attitude || behavioral.punctuality) && (
-            <section>
-              <h2 className="text-sm font-bold uppercase tracking-wide text-blue-900 border-b-2 border-blue-900 pb-1 mb-2">
-                Behavioural Assessment
-              </h2>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "🤝 Conduct", value: behavioral.conduct },
-                  { label: "⭐ Attitude", value: behavioral.attitude },
-                  { label: "⏰ Punctuality", value: behavioral.punctuality },
-                ].map(({ label, value }) => (
-                  <div key={label} className="border rounded p-3 bg-gray-50 text-xs">
-                    <p className="text-gray-500 font-semibold mb-1">{label}</p>
-                    <p className="font-bold text-gray-800">{value || "—"}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+
 
           {/* ── Remarks ── */}
           <section>
@@ -312,13 +293,13 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
                   <img
                     src={data.classTeacherSignature}
                     alt="Class Teacher Signature"
-                    className="max-h-10 max-w-[80px] object-contain"
+                    className="max-h-16 max-w-[120px] object-contain"
                   />
                 </div>
               )}
               <div className="border-t border-gray-800 pt-1">
-                <p className="text-xs font-semibold">Class Teacher's Signature</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">{data?.classTeacherName || "Class Teacher"}</p>
+                <p className="text-xs font-semibold text-black">Class Teacher's Signature</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-500 mt-0.5">{data?.classTeacherName || "Class Teacher"}</p>
               </div>
             </div>
             <div className="text-center">
@@ -327,13 +308,13 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
                   <img
                     src={data.headmasterSignature}
                     alt="Headmaster Signature"
-                    className="max-h-10 max-w-[80px] object-contain"
+                    className="max-h-16 max-w-[120px] object-contain"
                   />
                 </div>
               )}
               <div className="border-t border-gray-800 pt-1">
-                <p className="text-xs font-semibold">Headmaster's Signature</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">{data?.headmasterName || school.headmasterName || "Headmaster"}</p>
+                <p className="text-xs font-semibold text-black">Headmaster's Signature</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-500 mt-0.5">{data?.headmasterName || school.headmasterName || "Headmaster"}</p>
               </div>
             </div>
           </section>

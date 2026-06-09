@@ -115,10 +115,41 @@ export async function GET(
     const { schoolSlug } = await params;
     const { searchParams } = new URL(request.url);
     const studentId = searchParams.get("studentId");
+    const classId = searchParams.get("classId");
     const termId = searchParams.get("termId");
 
-    if (!studentId || !termId) {
-      return new NextResponse("Missing studentId or termId", { status: 400 });
+    if (!termId) {
+      return new NextResponse("Missing termId", { status: 400 });
+    }
+
+    // Batch mode: fetch all remarks for all students in a class at once
+    if (classId) {
+      const classStudents = await prisma.student.findMany({
+        where: {
+          OR: [
+            { enrollments: { some: { classId, status: "ACTIVE" } } },
+            { classId },
+          ],
+          status: "ACTIVE",
+        },
+        select: { id: true },
+      });
+
+      const studentIds = classStudents.map((s) => s.id);
+
+      const remarks = await prisma.remark.findMany({
+        where: {
+          studentId: { in: studentIds },
+          termId,
+        },
+      });
+
+      return NextResponse.json(remarks);
+    }
+
+    // Single student mode
+    if (!studentId) {
+      return new NextResponse("Missing studentId or classId", { status: 400 });
     }
 
     const remarks = await prisma.remark.findMany({

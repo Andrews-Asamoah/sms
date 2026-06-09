@@ -101,6 +101,28 @@ export default async function SetDetailPage(props: SetDetailPageProps) {
     0,
   );
 
+  // Fetch the school's default grading system for grade descriptions
+  let gradingSystem = await prisma.gradingSystem.findFirst({
+    where: { schoolId: school.id, isSchoolDefault: true },
+    include: { gradeScales: { orderBy: { minScore: "desc" } } },
+  });
+
+  if (!gradingSystem) {
+    gradingSystem = await prisma.gradingSystem.findFirst({
+      where: { schoolId: school.id, isActive: true },
+      include: { gradeScales: { orderBy: { minScore: "desc" } } },
+    });
+  }
+
+  if (!gradingSystem) {
+    gradingSystem = await prisma.gradingSystem.findFirst({
+      where: { isSystemDefault: true },
+      include: { gradeScales: { orderBy: { minScore: "desc" } } },
+    });
+  }
+
+  const serializedGradingSystem = JSON.parse(JSON.stringify(gradingSystem));
+
   return (
     <div className="min-h-screen bg-muted/30 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -133,6 +155,7 @@ export default async function SetDetailPage(props: SetDetailPageProps) {
           schoolSlug={schoolSlug}
           school={school}
           initialClassId={initialClassId}
+          gradingSystem={serializedGradingSystem}
         />
       </div>
     </div>

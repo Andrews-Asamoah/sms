@@ -1,3 +1,4 @@
+import Image from "next/image";
 import * as React from "react";
 
 interface SubjectRow {
@@ -77,7 +78,7 @@ export function ReportCardEmail({
             }}
           >
             {schoolLogo && (
-              <img
+              <Image
                 src={schoolLogo}
                 alt={schoolName}
                 width={60}
@@ -175,7 +176,9 @@ export function ReportCardEmail({
                       }}
                     >
                       {position}
-                      <sup style={{ fontSize: 14 }}>{positionSuffix || getOrdinalSuffix(position)}</sup>
+                      <sup style={{ fontSize: 14 }}>
+                        {positionSuffix || getOrdinalSuffix(position)}
+                      </sup>
                     </p>
                   </div>
                 )}
@@ -199,7 +202,9 @@ export function ReportCardEmail({
                   }}
                 >
                   <thead>
-                    <tr style={{ backgroundColor: "#1e3a5f", color: "#ffffff" }}>
+                    <tr
+                      style={{ backgroundColor: "#1e3a5f", color: "#ffffff" }}
+                    >
                       <th
                         style={{
                           textAlign: "left",
@@ -307,8 +312,8 @@ export function ReportCardEmail({
             }}
           >
             <p style={{ fontSize: 11, color: "#9ca3af", margin: 0 }}>
-              This email was sent by {schoolName} via DrewsTech Services. If
-              you believe this was sent in error, please contact the school
+              This email was sent by {schoolName} via DrewsTech Services. If you
+              believe this was sent in error, please contact the school
               directly.
             </p>
           </div>

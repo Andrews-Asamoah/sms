@@ -106,71 +106,63 @@ export function RemarksClient({
       try {
         const initialMap: Record<string, StudentRemark> = {};
 
-        await Promise.all(
-          students.map(async (student) => {
-            const res = await fetch(
-              `/api/schools/${schoolSlug}/remarks?studentId=${student.id}&termId=${termId}`,
-            );
-            if (!res.ok) return;
-            const data = await res.json();
-
-            const generalRm =
-              data.find((r: any) => r.remarkType === "GENERAL")?.content || "";
-            const headteacherRm =
-              data.find((r: any) => r.remarkType === "HEADTEACHER")?.content || "";
-            const behavioralRm = data.find(
-              (r: any) => r.remarkType === "BEHAVIORAL",
-            )?.content;
-
-            let conduct = "";
-            let attitude = "";
-            let punctuality = "";
-
-            if (behavioralRm) {
-              try {
-                const parsed = JSON.parse(behavioralRm);
-                if (Array.isArray(parsed)) {
-                  // Support legacy chip-based format
-                  conduct =
-                    parsed.find((r: any) => r.pillar === "CONDUCT")?.value ||
-                    "";
-                  attitude =
-                    parsed.find((r: any) => r.pillar === "ATTITUDE")?.value ||
-                    "";
-                  punctuality =
-                    parsed.find((r: any) => r.pillar === "PUNCTUALITY")
-                      ?.value || "";
-                } else if (typeof parsed === "object") {
-                  conduct = parsed.conduct || "";
-                  attitude = parsed.attitude || "";
-                  punctuality = parsed.punctuality || "";
-                }
-              } catch {
-                // ignore parse errors
-              }
-            }
-
-            initialMap[student.id] = {
-              conduct,
-              attitude,
-              punctuality,
-              general: generalRm,
-              headteacher: headteacherRm,
-            };
-          }),
+        // Single batch API call — fetch ALL remarks for the class+term at once
+        const res = await fetch(
+          `/api/schools/${schoolSlug}/remarks?classId=${classId}&termId=${termId}`,
         );
+        const allRemarks: any[] = res.ok ? await res.json() : [];
 
-        // Fill missing with defaults
-        students.forEach((s) => {
-          if (!initialMap[s.id]) {
-            initialMap[s.id] = {
-              conduct: "",
-              attitude: "",
-              punctuality: "",
-              general: "",
-              headteacher: "",
-            };
+        // Group remarks by studentId for O(1) lookups
+        const remarksByStudent = new Map<string, any[]>();
+        for (const r of allRemarks) {
+          const list = remarksByStudent.get(r.studentId) || [];
+          list.push(r);
+          remarksByStudent.set(r.studentId, list);
+        }
+
+        students.forEach((student) => {
+          const data = remarksByStudent.get(student.id) || [];
+
+          const generalRm =
+            data.find((r: any) => r.remarkType === "GENERAL")?.content || "";
+          const headteacherRm =
+            data.find((r: any) => r.remarkType === "HEADTEACHER")?.content || "";
+          const behavioralRm = data.find(
+            (r: any) => r.remarkType === "BEHAVIORAL",
+          )?.content;
+
+          let conduct = "";
+          let attitude = "";
+          let punctuality = "";
+
+          if (behavioralRm) {
+            try {
+              const parsed = JSON.parse(behavioralRm);
+              if (Array.isArray(parsed)) {
+                conduct =
+                  parsed.find((r: any) => r.pillar === "CONDUCT")?.value || "";
+                attitude =
+                  parsed.find((r: any) => r.pillar === "ATTITUDE")?.value || "";
+                punctuality =
+                  parsed.find((r: any) => r.pillar === "PUNCTUALITY")
+                    ?.value || "";
+              } else if (typeof parsed === "object") {
+                conduct = parsed.conduct || "";
+                attitude = parsed.attitude || "";
+                punctuality = parsed.punctuality || "";
+              }
+            } catch {
+              // ignore parse errors
+            }
           }
+
+          initialMap[student.id] = {
+            conduct,
+            attitude,
+            punctuality,
+            general: generalRm,
+            headteacher: headteacherRm,
+          };
         });
 
         // Deep-clone for dirty tracking baseline
@@ -184,7 +176,7 @@ export function RemarksClient({
     };
 
     fetchExistingRemarks();
-  }, [schoolSlug, students, termId]);
+  }, [schoolSlug, classId, students, termId]);
 
   // -- Dirty count updater ---------------------------------------------------
   const recomputeDirty = useCallback(
@@ -272,7 +264,7 @@ export function RemarksClient({
     [remarks, schoolSlug, updateField],
   );
 
-  // -- Generate all remarks for students that have traits but no remark ------
+  // -- Generate all remarks — single batch API call (highly efficient) -------
   const generateAll = useCallback(async () => {
     const pending = students.filter((s) => {
       const r = remarks[s.id];
@@ -287,15 +279,57 @@ export function RemarksClient({
     setGeneratingAll(true);
     toast.info(`Generating remarks for ${pending.length} students…`);
 
-    // Sequential to stay within API rate limits
-    for (const student of pending) {
-      const name = `${student.firstName} ${student.lastName}`;
-      await generateForStudent(student.id, name);
-    }
+    try {
+      const payloadStudents = pending.map((s) => {
+        const r = remarks[s.id];
+        return {
+          studentId: s.id,
+          studentName: `${s.firstName} ${s.lastName}`,
+          conduct: r.conduct,
+          attitude: r.attitude,
+          punctuality: r.punctuality,
+        };
+      });
 
-    setGeneratingAll(false);
-    toast.success("Auto-generation complete!");
-  }, [students, remarks, generateForStudent]);
+      const res = await fetch(
+        `/api/schools/${schoolSlug}/report-cards/ai-narrative`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ students: payloadStudents }),
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to generate narratives");
+      }
+
+      const data = await res.json();
+      
+      // Update each student's general remark in state
+      setRemarks((prev) => {
+        const updated = { ...prev };
+        data.results.forEach((resItem: any) => {
+          if (resItem.studentId && resItem.narrative) {
+            updated[resItem.studentId] = {
+              ...updated[resItem.studentId],
+              general: resItem.narrative,
+            };
+          }
+        });
+        
+        // Recompute dirty counts on the new state
+        recomputeDirty(updated);
+        return updated;
+      });
+
+      toast.success(`Auto-generation complete! ${pending.length} remarks generated.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate all remarks.");
+    } finally {
+      setGeneratingAll(false);
+    }
+  }, [students, remarks, schoolSlug, recomputeDirty]);
 
   // -- Save All (dirty-only) -------------------------------------------------
   const handleSaveAll = async () => {
