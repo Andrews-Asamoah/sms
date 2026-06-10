@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Download, Loader2, ChevronLeft, Printer } from "lucide-react";
 import { ReportCardPDF } from "@/components/school/report-cards/report-card-pdf";
 import Link from "next/link";
+import { printElementById } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -78,7 +79,7 @@ export function AdminReportCardClient({
             variant="outline"
             size="sm"
             className="gap-2"
-            onClick={() => window.print()}
+            onClick={() => printElementById("report-card-page")}
           >
             <Printer className="h-4 w-4" />
             Print

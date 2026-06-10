@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, Download, ChevronLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import dynamic_next from "next/dynamic";
+import { printElementById } from "@/lib/utils";
 import { ReportCardPDF } from "@/components/school/report-cards/report-card-pdf";
 import {
   Dialog,
@@ -75,7 +76,7 @@ export function GuardianReportCardView({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.print()}
+            onClick={() => printElementById("report-card-page")}
             className="gap-2"
           >
             <Printer className="h-4 w-4" />

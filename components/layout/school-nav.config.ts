@@ -20,6 +20,7 @@ import {
   Home,
   Trophy,
   AlarmClock,
+  Heart,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 import type { NavPermissions } from "@/lib/auth/types";
@@ -50,6 +51,11 @@ export const schoolNavSections: NavSection[] = [
           {
             title: "Students",
             url: "/admin/students",
+            permission: "canManageStudents",
+          },
+          {
+            title: "Medical Records",
+            url: "/admin/students/medical",
             permission: "canManageStudents",
           },
           {
@@ -219,6 +225,12 @@ export const schoolNavSections: NavSection[] = [
         permission: "canViewReports",
       },
       {
+        title: "Attendance Reports",
+        url: "/admin/reports/attendance",
+        icon: Calendar,
+        permission: "canViewReports",
+      },
+      {
         title: "Report Cards",
         url: "#",
         icon: FileText,
@@ -238,6 +250,18 @@ export const schoolNavSections: NavSection[] = [
           },
         ],
       },
+      {
+        title: "Enrollment Strength",
+        url: "/admin/reports/enrollment",
+        icon: GraduationCap,
+        permission: "canViewReports",
+      },
+      {
+        title: "Subject Performance",
+        url: "/admin/reports/subject-performance",
+        icon: BarChart3,
+        permission: "canViewReports",
+      },
     ],
   },
   {
@@ -252,6 +276,11 @@ export const schoolNavSections: NavSection[] = [
         title: "My Classes",
         url: "/teacher/classes",
         icon: Users,
+      },
+      {
+        title: "Student Health",
+        url: "/teacher/medical",
+        icon: Heart,
       },
       {
         title: "Gradebook",

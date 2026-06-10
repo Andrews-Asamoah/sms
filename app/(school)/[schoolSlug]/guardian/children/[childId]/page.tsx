@@ -22,6 +22,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EditMedicalDialog } from "@/components/school/students/edit-medical-dialog";
 type Decimal = { toNumber(): number } | number;
 
 interface GuardianChildDetailsPageProps {
@@ -547,11 +548,29 @@ export default async function GuardianChildDetailsPage({
         <TabsContent value="health" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Heart className="h-4 w-4 text-primary shrink-0" />
                   Medical Information
                 </CardTitle>
+                <EditMedicalDialog
+                  studentId={student.id}
+                  studentName={`${student.profile.firstName} ${student.profile.lastName}`}
+                  schoolSlug={schoolSlug}
+                  initialData={{
+                    bloodGroup: student.bloodGroup,
+                    allergies: student.allergies,
+                    medicalConditions: student.medicalConditions,
+                    emergencyContactName: student.profile.emergencyContactName,
+                    emergencyContactPhone: student.profile.emergencyContactPhone,
+                    emergencyRelationship: student.profile.emergencyRelationship,
+                  }}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="h-8 hover:text-rose-600 hover:bg-rose-50/50">
+                      Update
+                    </Button>
+                  }
+                />
               </CardHeader>
               <CardContent className="space-y-3.5 text-sm">
                 {student.bloodGroup && (

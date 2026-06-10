@@ -30,6 +30,7 @@ import { AddGuardianDialog } from "@/components/school/students/add-guardian-dia
 import { ResetPasswordDialog } from "@/components/school/students/reset-password-dialog";
 import { StudentBillingTab } from "@/components/school/students/student-billing-tab";
 import { StudentStatusDropdown } from "@/components/school/students/student-status-dropdown";
+import { EditMedicalDialog } from "@/components/school/students/edit-medical-dialog";
 
 // ============================================================================
 // TYPES
@@ -349,11 +350,29 @@ export default async function StudentDetailPage({
 
             {/* Medical Information */}
             <Card className="backdrop-blur-sm bg-card/50 border-border/50">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="flex items-center gap-2">
                   <Heart className="h-5 w-5" />
                   Medical Information
                 </CardTitle>
+                <EditMedicalDialog
+                  studentId={student.id}
+                  studentName={`${student.profile.firstName} ${student.profile.lastName}`}
+                  schoolSlug={schoolSlug}
+                  initialData={{
+                    bloodGroup: student.bloodGroup,
+                    allergies: student.allergies,
+                    medicalConditions: student.medicalConditions,
+                    emergencyContactName: student.profile.emergencyContactName,
+                    emergencyContactPhone: student.profile.emergencyContactPhone,
+                    emergencyRelationship: student.profile.emergencyRelationship,
+                  }}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="h-8 hover:text-rose-600 hover:bg-rose-50/50">
+                      Edit
+                    </Button>
+                  }
+                />
               </CardHeader>
               <CardContent className="space-y-3">
                 {student.bloodGroup && (

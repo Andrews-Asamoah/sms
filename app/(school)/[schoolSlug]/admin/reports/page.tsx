@@ -43,7 +43,7 @@ const reportCategories = [
       {
         name: "Subject Performance",
         description: "Analyze grades across subjects",
-        href: "#",
+        href: "reports/subject-performance",
         icon: GraduationCap,
         color: "text-emerald-600",
         bgColor: "bg-emerald-50",
@@ -57,7 +57,7 @@ const reportCategories = [
       {
         name: "Attendance Reports",
         description: "Track student and staff attendance patterns",
-        href: "#",
+        href: "reports/attendance",
         icon: Calendar,
         color: "text-orange-600",
         bgColor: "bg-orange-50",
@@ -73,7 +73,7 @@ const reportCategories = [
       {
         name: "Enrollment Trends",
         description: "Student population and demographic reports",
-        href: "#",
+        href: "reports/enrollment",
         icon: Users,
         color: "text-indigo-600",
         bgColor: "bg-indigo-50",
