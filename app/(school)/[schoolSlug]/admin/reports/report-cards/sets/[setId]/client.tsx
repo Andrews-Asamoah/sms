@@ -1,29 +1,14 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
-  FileText,
-  Send,
-  RefreshCw,
-  Eye,
-  EyeOff,
-  Download,
-  Printer,
-  CheckCircle2,
-  Clock,
-  Trash2,
-  ArrowUpDown,
-  Mail,
-  Loader2,
+  FileText, Send, RefreshCw, Eye, EyeOff, Download, Printer,
+  CheckCircle2, Clock, Trash2, ArrowUpDown, Mail, Loader2,
+  Users, BarChart3, GraduationCap, ChevronRight, MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import dynamic_next from "next/dynamic";
-
-const PDFDownloadLink = dynamic_next(
-  () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-  { ssr: false },
-);
 
 const BlobProvider = dynamic_next(
   () => import("@react-pdf/renderer").then((mod) => mod.BlobProvider),
@@ -35,51 +20,31 @@ import {
   BulkReportPDF,
 } from "@/components/school/report-cards/report-card-pdf";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import Link from "next/link";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { deleteReportCardSet } from "./actions";
-import { unpublishReportCardSet } from "./actions";
+import { deleteReportCardSet, unpublishReportCardSet } from "./actions";
 import { formatStudentName } from "@/lib/utils/name-formatter";
 import { cn } from "@/lib/utils";
 
@@ -101,13 +66,14 @@ export function SetDetailClient({
   gradingSystem,
 }: SetDetailClientProps) {
   const router = useRouter();
+  const pathname = usePathname();
+
   const [processing, setProcessing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
   const [unpublishDialogOpen, setUnpublishDialogOpen] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   const [activeDownload, setActiveDownload] = useState<{
     studentId: string;
@@ -125,15 +91,7 @@ export function SetDetailClient({
     fileName: string;
   } | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-
-
   const displayClasses: any[] = set.displayClasses ?? [];
-
-  const pathname = usePathname();
 
   const [activeClassId, setActiveClassIdState] = useState<string>(
     initialClassId || (displayClasses.length > 0 ? displayClasses[0].id : ""),
@@ -159,6 +117,8 @@ export function SetDetailClient({
 
   const activeClass =
     displayClasses.find((c) => c.id === activeClassId) ?? displayClasses[0];
+
+  // ── API Actions ────────────────────────────────────────────────────────────
 
   const handleGenerate = async (classId?: string) => {
     setProcessing(true);
@@ -255,459 +215,484 @@ export function SetDetailClient({
     }
   };
 
+  // ── Derived data ──────────────────────────────────────────────────────────
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PUBLISHED":
         return (
-          <Badge className="bg-green-500 font-bold">
-            <CheckCircle2 className="w-3 h-3 mr-1" />
-            Published
+          <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-200/50 text-[11px]">
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Published
           </Badge>
         );
       case "GENERATED":
         return (
-          <Badge className="bg-blue-500 font-bold">
-            <FileText className="w-3 h-3 mr-1" />
-            Generated
+          <Badge className="bg-blue-500/10 text-blue-600 border border-blue-200/50 text-[11px]">
+            <FileText className="w-3 h-3 mr-1" /> Generated
           </Badge>
         );
       case "GENERATING":
         return (
-          <Badge className="bg-yellow-500 animate-pulse">
-            <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-            Generating...
+          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-200/50 text-[11px] animate-pulse">
+            <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Generating…
           </Badge>
         );
       default:
         return (
-          <Badge variant="outline" className="text-muted-foreground">
-            <Clock className="w-3 h-3 mr-1" />
-            Draft
+          <Badge variant="outline" className="text-muted-foreground text-[11px]">
+            <Clock className="w-3 h-3 mr-1" /> Draft
           </Badge>
         );
     }
   };
 
-  // Build sorted student list for the active class
   const sortedStudents = useMemo(() => {
     const classStudents: any[] = activeClass?.students ?? [];
     return [...classStudents].sort((a, b) => {
       if (sortKey === "name") {
-        const nameA =
-          `${a.profile.lastName} ${a.profile.firstName}`.toLowerCase();
-        const nameB =
-          `${b.profile.lastName} ${b.profile.firstName}`.toLowerCase();
-        return nameA.localeCompare(nameB);
+        return `${a.profile.lastName} ${a.profile.firstName}`
+          .toLowerCase()
+          .localeCompare(`${b.profile.lastName} ${b.profile.firstName}`.toLowerCase());
       }
-      const rdA = set.reportCards.find((r: any) => r.studentId === a.id)
-        ?.data as any;
-      const rdB = set.reportCards.find((r: any) => r.studentId === b.id)
-        ?.data as any;
-      if (sortKey === "position") {
-        return (rdA?.position ?? 9999) - (rdB?.position ?? 9999);
-      }
-      if (sortKey === "avgScore") {
-        return (rdB?.average ?? -1) - (rdA?.average ?? -1);
-      }
+      const rdA = set.reportCards.find((r: any) => r.studentId === a.id)?.data as any;
+      const rdB = set.reportCards.find((r: any) => r.studentId === b.id)?.data as any;
+      if (sortKey === "position") return (rdA?.position ?? 9999) - (rdB?.position ?? 9999);
+      if (sortKey === "avgScore") return (rdB?.average ?? -1) - (rdA?.average ?? -1);
       return 0;
     });
   }, [activeClass, sortKey, set.reportCards]);
 
-  // Count students in active class with published guardian emails
   const studentsWithParents = (activeClass?.students ?? []).filter((s: any) =>
     set.reportCards.find((r: any) => r.studentId === s.id && r.publishedAt),
   ).length;
 
-  return (
-    <div className="grid gap-6 md:grid-cols-4">
-      {/* Main Content */}
-      <div className="col-span-3 space-y-4">
-        <Card className="bg-background border shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
-            <div>
-              <CardTitle className="text-xl">Student Reports</CardTitle>
-              <CardDescription>
-                {displayClasses.length > 1
-                  ? `${displayClasses.length} classes — ${set.totalStudents} total students`
-                  : "Review and manage academic performance reports."}
-              </CardDescription>
-            </div>
-            <div className="flex gap-2 flex-wrap justify-end">
-              {["DRAFT", "GENERATED", "PUBLISHED"].includes(set.status) && (
-                <>
-                  {/* Generate / Regenerate all */}
-                  <Button
-                    onClick={() => handleGenerate()}
-                    disabled={processing}
-                    variant={
-                      ["GENERATED", "PUBLISHED"].includes(set.status)
-                        ? "outline"
-                        : "default"
-                    }
-                  >
-                    <RefreshCw
-                      className={`w-4 h-4 mr-2 ${processing ? "animate-spin" : ""}`}
-                    />
-                    {["GENERATED", "PUBLISHED"].includes(set.status)
-                      ? "Regenerate All"
-                      : "Generate All"}
-                  </Button>
+  const activeStudentIds = new Set((activeClass?.students ?? []).map((s: any) => s.id));
+  const classReportCards = set.reportCards.filter((r: any) => activeStudentIds.has(r.studentId));
+  const generatedCount = set.reportCards.length;
+  const totalStudents = set.totalStudents;
 
-                  {/* Class-scoped generate — only shown when multiple classes exist */}
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="space-y-4 md:space-y-6">
+
+      {/* ── Summary strip ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        {[
+          { label: "Status",   value: getStatusBadge(set.status),          icon: null },
+          { label: "Classes",  value: displayClasses.length,                icon: GraduationCap, color: "text-primary",     bg: "bg-primary/10" },
+          { label: "Students", value: totalStudents,                         icon: Users,          color: "text-blue-600",    bg: "bg-blue-500/10" },
+          { label: "Reports",  value: `${generatedCount}/${totalStudents}`,  icon: BarChart3,      color: "text-emerald-600", bg: "bg-emerald-500/10" },
+        ].map((item, i) => (
+          <div
+            key={i}
+            className="flex flex-col justify-between gap-2 bg-background/60 border border-border/50 rounded-xl px-3 py-3 sm:px-4"
+          >
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">{item.label}</span>
+            {item.icon ? (
+              <div className="flex items-center gap-2">
+                <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center shrink-0", item.bg)}>
+                  <item.icon className={cn("h-3.5 w-3.5", item.color)} />
+                </div>
+                <span className="text-xl font-black">{item.value as string}</span>
+              </div>
+            ) : (
+              <div>{item.value as React.ReactNode}</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Main layout: content + sidebar stack on mobile ─────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+
+        {/* ── Student list (main content) ────────────────────────────────── */}
+        <div className="lg:col-span-8 xl:col-span-9 space-y-4">
+          <Card className="bg-background border shadow-sm">
+            {/* Card header — primary actions */}
+            <CardHeader className="border-b pb-4">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base sm:text-lg">Student Reports</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-0.5">
+                      {displayClasses.length > 1
+                        ? `${displayClasses.length} classes — ${totalStudents} total students`
+                        : "Review and manage academic performance reports."}
+                    </CardDescription>
+                  </div>
+
+                  {/* Primary action buttons — full width on mobile */}
+                  <div className="flex flex-col xs:flex-row flex-wrap gap-2">
+                    {["DRAFT", "GENERATED", "PUBLISHED"].includes(set.status) && (
+                      <Button
+                        onClick={() => handleGenerate()}
+                        disabled={processing}
+                        variant={["GENERATED", "PUBLISHED"].includes(set.status) ? "outline" : "default"}
+                        size="sm"
+                        className="w-full xs:w-auto"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${processing ? "animate-spin" : ""}`} />
+                        {["GENERATED", "PUBLISHED"].includes(set.status) ? "Regenerate" : "Generate"}
+                        <span className="hidden sm:inline ml-1">All</span>
+                      </Button>
+                    )}
+                    {set.status === "PUBLISHED" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setUnpublishDialogOpen(true)}
+                        disabled={unpublishing}
+                        className="w-full xs:w-auto border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950"
+                      >
+                        <EyeOff className="w-3.5 h-3.5 mr-1.5" /> Unpublish
+                      </Button>
+                    )}
+                    {["GENERATED", "PUBLISHED"].includes(set.status) && (
+                      <Button
+                        onClick={handlePublish}
+                        disabled={processing}
+                        size="sm"
+                        className="w-full xs:w-auto bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        <Send className="w-3.5 h-3.5 mr-1.5" />
+                        {set.status === "PUBLISHED" ? "Republish" : "Publish"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Controls row: class selector + sort + email */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {displayClasses.length > 1 ? (
+                    <Select value={activeClassId} onValueChange={setActiveClassId}>
+                      <SelectTrigger className="w-full sm:w-52 h-8 text-sm">
+                        <SelectValue placeholder="Select class…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {displayClasses.map((cls: any) => (
+                          <SelectItem key={cls.id} value={cls.id}>
+                            {cls.name}
+                            <span className="ml-2 text-muted-foreground text-xs">({cls.students?.length ?? 0})</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : displayClasses.length === 1 ? (
+                    <Badge variant="outline" className="text-xs px-3 py-1">{displayClasses[0].name}</Badge>
+                  ) : null}
+
+                  <div className="flex items-center gap-1.5">
+                    <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+                      <SelectTrigger className="w-36 sm:w-40 h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="name">By Name</SelectItem>
+                        <SelectItem value="position">By Position</SelectItem>
+                        <SelectItem value="avgScore">By Avg Score</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {set.status === "PUBLISHED" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950 h-8"
+                      onClick={() => setEmailDialogOpen(true)}
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      <span className="hidden xs:inline">Email Parents</span>
+                      <span className="xs:hidden">Email</span>
+                    </Button>
+                  )}
+
+                  {/* Per-class generate — only when multiple classes */}
                   {displayClasses.length > 1 && activeClassId && (
                     <Button
                       onClick={() => handleGenerate(activeClassId)}
                       disabled={processing}
                       variant="secondary"
+                      size="sm"
+                      className="h-8 text-xs"
                     >
-                      <RefreshCw
-                        className={`w-4 h-4 mr-2 ${processing ? "animate-spin" : ""}`}
-                      />
-                      Generate {activeClass?.name ?? "Class"}
+                      <RefreshCw className={`w-3 h-3 mr-1.5 ${processing ? "animate-spin" : ""}`} />
+                      Gen. {activeClass?.name ?? "Class"}
                     </Button>
                   )}
-                </>
-              )}
-              {/* Unpublish — only when PUBLISHED */}
-              {set.status === "PUBLISHED" && (
-                <Button
-                  variant="outline"
-                  onClick={() => setUnpublishDialogOpen(true)}
-                  disabled={unpublishing}
-                  className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950"
-                >
-                  <EyeOff className="w-4 h-4 mr-2" />
-                  Unpublish
-                </Button>
-              )}
-              {["GENERATED", "PUBLISHED"].includes(set.status) && (
-                <Button
-                  onClick={handlePublish}
-                  disabled={processing}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Send className="w-4 h-4 mr-2" />{" "}
-                  {set.status === "PUBLISHED"
-                    ? "Republish Results"
-                    : "Publish Results"}
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-4 space-y-3">
-            {/* Controls row: class selector + sort + email */}
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Class selector */}
-              {displayClasses.length > 1 ? (
-                <Select value={activeClassId} onValueChange={setActiveClassId}>
-                  <SelectTrigger className="w-52">
-                    <SelectValue placeholder="Select class…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {displayClasses.map((cls: any) => (
-                      <SelectItem key={cls.id} value={cls.id}>
-                        {cls.name}
-                        <span className="ml-2 text-muted-foreground text-xs">
-                          ({cls.students?.length ?? 0})
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : displayClasses.length === 1 ? (
-                <Badge variant="outline" className="text-sm px-3 py-1">
-                  {displayClasses[0].name}
-                </Badge>
-              ) : null}
-
-              {/* Sort selector */}
-              <div className="flex items-center gap-2">
-                <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                <Select
-                  value={sortKey}
-                  onValueChange={(v) => setSortKey(v as SortKey)}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Sort by Name</SelectItem>
-                    <SelectItem value="position">Sort by Position</SelectItem>
-                    <SelectItem value="avgScore">Sort by Avg Score</SelectItem>
-                  </SelectContent>
-                </Select>
+                </div>
               </div>
+            </CardHeader>
 
-              {/* Email button */}
-              {set.status === "PUBLISHED" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 text-blue-700 border-blue-300 hover:bg-blue-50"
-                  onClick={() => setEmailDialogOpen(true)}
-                >
-                  <Mail className="h-4 w-4" />
-                  Email to Parents
-                </Button>
-              )}
-            </div>
-
-            {/* Student Table */}
-            {displayClasses.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                No classes assigned to this set.
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Student Name</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Avg Score</TableHead>
-                    <TableHead>Position</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedStudents.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="text-center text-muted-foreground py-8"
-                      >
-                        No active students in this class.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    sortedStudents.map((student: any) => {
-                      const report = set.reportCards.find(
-                        (r: any) => r.studentId === student.id,
-                      );
-                      const reportData = report?.data as any;
-                      return (
-                        <TableRow key={student.id}>
-                          <TableCell className="font-medium">
-                            {formatStudentName(
-                              student.profile.firstName,
-                              student.profile.lastName,
-                              student.profile.otherNames,
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {report ? (
-                              <Badge
-                                variant="secondary"
-                                className={
-                                  report.publishedAt
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-blue-100 text-blue-700"
-                                }
-                              >
-                                {report.publishedAt ? "Published" : "Generated"}
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="text-muted-foreground border-dashed"
-                              >
-                                No Report
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {reportData?.average != null
-                              ? `${Math.round(reportData.average)}%`
-                              : "—"}
-                          </TableCell>
-                          <TableCell>
-                            {reportData?.position
-                              ? `${reportData.position}${reportData.positionSuffix}`
-                              : "—"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {report && (
-                              <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="icon" asChild>
-                                  <Link
-                                    href={`/${schoolSlug}/admin/reports/report-cards/sets/${set.id}/students/${student.id}`}
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                  </Link>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() =>
-                                    setActiveDownload({
-                                      studentId: student.id,
-                                      reportData: reportData,
-                                      fileName: `${student.profile.firstName}_${student.profile.lastName}_Report.pdf`,
-                                    })
-                                  }
-                                >
-                                  <Download className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() =>
-                                    setActivePrint({
-                                      studentId: student.id,
-                                      reportData: reportData,
-                                    })
-                                  }
-                                >
-                                  <Printer className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Sidebar */}
-      <div className="space-y-6">
-        <Card className="bg-background border shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">Set Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between text-sm items-center py-2 border-b">
-              <span className="text-muted-foreground">Status</span>
-              {getStatusBadge(set.status)}
-            </div>
-            <div className="flex justify-between text-sm py-2 border-b">
-              <span className="text-muted-foreground">Classes</span>
-              <span className="font-bold">{displayClasses.length}</span>
-            </div>
-            <div className="flex justify-between text-sm py-2 border-b">
-              <span className="text-muted-foreground">Students</span>
-              <span className="font-bold">{set.totalStudents}</span>
-            </div>
-            <div className="flex justify-between text-sm py-2">
-              <span className="text-muted-foreground">Reports</span>
-              <span className="font-bold text-blue-600">
-                {set.reportCards.length}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-background border shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-start" asChild>
-              <Link
-                href={`/${schoolSlug}/admin/reports/report-cards/sets/${set.id}/broad-sheet${activeClassId ? `?classId=${activeClassId}` : ""}`}
-              >
-                <FileText className="w-4 h-4 mr-2" /> Class Broad Sheet
-              </Link>
-            </Button>
-            {set.reportCards.length > 0 && (() => {
-              // Filter report cards that belong to students in the active class
-              const activeStudentIds = new Set(
-                (activeClass?.students ?? []).map((s: any) => s.id),
-              );
-              const classReportCards = set.reportCards.filter((r: any) =>
-                activeStudentIds.has(r.studentId),
-              );
-
-              return (
+            <CardContent className="p-0">
+              {displayClasses.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground text-sm">
+                  No classes assigned to this set.
+                </div>
+              ) : (
                 <>
-                  {/* Print only the active class */}
-                  {classReportCards.length > 0 && (
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() =>
-                        setActiveBulkPrint({
-                          reportCards: classReportCards,
-                          fileName: `${set.name}_${activeClass?.name ?? "Class"}_Reports.pdf`,
-                        })
-                      }
-                    >
-                      <Printer className="w-4 h-4 mr-2" />
-                      Print {activeClass?.name ?? "Class"} Reports
-                    </Button>
-                  )}
+                  {/* Desktop table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/30 hover:bg-muted/30">
+                          <TableHead className="font-semibold text-xs">Student</TableHead>
+                          <TableHead className="font-semibold text-xs">Status</TableHead>
+                          <TableHead className="font-semibold text-xs">Avg Score</TableHead>
+                          <TableHead className="font-semibold text-xs">Position</TableHead>
+                          <TableHead className="font-semibold text-xs text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sortedStudents.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center text-muted-foreground py-10 text-sm">
+                              No active students in this class.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          sortedStudents.map((student: any) => {
+                            const report = set.reportCards.find((r: any) => r.studentId === student.id);
+                            const reportData = report?.data as any;
+                            return (
+                              <TableRow key={student.id} className="group hover:bg-muted/20">
+                                <TableCell className="font-medium text-sm py-3">
+                                  {formatStudentName(
+                                    student.profile.firstName,
+                                    student.profile.lastName,
+                                    student.profile.otherNames,
+                                  )}
+                                </TableCell>
+                                <TableCell className="py-3">
+                                  {report ? (
+                                    <Badge
+                                      variant="secondary"
+                                      className={report.publishedAt
+                                        ? "bg-emerald-100 text-emerald-700 text-[11px]"
+                                        : "bg-blue-100 text-blue-700 text-[11px]"}
+                                    >
+                                      {report.publishedAt ? "Published" : "Generated"}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-muted-foreground border-dashed text-[11px]">
+                                      No Report
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="py-3 text-sm">
+                                  {reportData?.average != null ? `${Math.round(reportData.average)}%` : "—"}
+                                </TableCell>
+                                <TableCell className="py-3 text-sm">
+                                  {reportData?.position
+                                    ? `${reportData.position}${reportData.positionSuffix}`
+                                    : "—"}
+                                </TableCell>
+                                <TableCell className="text-right py-3">
+                                  {report && (
+                                    <div className="flex justify-end gap-1">
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                                        <Link href={`/${schoolSlug}/admin/reports/report-cards/sets/${set.id}/students/${student.id}`}>
+                                          <Eye className="w-3.5 h-3.5" />
+                                        </Link>
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                                        onClick={() => setActiveDownload({
+                                          studentId: student.id,
+                                          reportData,
+                                          fileName: `${student.profile.firstName}_${student.profile.lastName}_Report.pdf`,
+                                        })}>
+                                        <Download className="w-3.5 h-3.5" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                                        onClick={() => setActivePrint({ studentId: student.id, reportData })}>
+                                        <Printer className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
 
-                  {/* Print all classes (only shown when there are multiple) */}
-                  {displayClasses.length > 1 && (
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-muted-foreground"
-                      onClick={() =>
-                        setActiveBulkPrint({
-                          reportCards: set.reportCards,
-                          fileName: `${set.name}_All_Reports.pdf`,
-                        })
-                      }
-                    >
-                      <Printer className="w-4 h-4 mr-2" />
-                      Print All Reports
-                    </Button>
-                  )}
+                  {/* Mobile card list */}
+                  <div className="sm:hidden divide-y divide-border/50">
+                    {sortedStudents.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground text-sm">
+                        No active students in this class.
+                      </div>
+                    ) : (
+                      sortedStudents.map((student: any) => {
+                        const report = set.reportCards.find((r: any) => r.studentId === student.id);
+                        const reportData = report?.data as any;
+                        return (
+                          <div key={student.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-sm truncate">
+                                {formatStudentName(
+                                  student.profile.firstName,
+                                  student.profile.lastName,
+                                  student.profile.otherNames,
+                                )}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                {report ? (
+                                  <Badge
+                                    variant="secondary"
+                                    className={cn(
+                                      "text-[10px] px-1.5",
+                                      report.publishedAt
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-blue-100 text-blue-700"
+                                    )}
+                                  >
+                                    {report.publishedAt ? "Published" : "Generated"}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 text-muted-foreground border-dashed">
+                                    No Report
+                                  </Badge>
+                                )}
+                                {reportData?.average != null && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {Math.round(reportData.average)}%
+                                  </span>
+                                )}
+                                {reportData?.position && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {reportData.position}{reportData.positionSuffix}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {report && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 ml-2">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/${schoolSlug}/admin/reports/report-cards/sets/${set.id}/students/${student.id}`}>
+                                      <Eye className="w-4 h-4 mr-2" /> View Report
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setActiveDownload({
+                                    studentId: student.id,
+                                    reportData,
+                                    fileName: `${student.profile.firstName}_${student.profile.lastName}_Report.pdf`,
+                                  })}>
+                                    <Download className="w-4 h-4 mr-2" /> Download PDF
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setActivePrint({ studentId: student.id, reportData })}>
+                                    <Printer className="w-4 h-4 mr-2" /> Print Report
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </>
-              );
-            })()}
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-            {set.status === "DRAFT" && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    className="w-full justify-start"
-                    disabled={deleting}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {deleting ? "Deleting..." : "Delete Set"}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Report Card Set?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete <strong>{set.name}</strong>{" "}
-                      and all generated reports. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-red-600 hover:bg-red-700"
-                      onClick={handleDelete}
+        {/* ── Sidebar ──────────────────────────────────────────────────── */}
+        <div className="lg:col-span-4 xl:col-span-3 space-y-4">
+          {/* Bulk actions card */}
+          <Card className="bg-background border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Bulk Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button variant="outline" className="w-full justify-start text-sm h-auto py-2 whitespace-normal text-left" asChild>
+                <Link href={`/${schoolSlug}/admin/reports/report-cards/sets/${set.id}/broad-sheet${activeClassId ? `?classId=${activeClassId}` : ""}`} className="flex items-start">
+                  <FileText className="w-4 h-4 mr-2 shrink-0 mt-0.5" />
+                  <span>Class Broad Sheet</span>
+                </Link>
+              </Button>
+
+              {classReportCards.length > 0 && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-sm h-auto py-2 whitespace-normal text-left flex items-start"
+                  onClick={() => setActiveBulkPrint({
+                    reportCards: classReportCards,
+                    fileName: `${set.name}_${activeClass?.name ?? "Class"}_Reports.pdf`,
+                  })}
+                >
+                  <Printer className="w-4 h-4 mr-2 shrink-0 mt-0.5" />
+                  <span>Print {activeClass?.name ?? "Class"}</span>
+                </Button>
+              )}
+
+              {displayClasses.length > 1 && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-sm h-auto py-2 whitespace-normal text-left flex items-start text-muted-foreground"
+                  onClick={() => setActiveBulkPrint({
+                    reportCards: set.reportCards,
+                    fileName: `${set.name}_All_Reports.pdf`,
+                  })}
+                >
+                  <Printer className="w-4 h-4 mr-2 shrink-0 mt-0.5" />
+                  <span>Print All Reports</span>
+                </Button>
+              )}
+
+              {set.status === "DRAFT" && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      className="w-full justify-start text-sm h-auto py-2 whitespace-normal text-left flex items-start"
+                      disabled={deleting}
                     >
-                      Yes, delete it
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </CardContent>
-        </Card>
+                      <Trash2 className="w-4 h-4 mr-2 shrink-0 mt-0.5" />
+                      <span>{deleting ? "Deleting..." : "Delete Set"}</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Report Card Set?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete <strong>{set.name}</strong>{" "}
+                        and all generated reports. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleDelete}>
+                        Yes, delete it
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Unpublish Confirmation Dialog */}
+      {/* ── Dialogs ───────────────────────────────────────────────────── */}
+
       <AlertDialog open={unpublishDialogOpen} onOpenChange={setUnpublishDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Unpublish Report Cards?</AlertDialogTitle>
             <AlertDialogDescription>
               This will hide all report cards in <strong>{set.name}</strong> from parents and
-              guardians. The reports will remain in <strong>Generated</strong> status and can be
-              re-published at any time.
+              guardians. Reports stay in <strong>Generated</strong> status and can be re-published at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -723,34 +708,22 @@ export function SetDetailClient({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Email Confirmation Dialog */}
       <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Send Report Cards to Parents</DialogTitle>
             <DialogDescription>
-              This will email published report cards to the parents/guardians of
-              students in{" "}
-              <strong>{activeClass?.name ?? "the selected class"}</strong>. Only
-              students with published reports and linked guardians with email
-              addresses will receive emails.
+              This will email published report cards to parents/guardians of students in{" "}
+              <strong>{activeClass?.name ?? "the selected class"}</strong>. Only students with
+              published reports and linked guardians with email addresses will receive emails.
             </DialogDescription>
           </DialogHeader>
           <div className="py-2 text-sm text-muted-foreground">
-            <p>
-              Published reports in this class:{" "}
-              <strong>{studentsWithParents}</strong>
-            </p>
+            <p>Published reports in this class: <strong>{studentsWithParents}</strong></p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSendEmails}
-              disabled={sendingEmail}
-              className="gap-2"
-            >
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSendEmails} disabled={sendingEmail} className="gap-2">
               {sendingEmail && <Loader2 className="h-4 w-4 animate-spin" />}
               <Mail className="h-4 w-4" />
               {sendingEmail ? "Sending…" : "Send Emails"}
@@ -759,42 +732,36 @@ export function SetDetailClient({
         </DialogContent>
       </Dialog>
 
-      {/* Dynamic Lazy PDF Downloader */}
+      {/* PDF Blob providers */}
       {activeDownload && (
         <BlobProvider
           document={<ReportCardPDF data={activeDownload.reportData} school={school} gradingSystem={gradingSystem} />}
         >
-          {({ url, loading }) => {
-            return (
-              <PdfDownloaderModal
-                url={url}
-                loading={loading}
-                fileName={activeDownload.fileName}
-                onClose={() => setActiveDownload(null)}
-              />
-            );
-          }}
+          {({ url, loading }) => (
+            <PdfDownloaderModal
+              url={url}
+              loading={loading}
+              fileName={activeDownload.fileName}
+              onClose={() => setActiveDownload(null)}
+            />
+          )}
         </BlobProvider>
       )}
 
-      {/* Dynamic Lazy PDF Printer */}
       {activePrint && (
         <BlobProvider
           document={<ReportCardPDF data={activePrint.reportData} school={school} gradingSystem={gradingSystem} />}
         >
-          {({ url, loading }) => {
-            return (
-              <PdfPrinterModal
-                url={url}
-                loading={loading}
-                onClose={() => setActivePrint(null)}
-              />
-            );
-          }}
+          {({ url, loading }) => (
+            <PdfPrinterModal
+              url={url}
+              loading={loading}
+              onClose={() => setActivePrint(null)}
+            />
+          )}
         </BlobProvider>
       )}
 
-      {/* Dynamic Lazy Bulk PDF Printer */}
       {activeBulkPrint && (
         <BlobProvider
           document={
@@ -805,37 +772,37 @@ export function SetDetailClient({
             />
           }
         >
-          {({ url, loading }) => {
-            return (
-              <PdfPrinterModal
-                url={url}
-                loading={loading}
-                onClose={() => setActiveBulkPrint(null)}
-                isBulk={true}
-                bulkCount={activeBulkPrint.reportCards.length}
-              />
-            );
-          }}
+          {({ url, loading }) => (
+            <PdfPrinterModal
+              url={url}
+              loading={loading}
+              onClose={() => setActiveBulkPrint(null)}
+              isBulk={true}
+              bulkCount={activeBulkPrint.reportCards.length}
+            />
+          )}
         </BlobProvider>
       )}
     </div>
   );
 }
 
-// Helper component for dynamic PDF downloads
+// ── Helper modals ─────────────────────────────────────────────────────────────
+
 function PdfDownloaderModal({
-  url,
-  loading,
-  fileName,
-  onClose,
+  url, loading, fileName, onClose,
 }: {
   url: string | null;
   loading: boolean;
   fileName: string;
   onClose: () => void;
 }) {
+  // Guard against React StrictMode double-fire
+  const downloaded = React.useRef(false);
+
   useEffect(() => {
-    if (!loading && url) {
+    if (!loading && url && !downloaded.current) {
+      downloaded.current = true;
       try {
         const link = document.createElement("a");
         link.href = url;
@@ -848,38 +815,28 @@ function PdfDownloaderModal({
         console.error("Automatic download failed", err);
       }
     }
-  }, [url, loading, fileName, onClose]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, url]);
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                Generating PDF...
-              </>
-            ) : (
-              "PDF Generated successfully"
-            )}
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin text-blue-500" /> Generating PDF...</> : "PDF Ready"}
           </DialogTitle>
           <DialogDescription>
             {loading
-              ? "We are preparing your report card PDF download. This will only take a moment."
-              : "Your download has started. If it didn't start automatically, please use the button below."}
+              ? "Preparing your report card PDF download. This will only take a moment."
+              : "Your download has started. If it didn't start automatically, use the button below."}
           </DialogDescription>
         </DialogHeader>
         {!loading && url && (
           <DialogFooter className="flex-col gap-2 sm:flex-row mt-4">
             <Button asChild className="w-full">
-              <a href={url} download={fileName} onClick={onClose}>
-                Download PDF
-              </a>
+              <a href={url} download={fileName} onClick={onClose}>Download PDF</a>
             </Button>
-            <Button variant="outline" onClick={onClose} className="w-full">
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={onClose} className="w-full">Cancel</Button>
           </DialogFooter>
         )}
       </DialogContent>
@@ -901,8 +858,11 @@ function PdfPrinterModal({
   isBulk?: boolean;
   bulkCount?: number;
 }) {
+  const opened = React.useRef(false);
+
   useEffect(() => {
-    if (!loading && url) {
+    if (!loading && url && !opened.current) {
+      opened.current = true;
       try {
         const newWindow = window.open(url, "_blank");
         if (newWindow) {
@@ -912,7 +872,8 @@ function PdfPrinterModal({
         console.error("Automatic print tab opening failed", err);
       }
     }
-  }, [url, loading, onClose]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, url]);
 
   return (
     <Dialog open={true} onOpenChange={onClose}>

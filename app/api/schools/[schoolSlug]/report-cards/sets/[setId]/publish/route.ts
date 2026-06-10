@@ -45,20 +45,26 @@ export async function POST(
         where: { setId },
         data: { publishedAt: new Date() },
       }),
-      // Create notifications for each student
-      ...set.reportCards.map((rc) =>
-        prisma.notification.create({
-          data: {
-            schoolId: set.schoolId,
-            userId: rc.student.profile.userId,
-            type: "RESULT_PUBLISHED",
-            title: "Results Published",
-            message: `Results for ${set.name} have been published.`,
-            link: `/${schoolSlug}/student/reports/${rc.id}`,
-          },
-        }),
-      ),
     ]);
+
+    // Create notifications for each student in bulk outside the transaction block
+    const notificationData = set.reportCards
+      .filter((rc) => rc.student?.profile?.userId)
+      .map((rc) => ({
+        schoolId: set.schoolId,
+        userId: rc.student.profile.userId,
+        type: "RESULT_PUBLISHED" as const,
+        title: "Results Published",
+        message: `Results for ${set.name} have been published.`,
+        link: `/${schoolSlug}/student/reports/${rc.id}`,
+      }));
+
+    if (notificationData.length > 0) {
+      await prisma.notification.createMany({
+        data: notificationData,
+      });
+    }
+
 
     revalidatePath(`/${schoolSlug}/admin/reports/report-cards`);
 

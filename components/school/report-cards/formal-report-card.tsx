@@ -115,7 +115,7 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
     : null;
 
   return (
-    <div className="flex justify-center p-4 md:p-8 bg-slate-200 dark:bg-slate-800 min-h-screen print:bg-white print:p-0">
+    <div className="print-report-wrapper flex justify-center p-4 md:p-8 bg-slate-200 dark:bg-slate-800 min-h-screen print:bg-white print:p-0 print:min-h-0 print:block">
       {/* A4-ish page — force light mode colors so text is always visible on the white paper */}
       <div
         id="report-card-page"

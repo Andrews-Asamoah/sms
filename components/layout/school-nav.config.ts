@@ -373,6 +373,11 @@ export const schoolNavSections: NavSection[] = [
         icon: Users,
       },
       {
+        title: "Report Cards",
+        url: "/guardian/reports",
+        icon: FileText,
+      },
+      {
         title: "Ward's Fees",
         url: "/guardian/fees",
         icon: DollarSign,

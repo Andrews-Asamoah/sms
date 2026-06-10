@@ -50,11 +50,23 @@ export default async function GuardianReportDetailPage({
     where: { studentId, termId: report.set.termId },
   });
 
-  // Fetch default grading system for the school
-  const gradingSystem = await prisma.gradingSystem.findFirst({
+  // Fetch default grading system for the school with fallback
+  let gradingSystem = await prisma.gradingSystem.findFirst({
     where: { schoolId: school.id, isSchoolDefault: true },
     include: { gradeScales: { orderBy: { minScore: "desc" } } },
   });
+  if (!gradingSystem) {
+    gradingSystem = await prisma.gradingSystem.findFirst({
+      where: { schoolId: school.id, isActive: true },
+      include: { gradeScales: { orderBy: { minScore: "desc" } } },
+    });
+  }
+  if (!gradingSystem) {
+    gradingSystem = await prisma.gradingSystem.findFirst({
+      where: { isSystemDefault: true },
+      include: { gradeScales: { orderBy: { minScore: "desc" } } },
+    });
+  }
 
   // Calculate live attendance for the term
   let attendanceStr = (report.data as any)?.attendance || null;

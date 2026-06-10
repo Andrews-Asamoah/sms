@@ -86,41 +86,44 @@ export default async function ReportCardsPage(props: ReportCardsPageProps) {
   const totalStudents = reportCardSets.reduce((a, s) => a + s._count.reportCards, 0);
 
   const stats = [
-    { label: "Total Sets",  value: reportCardSets.length, icon: ClipboardList, color: "text-primary",      bg: "bg-primary/10" },
-    { label: "Published",   value: published,              icon: CheckCircle2,  color: "text-emerald-600",  bg: "bg-emerald-500/10" },
-    { label: "Generated",   value: generated,              icon: FileText,      color: "text-blue-600",     bg: "bg-blue-500/10" },
-    { label: "Drafts",      value: drafts,                 icon: Clock,         color: "text-amber-600",    bg: "bg-amber-500/10" },
-    { label: "Report Cards", value: totalStudents,         icon: Users,         color: "text-violet-600",   bg: "bg-violet-500/10" },
+    { label: "Total Sets",   value: reportCardSets.length, icon: ClipboardList, color: "text-primary",     bg: "bg-primary/10" },
+    { label: "Published",    value: published,              icon: CheckCircle2,  color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { label: "Generated",    value: generated,              icon: FileText,      color: "text-blue-600",    bg: "bg-blue-500/10" },
+    { label: "Drafts",       value: drafts,                 icon: Clock,         color: "text-amber-600",   bg: "bg-amber-500/10" },
+    { label: "Report Cards", value: totalStudents,          icon: Users,         color: "text-violet-600",  bg: "bg-violet-500/10" },
   ];
 
   return (
-    <div className="min-h-screen bg-muted/20 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-muted/20">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
 
-        {/* ── Header ────────────────────────────────────────────────────────── */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/8 via-background to-background border border-primary/10 px-6 py-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-primary/8 via-background to-background border border-primary/10 px-4 sm:px-6 py-5 sm:py-7">
+
+          {/* Title + action buttons */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <ClipboardList className="h-5 w-5 text-primary" />
-                <span className="text-xs font-bold text-primary uppercase tracking-widest">Reports</span>
+                <ClipboardList className="h-4 w-4 text-primary shrink-0" />
+                <span className="text-[11px] font-bold text-primary uppercase tracking-widest">Reports</span>
               </div>
-              <h1 className="text-3xl font-black tracking-tight">Report Cards</h1>
-              <p className="text-muted-foreground mt-1 text-sm">
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Report Cards</h1>
+              <p className="text-muted-foreground mt-1 text-sm leading-relaxed max-w-lg">
                 Generate, manage, and publish student report cards for each term
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Button variant="outline" asChild className="border-border/60 hover:border-primary/40">
+            {/* Action buttons — wrap on mobile */}
+            <div className="flex flex-wrap gap-2 sm:shrink-0 sm:pt-1">
+              <Button variant="outline" size="sm" asChild className="border-border/60 hover:border-primary/40 h-9 text-xs sm:text-sm">
                 <Link href={`/${schoolSlug}/admin/reports/report-cards/templates`}>
-                  <LayoutTemplate className="h-4 w-4 mr-2" />
+                  <LayoutTemplate className="h-3.5 w-3.5 mr-1.5" />
                   Templates
                 </Link>
               </Button>
-              <Button variant="outline" asChild className="border-border/60 hover:border-primary/40">
+              <Button variant="outline" size="sm" asChild className="border-border/60 hover:border-primary/40 h-9 text-xs sm:text-sm">
                 <Link href={`/${schoolSlug}/admin/reports/gradebook-tracking`}>
-                  <TrendingUp className="h-4 w-4 mr-2" />
+                  <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
                   Gradebook
                 </Link>
               </Button>
@@ -134,19 +137,19 @@ export default async function ReportCardsPage(props: ReportCardsPageProps) {
             </div>
           </div>
 
-          {/* Summary stats bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6">
+          {/* Stats — 2 cols mobile, 3 on sm, 5 on lg */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mt-5">
             {stats.map((s) => (
               <div
                 key={s.label}
-                className="flex items-center gap-3 bg-background/70 backdrop-blur border border-border/50 rounded-xl px-4 py-3"
+                className="flex items-center gap-2.5 bg-background/70 backdrop-blur border border-border/50 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3"
               >
-                <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", s.bg)}>
-                  <s.icon className={cn("h-4.5 w-4.5", s.color)} />
+                <div className={cn("h-8 w-8 sm:h-9 sm:w-9 rounded-lg flex items-center justify-center shrink-0", s.bg)}>
+                  <s.icon className={cn("h-4 w-4", s.color)} />
                 </div>
-                <div>
-                  <p className="text-xl font-black leading-none">{s.value}</p>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mt-0.5">
+                <div className="min-w-0">
+                  <p className="text-lg sm:text-xl font-black leading-none">{s.value}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mt-0.5 leading-tight">
                     {s.label}
                   </p>
                 </div>
@@ -155,7 +158,7 @@ export default async function ReportCardsPage(props: ReportCardsPageProps) {
           </div>
         </div>
 
-        {/* ── Report Card Sets Client ─────────────────────────────────────── */}
+        {/* ── Report Card Sets Client ──────────────────────────────────── */}
         <ReportCardsClient
           initialData={reportCardSets}
           schoolSlug={schoolSlug}
