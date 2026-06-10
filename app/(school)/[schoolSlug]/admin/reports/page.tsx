@@ -8,6 +8,7 @@ import {
   Award,
   Calendar,
   ChevronRight,
+  Heart,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -77,6 +78,14 @@ const reportCategories = [
         icon: Users,
         color: "text-indigo-600",
         bgColor: "bg-indigo-50",
+      },
+      {
+        name: "Medical Reports",
+        description: "Track student conditions and allergies",
+        href: "reports/medical",
+        icon: Heart,
+        color: "text-rose-600",
+        bgColor: "bg-rose-50",
       },
     ],
   },

@@ -54,11 +54,6 @@ export const schoolNavSections: NavSection[] = [
             permission: "canManageStudents",
           },
           {
-            title: "Medical Records",
-            url: "/admin/students/medical",
-            permission: "canManageStudents",
-          },
-          {
             title: "Teachers",
             url: "/admin/teachers",
             permission: "canManageTeachers",
@@ -228,6 +223,12 @@ export const schoolNavSections: NavSection[] = [
         title: "Attendance Reports",
         url: "/admin/reports/attendance",
         icon: Calendar,
+        permission: "canViewReports",
+      },
+      {
+        title: "Medical Records",
+        url: "/admin/students/medical",
+        icon: Heart,
         permission: "canViewReports",
       },
       {
