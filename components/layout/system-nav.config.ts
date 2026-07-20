@@ -12,6 +12,7 @@ import {
   UserCircle,
   UserPlus,
   TicketIcon,
+  MessageSquare,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 
@@ -58,6 +59,20 @@ export const systemNavSections: NavSection[] = [
         title: "Add Team Member",
         url: "/team/new",
         icon: UserPlus,
+      },
+    ],
+  },
+  {
+    title: "Communications",
+    items: [
+      {
+        title: "Broadcast SMS",
+        url: "/communications",
+        icon: MessageSquare,
+        items: [
+          { title: "Send Message", url: "/communications" },
+          { title: "Message History", url: "/communications/history" },
+        ],
       },
     ],
   },

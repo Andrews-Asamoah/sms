@@ -288,6 +288,7 @@ model School {
   promotionRecords    PromotionRecord[]
   auditLogs           AuditLog[]
   inventoryCategories InventoryCategory[]
+  smsLogs             SMSLog[]
 
   @@index([code])
   @@index([subdomain])
@@ -2599,3 +2600,46 @@ enum AssessmentScoreStatus {
   REVIEWED
   FINAL
 }
+
+// ============================================================================
+// SMS LOGGING MODELS
+// Track outgoing SMS messages sent via Hubtel
+// ============================================================================
+
+model SMSLog {
+  id             String   @id @default(cuid())
+  schoolId       String
+  sentBy         String   // userId of the sender
+  audienceType   String   // "guardians" | "teachers" | "staff" | "all" | "custom"
+  recipientCount Int      @default(0)
+  message        String
+  senderId       String   // Hubtel sender ID used
+  batchId        String?  // Hubtel batch ID if batch send
+  status         String   @default("SENT") // "SENT" | "FAILED" | "PARTIAL"
+  failedCount    Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([createdAt])
+  @@index([audienceType])
+  @@map("sms_logs")
+}
+
+model SystemSMSLog {
+  id             String   @id @default(cuid())
+  sentBy         String   // superadmin userId
+  message        String
+  targetFilter   String   @default("all") // "all" | "active" | "trialing" | "expired"
+  recipientCount Int      @default(0)
+  batchId        String?
+  status         String   @default("SENT") // "SENT" | "FAILED" | "PARTIAL"
+  failedCount    Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([sentBy])
+  @@map("system_sms_logs")
+}
+
