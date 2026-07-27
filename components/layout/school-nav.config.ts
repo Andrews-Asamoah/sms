@@ -21,6 +21,9 @@ import {
   Trophy,
   AlarmClock,
   Heart,
+  Send,
+  Megaphone,
+  History,
 } from "lucide-react";
 import type { NavSection } from "@/components/layout/base-sidebar";
 import type { NavPermissions } from "@/lib/auth/types";
@@ -433,14 +436,34 @@ export const schoolNavSections: NavSection[] = [
     title: "Communication",
     items: [
       {
-        title: "Announcements",
-        url: "/announcements",
+        title: "Communication Hub",
+        url: "/admin/communications",
         icon: MessageSquare,
+        permission: "canViewCommunications",
+      },
+      {
+        title: "Send SMS",
+        url: "/admin/communications/messages",
+        icon: Send,
+        permission: "canViewCommunications",
+      },
+      {
+        title: "Announcements",
+        url: "/admin/communications/announcements",
+        icon: Megaphone,
+        permission: "canViewCommunications",
+      },
+      {
+        title: "Sent History",
+        url: "/admin/communications/history",
+        icon: History,
+        permission: "canViewCommunications",
       },
       {
         title: "Notifications",
-        url: "/notifications",
+        url: "/admin/communications/notifications",
         icon: Bell,
+        permission: "canViewCommunications",
       },
     ],
   },

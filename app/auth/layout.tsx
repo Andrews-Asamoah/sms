@@ -10,7 +10,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex bg-background selection:bg-primary/30">
+    <div className="h-screen flex bg-background selection:bg-primary/30 overflow-hidden">
       {/* Left Side - Modern Visual Branding */}
       <div className="hidden lg:flex lg:w-[45%] xl:w-[50%] p-10 flex-col justify-between relative overflow-hidden bg-slate-950">
         {/* Dynamic Abstract Background (CSS Mesh Gradient Illusion) */}

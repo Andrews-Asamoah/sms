@@ -2,6 +2,7 @@
 
 import { Resend } from "resend";
 import { render } from "@react-email/render";
+import prisma from "@/lib/prisma";
 import { AdminInvitationEmail } from "./templates/admin-invitation";
 import { GuardianInvitationEmail } from "./templates/guardian-invitation";
 import { PasswordResetEmail } from "./templates/password-reset";
@@ -242,6 +243,8 @@ export interface FeeReminderEmailParams {
   schoolName: string;
   contentHtml?: string;
   portalUrl: string;
+  /** Optional — used to write an EmailLog row for the Sent History page */
+  schoolId?: string;
 }
 
 /**
@@ -286,14 +289,29 @@ export async function sendFeeReminderEmail(
       })
     );
 
+    const feeSubject = `Fee Reminder — ${installmentLabel} | ${studentName} | ${schoolName}`;
+
     await resend.emails.send({
       from: FROM_EMAIL,
       to,
-      subject: `Fee Reminder — ${installmentLabel} | ${studentName} | ${schoolName}`,
+      subject: feeSubject,
       html: emailHtml,
     });
 
     console.log(`✅ [Email] Fee reminder sent to ${to} for student ${studentName}`);
+
+    // Log to EmailLog (best-effort)
+    if (params.schoolId) {
+      await logEmailSent({
+        schoolId: params.schoolId,
+        recipientEmail: to,
+        recipientName: guardianName,
+        subject: feeSubject,
+        category: "FEE_REMINDER",
+        status: "SENT",
+      }).catch(() => {});
+    }
+
     return { success: true };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
@@ -316,6 +334,8 @@ export async function sendAnnouncementEmail(params: {
   contentHtml: string;
   schoolName: string;
   schoolSlug: string;
+  /** Optional — used to write an EmailLog row for the Sent History page */
+  schoolId?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const { to, recipientName, subject, contentHtml, schoolName, schoolSlug } = params;
 
@@ -354,6 +374,19 @@ export async function sendAnnouncementEmail(params: {
     });
 
     console.log(`✅ [Email] Announcement email sent to ${to}`);
+
+    // Log the send to EmailLog (best-effort — don't let logging failures affect the caller)
+    if (params.schoolId) {
+      await logEmailSent({
+        schoolId: params.schoolId,
+        recipientEmail: to,
+        recipientName,
+        subject,
+        category: "ANNOUNCEMENT",
+        status: "SENT",
+      }).catch(() => {});
+    }
+
     return { success: true };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
@@ -512,3 +545,45 @@ export async function sendGradebookRejectedEmail(params: {
   }
 }
 
+// ============================================================================
+// EMAIL AUDIT LOG HELPER
+// ============================================================================
+
+export type EmailCategory =
+  | "ANNOUNCEMENT"
+  | "FEE_REMINDER"
+  | "INVITATION"
+  | "GRADEBOOK"
+  | "SYSTEM"
+  | "GENERAL";
+
+/**
+ * Write a record to the EmailLog table so admins can see a full
+ * audit trail of all sent emails in the Communication History page.
+ *
+ * This is best-effort — wrap calls in .catch(() => {}) so logging
+ * failures never block the actual email send.
+ */
+export async function logEmailSent(params: {
+  schoolId: string;
+  sentBy?: string;
+  recipientEmail: string;
+  recipientName?: string;
+  subject: string;
+  category: EmailCategory;
+  status: "SENT" | "FAILED";
+  errorMessage?: string;
+}): Promise<void> {
+  await prisma.emailLog.create({
+    data: {
+      schoolId: params.schoolId,
+      sentBy: params.sentBy ?? null,
+      recipientEmail: params.recipientEmail,
+      recipientName: params.recipientName ?? null,
+      subject: params.subject,
+      category: params.category,
+      status: params.status,
+      errorMessage: params.errorMessage ?? null,
+    },
+  });
+}

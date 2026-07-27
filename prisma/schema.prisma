@@ -289,6 +289,7 @@ model School {
   auditLogs           AuditLog[]
   inventoryCategories InventoryCategory[]
   smsLogs             SMSLog[]
+  emailLogs           EmailLog[]
 
   @@index([code])
   @@index([subdomain])
@@ -2641,5 +2642,25 @@ model SystemSMSLog {
   @@index([createdAt])
   @@index([sentBy])
   @@map("system_sms_logs")
+}
+
+model EmailLog {
+  id             String   @id @default(cuid())
+  schoolId       String
+  sentBy         String?  // userId of sender, or null if automated
+  recipientEmail String
+  recipientName  String?
+  subject        String
+  category       String   @default("GENERAL") // "ANNOUNCEMENT" | "FEE_REMINDER" | "INVITATION" | "GRADEBOOK" | "SYSTEM"
+  status         String   @default("SENT") // "SENT" | "FAILED"
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([createdAt])
+  @@index([category])
+  @@map("email_logs")
 }
 

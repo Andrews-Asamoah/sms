@@ -12,6 +12,7 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { BanUserButton } from "@/components/school/ban-user-button";
+import { EditGuardianDialog } from "@/components/school/edit-guardian-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PendingInvitationRow } from "@/components/ui/pending-invitation-row";
 import { PendingInvitationActionButtons } from "@/components/school/pending-invitation-action-buttons";
@@ -161,14 +162,21 @@ export function ParentsTable({
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
-        if (!row.original.userId) return null;
         return (
-          <BanUserButton
-            schoolSlug={schoolSlug}
-            userId={row.original.userId}
-            isBanned={row.original.isBanned}
-            userName={row.original.name}
-          />
+          <div className="flex items-center gap-2">
+            <EditGuardianDialog
+              schoolSlug={schoolSlug}
+              guardian={row.original}
+            />
+            {row.original.userId && (
+              <BanUserButton
+                schoolSlug={schoolSlug}
+                userId={row.original.userId}
+                isBanned={row.original.isBanned}
+                userName={row.original.name}
+              />
+            )}
+          </div>
         );
       },
     },

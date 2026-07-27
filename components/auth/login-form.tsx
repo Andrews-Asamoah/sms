@@ -1,7 +1,7 @@
 // components/auth/login-form.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,6 +24,9 @@ import {
   Loader2,
   ArrowRight,
   CheckCircle2,
+  WifiOff,
+  ServerCrash,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
@@ -35,18 +38,150 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-interface AuthError {
-  message?: string;
-  status?: number;
+// ============================================================================
+// ERROR CLASSIFICATION
+// ============================================================================
+
+type ErrorType =
+  | "credentials"   // Wrong email / password
+  | "banned"        // Account suspended
+  | "connectivity"  // No internet / server unreachable
+  | "server"        // Server-side error (5xx) that is not a DB timeout
+  | "generic";      // Catch-all
+
+interface ClassifiedError {
+  type: ErrorType;
+  message: string;
 }
+
+/**
+ * Keywords that indicate a database connection or server-side connectivity
+ * problem rather than an actual authentication failure.
+ */
+const CONNECTIVITY_KEYWORDS = [
+  "connection timeout",
+  "connection terminated",
+  "server has closed the connection",
+  "connectionclosed",
+  "econnrefused",
+  "enotfound",
+  "etimedout",
+  "network error",
+  "fetch failed",
+  "failed to fetch",
+  "networkerror",
+  "unable to connect",
+  "database",
+  "prisma",
+  "p1017",         // Prisma: Server has closed the connection
+  "p1001",         // Prisma: Can't reach database server
+  "p1008",         // Prisma: Operations timed out
+  "p1002",         // Prisma: Database server was reached but timed out
+];
+
+function classifyError(
+  err: unknown,
+  status?: number,
+  message?: string,
+): ClassifiedError {
+  const rawMsg = (message ?? (err instanceof Error ? err.message : String(err))).toLowerCase();
+
+  // 1. Explicit browser offline
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    return {
+      type: "connectivity",
+      message:
+        "You appear to be offline. Please check your internet connection and try again.",
+    };
+  }
+
+  // 2. Server returned 5xx
+  if (status && status >= 500) {
+    // Check if it looks like a DB / network issue
+    if (CONNECTIVITY_KEYWORDS.some((kw) => rawMsg.includes(kw))) {
+      return {
+        type: "connectivity",
+        message:
+          "The server cannot be reached right now. This is usually caused by a poor internet connection. Please check your connection and try again.",
+      };
+    }
+    return {
+      type: "server",
+      message:
+        "The server encountered an unexpected error. Please try again in a moment.",
+    };
+  }
+
+  // 3. Message contains connectivity keywords
+  if (CONNECTIVITY_KEYWORDS.some((kw) => rawMsg.includes(kw))) {
+    return {
+      type: "connectivity",
+      message:
+        "Unable to reach the server. This is usually caused by a poor internet connection. Please check your connection and try again.",
+    };
+  }
+
+  // 4. Banned
+  if (rawMsg.includes("banned") || rawMsg.includes("suspended")) {
+    return { type: "banned", message: message ?? "Your account has been suspended." };
+  }
+
+  // 5. Wrong credentials
+  if (
+    rawMsg.includes("invalid email or password") ||
+    rawMsg.includes("invalid credentials") ||
+    rawMsg.includes("user not found") ||
+    status === 401 ||
+    status === 403
+  ) {
+    return {
+      type: "credentials",
+      message: rawMsg.includes("user not found")
+        ? "No account found with this email address."
+        : "Invalid email or password. Please try again.",
+    };
+  }
+
+  return { type: "generic", message: message ?? "Something went wrong. Please try again." };
+}
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 export function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl");
 
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ClassifiedError | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
+
+  // Track online / offline status in real-time
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      // Clear connectivity errors when connection is restored
+      setError((prev) =>
+        prev?.type === "connectivity" ? null : prev,
+      );
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      // Clear any existing errors — the offline banner handles the messaging
+      setError(null);
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const {
     register,
@@ -61,7 +196,7 @@ export function LoginForm() {
   });
 
   const onSubmit = async (data: LoginFormValues) => {
-    setError("");
+    setError(null);
 
     try {
       const result = await authClient.signIn.email({
@@ -70,9 +205,14 @@ export function LoginForm() {
       });
 
       if (result.error) {
-        const msg = result.error.message || "Invalid email or password";
+        const { error: authErr } = result;
+        const status = authErr.status ?? undefined;
+        const message = authErr.message ?? undefined;
 
-        if (msg.toLowerCase().includes("banned")) {
+        // Handle banned account — fetch detailed reason
+        const classified = classifyError(authErr, status, message);
+
+        if (classified.type === "banned") {
           try {
             const res = await fetch(
               `/api/auth/ban-reason?email=${encodeURIComponent(data.email)}`,
@@ -80,26 +220,24 @@ export function LoginForm() {
             if (res.ok) {
               const json = await res.json();
               if (json.reason) {
-                setError(
-                  `Your account has been suspended. Reason: ${json.reason}`,
-                );
+                setError({
+                  type: "banned",
+                  message: `Your account has been suspended. Reason: ${json.reason}`,
+                });
                 return;
               }
             }
           } catch (e) {
             console.error("Failed to fetch ban reason", e);
           }
-          setError("Your account has been suspended. Please contact support.");
+          setError({
+            type: "banned",
+            message: "Your account has been suspended. Please contact support.",
+          });
           return;
         }
 
-        if (msg.includes("Invalid email or password")) {
-          setError("Invalid email or password. Please try again.");
-        } else if (msg.includes("User not found")) {
-          setError("No account found with this email address.");
-        } else {
-          setError(msg);
-        }
+        setError(classified);
         return;
       }
 
@@ -107,24 +245,63 @@ export function LoginForm() {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       window.location.href = "/auth/callback";
     } catch (err) {
-      const authError = err as AuthError;
-      setError(authError.message || "Failed to sign in. Please try again.");
+      // Network-level error (fetch itself threw — e.g. DNS failure, no internet)
+      setError(classifyError(err));
     }
   };
+
+  // -------------------------------------------------------------------------
+  // ERROR ALERT RENDERING
+  // -------------------------------------------------------------------------
+
+  function renderError() {
+    if (!error) return null;
+
+    const isConnectivity = error.type === "connectivity";
+    const isServer = error.type === "server";
+
+    const Icon = isConnectivity
+      ? WifiOff
+      : isServer
+        ? ServerCrash
+        : AlertCircle;
+
+    const baseClasses = isConnectivity || isServer
+      ? "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700/50 dark:text-amber-300"
+      : "bg-destructive/10 border-destructive/20 text-destructive dark:text-red-400";
+
+    return (
+      <Alert
+        variant={isConnectivity || isServer ? "default" : "destructive"}
+        className={`${baseClasses} py-2 px-3`}
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+        <AlertDescription className="text-xs font-medium space-y-1">
+          <span className="block">{error.message}</span>
+          {(isConnectivity || isServer) && (
+            <span className="flex items-center gap-1 text-[11px] opacity-75">
+              <RefreshCw className="h-3 w-3" />
+              Check your connection and try submitting again.
+            </span>
+          )}
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
       <FieldGroup className="space-y-3">
-        {error && (
-          <Alert
-            variant="destructive"
-            className="bg-destructive/10 border-destructive/20 text-destructive dark:text-red-400 py-2 px-3"
-          >
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+        {/* Offline banner — only show this when offline; suppress other errors */}
+        {!isOnline ? (
+          <Alert className="bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700/50 dark:text-amber-300 py-2 px-3">
+            <WifiOff className="h-3.5 w-3.5 shrink-0" />
             <AlertDescription className="text-xs font-medium">
-              {error}
+              No internet connection detected. Please check your connection.
             </AlertDescription>
           </Alert>
+        ) : (
+          renderError()
         )}
 
         {/* Email */}
