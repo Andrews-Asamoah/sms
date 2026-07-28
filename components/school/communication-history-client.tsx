@@ -14,7 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Phone,
-  Users,
   Eye,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -34,14 +33,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { UnifiedCommItem, CommChannel, CommStatus } from "@/app/(school)/[schoolSlug]/admin/communications/history/actions";
+import type {
+  UnifiedCommItem,
+  CommChannel,
+  CommStatus,
+  CommunicationHistoryFilters,
+} from "@/lib/types/communications";
 
-interface Filters {
-  channel: CommChannel;
-  status: CommStatus;
-  search: string;
-  page: number;
-}
+// Use the shared type alias
+type Filters = CommunicationHistoryFilters;
 
 interface CommunicationHistoryClientProps {
   schoolSlug: string;
@@ -90,86 +90,79 @@ export function CommunicationHistoryClient({
 
   return (
     <div className="space-y-6">
-      {/* ── Page Header ─────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">Sent History</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Full audit log of all SMS and email communications sent by this school
-          </p>
-        </div>
-        <span className="text-sm text-muted-foreground font-medium">
-          {totalCount.toLocaleString()} total record{totalCount !== 1 ? "s" : ""}
-        </span>
-      </div>
+      {/* ── Filter & Search Toolbar ─────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-muted/30 p-3 rounded-xl border border-border/60">
+        <div className="flex flex-wrap gap-2.5 items-center flex-1">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[180px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search recipient, subject, message…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") applyFilters({ search });
+              }}
+              onBlur={() => {
+                if (search !== filters.search) applyFilters({ search });
+              }}
+              className="pl-9 h-9 text-xs md:text-sm"
+            />
+          </div>
 
-      {/* ── Filter Bar ──────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-3 items-center">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search recipient, subject, message…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") applyFilters({ search });
-            }}
-            onBlur={() => {
-              if (search !== filters.search) applyFilters({ search });
-            }}
-            className="pl-9"
-          />
-        </div>
-
-        {/* Channel */}
-        <Select
-          value={filters.channel}
-          onValueChange={(v) => applyFilters({ channel: v as CommChannel })}
-        >
-          <SelectTrigger className="w-40 gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All Channels</SelectItem>
-            <SelectItem value="SMS">SMS Only</SelectItem>
-            <SelectItem value="EMAIL">Email Only</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Status */}
-        <Select
-          value={filters.status}
-          onValueChange={(v) => applyFilters({ status: v as CommStatus })}
-        >
-          <SelectTrigger className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All Status</SelectItem>
-            <SelectItem value="SENT">Sent</SelectItem>
-            <SelectItem value="FAILED">Failed</SelectItem>
-            <SelectItem value="PARTIAL">Partial</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Clear */}
-        {(filters.channel !== "ALL" ||
-          filters.status !== "ALL" ||
-          filters.search) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSearch("");
-              applyFilters({ channel: "ALL", status: "ALL", search: "", page: 1 });
-            }}
-            className="text-muted-foreground hover:text-foreground"
+          {/* Channel */}
+          <Select
+            value={filters.channel}
+            onValueChange={(v) => applyFilters({ channel: v as CommChannel })}
           >
-            Clear filters
-          </Button>
-        )}
+            <SelectTrigger className="w-36 h-9 text-xs md:text-sm gap-1.5">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Channels</SelectItem>
+              <SelectItem value="SMS">SMS Only</SelectItem>
+              <SelectItem value="EMAIL">Email Only</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Status */}
+          <Select
+            value={filters.status}
+            onValueChange={(v) => applyFilters({ status: v as CommStatus })}
+          >
+            <SelectTrigger className="w-32 h-9 text-xs md:text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Status</SelectItem>
+              <SelectItem value="SENT">Sent</SelectItem>
+              <SelectItem value="FAILED">Failed</SelectItem>
+              <SelectItem value="PARTIAL">Partial</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Clear */}
+          {(filters.channel !== "ALL" ||
+            filters.status !== "ALL" ||
+            filters.search) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearch("");
+                applyFilters({ channel: "ALL", status: "ALL", search: "", page: 1 });
+              }}
+              className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <Badge variant="outline" className="self-end sm:self-center text-xs font-semibold px-2.5 py-1 text-muted-foreground whitespace-nowrap shrink-0">
+          {totalCount.toLocaleString()} Total Records
+        </Badge>
       </div>
 
       {/* ── Records Table ───────────────────────────────────────────────── */}

@@ -351,28 +351,22 @@ export function SchoolSMSComposer({
   );
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto p-2 sm:p-0">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-2">
-            <MessageSquare className="h-8 w-8 text-blue-500" />
-            Send SMS
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Send messages to {schoolName}&apos;s guardians, teachers, and staff
-          </p>
+    <div className="space-y-6">
+      {/* Custom SMS Gateway Status Bar */}
+      <div className="flex items-center justify-between gap-4 bg-muted/30 p-3.5 rounded-xl border border-border/60">
+        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <MessageSquare className="h-4 w-4 text-blue-500 shrink-0" />
+          <span>SMS Gateway for {schoolName}</span>
         </div>
         <div className="flex items-center gap-2">
           {hasCustomSMS ? (
-            <Badge className="bg-green-500/10 text-green-700 border-green-500/30 gap-1 px-3 py-1">
+            <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1 px-2.5 py-0.5 text-xs">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Custom Gateway: {customSenderId || "Configured"}
             </Badge>
           ) : (
-            <Badge variant="secondary" className="gap-1 px-3 py-1">
-              <Info className="h-3.5 w-3.5" />
-              Platform Gateway
+            <Badge variant="outline" className="text-xs gap-1 text-muted-foreground">
+              <Info className="h-3.5 w-3.5" /> Default Gateway
             </Badge>
           )}
         </div>
@@ -387,20 +381,20 @@ export function SchoolSMSComposer({
         }}
         className="w-full"
       >
-        <TabsList className="grid w-full grid-cols-2 max-w-md h-11 bg-muted/60 p-1 rounded-xl">
+        <TabsList className="grid w-full grid-cols-2 max-w-md h-auto sm:h-11 bg-muted/60 p-1 rounded-xl">
           <TabsTrigger
             value="bulk"
-            className="rounded-lg gap-2 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            className="rounded-lg gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold py-2 sm:py-0 data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-0"
           >
-            <Users className="h-4 w-4 text-blue-500" />
-            Bulk Audience Broadcast
+            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500 shrink-0" />
+            <span className="truncate">Bulk Broadcast</span>
           </TabsTrigger>
           <TabsTrigger
             value="single"
-            className="rounded-lg gap-2 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            className="rounded-lg gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold py-2 sm:py-0 data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-0"
           >
-            <User className="h-4 w-4 text-purple-500" />
-            Single Parent / Staff SMS
+            <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500 shrink-0" />
+            <span className="truncate">Single Recipient</span>
           </TabsTrigger>
         </TabsList>
 

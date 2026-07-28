@@ -3,40 +3,13 @@
 import { getAuthSession } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@/lib/generated/prisma";
+import type {
+  CommChannel,
+  CommStatus,
+  UnifiedCommItem,
+  CommunicationStats,
+} from "@/lib/types/communications";
 
-export type CommChannel = "ALL" | "SMS" | "EMAIL";
-export type CommStatus = "ALL" | "SENT" | "FAILED" | "PARTIAL";
-
-export interface UnifiedCommItem {
-  id: string;
-  channel: "SMS" | "EMAIL";
-  /** Human-readable label: phone number, email address, or "N recipients (audience)" */
-  recipient: string;
-  recipientName?: string | null;
-  /** Email subject or SMS audience label */
-  subjectOrTitle: string;
-  /** Full message body for SMS; email subject for emails */
-  messagePreview: string;
-  /** "ANNOUNCEMENT" | "FEE_REMINDER" | "INVITATION" | audience label */
-  category: string;
-  status: "SENT" | "FAILED" | "PARTIAL";
-  /** Who triggered the send */
-  sentBy?: string | null;
-  /** Number of recipients that failed */
-  failedCount?: number;
-  /** Hubtel batch ID for bulk SMS */
-  batchId?: string | null;
-  createdAt: Date;
-}
-
-export interface CommunicationStats {
-  totalSMS: number;
-  totalSMSRecipients: number;
-  totalEmails: number;
-  totalAnnouncements: number;
-  failedSMS: number;
-  failedEmails: number;
-}
 
 /**
  * Get aggregated stats for the communications overview hub

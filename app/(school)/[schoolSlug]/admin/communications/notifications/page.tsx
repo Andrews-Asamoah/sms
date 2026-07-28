@@ -10,7 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import prisma from "@/lib/prisma";
 import { formatDistanceToNow } from "date-fns";
-import { Bell, CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock } from "lucide-react";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -41,57 +41,62 @@ export default async function NotificationsPage({
     take: 50,
   });
 
-  return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Notifications</h1>
-          <p className="text-muted-foreground">
-            Stay updated with the latest events and alerts.
-          </p>
-        </div>
-        <Bell className="w-8 h-8 text-primary/40" />
-      </div>
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-      <Card className="border-none shadow-md bg-gradient-to-b from-background to-muted/20">
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+  return (
+    <div className="space-y-6">
+      <Card className="border shadow-sm">
+        <CardHeader className="pb-3 border-b">
+          <CardTitle className="text-lg font-bold flex items-center justify-between">
+            <span>Recent Activity & Alerts</span>
+            <span className="text-xs font-normal text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+              {unreadCount} unread
+            </span>
+          </CardTitle>
           <CardDescription>
-            You have {notifications.filter((n) => !n.isRead).length} unread
-            notifications.
+            System alerts, notifications, and event updates for your school.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-[600px]">
-            <div className="divide-y">
+          <ScrollArea className="h-[550px]">
+            <div className="divide-y divide-border/60">
               {notifications.length === 0 ? (
-                <div className="p-10 text-center text-muted-foreground">
-                  <CheckCircle2 className="w-10 h-10 mx-auto mb-4 text-emerald-500/40" />
-                  <p>You're all caught up! No notifications yet.</p>
+                <div className="p-12 text-center text-muted-foreground">
+                  <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-500/40" />
+                  <p className="font-medium">You're all caught up!</p>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">
+                    No new notifications found.
+                  </p>
                 </div>
               ) : (
                 notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-4 flex gap-4 hover:bg-muted/30 transition-colors ${!notification.isRead ? "bg-primary/5" : ""}`}
+                    className={`p-4 flex gap-3.5 hover:bg-muted/30 transition-colors ${
+                      !notification.isRead ? "bg-primary/5" : ""
+                    }`}
                   >
                     <div
-                      className={`mt-1 h-3 w-3 rounded-full shrink-0 ${notification.isRead ? "bg-transparent" : "bg-primary animate-pulse"}`}
+                      className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${
+                        notification.isRead
+                          ? "bg-transparent"
+                          : "bg-primary animate-pulse"
+                      }`}
                     />
                     <div className="flex-1 space-y-1">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <h3 className="text-sm font-semibold">
                           {notification.title}
                         </h3>
-                        <span className="text-[10px] flex items-center text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] flex items-center text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
                           <Clock className="w-3 h-3 mr-1" />
                           {formatDistanceToNow(
                             new Date(notification.createdAt),
-                            { addSuffix: true },
+                            { addSuffix: true }
                           )}
                         </span>
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs md:text-sm text-muted-foreground">
                         {notification.message}
                       </p>
                       {notification.link && (
@@ -101,7 +106,7 @@ export default async function NotificationsPage({
                               ? `/${schoolSlug}${notification.link}`
                               : `/${schoolSlug}/${notification.link}`
                           }
-                          className="text-xs text-primary font-medium hover:underline inline-block mt-2"
+                          className="text-xs text-primary font-semibold hover:underline inline-block mt-1.5"
                         >
                           View Details &rarr;
                         </Link>

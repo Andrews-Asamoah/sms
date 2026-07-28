@@ -436,33 +436,9 @@ export const schoolNavSections: NavSection[] = [
     title: "Communication",
     items: [
       {
-        title: "Communication Hub",
+        title: "Communication Center",
         url: "/admin/communications",
         icon: MessageSquare,
-        permission: "canViewCommunications",
-      },
-      {
-        title: "Send SMS",
-        url: "/admin/communications/messages",
-        icon: Send,
-        permission: "canViewCommunications",
-      },
-      {
-        title: "Announcements",
-        url: "/admin/communications/announcements",
-        icon: Megaphone,
-        permission: "canViewCommunications",
-      },
-      {
-        title: "Sent History",
-        url: "/admin/communications/history",
-        icon: History,
-        permission: "canViewCommunications",
-      },
-      {
-        title: "Notifications",
-        url: "/admin/communications/notifications",
-        icon: Bell,
         permission: "canViewCommunications",
       },
     ],
