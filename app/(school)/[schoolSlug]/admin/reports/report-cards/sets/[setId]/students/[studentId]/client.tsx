@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FormalReportCard } from "@/components/school/report-cards/formal-report-card";
+import { DynamicReportCard } from "@/components/school/report-cards/dynamic-report-card";
 import dynamic_next from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2, ChevronLeft, Printer } from "lucide-react";
@@ -49,6 +49,7 @@ export function AdminReportCardClient({
       id: report.student.studentId,
       class: report.set.class?.name || report.data?.class,
     },
+    template: report.set?.template,
   };
 
   return (
@@ -100,8 +101,8 @@ export function AdminReportCardClient({
         </div>
       </div>
 
-      {/* Formal web report card */}
-      <FormalReportCard
+      {/* Dynamic web report card */}
+      <DynamicReportCard
         report={report}
         school={school}
         remarks={remarks}

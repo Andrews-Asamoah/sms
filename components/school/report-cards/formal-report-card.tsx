@@ -262,6 +262,21 @@ export function FormalReportCard({ report, school, remarks, gradingSystem }: For
             </table>
           </section>
 
+          {/* ── Grade Key ── */}
+          <section className="bg-slate-50 border border-slate-200 rounded p-2.5 text-[11px] text-gray-700">
+            <span className="font-bold text-blue-900 uppercase">Grade Key: </span>
+            {scales.length > 0 ? (
+              scales.map((s, idx) => (
+                <span key={s.id || idx}>
+                  <span className="font-semibold text-gray-900">{s.grade}</span> = {s.description} ({s.minScore}–{s.maxScore})
+                  {idx < scales.length - 1 ? " • " : ""}
+                </span>
+              ))
+            ) : (
+              <span>1 = Excellent (80-100) • 2 = Very Good (70-79) • 3 = Good (60-69) • 4 = Credit (50-59) • 5-6 = Pass (40-49) • 7-9 = Below Average (0-39)</span>
+            )}
+          </section>
+
 
 
           {/* ── Remarks ── */}

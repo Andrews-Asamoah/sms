@@ -33,6 +33,7 @@ interface BehavioralObject {
 }
 
 interface GradeScale {
+  grade?: string;
   minScore: number | string;
   maxScore: number | string;
   description: string;
@@ -658,6 +659,18 @@ function ReportPage({
             <Text style={styles.summaryValue}>{data.aggregate || "—"}</Text>
           </View>
         </View>
+      </View>
+
+      {/* Grade Key */}
+      <View style={{ backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", padding: 6, borderRadius: 4, marginBottom: 10 }}>
+        <Text style={{ fontSize: 7, fontWeight: "bold", color: "#1e3a8a", marginBottom: 2 }}>
+          GRADE KEY:
+        </Text>
+        <Text style={{ fontSize: 7, color: "#334155" }}>
+          {scales.length > 0
+            ? scales.map((s) => `${s.grade ? `${s.grade} = ` : ""}${s.description} (${s.minScore}-${s.maxScore})`).join(" • ")
+            : "1 = Excellent (80-100) • 2 = Very Good (70-79) • 3 = Good (60-69) • 4 = Credit (50-59) • 5-6 = Pass (40-49) • 7-9 = Below Average (0-39)"}
+        </Text>
       </View>
 
       {/* Remarks */}

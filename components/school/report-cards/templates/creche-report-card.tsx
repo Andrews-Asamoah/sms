@@ -62,6 +62,11 @@ export function CrecheReportCard({
                  </div>
                </div>
             </div>
+
+            <div className="mt-4 p-3 bg-muted/40 rounded-lg border text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground uppercase">Grade / Rating Key: </span>
+              Developing Well = Milestone consistently achieved &bull; Still Developing = Milestone progressing with support &bull; Needs Support = Early stage development
+            </div>
           </div>
 
           <div>

@@ -51,6 +51,11 @@ export function KindergartenReportCard({
                  </div>
                </div>
             </div>
+
+            <div className="mt-6 p-3 bg-muted/40 rounded-lg border text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground uppercase">Grade / Rating Key: </span>
+              Mastered = Consistently demonstrates skill &bull; Developing = Progressing with guidance &bull; Emerging = Initial introduction phase
+            </div>
           </div>
 
         </CardContent>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FormalReportCard } from "@/components/school/report-cards/formal-report-card";
+import { DynamicReportCard } from "@/components/school/report-cards/dynamic-report-card";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, ChevronLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -49,6 +49,7 @@ export function GuardianReportCardView({
       id: report.student.studentId,
       class: report.set.class?.name || report.data?.class,
     },
+    template: report.set?.template,
   };
 
   return (
@@ -99,7 +100,7 @@ export function GuardianReportCardView({
         </div>
       </div>
 
-      <FormalReportCard
+      <DynamicReportCard
         report={report}
         school={school}
         remarks={remarks}

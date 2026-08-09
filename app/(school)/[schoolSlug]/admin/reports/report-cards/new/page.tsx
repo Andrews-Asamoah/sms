@@ -24,16 +24,18 @@ import { toast } from "sonner";
 import { MultiSelect, Option } from "@/components/ui/multi-select";
 import { Checkbox } from "@/components/ui/checkbox";
 
+import { TemplatePreviewDialog } from "../templates/template-preview-dialog";
+
 export default function NewReportCardSetPage() {
   const { schoolSlug } = useParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({
-    templates: [],
-    years: [],
-    terms: [],
-    classes: [],
-    departments: [],
+    templates: [] as any[],
+    years: [] as any[],
+    terms: [] as any[],
+    classes: [] as any[],
+    departments: [] as any[],
   });
 
   const [formData, setFormData] = useState({
@@ -43,6 +45,8 @@ export default function NewReportCardSetPage() {
     termId: "",
     classIds: [] as string[],
   });
+
+  const selectedTemplate = data.templates.find((t: any) => t.id === formData.templateId);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -68,6 +72,11 @@ export default function NewReportCardSetPage() {
           classes: classes.classes || classes,
           departments,
         });
+
+        // Pre-select first template if available
+        if (templates.length > 0) {
+          setFormData((prev) => ({ ...prev, templateId: prev.templateId || templates[0].id }));
+        }
       } catch (error) {
         toast.error("Error loading form data");
       }
@@ -157,8 +166,14 @@ export default function NewReportCardSetPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Template</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Template Design</Label>
+                  {selectedTemplate && (
+                    <TemplatePreviewDialog template={selectedTemplate} />
+                  )}
+                </div>
                 <Select
+                  value={formData.templateId}
                   onValueChange={(v) =>
                     setFormData({ ...formData, templateId: v })
                   }
@@ -170,11 +185,16 @@ export default function NewReportCardSetPage() {
                   <SelectContent>
                     {data.templates.map((t: any) => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.name}
+                        {t.name} {t.department ? `(${t.department.name})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedTemplate?.description && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {selectedTemplate.description}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
