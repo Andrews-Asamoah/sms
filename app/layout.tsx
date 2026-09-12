@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeProvider as ColorThemeProvider } from "@/lib/themes/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
+import { BreadcrumbProvider } from "@/lib/breadcrumb-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -47,10 +48,12 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ColorThemeProvider>
-            <TooltipProvider>
-              <main className="w-full">{children}</main>
-              <Toaster />
-            </TooltipProvider>
+            <BreadcrumbProvider>
+              <TooltipProvider>
+                <main className="w-full">{children}</main>
+                <Toaster />
+              </TooltipProvider>
+            </BreadcrumbProvider>
           </ColorThemeProvider>
         </ThemeProvider>
       </body>

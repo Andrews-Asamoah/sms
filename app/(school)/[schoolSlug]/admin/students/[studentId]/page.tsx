@@ -31,6 +31,7 @@ import { ResetPasswordDialog } from "@/components/school/students/reset-password
 import { StudentBillingTab } from "@/components/school/students/student-billing-tab";
 import { StudentStatusDropdown } from "@/components/school/students/student-status-dropdown";
 import { EditMedicalDialog } from "@/components/school/students/edit-medical-dialog";
+import { DynamicBreadcrumb } from "@/components/shared/dynamic-breadcrumb";
 
 // ============================================================================
 // TYPES
@@ -135,6 +136,7 @@ export default async function StudentDetailPage({
 
   return (
     <div className="space-y-6">
+      <DynamicBreadcrumb label={`${student.profile.firstName} ${student.profile.lastName}`} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

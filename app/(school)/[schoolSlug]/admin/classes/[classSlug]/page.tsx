@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClassSubjectsTab } from "@/components/school/classes/class-subjects-tab";
 import { ClassStudentsTab } from "@/components/school/classes/class-students-tab";
 import { BookOpen, Users, Settings } from "lucide-react";
+import { DynamicBreadcrumb } from "@/components/shared/dynamic-breadcrumb";
 
 interface EditClassPageProps {
   params: Promise<{ schoolSlug: string; classSlug: string }>;
@@ -176,6 +177,7 @@ export default async function EditClassPage({ params }: EditClassPageProps) {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      <DynamicBreadcrumb label={classData.name} />
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href={`/${schoolSlug}/admin/classes`}>

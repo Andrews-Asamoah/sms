@@ -32,7 +32,7 @@ interface RoleSwitcherProps {
 
 const roleConfig = {
   superAdmin: {
-    label: "Super Administrator",
+    label: "Super Admin",
     icon: Shield,
     color: "text-purple-600",
     badge: "purple",
@@ -46,7 +46,7 @@ const roleConfig = {
     route: "admin",
   },
   admin: {
-    label: "Administrator",
+    label: "Admin",
     icon: Shield,
     color: "text-blue-600",
     badge: "blue",
@@ -131,13 +131,13 @@ export function RoleSwitcher({
       )}
     >
       <CurrentIcon className={cn("h-4 w-4", currentConfig.color)} />
-      <span className="hidden sm:inline-block">{currentConfig.label}</span>
+      <span className="hidden xl:inline-block">{currentConfig.label}</span>
       {hasMultipleRoles && <ChevronDown className="h-4 w-4 opacity-50" />}
     </Button>
   );
 
   if (!hasMultipleRoles) {
-    return SwitcherButton;
+    return null;
   }
 
   return (

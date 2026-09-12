@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { AssignTeacherSheet } from "@/components/school/teachers/assign-teacher-sheet";
 import { BanUserButton } from "@/components/school/ban-user-button";
+import { DynamicBreadcrumb } from "@/components/shared/dynamic-breadcrumb";
 
 interface TeacherDetailPageProps {
   params: Promise<{ schoolSlug: string; teacherId: string }>;
@@ -102,6 +103,7 @@ export default async function TeacherDetailPage({
 
   return (
     <div className="space-y-6">
+      <DynamicBreadcrumb label={`${profile.firstName} ${profile.lastName}`} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" asChild>

@@ -78,19 +78,14 @@ export function SiteHeaderSchool({
             ) : null
           ) : (
             // Non-privileged roles (teacher, student, guardian):
-            // Always show read-only context badges
-            <>
-              <Badge variant="outline" className="gap-1.5 hidden sm:flex">
-                <Calendar className="h-3.5 w-3.5" />
-                <span className="text-xs">{academicYear}</span>
-              </Badge>
-              {currentTerm && (
-                <Badge variant="secondary" className="gap-1.5 hidden md:flex">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span className="text-xs">{currentTerm}</span>
-                </Badge>
-              )}
-            </>
+            // Always show read-only context badges (combined and hidden below xl)
+            <Badge variant="outline" className="gap-1.5 hidden xl:flex shrink-0">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs">
+                {academicYear}
+                {currentTerm ? ` • ${currentTerm}` : ""}
+              </span>
+            </Badge>
           )}
         </div>
       }
