@@ -62,17 +62,16 @@ A comprehensive, multi-tenant School Management System built with modern web tec
 ### Backend
 
 - **API**: Next.js API Routes + Server Actions
-- **Authentication**: BetterAuth 1.4.9
+- **Authentication**: BetterAuth
 - **Database**: PostgreSQL
 - **ORM**: Prisma
 - **Email**: React Email (for templates)
 
 ### DevOps
 
-- **Hosting**: Vercel / Railway / AWS
-- **Database Hosting**: Neon / Supabase / Railway
+- **Hosting**: Vercel
+- **Database Hosting**: Neon
 - **Domain Management**: Subdomain routing
-- **Monitoring**: Sentry (error tracking)
 
 ---
 
